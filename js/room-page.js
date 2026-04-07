@@ -10,6 +10,7 @@ const GameApp = {
   roomId:             '',
   room:               null,
   players:            [],
+  topics:             [],   // 從 DB 載入的主題清單
   currentRound:       null,
   currentQuestion:    null,
   guesses:            [],
@@ -84,7 +85,8 @@ const GameApp = {
       this.currentRound = round;
       this.isSubject    = round.subject_player_id === this.myPlayerId;
       if (round.question_id) {
-        this.currentQuestion = getQuestionByKey(round.question_id);
+        const q = await DB.getQuestionById(round.question_id);
+        this.currentQuestion = normalizeQuestion(q);
       }
       if (round.status === 'guessing' || round.status === 'revealing') {
         this.guesses           = await DB.getGuesses(round.id);
@@ -176,7 +178,7 @@ const GameApp = {
     const subject = this.players.find(p => p.id === this.currentRound.subject_player_id);
     const whoEl   = document.getElementById('topic-who');
     if (whoEl) whoEl.textContent = this.isSubject ? '選擇你最想聊的主題！' : `等待 ${subject?.nickname ?? '??'} 選主題…`;
-    renderTopics(this.isSubject);
+    renderTopics(this.isSubject, this.topics);
   },
 
   _renderSelectingAnswer() {
@@ -287,12 +289,12 @@ const GameApp = {
 
   async selectTopic(topicId) {
     if (!this.isSubject) return;
-    const usedKeys = await DB.getUsedQuestionKeys(this.roomId);
-    const q        = getRandomQuestion(topicId, usedKeys);
+    const usedIds = await DB.getUsedQuestionIds(this.roomId);
+    const q       = await DB.getRandomQuestion(topicId, usedIds);
     if (!q) { showToast('此主題題目已全部用完，請選其他主題！', 'error'); return; }
-    this.currentQuestion = q;
+    this.currentQuestion = normalizeQuestion(q);
     await DB.updateRound(this.currentRound.id, {
-      question_id: q.key, topic_id: topicId, status: 'selecting_answer',
+      question_id: q.id, topic_id: topicId, status: 'selecting_answer',
     });
   },
 
@@ -376,8 +378,12 @@ const GameApp = {
         if (room.current_round_id && room.current_round_id !== this.currentRound?.id) {
           this.currentRound       = await DB.getRoundById(room.current_round_id);
           this.isSubject          = this.currentRound.subject_player_id === this.myPlayerId;
-          this.currentQuestion    = this.currentRound.question_id
-            ? getQuestionByKey(this.currentRound.question_id) : null;
+          if (this.currentRound.question_id) {
+            const q = await DB.getQuestionById(this.currentRound.question_id);
+            this.currentQuestion = normalizeQuestion(q);
+          } else {
+            this.currentQuestion = null;
+          }
           this.hasSubmittedAnswer = false;
           this.hasSubmittedGuess  = false;
           this.guesses            = [];
@@ -398,8 +404,12 @@ const GameApp = {
         const prevStatus   = this.currentRound?.status;
         this.currentRound  = updated;
         this.isSubject     = updated.subject_player_id === this.myPlayerId;
-        this.currentQuestion = updated.question_id
-          ? getQuestionByKey(updated.question_id) : null;
+        if (updated.question_id) {
+          const q = await DB.getQuestionById(updated.question_id);
+          this.currentQuestion = normalizeQuestion(q);
+        } else {
+          this.currentQuestion = null;
+        }
 
         if (updated.status === 'guessing' && prevStatus !== 'guessing') {
           this.guesses           = await DB.getGuesses(updated.id);

@@ -1,15 +1,32 @@
 // ================================================================
-//  題庫 — 可自由新增主題與題目
+//  主題 UI 映射 — 從 DB 取得主題名稱後對應 emoji 與漸層色
+//  新增主題只需在 Supabase topics 表插入資料，無需修改此檔
 // ================================================================
 
-const TOPICS = [
-  { id: 'career', name: '事業',  emoji: '💼', gradient: 'linear-gradient(135deg,#667eea,#764ba2)' },
-  { id: 'love',   name: '愛情',  emoji: '💕', gradient: 'linear-gradient(135deg,#f093fb,#f5576c)' },
-  { id: 'weird',  name: '獵奇',  emoji: '🕵️', gradient: 'linear-gradient(135deg,#4facfe,#00f2fe)' },
-  { id: 'life',   name: '生活',  emoji: '🌈', gradient: 'linear-gradient(135deg,#43e97b,#38f9d7)' },
-  { id: 'food',   name: '美食',  emoji: '🍕', gradient: 'linear-gradient(135deg,#fa709a,#fee140)' },
-];
+const TOPIC_UI_MAP = {
+  '事業':     { emoji: '💼', gradient: 'linear-gradient(135deg,#667eea,#764ba2)' },
+  '愛情':     { emoji: '💕', gradient: 'linear-gradient(135deg,#f093fb,#f5576c)' },
+  '獵奇':     { emoji: '🕵️', gradient: 'linear-gradient(135deg,#4facfe,#00f2fe)' },
+  '友情':     { emoji: '🤝', gradient: 'linear-gradient(135deg,#43e97b,#38f9d7)' },
+  '家庭':     { emoji: '🏠', gradient: 'linear-gradient(135deg,#fa709a,#fee140)' },
+  '人生難題': { emoji: '🤔', gradient: 'linear-gradient(135deg,#f7971e,#ffd200)' },
+  '_default': { emoji: '🎲', gradient: 'linear-gradient(135deg,#a8edea,#fed6e3)' },
+};
 
+/** 取得主題的 UI 設定（emoji + gradient） */
+function getTopicUi(name) {
+  return TOPIC_UI_MAP[name] ?? TOPIC_UI_MAP['_default'];
+}
+
+/**
+ * 將 DB 題目格式 { option_a, option_b } 正規化為前端格式 { a, b }
+ */
+function normalizeQuestion(q) {
+  if (!q) return null;
+  return { id: q.id, a: q.option_a, b: q.option_b };
+}
+
+// ── 以下為舊版 hardcoded 資料，已移至 Supabase DB，保留空物件供相容 ──
 const QUESTIONS = {
   career: [
     { a: '月薪高但每天加班到12點',       b: '月薪低但每天準時下班' },
@@ -73,22 +90,4 @@ const QUESTIONS = {
   ],
 };
 
-function getRandomQuestion(topicId, usedKeys = []) {
-  const qs = QUESTIONS[topicId];
-  if (!qs) return null;
-  const available = qs
-    .map((q, i) => ({ ...q, key: `${topicId}:${i}` }))
-    .filter(q => !usedKeys.includes(q.key));
-  if (!available.length) return null;
-  return available[Math.floor(Math.random() * available.length)];
-}
-
-function getQuestionByKey(key) {
-  if (!key) return null;
-  const [topicId, idx] = key.split(':');
-  return QUESTIONS[topicId]?.[+idx] ?? null;
-}
-
-function getTopicById(id) {
-  return TOPICS.find(t => t.id === id) ?? null;
-}
+// 舊版函式已停用，改由 DB.getRandomQuestion / DB.getQuestionById 取代

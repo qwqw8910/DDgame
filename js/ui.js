@@ -89,7 +89,11 @@ function renderPlayerList(players, myId, hostId, subjectId, isHost) {
 }
 
 // ── Topic grid ───────────────────────────────────────────────────
-function renderTopics(isSubject) {
+/**
+ * @param {boolean} isSubject - 是否為被猜者
+ * @param {Array}   topics    - 從 DB 取得的主題陣列 [{ id, name }]
+ */
+function renderTopics(isSubject, topics = []) {
   const el = document.getElementById('topic-grid');
   if (!el) return;
 
@@ -104,14 +108,22 @@ function renderTopics(isSubject) {
     return;
   }
 
-  el.innerHTML = TOPICS.map((t, i) => `
+  if (!topics.length) {
+    el.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#9CA3AF;padding:32px">載入主題中…</div>`;
+    return;
+  }
+
+  el.innerHTML = topics.map((t, i) => {
+    const ui = getTopicUi(t.name);
+    return `
     <div class="topic-card animate-pop-in"
-         style="background:${t.gradient};animation-delay:${i * 0.07}s"
+         style="background:${ui.gradient};animation-delay:${i * 0.07}s"
          onclick="GameApp.selectTopic('${t.id}')">
-      <div style="font-size:38px;margin-bottom:8px">${t.emoji}</div>
+      <div style="font-size:38px;margin-bottom:8px">${ui.emoji}</div>
       <div style="color:white;font-weight:900;font-size:17px;
-                  text-shadow:0 2px 8px rgba(0,0,0,.25)">${t.name}</div>
-    </div>`).join('');
+                  text-shadow:0 2px 8px rgba(0,0,0,.25)">${escHtml(t.name)}</div>
+    </div>`;
+  }).join('');
 }
 
 // ── Choice cards ─────────────────────────────────────────────────
