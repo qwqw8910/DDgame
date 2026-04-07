@@ -1,0 +1,66 @@
+# =====================================================
+#  終極二選一 — GitHub Actions 自動部署到 GitHub Pages
+#
+#  使用前需在 GitHub 設定 Repository Secrets：
+#    Settings > Secrets and variables > Actions > New repository secret
+#    - SUPABASE_URL       ← 你的 Supabase Project URL
+#    - SUPABASE_ANON_KEY  ← 你的 Supabase anon public key
+# =====================================================
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main          # 推送到 main 分支時自動觸發
+  workflow_dispatch:  # 允許手動觸發
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔑 Inject Supabase secrets into config.js
+        run: |
+          # 從 config.template.js 複製並替換佔位符
+          sed \
+            -e "s|__SUPABASE_URL__|${{ secrets.SUPABASE_URL }}|g" \
+            -e "s|__SUPABASE_ANON_KEY__|${{ secrets.SUPABASE_ANON_KEY }}|g" \
+            js/config.template.js > js/config.js
+          echo "✅ config.js 已成功注入 Supabase 設定"
+
+      - name: 🔍 Verify config.js (確認金鑰已注入，不印出實際值)
+        run: |
+          if grep -q "__SUPABASE_URL__\|__SUPABASE_ANON_KEY__" js/config.js; then
+            echo "❌ 錯誤：config.js 仍含有未替換的佔位符，請確認 Secrets 是否設定正確"
+            exit 1
+          else
+            echo "✅ 佔位符替換完成"
+          fi
+
+      - name: 🛠️ Setup GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: 📦 Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'  # 上傳整個專案根目錄
+
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
