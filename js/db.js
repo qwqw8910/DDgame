@@ -134,7 +134,32 @@ const DB = {
     return data;
   },
 
-  async getUsedQuestionKeys(roomId) {
+  // ── Topics & Questions（從 DB 動態讀取）────────────────────────
+
+  async getTopics() {
+    const { data, error } = await _supabase.from('topics').select('*').order('name');
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async getQuestionById(questionId) {
+    if (!questionId) return null;
+    const { data, error } = await _supabase.from('questions')
+      .select('*').eq('id', questionId).single();
+    if (error) throw error;
+    return data;
+  },
+
+  async getRandomQuestion(topicId, usedIds = []) {
+    const { data, error } = await _supabase.from('questions')
+      .select('*').eq('topic_id', topicId);
+    if (error) throw error;
+    const available = (data ?? []).filter(q => !usedIds.includes(q.id));
+    if (!available.length) return null;
+    return available[Math.floor(Math.random() * available.length)];
+  },
+
+  async getUsedQuestionIds(roomId) {
     const { data, error } = await _supabase.from('rounds')
       .select('question_id').eq('room_id', roomId).not('question_id', 'is', null);
     if (error) throw error;
