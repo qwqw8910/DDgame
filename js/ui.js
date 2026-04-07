@@ -1,0 +1,198 @@
+// ================================================================
+//  UI 工具函式
+// ================================================================
+
+// ── Toast ────────────────────────────────────────────────────────
+let _toastTimer;
+
+function showToast(msg, type = '', duration = 3000) {
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast'; el.className = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = 'toast'; }, duration);
+}
+
+// ── Section switch ───────────────────────────────────────────────
+function showSection(id) {
+  document.querySelectorAll('.game-section').forEach(s => {
+    s.classList.add('hidden');
+    s.classList.remove('animate-slide-up');
+  });
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.remove('hidden');
+    el.classList.add('animate-slide-up');
+    setTimeout(() => el.classList.remove('animate-slide-up'), 600);
+  }
+}
+
+// ── Copy ─────────────────────────────────────────────────────────
+async function copyToClipboard(text, msg = '已複製！✓') {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(msg, 'success');
+  } catch {
+    showToast('請手動複製連結', 'error');
+  }
+}
+
+// ── HTML escape ──────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str).replace(/[&<>"']/g,
+    s => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[s]));
+}
+
+// ── Player list ──────────────────────────────────────────────────
+function renderPlayerList(players, myId, hostId, subjectId, isHost) {
+  const el = document.getElementById('player-list');
+  if (!el) return;
+
+  el.innerHTML = players.map(p => {
+    const emoji    = getPlayerEmoji(p.join_order);
+    const color    = getPlayerColor(p.join_order);
+    const isMe     = p.id === myId;
+    const isHostP  = p.id === hostId;
+    const isSub    = subjectId && p.id === subjectId;
+
+    return `
+    <div class="player-row ${isMe ? 'is-me' : ''}">
+      <div class="player-avatar ${p.is_online ? 'online' : 'offline'}"
+           style="background:${color}">${emoji}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-weight:800;font-size:14px;color:#374151">${escHtml(p.nickname)}</span>
+          ${isMe    ? '<span class="badge badge-me">我</span>' : ''}
+          ${isHostP ? '<span class="badge badge-host">👑 房主</span>' : ''}
+          ${isSub   ? '<span class="badge badge-subject">🎯 被猜者</span>' : ''}
+        </div>
+        <div style="font-size:12px;font-weight:600;color:${p.is_online ? '#10B981' : '#9CA3AF'}">
+          ${p.is_online ? '● 在線' : '○ 離線'}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <span class="badge ${p.is_ready || isHostP ? 'badge-ready' : 'badge-waiting'}">
+          ${p.is_ready || isHostP ? '✓ 準備' : '等待中'}
+        </span>
+        ${isHost && !isMe && !isHostP
+          ? `<button class="btn-danger-sm"
+               onclick="GameApp.kickPlayer('${p.id}','${escHtml(p.nickname)}')">踢</button>`
+          : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Topic grid ───────────────────────────────────────────────────
+function renderTopics(isSubject) {
+  const el = document.getElementById('topic-grid');
+  if (!el) return;
+
+  if (!isSubject) {
+    el.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:48px 0">
+        <div class="loading-dots" style="margin-bottom:14px">
+          <span></span><span></span><span></span>
+        </div>
+        <p style="color:#A78BFA;font-weight:700;font-size:16px">等待選擇主題中…</p>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = TOPICS.map((t, i) => `
+    <div class="topic-card animate-pop-in"
+         style="background:${t.gradient};animation-delay:${i * 0.07}s"
+         onclick="GameApp.selectTopic('${t.id}')">
+      <div style="font-size:38px;margin-bottom:8px">${t.emoji}</div>
+      <div style="color:white;font-weight:900;font-size:17px;
+                  text-shadow:0 2px 8px rgba(0,0,0,.25)">${t.name}</div>
+    </div>`).join('');
+}
+
+// ── Choice cards ─────────────────────────────────────────────────
+function renderChoices(question, mode, selectedAnswer, containerId = 'choice-container') {
+  const el = document.getElementById(containerId);
+  if (!el || !question) return;
+
+  const clickable = (mode === 'answer' || mode === 'guess');
+
+  function card(letter, text) {
+    const bg = letter === 'A'
+      ? 'linear-gradient(135deg,#EDE9FE,#F3E8FF)'
+      : 'linear-gradient(135deg,#FCE7F3,#FDF2F8)';
+    const emoji = letter === 'A' ? '🅰️' : '🅱️';
+    const sel   = selectedAnswer === letter;
+    const cls   = `choice-card${clickable ? ' clickable' : ''}${sel ? ' selected' : ''}`;
+    const click = clickable && !selectedAnswer
+      ? `onclick="GameApp.handleChoiceClick('${letter}')"` : '';
+    return `
+      <div class="${cls}" style="background:${bg}" ${click}>
+        <div style="font-size:40px;margin-bottom:12px">${emoji}</div>
+        <div style="font-weight:800;font-size:16px;color:#374151;line-height:1.5">
+          ${escHtml(text)}
+        </div>
+      </div>`;
+  }
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      ${card('A', question.a)}
+      ${card('B', question.b)}
+    </div>`;
+}
+
+// ── Reveal results ───────────────────────────────────────────────
+function renderReveal(question, correctAnswer, guesses, nonSubjectPlayers) {
+  const el = document.getElementById('reveal-body');
+  if (!el) return;
+
+  const answerText  = correctAnswer === 'A' ? question.a : question.b;
+  const answerEmoji = correctAnswer === 'A' ? '🅰️' : '🅱️';
+  const correctCount = guesses.filter(g => g.is_correct).length;
+
+  const rows = nonSubjectPlayers.map((p, i) => {
+    const g       = guesses.find(x => x.player_id === p.id);
+    const correct = g?.is_correct;
+    return `
+      <div class="player-row ${correct ? 'is-correct' : 'is-wrong'} animate-slide-up"
+           style="animation-delay:${i * 0.08}s">
+        <div class="player-avatar" style="background:${getPlayerColor(p.join_order)}">
+          ${getPlayerEmoji(p.join_order)}
+        </div>
+        <div style="flex:1">
+          <div style="font-weight:800;font-size:14px">${escHtml(p.nickname)}</div>
+          <div style="font-size:12px;color:#9CA3AF">
+            猜了 ${g?.guess === 'A' ? '🅰️' : '🅱️'}
+          </div>
+        </div>
+        <div style="font-size:26px">${correct ? '✅' : '❌'}</div>
+      </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="text-align:center;margin-bottom:20px" class="animate-bounce-in">
+      <div style="font-size:60px;margin-bottom:8px">${answerEmoji}</div>
+      <div style="font-weight:900;font-size:20px;color:#374151;line-height:1.45">
+        ${escHtml(answerText)}
+      </div>
+      <div style="margin-top:10px;background:linear-gradient(135deg,#EDE9FE,#FCE7F3);
+                  border-radius:999px;display:inline-block;
+                  padding:4px 16px;font-size:13px;font-weight:800;color:#7C3AED">
+        🎉 ${correctCount} / ${nonSubjectPlayers.length} 人猜對！
+      </div>
+    </div>
+    ${rows}`;
+}
+
+// ── Guess progress ───────────────────────────────────────────────
+function updateGuessProgress(submitted, total) {
+  const fill = document.getElementById('guess-progress-fill');
+  const text = document.getElementById('guess-progress-text');
+  if (fill) fill.style.width = `${total > 0 ? (submitted / total) * 100 : 0}%`;
+  if (text) text.textContent = `${submitted} / ${total} 人已提交`;
+}
