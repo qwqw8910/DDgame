@@ -134,29 +134,11 @@ const DB = {
     return data;
   },
 
-  // ── Topics & Questions（從 DB 動態讀取）────────────────────────
-
-  async getTopics() {
-    const { data, error } = await _supabase.from('topics').select('*').order('name');
+  async getUsedQuestionKeys(roomId) {
+    const { data, error } = await _supabase.from('rounds')
+      .select('question_id').eq('room_id', roomId).not('question_id', 'is', null);
     if (error) throw error;
-    return data ?? [];
-  },
-
-  async getQuestionById(questionId) {
-    if (!questionId) return null;
-    const { data, error } = await _supabase.from('questions')
-      .select('*').eq('id', questionId).single();
-    if (error) throw error;
-    return data;
-  },
-
-  async getRandomQuestion(topicId, usedIds = []) {
-    const { data, error } = await _supabase.from('questions')
-      .select('*').eq('topic_id', topicId);
-    if (error) throw error;
-    const available = (data ?? []).filter(q => !usedIds.includes(q.id));
-    if (!available.length) return null;
-    return available[Math.floor(Math.random() * available.length)];
+    return (data ?? []).map(r => r.question_id);
   },
 
   async getUsedQuestionIds(roomId) {
@@ -164,6 +146,34 @@ const DB = {
       .select('question_id').eq('room_id', roomId).not('question_id', 'is', null);
     if (error) throw error;
     return (data ?? []).map(r => r.question_id);
+  },
+
+  async getRandomQuestion(topicId, usedIds = []) {
+    const { data, error } = await _supabase.from('questions')
+      .select('*').eq('topic_id', topicId);
+    if (error) throw error;
+    
+    const available = (data ?? []).filter(q => !usedIds.includes(q.id));
+    if (!available.length) return null;
+    
+    return available[Math.floor(Math.random() * available.length)];
+  },
+
+  async getQuestionById(questionId) {
+    const { data, error } = await _supabase.from('questions')
+      .select('*').eq('id', questionId).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async getTopics() {
+    console.log('🔍 DB.getTopics() called');
+    console.log('🔌 Supabase URL:', _supabase?.supabaseUrl ?? 'N/A');
+    const { data, error } = await _supabase.from('topics')
+      .select('*').order('id');
+    console.log('🔍 DB.getTopics() result - data:', data, 'error:', error);
+    if (error) throw error;
+    return data ?? [];
   },
 
   // ── Guesses ──────────────────────────────────────────────────

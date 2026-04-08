@@ -2,6 +2,16 @@
 //  room.html 遊戲主控制器
 // ================================================================
 
+// ── Helper Functions ──────────────────────────────────────────────
+function normalizeQuestion(q) {
+  if (!q) return null;
+  return {
+    a: q.option_a,
+    b: q.option_b,
+    id: q.id
+  };
+}
+
 const GameApp = {
 
   // ── State ─────────────────────────────────────────────────────
@@ -72,13 +82,17 @@ const GameApp = {
   },
 
   async loadState() {
-    const [room, players, round] = await Promise.all([
+    const [room, players, round, topics] = await Promise.all([
       DB.getRoom(this.roomId),
       DB.getPlayers(this.roomId),
       DB.getCurrentRound(this.roomId),
+      DB.getTopics(),
     ]);
+    console.log('📊 loadState - topics:', topics);
     this.room    = room;
     this.players = players;
+    this.topics  = topics;
+    console.log('📊 this.topics:', this.topics);
     this.isHost  = room.host_player_id === this.myPlayerId;
 
     if (round) {
@@ -147,7 +161,7 @@ const GameApp = {
 
     renderPlayerList(this.players, this.myPlayerId, this.room.host_player_id, null, this.isHost);
 
-    const allReady = this.players.length >= 2 &&
+    const allReady = this.players.length >= 1 &&
       this.players.every(p => p.is_ready || p.id === this.room.host_player_id);
     const me        = this.players.find(p => p.id === this.myPlayerId);
     const readyCount = this.players.filter(p => p.is_ready || p.id === this.room.host_player_id).length;
@@ -178,6 +192,7 @@ const GameApp = {
     const subject = this.players.find(p => p.id === this.currentRound.subject_player_id);
     const whoEl   = document.getElementById('topic-who');
     if (whoEl) whoEl.textContent = this.isSubject ? '選擇你最想聊的主題！' : `等待 ${subject?.nickname ?? '??'} 選主題…`;
+    console.log('🎯 _renderSelectingTopic - isSubject:', this.isSubject, 'topics:', this.topics);
     renderTopics(this.isSubject, this.topics);
   },
 
@@ -282,7 +297,7 @@ const GameApp = {
 
   async startGame() {
     if (!this.isHost) return;
-    if (this.players.length < 2) { showToast('至少需要2位玩家！', 'error'); return; }
+    if (this.players.length < 1) { showToast('至少需要1位玩家！', 'error'); return; }
     const round = await DB.createRound(this.roomId, 1, this.players[0].id);
     await DB.updateRoom(this.roomId, { status: 'playing', current_round_id: round.id });
   },
