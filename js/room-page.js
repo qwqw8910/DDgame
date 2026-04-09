@@ -82,18 +82,21 @@ const GameApp = {
   },
 
   async loadState() {
-    const [room, players, round, topics] = await Promise.all([
+    const [room, players, topics] = await Promise.all([
       DB.getRoom(this.roomId),
       DB.getPlayers(this.roomId),
-      DB.getCurrentRound(this.roomId),
       DB.getTopics(),
     ]);
-    console.log('📊 loadState - topics:', topics);
     this.room    = room;
     this.players = players;
     this.topics  = topics;
-    console.log('📊 this.topics:', this.topics);
     this.isHost  = room.host_player_id === this.myPlayerId;
+
+    // 使用 room.current_round_id 作為授權來源，避免抓到舊回合
+    let round = null;
+    if (room.current_round_id) {
+      round = await DB.getRoundById(room.current_round_id);
+    }
 
     if (round) {
       this.currentRound = round;
@@ -205,26 +208,29 @@ const GameApp = {
       if (titleEl) titleEl.textContent = '你的秘密選擇 🤫';
       document.getElementById('answer-waiting')?.classList.add('hidden');
       document.getElementById('answer-choices')?.classList.remove('hidden');
+      const st = document.getElementById('answer-guess-status');
+      if (st) st.textContent = '你先選擇答案，其他玩家會先看題目並等待你完成。';
       if (!this.hasSubmittedAnswer) {
-        renderChoices(this.currentQuestion, 'answer', null, 'answer-choice-container');
+        renderChoices(this.currentQuestion, 'answer', null, 'answer-choice-container', '題目：你最喜歡哪一個？');
       }
     } else {
-      if (titleEl) titleEl.textContent = '等待作答中…';
-      document.getElementById('answer-choices')?.classList.add('hidden');
-      document.getElementById('answer-waiting')?.classList.remove('hidden');
-      const nameEl = document.getElementById('answer-waiting-name');
-      if (nameEl) nameEl.textContent = subject?.nickname ?? '??';
+      if (titleEl) titleEl.textContent = `等待 ${subject?.nickname ?? '??'} 作答中…`;
+      document.getElementById('answer-waiting')?.classList.add('hidden');
+      document.getElementById('answer-choices')?.classList.remove('hidden');
+      renderChoices(this.currentQuestion, 'view', null, 'answer-choice-container', '題目：先看題目，等關主選完才能猜測');
+      const st = document.getElementById('answer-guess-status');
+      if (st) st.textContent = '目前僅開放看題目，關主選完後才可開始猜。';
     }
   },
 
   _renderGuessing() {
     showSection('section-guess');
     const subject      = this.players.find(p => p.id === this.currentRound.subject_player_id);
-    const nonSubjectCt = this.players.filter(p => p.id !== this.currentRound.subject_player_id).length;
+    const nonSubjectCt = this._getEligibleGuesserCount();
 
     const nameEl = document.getElementById('guess-subject-name');
     if (nameEl) nameEl.textContent = subject?.nickname ?? '??';
-    updateGuessProgress(this.guesses.length, nonSubjectCt);
+    updateGuessProgress(this._getEligibleGuessSubmittedCount(), nonSubjectCt);
 
     if (this.isSubject) {
       document.getElementById('guess-choices')?.classList.add('hidden');
@@ -235,9 +241,13 @@ const GameApp = {
 
       const myGuess  = this.guesses.find(g => g.player_id === this.myPlayerId)?.guess ?? null;
       const statusEl = document.getElementById('guess-status-text');
-      if (statusEl) statusEl.textContent = this.hasSubmittedGuess ? '✓ 已提交，等待其他人…' : '點選你的答案！';
+      if (statusEl) {
+        statusEl.textContent = this.hasSubmittedGuess
+          ? '✓ 已提交，可在揭曉前改選'
+          : '點選你的答案（揭曉前可改選）';
+      }
 
-      renderChoices(this.currentQuestion, 'guess', myGuess, 'guess-choice-container');
+      renderChoices(this.currentQuestion, 'guess', myGuess, 'guess-choice-container', '題目：你覺得對方最可能會選哪一個？');
     }
   },
 
@@ -250,13 +260,17 @@ const GameApp = {
     if (nameEl) nameEl.textContent = subject?.nickname ?? '??';
 
     renderReveal(this.currentQuestion, this.currentRound.subject_answer, this.guesses, nonSubject);
+    renderScoreboard(this.players);
 
     // Confetti for correct guessers
     const myGuess = this.guesses.find(g => g.player_id === this.myPlayerId);
-    if (myGuess?.is_correct && !this.isSubject) this._confetti();
+    if (myGuess && myGuess.guess === this.currentRound.subject_answer && !this.isSubject) this._confetti();
 
     const nextBtn = document.getElementById('reveal-next-btn');
     if (nextBtn) nextBtn.style.display = this.isHost ? '' : 'none';
+
+    const endBtn = document.getElementById('reveal-end-btn');
+    if (endBtn) endBtn.style.display = this.isHost ? '' : 'none';
 
     const waitEl = document.getElementById('reveal-waiting-next');
     if (waitEl) waitEl.textContent = this.isHost ? '' : '等待房主進入下一回合…';
@@ -299,7 +313,17 @@ const GameApp = {
     if (!this.isHost) return;
     if (this.players.length < 1) { showToast('至少需要1位玩家！', 'error'); return; }
     const round = await DB.createRound(this.roomId, 1, this.players[0].id);
-    await DB.updateRoom(this.roomId, { status: 'playing', current_round_id: round.id });
+    const room  = await DB.updateRoom(this.roomId, { status: 'playing', current_round_id: round.id });
+    // 立即更新本地狀態，不等 Realtime，避免因事件次序造成畫面閃回大廳
+    this.room             = room;
+    this.currentRound     = round;
+    this.isSubject        = round.subject_player_id === this.myPlayerId;
+    this.currentQuestion  = null;
+    this.hasSubmittedAnswer = false;
+    this.hasSubmittedGuess  = false;
+    this.guesses          = [];
+    this.stopLobbyPolling();
+    this.render();
   },
 
   async selectTopic(topicId) {
@@ -316,8 +340,11 @@ const GameApp = {
   handleChoiceClick(letter) {
     if (!this.currentRound) return;
     const status = this.currentRound.status;
-    if (status === 'selecting_answer') this.submitAnswer(letter);
-    else if (status === 'guessing')    this.submitGuess(letter);
+    if (status === 'selecting_answer') {
+      if (this.isSubject) this.submitAnswer(letter);
+    } else if (status === 'guessing') {
+      this.submitGuess(letter);
+    }
   },
 
   async submitAnswer(answer) {
@@ -329,19 +356,32 @@ const GameApp = {
   },
 
   async submitGuess(guess) {
-    if (this.isSubject || this.hasSubmittedGuess) return;
-    this.hasSubmittedGuess = true;
+    if (this.isSubject) return;
+    const prevGuess = this.guesses.find(g => g.player_id === this.myPlayerId)?.guess ?? null;
     renderChoices(this.currentQuestion, 'guess', guess, 'guess-choice-container');
+    renderChoices(this.currentQuestion, 'guess', guess, 'answer-choice-container');
     await DB.submitGuess(this.currentRound.id, this.myPlayerId, guess);
-    showToast('已提交猜測！等待其他人… 🤔', 'success');
+    this.hasSubmittedGuess = true;
+    showToast(prevGuess ? '已更新你的猜測！' : '已提交猜測！', 'success');
     const statusEl = document.getElementById('guess-status-text');
-    if (statusEl) statusEl.textContent = '✓ 已提交，等待其他人…';
+    if (statusEl) statusEl.textContent = '✓ 已提交，可在揭曉前改選';
+    const answerStatusEl = document.getElementById('answer-guess-status');
+    if (answerStatusEl) answerStatusEl.textContent = '✓ 你的猜測已送出，揭曉前可改選。';
   },
 
   async revealRound() {
     if (!this.isHost) return;
-    await DB.markGuessesCorrect(this.currentRound.id, this.currentRound.subject_answer);
-    await DB.updateRound(this.currentRound.id, { status: 'revealing' });
+    // 加鎖：防止 _onNewGuess 重複觸發（markGuessesCorrect 的 UPDATE 事件也會觸發 Realtime）
+    if (this._revealing) return;
+    this._revealing = true;
+    try {
+      const answer = this.currentRound.subject_answer;
+      await DB.markGuessesCorrect(this.currentRound.id, answer);
+      await DB.applyRoundScores(this.currentRound.id, answer);
+      await DB.updateRound(this.currentRound.id, { status: 'revealing' });
+    } finally {
+      this._revealing = false;
+    }
   },
 
   async nextRound() {
@@ -349,17 +389,20 @@ const GameApp = {
     await DB.updateRound(this.currentRound.id, { status: 'finished' });
 
     const curIdx = this.players.findIndex(p => p.id === this.currentRound.subject_player_id);
-    const nextIdx = curIdx + 1;
+    // 循環：所有人都當完被猜者後繞回第一位，不強制結束遊戲
+    const nextIdx = (curIdx + 1) % this.players.length;
+    const nextPlayer = this.players[nextIdx];
+    const round = await DB.createRound(
+      this.roomId, this.currentRound.round_number + 1, nextPlayer.id
+    );
+    await DB.updateRoom(this.roomId, { current_round_id: round.id });
+  },
 
-    if (nextIdx >= this.players.length) {
-      await DB.updateRoom(this.roomId, { status: 'finished' });
-    } else {
-      const nextPlayer = this.players[nextIdx];
-      const round = await DB.createRound(
-        this.roomId, this.currentRound.round_number + 1, nextPlayer.id
-      );
-      await DB.updateRoom(this.roomId, { current_round_id: round.id });
-    }
+  async endGame() {
+    if (!this.isHost) return;
+    if (!confirm('確定要結束遊戲嗎？')) return;
+    await DB.updateRound(this.currentRound.id, { status: 'finished' });
+    await DB.updateRoom(this.roomId, { status: 'finished' });
   },
 
   async kickPlayer(playerId, nickname) {
@@ -432,30 +475,72 @@ const GameApp = {
           RT.subscribeGuesses(updated.id, g => this._onNewGuess(g));
         }
         if (updated.status === 'revealing' && prevStatus !== 'revealing') {
-          this.guesses = await DB.getGuesses(updated.id);
+          // 同時刷新分數，確保排名顯示正確
+          const [guesses, players] = await Promise.all([
+            DB.getGuesses(updated.id),
+            DB.getPlayers(this.roomId),
+          ]);
+          this.guesses = guesses;
+          this.players = players;
         }
         this.render();
       },
     });
 
-    // Mark player offline on page unload
+    // ── 離線 / 上線標記 ──────────────────────────────────────────
+    const patchOnlineStatus = (isOnline) => {
+      if (!this.myPlayerId || !SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+      fetch(
+        `${SUPABASE_URL}/rest/v1/players?id=eq.${encodeURIComponent(this.myPlayerId)}`,
+        {
+          method:    'PATCH',
+          keepalive: true,
+          headers: {
+            'Content-Type':  'application/json',
+            'apikey':        SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer':        'return=minimal',
+          },
+          body: JSON.stringify({ is_online: isOnline }),
+        }
+      ).catch(() => {});
+    };
+
+    // visibilitychange：切分頁 / 最小化時只標記離線，不移除訂閱
+    // 回來時重新標記上線並 re-render，讓畫面與最新狀態同步
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'hidden') {
+        patchOnlineStatus(false);
+      } else {
+        patchOnlineStatus(true);
+        // 回來後從 DB 重新載入狀態，確保不遺漏期間的變化
+        try { await this.loadState(); } catch {}
+      }
+    });
+    // beforeunload：真正關閉分頁才移除訂閱
     window.addEventListener('beforeunload', () => {
       RT.unsubscribeAll();
-      // Best-effort offline marker
-      const url  = `${SUPABASE_URL}/rest/v1/players?id=eq.${this.myPlayerId}`;
-      const body = JSON.stringify({ is_online: false });
-      navigator.sendBeacon && navigator.sendBeacon(url,
-        new Blob([body], { type: 'application/json' }));
+      patchOnlineStatus(false);
     });
   },
 
-  _onNewGuess(guess) {
-    if (!this.guesses.find(g => g.id === guess.id)) this.guesses.push(guess);
-    const total = this.players.filter(p => p.id !== this.currentRound?.subject_player_id).length;
-    updateGuessProgress(this.guesses.length, total);
+  _onNewGuess(payload) {
+    const guess = payload?.new;
+    if (!guess) return;
+
+    const idx = this.guesses.findIndex(g => g.id === guess.id);
+    if (idx >= 0) this.guesses[idx] = guess;
+    else this.guesses.push(guess);
+
+    this.hasSubmittedGuess = this.guesses.some(g => g.player_id === this.myPlayerId);
+
+    const total = this._getEligibleGuesserCount();
+    const submitted = this._getEligibleGuessSubmittedCount();
+    updateGuessProgress(submitted, total);
 
     // Auto-reveal when all players have submitted
-    if (this.isHost && this.guesses.length >= total) {
+    // 只在 guessing 階段觸發，避免 markGuessesCorrect 的 UPDATE 事件重複觸發
+    if (this.isHost && submitted >= total && this.currentRound?.status === 'guessing') {
       setTimeout(() => this.revealRound(), 800);
     }
   },
@@ -487,6 +572,35 @@ const GameApp = {
       clearInterval(this._pollInterval);
       this._pollInterval = null;
     }
+  },
+
+  _getEligibleGuesserCount() {
+    if (!this.currentRound) return 0;
+
+    const roundStart = this.currentRound.created_at ? new Date(this.currentRound.created_at).getTime() : null;
+
+    return this.players.filter(p => {
+      if (p.id === this.currentRound.subject_player_id) return false;
+      if (!roundStart || !p.created_at) return true;
+      return new Date(p.created_at).getTime() <= roundStart;
+    }).length;
+  },
+
+  _getEligibleGuessSubmittedCount() {
+    if (!this.currentRound) return 0;
+
+    const roundStart = this.currentRound.created_at ? new Date(this.currentRound.created_at).getTime() : null;
+    const eligibleIds = new Set(this.players.filter(p => {
+      if (p.id === this.currentRound.subject_player_id) return false;
+      if (!roundStart || !p.created_at) return true;
+      return new Date(p.created_at).getTime() <= roundStart;
+    }).map(p => p.id));
+
+    return new Set(
+      this.guesses
+        .filter(g => eligibleIds.has(g.player_id))
+        .map(g => g.player_id)
+    ).size;
   },
 
   // ── UI helpers ────────────────────────────────────────────────

@@ -41,36 +41,47 @@ const DB = {
   // ── Players ──────────────────────────────────────────────────
 
   async joinRoom(roomId, playerId, nickname) {
-    // 檢查此玩家是否已在「這個房間」
-    const { data: existingInRoom } = await _supabase.from('players')
-      .select('*').eq('id', playerId).eq('room_id', roomId).maybeSingle();
+    // ── 1. 平行查詢：目前玩家紀錄 + 目標房間 ────────────────
+    const [{ data: existingPlayer }, room] = await Promise.all([
+      _supabase.from('players').select('*').eq('id', playerId).maybeSingle(),
+      this.getRoom(roomId),
+    ]);
 
-    if (existingInRoom) {
+    // ── 2. 重連同一房間：只更新上線狀態，保留分數與暱稱 ─────
+    if (existingPlayer?.room_id === roomId) {
       const { data, error } = await _supabase.from('players')
-        .update({ is_online: true, updated_at: new Date().toISOString() })
-        .eq('id', playerId).eq('room_id', roomId).select().single();
+        .update({ is_online: true, nickname, updated_at: new Date().toISOString() })
+        .eq('id', playerId).select().single();
       if (error) throw error;
       return data;
     }
 
-    // 檢查此玩家是否存在於「其他房間」（舊資料），若有則刪除
-    const { data: existingElsewhere } = await _supabase.from('players')
-      .select('id').eq('id', playerId).maybeSingle();
+    // ── 3. 先驗證目標房間是否可加入 ─────────────────────────
+    const players = await this.getPlayers(roomId);
 
-    if (existingElsewhere) {
-      const { error: deleteError } = await _supabase.from('players').delete().eq('id', playerId);
-      if (deleteError) throw deleteError;
-    }
-
-    const [players, room] = await Promise.all([
-      this.getPlayers(roomId),
-      this.getRoom(roomId),
-    ]);
-
-    if (room.status !== 'waiting')                     throw new Error('遊戲已開始，無法加入！');
+    if (!['waiting', 'playing'].includes(room.status)) throw new Error('此房間目前不可加入！');
     if (players.length >= room.max_players)            throw new Error('房間已滿！');
     if (players.some(p => p.nickname === nickname))    throw new Error('此暱稱已被使用，請換一個！');
 
+    // ── 4. 玩家存在其他房間 → UPDATE 移轉（避免 guesses FK 衝突）
+    //      絕對不刪除舊 player row，讓歷史 guesses 紀錄繼續完整。
+    if (existingPlayer) {
+      const { data, error } = await _supabase.from('players')
+        .update({
+          room_id:    roomId,
+          nickname,
+          is_ready:   false,
+          is_online:  true,
+          join_order: players.length,
+          score:      0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', playerId).select().single();
+      if (error) throw error;
+      return data;
+    }
+
+    // ── 5. 全新玩家 → INSERT ─────────────────────────────────
     const { data, error } = await _supabase.from('players')
       .insert({ id: playerId, room_id: roomId, nickname,
                 is_ready: false, is_online: true,
@@ -96,6 +107,8 @@ const DB = {
   },
 
   async removePlayer(playerId) {
+    // 先刪 guesses（player_id 沒有 ON DELETE CASCADE），再刪 player
+    await _supabase.from('guesses').delete().eq('player_id', playerId);
     const { error } = await _supabase.from('players').delete().eq('id', playerId);
     if (error) throw error;
   },
@@ -196,11 +209,35 @@ const DB = {
 
   async markGuessesCorrect(roundId, correctAnswer) {
     const guesses = await this.getGuesses(roundId);
-    await Promise.all(guesses.map(g =>
+    const results = await Promise.all(guesses.map(g =>
       _supabase.from('guesses')
         .update({ is_correct: g.guess === correctAnswer })
         .eq('id', g.id)
     ));
+
+    const failed = results.find(r => r.error);
+    if (failed?.error) throw failed.error;
+
     return guesses.map(g => ({ ...g, is_correct: g.guess === correctAnswer }));
+  },
+
+  async applyRoundScores(roundId, correctAnswer) {
+    const guesses = await this.getGuesses(roundId);
+    // 直接用 correctAnswer 比對，不依賴 is_correct 欄位
+    const winners = guesses.filter(g => g.guess === correctAnswer).map(g => g.player_id);
+    if (!winners.length) return;
+
+    const updates = winners.map(async playerId => {
+      const { data: player, error: getErr } = await _supabase.from('players')
+        .select('id,score').eq('id', playerId).single();
+      if (getErr) throw getErr;
+
+      const { error: updErr } = await _supabase.from('players')
+        .update({ score: (player.score ?? 0) + 1, updated_at: new Date().toISOString() })
+        .eq('id', playerId);
+      if (updErr) throw updErr;
+    });
+
+    await Promise.all(updates);
   },
 };

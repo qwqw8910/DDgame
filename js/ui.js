@@ -127,9 +127,22 @@ function renderTopics(isSubject, topics = []) {
 }
 
 // ── Choice cards ─────────────────────────────────────────────────
-function renderChoices(question, mode, selectedAnswer, containerId = 'choice-container') {
+function renderChoices(question, mode, selectedAnswer, containerId = 'choice-container', promptText = '') {
   const el = document.getElementById(containerId);
   if (!el || !question) return;
+
+  const promptMap = {
+    answer: '題目：你最喜歡哪一個？',
+    guess: '題目：你覺得對方會選哪一個？',
+  };
+
+  const promptElIdMap = {
+    'answer-choice-container': 'answer-question-prompt',
+    'guess-choice-container': 'guess-question-prompt',
+  };
+
+  const promptEl = document.getElementById(promptElIdMap[containerId]);
+  if (promptEl) promptEl.textContent = promptText || promptMap[mode] || '';
 
   const clickable = (mode === 'answer' || mode === 'guess');
 
@@ -165,11 +178,15 @@ function renderReveal(question, correctAnswer, guesses, nonSubjectPlayers) {
 
   const answerText  = correctAnswer === 'A' ? question.a : question.b;
   const answerEmoji = correctAnswer === 'A' ? '🅰️' : '🅱️';
-  const correctCount = guesses.filter(g => g.is_correct).length;
+  // 同樣直接用 guess 比對，避免依賴非同步寫入的 is_correct 欄位
+  const correctCount = guesses.filter(g => g.guess === correctAnswer).length;
 
   const rows = nonSubjectPlayers.map((p, i) => {
     const g       = guesses.find(x => x.player_id === p.id);
-    const correct = g?.is_correct;
+    // 直接比對 guess 與 correctAnswer，不依賴 DB 的 is_correct 欄位
+    const correct = g ? g.guess === correctAnswer : false;
+    const guessed = g?.guess === 'A' ? 'A' : (g?.guess === 'B' ? 'B' : 'none');
+    const guessedLabel = g?.guess === 'A' ? 'A 選項' : (g?.guess === 'B' ? 'B 選項' : '未作答');
     return `
       <div class="player-row ${correct ? 'is-correct' : 'is-wrong'} animate-slide-up"
            style="animation-delay:${i * 0.08}s">
@@ -179,7 +196,7 @@ function renderReveal(question, correctAnswer, guesses, nonSubjectPlayers) {
         <div style="flex:1">
           <div style="font-weight:800;font-size:14px">${escHtml(p.nickname)}</div>
           <div style="font-size:12px;color:#9CA3AF">
-            猜了 ${g?.guess === 'A' ? '🅰️' : '🅱️'}
+            猜測：<span class="guess-chip ${guessed}">${guessedLabel}</span>
           </div>
         </div>
         <div style="font-size:26px">${correct ? '✅' : '❌'}</div>
@@ -199,6 +216,25 @@ function renderReveal(question, correctAnswer, guesses, nonSubjectPlayers) {
       </div>
     </div>
     ${rows}`;
+}
+
+// ── Scoreboard ──────────────────────────────────────────────────
+function renderScoreboard(players) {
+  const el = document.getElementById('reveal-scoreboard');
+  if (!el) return;
+  const sorted = [...players].sort((a, b) => b.score - a.score);
+  const medals = ['🥇', '🥈', '🥉'];
+  el.innerHTML = sorted.map((p, i) => `
+    <div class="player-row animate-slide-up" style="animation-delay:${i * 0.06}s">
+      <div style="font-size:20px;width:28px;text-align:center;flex-shrink:0">
+        ${medals[i] ?? `${i + 1}.`}
+      </div>
+      <div class="player-avatar" style="background:${getPlayerColor(p.join_order)}">
+        ${getPlayerEmoji(p.join_order)}
+      </div>
+      <div style="flex:1;font-weight:800;font-size:14px">${escHtml(p.nickname)}</div>
+      <div style="font-weight:900;color:#7C3AED;font-size:16px">${p.score} 分</div>
+    </div>`).join('');
 }
 
 // ── Guess progress ───────────────────────────────────────────────
