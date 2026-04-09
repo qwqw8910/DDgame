@@ -41,8 +41,8 @@ const RT = {
 
     const guessCh = _supabase.channel(`guesses:${roundId}`)
       .on('postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'guesses', filter: `round_id=eq.${roundId}` },
-          p => callback?.(p.new))
+          { event: '*', schema: 'public', table: 'guesses', filter: `round_id=eq.${roundId}` },
+          p => callback?.(p))
       .subscribe();
 
     this.channels.push(guessCh);
