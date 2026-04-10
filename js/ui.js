@@ -81,7 +81,7 @@ function renderPlayerList(players, myId, hostId, subjectId, isHost) {
         </span>
         ${isHost && !isMe && !isHostP
           ? `<button class="btn-danger-sm"
-               onclick="GameApp.kickPlayer('${p.id}','${escHtml(p.nickname)}')">踢</button>`
+               onclick="GameApp.kickPlayer(${JSON.stringify(p.id)},${JSON.stringify(p.nickname)})">踢</button>`
           : ''}
       </div>
     </div>`;
