@@ -15,20 +15,21 @@ function normalizeQuestion(q) {
 const GameApp = {
 
   // ── State ─────────────────────────────────────────────────────
-  myPlayerId:         '',
-  myNickname:         '',
-  roomId:             '',
-  room:               null,
-  players:            [],
-  topics:             [],   // 從 DB 載入的主題清單
-  currentRound:       null,
-  currentQuestion:    null,
-  guesses:            [],
-  isSubject:          false,
-  isHost:             false,
-  hasSubmittedAnswer: false,
-  hasSubmittedGuess:  false,
-  _pollInterval:      null,
+  myPlayerId:             '',
+  myNickname:             '',
+  roomId:                 '',
+  room:                   null,
+  players:                [],
+  topics:                 [],   // 從 DB 載入的主題清單
+  currentRound:           null,
+  currentQuestion:        null,
+  guesses:                [],
+  isSubject:              false,
+  isHost:                 false,
+  hasSubmittedAnswer:     false,
+  hasSubmittedGuess:      false,
+  _pollInterval:          null,
+  _playersDebounceTimer:  null,  // 防抖：避免多人同時變更觸發大量重繪
 
   // ── Init ──────────────────────────────────────────────────────
   async init() {
@@ -195,7 +196,6 @@ const GameApp = {
     const subject = this.players.find(p => p.id === this.currentRound.subject_player_id);
     const whoEl   = document.getElementById('topic-who');
     if (whoEl) whoEl.textContent = this.isSubject ? '選擇你最想聊的主題！' : `等待 ${subject?.nickname ?? '??'} 選主題…`;
-    console.log('🎯 _renderSelectingTopic - isSubject:', this.isSubject, 'topics:', this.topics);
     renderTopics(this.isSubject, this.topics);
   },
 
@@ -427,6 +427,15 @@ const GameApp = {
   subscribeRealtime() {
     RT.subscribe(this.roomId, {
 
+      onDisconnected: () => {
+        showToast('⚠️ 網路連線中斷，嘗試重連中…', 'error', 8000);
+      },
+
+      onReconnected: async () => {
+        showToast('✓ 已重新連線', 'success', 2500);
+        try { await this.loadState(); } catch {}
+      },
+
       onRoomUpdate: async room => {
         this.room   = room;
         this.isHost = room.host_player_id === this.myPlayerId;
@@ -450,14 +459,31 @@ const GameApp = {
       },
 
       onPlayersChange: async () => {
-        this.players = await DB.getPlayers(this.roomId);
-        this.isHost  = this.room?.host_player_id === this.myPlayerId;
-        this.render();
+        // debounce 250ms：多人同時加入/修改時，合併成一次查詢
+        clearTimeout(this._playersDebounceTimer);
+        this._playersDebounceTimer = setTimeout(async () => {
+          this.players = await DB.getPlayers(this.roomId);
+          this.isHost  = this.room?.host_player_id === this.myPlayerId;
+          this.render();
+        }, 250);
       },
 
       onRoundChange: async payload => {
         const updated = payload.new;
         if (!updated || updated.room_id !== this.roomId) return;
+
+        // 跳過 'finished' 狀態事件：回合切換由 onRoomUpdate 統一處理。
+        // 防止 Realtime 事件亂序（舊 round 的 finished 事件晚於新 round 事件抵達）
+        // 導致 currentRound / currentQuestion 被覆蓋回上一輪資料。
+        if (updated.status === 'finished') return;
+
+        // 若是新回合 INSERT，先重置 per-round 旗標
+        // （避免 onRoomUpdate 尚未到達前舊旗標殘留）
+        if (payload.eventType === 'INSERT') {
+          this.hasSubmittedAnswer = false;
+          this.hasSubmittedGuess  = false;
+          this.guesses            = [];
+        }
 
         const prevStatus   = this.currentRound?.status;
         this.currentRound  = updated;

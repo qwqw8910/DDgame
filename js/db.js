@@ -162,13 +162,16 @@ const DB = {
   },
 
   async getRandomQuestion(topicId, usedIds = []) {
-    const { data, error } = await _supabase.from('questions')
-      .select('*').eq('topic_id', topicId);
+    // 在 DB 層過濾已使用題目，避免把整張表傳回前端再 filter
+    let query = _supabase.from('questions').select('*').eq('topic_id', topicId);
+    if (usedIds.length > 0) {
+      query = query.not('id', 'in', `(${usedIds.join(',')})`);
+    }
+    const { data, error } = await query;
     if (error) throw error;
-    
-    const available = (data ?? []).filter(q => !usedIds.includes(q.id));
+
+    const available = data ?? [];
     if (!available.length) return null;
-    
     return available[Math.floor(Math.random() * available.length)];
   },
 
@@ -180,11 +183,8 @@ const DB = {
   },
 
   async getTopics() {
-    console.log('🔍 DB.getTopics() called');
-    console.log('🔌 Supabase URL:', _supabase?.supabaseUrl ?? 'N/A');
     const { data, error } = await _supabase.from('topics')
       .select('*').order('id');
-    console.log('🔍 DB.getTopics() result - data:', data, 'error:', error);
     if (error) throw error;
     return data ?? [];
   },
@@ -209,12 +209,17 @@ const DB = {
 
   async markGuessesCorrect(roundId, correctAnswer) {
     const guesses = await this.getGuesses(roundId);
-    const results = await Promise.all(guesses.map(g =>
-      _supabase.from('guesses')
-        .update({ is_correct: g.guess === correctAnswer })
-        .eq('id', g.id)
-    ));
+    if (!guesses.length) return guesses;
 
+    // 批次更新：原本 N 個獨立 PATCH → 最多 2 個 PATCH（correct / incorrect 各一批）
+    const correctIds   = guesses.filter(g => g.guess === correctAnswer).map(g => g.id);
+    const incorrectIds = guesses.filter(g => g.guess !== correctAnswer).map(g => g.id);
+
+    const ops = [];
+    if (correctIds.length)   ops.push(_supabase.from('guesses').update({ is_correct: true  }).in('id', correctIds));
+    if (incorrectIds.length) ops.push(_supabase.from('guesses').update({ is_correct: false }).in('id', incorrectIds));
+
+    const results = await Promise.all(ops);
     const failed = results.find(r => r.error);
     if (failed?.error) throw failed.error;
 
