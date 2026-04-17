@@ -30,6 +30,7 @@ const GameApp = {
   hasSubmittedGuess:      false,
   _pollInterval:          null,
   _playersDebounceTimer:  null,  // 防抖：避免多人同時變更觸發大量重繪
+  _renderTimer:           null,   // 防抖：合併短時間內的多次 render 呼叫
 
   // ── Init ──────────────────────────────────────────────────────
   async init() {
@@ -123,6 +124,11 @@ const GameApp = {
 
   // ── Render ────────────────────────────────────────────────────
   render() {
+    clearTimeout(this._renderTimer);
+    this._renderTimer = setTimeout(() => this._doRender(), 50);
+  },
+
+  _doRender() {
     this._updateHeader();
     const rs  = this.room?.status;
     const rnd = this.currentRound?.status;
@@ -205,21 +211,15 @@ const GameApp = {
     const titleEl = document.getElementById('answer-title');
 
     if (this.isSubject) {
-      if (titleEl) titleEl.textContent = '你的秘密選擇 🤫';
       document.getElementById('answer-waiting')?.classList.add('hidden');
       document.getElementById('answer-choices')?.classList.remove('hidden');
-      const st = document.getElementById('answer-guess-status');
-      if (st) st.textContent = '你先選擇答案，其他玩家會先看題目並等待你完成。';
       if (!this.hasSubmittedAnswer) {
-        renderChoices(this.currentQuestion, 'answer', null, 'answer-choice-container', '題目：你最喜歡哪一個？');
+        renderChoices(this.currentQuestion, 'answer', null, 'answer-choice-container', '題目：關主會選哪一個？');
       }
     } else {
-      if (titleEl) titleEl.textContent = `等待 ${subject?.nickname ?? '??'} 作答中…`;
       document.getElementById('answer-waiting')?.classList.add('hidden');
       document.getElementById('answer-choices')?.classList.remove('hidden');
-      renderChoices(this.currentQuestion, 'view', null, 'answer-choice-container', '題目：先看題目，等關主選完才能猜測');
-      const st = document.getElementById('answer-guess-status');
-      if (st) st.textContent = '目前僅開放看題目，關主選完後才可開始猜。';
+      renderChoices(this.currentQuestion, 'view', null, 'answer-choice-container', '題目：先看題目，關主會選哪一個？，等關主選完才能猜測');
     }
   },
 
@@ -443,17 +443,23 @@ const GameApp = {
         if (room.status !== 'waiting') this.stopLobbyPolling();
 
         if (room.current_round_id && room.current_round_id !== this.currentRound?.id) {
-          this.currentRound       = await DB.getRoundById(room.current_round_id);
-          this.isSubject          = this.currentRound.subject_player_id === this.myPlayerId;
-          if (this.currentRound.question_id) {
-            const q = await DB.getQuestionById(this.currentRound.question_id);
+          const newRound = await DB.getRoundById(room.current_round_id);
+          // 修正 B：await 期間若 onRoundChange 已處理同一 round，跳過覆蓋，避免 stale 資料蓋掉已正確設好的題目
+          if (this.currentRound?.id === room.current_round_id) {
+            this.render();
+            return;
+          }
+          this.currentRound       = newRound;
+          this.isSubject          = newRound.subject_player_id === this.myPlayerId;
+          this.hasSubmittedAnswer = false;
+          this.hasSubmittedGuess  = false;
+          this.guesses            = [];
+          if (newRound.question_id) {
+            const q = await DB.getQuestionById(newRound.question_id);
             this.currentQuestion = normalizeQuestion(q);
           } else {
             this.currentQuestion = null;
           }
-          this.hasSubmittedAnswer = false;
-          this.hasSubmittedGuess  = false;
-          this.guesses            = [];
         }
         this.render();
       },
@@ -486,11 +492,19 @@ const GameApp = {
         }
 
         const prevStatus   = this.currentRound?.status;
+        const prevRoundId  = this.currentRound?.id;
         this.currentRound  = updated;
         this.isSubject     = updated.subject_player_id === this.myPlayerId;
         if (updated.question_id) {
           const q = await DB.getQuestionById(updated.question_id);
           this.currentQuestion = normalizeQuestion(q);
+        } else if (payload.eventType === 'INSERT') {
+          // 修正 A：INSERT 事件 question_id 為 null 是正常（題目尚未選）
+          // 若 round id 與先前相同，代表同一 round 的 UPDATE 已先到並設好題目，INSERT 晚抵達，不清空
+          // 若 round id 不同，代表是全新回合，正常清空
+          if (updated.id !== prevRoundId) {
+            this.currentQuestion = null;
+          }
         } else {
           this.currentQuestion = null;
         }
