@@ -19,11 +19,14 @@ function showToast(msg, type = '', duration = 3000) {
 }
 
 // ── Section switch ───────────────────────────────────────────────
+let _currentSectionId = null;
+
 function showSection(id) {
-  document.querySelectorAll('.game-section').forEach(s => {
-    s.classList.add('hidden');
-    s.classList.remove('animate-slide-up');
-  });
+  if (_currentSectionId === id) return;
+  if (_currentSectionId) {
+    document.getElementById(_currentSectionId)?.classList.add('hidden');
+  }
+  _currentSectionId = id;
   const el = document.getElementById(id);
   if (el) {
     el.classList.remove('hidden');
@@ -158,7 +161,7 @@ function renderChoices(question, mode, selectedAnswer, containerId = 'choice-con
     return `
       <div class="${cls}" style="background:${bg}" ${click}>
         <div style="font-size:40px;margin-bottom:12px">${emoji}</div>
-        <div style="font-weight:800;font-size:16px;color:#374151;line-height:1.5">
+        <div style="font-weight:800;font-size:20px;color:#374151;line-height:1.5">
           ${escHtml(text)}
         </div>
       </div>`;

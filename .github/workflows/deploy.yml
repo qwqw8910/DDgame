@@ -1,5 +1,5 @@
 # =====================================================
-#  終極二選一 — GitHub Actions 自動部署到 GitHub Pages
+#  「友」話直說 — GitHub Actions 自動部署到 GitHub Pages
 #
 #  使用前需在 GitHub 設定 Repository Secrets：
 #    Settings > Secrets and variables > Actions > New repository secret

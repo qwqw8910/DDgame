@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>終極二選一 🎭</title>
+  <title>「友」話直說 🎭</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -228,22 +228,13 @@
          SECTION: SELECTING ANSWER (subject picks A or B privately)
          ============================================================ -->
     <div id="section-answer" class="game-section hidden">
-      <div style="text-align:center;margin-bottom:20px">
-        <div style="font-size:48px;margin-bottom:8px">🤫</div>
-        <h2 style="font-size:22px;font-weight:900" class="gradient-text" id="answer-title">
-          你的秘密選擇
-        </h2>
-        <p style="font-size:13px;color:#A78BFA;font-weight:600;margin-top:4px">
-          只有你知道，其他人要來猜！
-        </p>
-      </div>
+      <div id="answer-title" style="display:none"></div>
 
       <!-- Subject player sees this -->
       <div id="answer-choices">
         <div id="answer-question-prompt"
-             style="text-align:center;font-size:14px;color:#6B7280;font-weight:700;margin-bottom:10px"></div>
-         <div id="answer-guess-status"
-           style="text-align:center;font-size:13px;color:#9CA3AF;font-weight:600;margin-bottom:10px"></div>
+             style="text-align:center;font-size:24px;color:#6B7280;font-weight:700;margin-bottom:10px"></div>
+         <div id="answer-guess-status" style="display:none"></div>
         <div id="answer-choice-container"><!-- Rendered by JS --></div>
       </div>
 
@@ -296,7 +287,7 @@
       <!-- Non-subject players see choices -->
       <div id="guess-choices">
         <div id="guess-question-prompt"
-             style="text-align:center;font-size:14px;color:#6B7280;font-weight:700;margin-bottom:10px"></div>
+             style="text-align:center;font-size:24px;color:#6B7280;font-weight:700;margin-bottom:10px"></div>
         <div id="guess-choice-container"><!-- Rendered by JS --></div>
       </div>
 
