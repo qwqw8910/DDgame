@@ -1,16 +1,7 @@
 // ================================================================
 //  room.html 遊戲主控制器
+//  normalizeQuestion 定義於 questions.js，請勿在此重複宣告
 // ================================================================
-
-// ── Helper Functions ──────────────────────────────────────────────
-function normalizeQuestion(q) {
-  if (!q) return null;
-  return {
-    a: q.option_a,
-    b: q.option_b,
-    id: q.id
-  };
-}
 
 const GameApp = {
 
@@ -84,14 +75,16 @@ const GameApp = {
   },
 
   async loadState() {
-    const [room, players, topics] = await Promise.all([
+    // topics 變動頻率極低，只在第一次或為空時載入
+    const needTopics = !this.topics.length;
+    const [room, players, ...rest] = await Promise.all([
       DB.getRoom(this.roomId),
       DB.getPlayers(this.roomId),
-      DB.getTopics(),
+      ...(needTopics ? [DB.getTopics()] : []),
     ]);
     this.room    = room;
     this.players = players;
-    this.topics  = topics;
+    if (needTopics) this.topics = rest[0];
     this.isHost  = room.host_player_id === this.myPlayerId;
 
     // 使用 room.current_round_id 作為授權來源，避免抓到舊回合
@@ -375,9 +368,13 @@ const GameApp = {
     if (this._revealing) return;
     this._revealing = true;
     try {
-      const answer = this.currentRound.subject_answer;
-      await DB.markGuessesCorrect(this.currentRound.id, answer);
-      await DB.applyRoundScores(this.currentRound.id, answer);
+      const answer  = this.currentRound.subject_answer;
+      // 只查一次 guesses，傳給兩個函式共用
+      const guesses = await DB.getGuesses(this.currentRound.id);
+      await Promise.all([
+        DB.markGuessesCorrect(this.currentRound.id, answer, guesses),
+        DB.applyRoundScores(this.currentRound.id, answer, guesses),
+      ]);
       await DB.updateRound(this.currentRound.id, { status: 'revealing' });
     } finally {
       this._revealing = false;
@@ -491,22 +488,29 @@ const GameApp = {
           this.guesses            = [];
         }
 
-        const prevStatus   = this.currentRound?.status;
-        const prevRoundId  = this.currentRound?.id;
-        this.currentRound  = updated;
-        this.isSubject     = updated.subject_player_id === this.myPlayerId;
+        const prevStatus     = this.currentRound?.status;
+        const prevRoundId    = this.currentRound?.id;
+        const prevQuestionId = this.currentRound?.question_id;
+        this.currentRound    = updated;
+        this.isSubject       = updated.subject_player_id === this.myPlayerId;
+
         if (updated.question_id) {
-          const q = await DB.getQuestionById(updated.question_id);
-          this.currentQuestion = normalizeQuestion(q);
+          // 同一題目不重複 fetch，減少不必要的 DB 讀取
+          if (updated.question_id !== prevQuestionId || !this.currentQuestion) {
+            const q = await DB.getQuestionById(updated.question_id);
+            this.currentQuestion = normalizeQuestion(q);
+          }
         } else if (payload.eventType === 'INSERT') {
-          // 修正 A：INSERT 事件 question_id 為 null 是正常（題目尚未選）
+          // INSERT 事件 question_id 為 null 是正常（題目尚未選）
           // 若 round id 與先前相同，代表同一 round 的 UPDATE 已先到並設好題目，INSERT 晚抵達，不清空
-          // 若 round id 不同，代表是全新回合，正常清空
           if (updated.id !== prevRoundId) {
             this.currentQuestion = null;
           }
         } else {
-          this.currentQuestion = null;
+          // UPDATE 但 question_id 為 null：若同一 round 且已有題目，保留不清空
+          if (updated.id !== prevRoundId || !this.currentQuestion) {
+            this.currentQuestion = null;
+          }
         }
 
         if (updated.status === 'guessing' && prevStatus !== 'guessing') {

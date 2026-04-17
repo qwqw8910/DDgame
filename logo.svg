@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 340">
+  <defs>
+
+    <!-- ── 漸層 ── -->
+    <!-- 背景深紫漸層 -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="520" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#1a1035"/>
+      <stop offset="100%" stop-color="#2d1b69"/>
+    </linearGradient>
+
+    <!-- 左對話框：珊瑚紅 → 橙黃（userSpace，確保 tail 漸層一致） -->
+    <linearGradient id="leftGrad" x1="20" y1="30" x2="315" y2="248" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#FF5F6D"/>
+      <stop offset="100%" stop-color="#FFC371"/>
+    </linearGradient>
+
+    <!-- 右對話框：湖水綠 → 藍紫 -->
+    <linearGradient id="rightGrad" x1="500" y1="30" x2="205" y2="248" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#5B86E5"/>
+      <stop offset="100%" stop-color="#11998e"/>
+    </linearGradient>
+
+    <!-- 交集區：亮黃 → 金橙（代表「懂」的那一瞬間） -->
+    <linearGradient id="intersectGrad" x1="205" y1="30" x2="315" y2="198" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#FFE75C"/>
+      <stop offset="100%" stop-color="#FF9A00"/>
+    </linearGradient>
+
+    <!-- 標題文字：橙 → 黃 → 青 -->
+    <linearGradient id="titleGrad" x1="108" y1="292" x2="412" y2="292" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#FF8C69"/>
+      <stop offset="50%"  stop-color="#FFE55C"/>
+      <stop offset="100%" stop-color="#69EACB"/>
+    </linearGradient>
+
+    <!-- ── 濾鏡 ── -->
+    <!-- 對話框陰影 -->
+    <filter id="shadow" x="-20%" y="-20%" width="145%" height="155%">
+      <feDropShadow dx="0" dy="7" stdDeviation="11" flood-color="#000" flood-opacity="0.48"/>
+    </filter>
+
+    <!-- 交集區＋打勾光暈 -->
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- 標題文字微光暈 -->
+    <filter id="titleGlow" x="-15%" y="-30%" width="130%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- ── 遮罩路徑（用於計算交集） ── -->
+    <!-- 左對話框形狀：x 20→315，y 30→198 -->
+    <clipPath id="leftClip">
+      <rect x="20" y="30" width="295" height="168" rx="42"/>
+    </clipPath>
+    <!-- 右對話框形狀：x 205→500，y 30→198 -->
+    <clipPath id="rightClip">
+      <rect x="205" y="30" width="295" height="168" rx="42"/>
+    </clipPath>
+
+    <!-- 背景圓角遮罩 -->
+    <clipPath id="bgClip">
+      <rect width="520" height="340" rx="22"/>
+    </clipPath>
+  </defs>
+
+  <!-- ══════════════ BACKGROUND ══════════════ -->
+  <rect width="520" height="340" fill="url(#bgGrad)" rx="22"/>
+
+  <!-- 星點裝飾 -->
+  <g fill="white" opacity="0.06">
+    <circle cx="54"  cy="54"  r="2.2"/>
+    <circle cx="82"  cy="274" r="1.6"/>
+    <circle cx="466" cy="58"  r="2.2"/>
+    <circle cx="482" cy="278" r="1.6"/>
+    <circle cx="260" cy="334" r="2"/>
+    <circle cx="34"  cy="180" r="1.5"/>
+    <circle cx="487" cy="172" r="1.5"/>
+    <circle cx="150" cy="320" r="1.2"/>
+    <circle cx="370" cy="320" r="1.2"/>
+  </g>
+
+  <!-- ══════════════ 左對話框（紅橙／A） ══════════════ -->
+  <g filter="url(#shadow)">
+    <!-- 尾巴，朝左下方，代表「被猜者 / 我」 -->
+    <polygon points="98,196  62,248  150,196" fill="url(#leftGrad)"/>
+    <!-- 主體 -->
+    <rect x="20" y="30" width="295" height="168" rx="42" fill="url(#leftGrad)"/>
+  </g>
+  <!-- 上緣光澤 -->
+  <rect x="36" y="38" width="258" height="48" rx="28" fill="white" opacity="0.07" clip-path="url(#leftClip)"/>
+
+  <!-- ── 指紋浮水印（象徵獨特內心）── -->
+  <!-- 同心橢圓，圓心 = 左區中心 (112, 114)，對應「A」位置 -->
+  <g fill="none" stroke="white" stroke-linecap="round" opacity="0.14">
+    <ellipse cx="112" cy="114" rx="17" ry="12"  stroke-width="2.5"/>
+    <ellipse cx="112" cy="114" rx="32" ry="24"  stroke-width="2.2"/>
+    <ellipse cx="112" cy="114" rx="48" ry="37"  stroke-width="1.9"/>
+    <ellipse cx="112" cy="114" rx="64" ry="50"  stroke-width="1.6"/>
+    <ellipse cx="112" cy="114" rx="80" ry="64"  stroke-width="1.2"/>
+    <!-- 指紋核心豎線 -->
+    <line x1="112" y1="102" x2="112" y2="126"  stroke-width="2.5"/>
+  </g>
+
+  <!-- ══════════════ 右對話框（湖綠藍／B） ══════════════ -->
+  <g filter="url(#shadow)">
+    <!-- 主體（先於尾巴，讓尾巴融合） -->
+    <rect x="205" y="30" width="295" height="168" rx="42" fill="url(#rightGrad)"/>
+    <!-- 尾巴，朝右下方，代表「猜測者 / 你」 -->
+    <polygon points="374,196  458,248  422,196" fill="url(#rightGrad)"/>
+  </g>
+  <!-- 上緣光澤 -->
+  <rect x="228" y="38" width="258" height="48" rx="28" fill="white" opacity="0.07" clip-path="url(#rightClip)"/>
+
+  <!-- ══════════════ 交集區域（金黃＝「懂的瞬間」） ══════════════ -->
+  <!-- 將右對話框矩形被左對話框形狀 clip → 精確截出重疊帶 -->
+  <rect x="205" y="30" width="295" height="168" rx="42"
+        fill="url(#intersectGrad)"
+        clip-path="url(#leftClip)"
+        filter="url(#glow)"/>
+  <!-- 交集上緣光澤 -->
+  <rect x="212" y="38" width="96" height="42" rx="20"
+        fill="white" opacity="0.11"
+        clip-path="url(#leftClip)"/>
+
+  <!-- ══════════════ 字母 A（左區中心 x=112） ══════════════ -->
+  <text x="112" y="114"
+        font-family="'Arial Black','Impact','Helvetica Neue',sans-serif"
+        font-size="92" font-weight="900"
+        fill="white" fill-opacity="0.93"
+        text-anchor="middle" dominant-baseline="middle">A</text>
+
+  <!-- ══════════════ 字母 B（右區中心 x=408） ══════════════ -->
+  <text x="408" y="114"
+        font-family="'Arial Black','Impact','Helvetica Neue',sans-serif"
+        font-size="92" font-weight="900"
+        fill="white" fill-opacity="0.93"
+        text-anchor="middle" dominant-baseline="middle">B</text>
+
+  <!-- ══════════════ 打勾 ✓（交集區中心 x=260, y=114） ══════════════ -->
+  <!-- 象徵「猜對了！」／兩人的共鳴 -->
+  <path d="M 237 118 L 252 137 L 284 93"
+        stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"
+        fill="none" filter="url(#glow)"/>
+
+  <!-- 交集底部半圓弧（強化「共鳴感」） -->
+  <path d="M 218 175 Q 260 198 302 175"
+        stroke="white" stroke-width="2.5" stroke-linecap="round"
+        fill="none" opacity="0.4" clip-path="url(#leftClip)"/>
+
+  <!-- ══════════════ 主標題「懂我再說」 ══════════════ -->
+  <text x="260" y="292"
+        font-family="'Noto Sans TC','Microsoft JhengHei','PingFang TC','Heiti TC',sans-serif"
+        font-size="50" font-weight="900"
+        fill="url(#titleGrad)"
+        text-anchor="middle" dominant-baseline="middle"
+        letter-spacing="8"
+        filter="url(#titleGlow)">懂我再說</text>
+
+  <!-- 裝飾底線 -->
+  <line x1="116" y1="322" x2="404" y2="322"
+        stroke="rgba(255,228,92,0.4)" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- 底線上的三顆彩點（左橙、中黃、右青） -->
+  <circle cx="212" cy="322" r="3"   fill="#FFC371" opacity="0.75"/>
+  <circle cx="260" cy="322" r="4.5" fill="#FFE55C" opacity="0.95"/>
+  <circle cx="308" cy="322" r="3"   fill="#69EACB" opacity="0.75"/>
+</svg>
