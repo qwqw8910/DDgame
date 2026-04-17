@@ -147,13 +147,6 @@ const DB = {
     return data;
   },
 
-  async getUsedQuestionKeys(roomId) {
-    const { data, error } = await _supabase.from('rounds')
-      .select('question_id').eq('room_id', roomId).not('question_id', 'is', null);
-    if (error) throw error;
-    return (data ?? []).map(r => r.question_id);
-  },
-
   async getUsedQuestionIds(roomId) {
     const { data, error } = await _supabase.from('rounds')
       .select('question_id').eq('room_id', roomId).not('question_id', 'is', null);
@@ -162,17 +155,23 @@ const DB = {
   },
 
   async getRandomQuestion(topicId, usedIds = []) {
-    // 在 DB 層過濾已使用題目，避免把整張表傳回前端再 filter
+    // 先取得可用題數，再用 offset 隨機選一題，避免傳回整張表
+    let countQuery = _supabase.from('questions').select('id', { count: 'exact', head: true }).eq('topic_id', topicId);
+    if (usedIds.length > 0) {
+      countQuery = countQuery.not('id', 'in', `(${usedIds.join(',')})`);
+    }
+    const { count, error: cErr } = await countQuery;
+    if (cErr) throw cErr;
+    if (!count) return null;
+
+    const offset = Math.floor(Math.random() * count);
     let query = _supabase.from('questions').select('*').eq('topic_id', topicId);
     if (usedIds.length > 0) {
       query = query.not('id', 'in', `(${usedIds.join(',')})`);
     }
-    const { data, error } = await query;
+    const { data, error } = await query.range(offset, offset);
     if (error) throw error;
-
-    const available = data ?? [];
-    if (!available.length) return null;
-    return available[Math.floor(Math.random() * available.length)];
+    return data?.[0] ?? null;
   },
 
   async getQuestionById(questionId) {
@@ -207,8 +206,9 @@ const DB = {
     return data ?? [];
   },
 
-  async markGuessesCorrect(roundId, correctAnswer) {
-    const guesses = await this.getGuesses(roundId);
+  async markGuessesCorrect(roundId, correctAnswer, guesses) {
+    // 允許外部傳入已有 guesses，避免重複查詢
+    if (!guesses) guesses = await this.getGuesses(roundId);
     if (!guesses.length) return guesses;
 
     // 批次更新：原本 N 個獨立 PATCH → 最多 2 個 PATCH（correct / incorrect 各一批）
@@ -226,23 +226,22 @@ const DB = {
     return guesses.map(g => ({ ...g, is_correct: g.guess === correctAnswer }));
   },
 
-  async applyRoundScores(roundId, correctAnswer) {
-    const guesses = await this.getGuesses(roundId);
-    // 直接用 correctAnswer 比對，不依賴 is_correct 欄位
-    const winners = guesses.filter(g => g.guess === correctAnswer).map(g => g.player_id);
-    if (!winners.length) return;
+  async applyRoundScores(roundId, correctAnswer, guesses) {
+    // 允許外部傳入已有 guesses，避免重複查詢
+    if (!guesses) guesses = await this.getGuesses(roundId);
+    const winnerIds = guesses.filter(g => g.guess === correctAnswer).map(g => g.player_id);
+    if (!winnerIds.length) return;
 
-    const updates = winners.map(async playerId => {
-      const { data: player, error: getErr } = await _supabase.from('players')
-        .select('id,score').eq('id', playerId).single();
-      if (getErr) throw getErr;
+    // 一次撈出所有贏家，避免 N+1 查詢
+    const { data: winners, error: getErr } = await _supabase.from('players')
+      .select('id,score').in('id', winnerIds);
+    if (getErr) throw getErr;
 
-      const { error: updErr } = await _supabase.from('players')
-        .update({ score: (player.score ?? 0) + 1, updated_at: new Date().toISOString() })
-        .eq('id', playerId);
-      if (updErr) throw updErr;
-    });
-
-    await Promise.all(updates);
+    const now = new Date().toISOString();
+    await Promise.all(winners.map(p => {
+      return _supabase.from('players')
+        .update({ score: (p.score ?? 0) + 1, updated_at: now })
+        .eq('id', p.id);
+    }));
   },
 };
