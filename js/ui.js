@@ -84,7 +84,9 @@ function renderPlayerList(players, myId, hostId, subjectId, isHost) {
         </span>
         ${isHost && !isMe && !isHostP
           ? `<button class="btn-danger-sm"
-               onclick="GameApp.kickPlayer(${JSON.stringify(p.id)},${JSON.stringify(p.nickname)})">踢</button>`
+               data-id="${escHtml(p.id)}"
+               data-nick="${escHtml(p.nickname)}"
+               onclick="GameApp.kickPlayer(this.dataset.id,this.dataset.nick)">踢</button>`
           : ''}
       </div>
     </div>`;
