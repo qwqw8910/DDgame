@@ -44,6 +44,8 @@ async function handleCreateRoom() {
   const nickname   = document.getElementById('create-nickname').value.trim();
   const maxPlayers = parseInt(document.getElementById('create-max-players').value);
 
+  console.log('[handleCreateRoom] nickname:', nickname, 'maxPlayers:', maxPlayers);
+
   if (!nickname) { shakeAndToast('create-nickname', '請輸入你的暱稱！'); return; }
 
   if (!IS_CONFIGURED) {
@@ -57,10 +59,13 @@ async function handleCreateRoom() {
   try {
     const playerId = getOrCreatePlayerId();
     const roomId   = generateRoomId();
+    console.log('[handleCreateRoom] 建立房間中 roomId:', roomId, 'playerId:', playerId);
     await DB.createRoom(roomId, playerId, maxPlayers);
+    console.log('[handleCreateRoom] ✅ 建立成功，跳轉到 room.html');
     saveNickname(nickname);
     window.location.href = `room.html?id=${roomId}&nickname=${encodeURIComponent(nickname)}`;
   } catch (err) {
+    console.error('[handleCreateRoom] ❌ 建立失敗:', err);
     showToast('建立失敗：' + err.message, 'error');
     setLoading(btn, false);
   }

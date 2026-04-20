@@ -14,6 +14,10 @@
 const SUPABASE_URL      = '__SUPABASE_URL__';
 const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
 
+// Socket.io 後端伺服器 URL（部署後填入 Railway / Render URL）
+// 本機開發：http://localhost:3000
+const SOCKET_SERVER_URL = '__SOCKET_SERVER_URL__';
+
 const IS_CONFIGURED = !!(
   SUPABASE_URL      && SUPABASE_URL.startsWith('https://') &&
   SUPABASE_ANON_KEY && SUPABASE_ANON_KEY.length > 20
