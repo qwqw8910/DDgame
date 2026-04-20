@@ -406,8 +406,8 @@ io.on('connection', (socket) => {
       if (cache.room?.host_player_id !== playerId) {
         return socket.emit('error', { message: '只有房主可以開始遊戲' });
       }
-      if (cache.players.length < 1) {
-        return socket.emit('error', { message: '至少需要 1 位玩家' });
+      if (cache.players.length < 2) {
+        return socket.emit('error', { message: '至少需要 2 位玩家才能開始！' });
       }
 
       const round = await DB.createRound(roomId, 1, cache.players[0].id);
@@ -683,10 +683,16 @@ io.on('connection', (socket) => {
    * 資料：{ isOnline }
    */
   socket.on('set_online', async ({ isOnline }) => {
-    const { playerId } = socket.data;
+    const { roomId, playerId } = socket.data;
     if (!playerId) return;
     try {
       await DB.updatePlayer(playerId, { is_online: isOnline });
+      // 同步更新 cache，確保 getEligibleGuessers 使用最新上線狀態
+      if (roomId) {
+        const cache = getCache(roomId);
+        const idx = cache.players.findIndex(p => p.id === playerId);
+        if (idx >= 0) cache.players[idx] = { ...cache.players[idx], is_online: isOnline };
+      }
     } catch {}
   });
 
@@ -724,7 +730,9 @@ async function revealRound(roomId, triggerSocket) {
 
   try {
     const guesses = await DB.getGuesses(round.id);
-    await Promise.all([
+    // ⚠️ 必須接住 markGuessesCorrect 的回傳值（含 is_correct 欄位），
+    //    否則廣播的 guesses 裡 is_correct 永遠是 DB 的 null 初始值。
+    const [markedGuesses] = await Promise.all([
       DB.markGuessesCorrect(round.id, round.subject_answer, guesses),
       DB.applyRoundScores(round.id, round.subject_answer, guesses),
     ]);
@@ -732,13 +740,13 @@ async function revealRound(roomId, triggerSocket) {
     const players      = await DB.getPlayers(roomId);
 
     cache.currentRound = updatedRound;
-    cache.guesses      = guesses;
+    cache.guesses      = markedGuesses;
     cache.players      = players;
 
     // 揭曉時才廣播完整資訊（含 subject_answer + is_correct）
     io.to(roomId).emit('round_revealed', {
       currentRound: buildRoundPayload(updatedRound, true), // 含答案
-      guesses:      guesses,
+      guesses:      markedGuesses,
       players,
     });
   } catch (err) {

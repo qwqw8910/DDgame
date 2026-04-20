@@ -5,6 +5,9 @@
 # Supabase 金鑰設定（本機開發用，不提交到公開 GitHub）
 js/config.js
 
+# Log 檔
+*.log
+
 # 系統檔案
 .DS_Store
 Thumbs.db
