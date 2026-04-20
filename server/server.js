@@ -298,37 +298,21 @@ io.on('connection', (socket) => {
           return;
         }
 
-        // 檢查玩家是否在其他房間（需移轉）
-        const { data: existingPlayer } = await db.from('players')
-          .select('*').eq('id', playerId).maybeSingle();
-
-        if (existingPlayer) {
-          // 移轉到新房間
-          const { data: moved, error: moveErr } = await db.from('players')
-            .update({
-              room_id:    roomId,
-              nickname,
-              is_ready:   false,
-              is_online:  true,
-              join_order: players.length,
-              score:      0,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', playerId).select().single();
-          if (moveErr) throw moveErr;
-          cache.players.push(moved);
-        } else {
-          // 全新玩家
-          const { data: newPlayer, error: insertErr } = await db.from('players')
-            .insert({
-              id: playerId, room_id: roomId, nickname,
-              is_ready: false, is_online: true,
-              join_order: players.length, score: 0,
-            })
-            .select().single();
-          if (insertErr) throw insertErr;
-          cache.players.push(newPlayer);
-        }
+        // upsert：全新玩家 → INSERT；已存在其他房間 → UPDATE 移轉
+        const { data: upserted, error: upsertErr } = await db.from('players')
+          .upsert({
+            id:         playerId,
+            room_id:    roomId,
+            nickname,
+            is_ready:   false,
+            is_online:  true,
+            join_order: players.length,
+            score:      0,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' })
+          .select().single();
+        if (upsertErr) throw upsertErr;
+        cache.players.push(upserted);
 
         // 重新排序確保 join_order 正確
         players = await DB.getPlayers(roomId);
