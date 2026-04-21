@@ -1,18 +1,19 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-TW" data-theme="mygame">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>懂我再說 🎭</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Baloo+2:wght@400;500;600;700;800&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
   <link rel="stylesheet" href="css/style.css">
 </head>
 
-<body style="background:linear-gradient(135deg,#fdf4ff 0%,#f0f9ff 50%,#fdf2f8 100%);min-height:100vh">
+<body style="background:linear-gradient(135deg,#f5f0ff 0%,#ede9ff 30%,#fdf0ff 60%,#fff0f7 100%);min-height:100vh">
 
 <!-- ================================================================
      NICKNAME OVERLAY
@@ -47,7 +48,7 @@
      style="position:fixed;inset:0;background:rgba(253,244,255,.95);backdrop-filter:blur(4px);
             display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100">
   <div style="font-size:60px;margin-bottom:16px;animation:float 2s ease-in-out infinite">🎭</div>
-  <div class="spinner" style="margin-bottom:14px"></div>
+  <span class="loading loading-spinner loading-lg text-primary" style="margin-bottom:14px"></span>
   <p id="loading-text" style="color:#A78BFA;font-weight:700;font-size:16px">連線中…</p>
 </div>
 
@@ -134,6 +135,14 @@
             <div style="font-size:16px;font-weight:900;color:#EC4899" id="header-round"></div>
           </div>
         </div>
+
+        <div id="header-host-wrapper" style="display:none;align-items:center;gap:8px">
+          <div style="height:32px;width:2px;background:linear-gradient(180deg,#EDE9FE,#FCE7F3);border-radius:1px"></div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:#C4B5FD;font-weight:800;letter-spacing:1px">房主</div>
+            <div style="font-size:13px;font-weight:900;color:#EC4899;font-family:'Baloo 2','Nunito',sans-serif" id="header-host-name">-</div>
+          </div>
+        </div>
       </div>
 
       <button onclick="GameApp.copyLink()" title="複製邀請連結"
@@ -154,7 +163,7 @@
     <div id="section-lobby" class="game-section hidden">
 
       <!-- Share card -->
-      <div class="game-card" style="margin-bottom:16px">
+      <div class="neon-card" style="margin-bottom:16px">
         <div style="text-align:center;margin-bottom:18px">
           <div style="font-size:44px;margin-bottom:6px">🏠</div>
           <h2 style="font-size:20px;font-weight:900" class="gradient-text">等待玩家加入</h2>
@@ -209,7 +218,7 @@
     <div id="section-topic" class="game-section hidden">
       <div style="text-align:center;margin-bottom:24px">
         <div style="font-size:48px;margin-bottom:8px">🎯</div>
-        <h2 style="font-size:22px;font-weight:900" class="gradient-text" id="topic-who">
+        <h2 style="font-size:26px;font-weight:900;font-family:'Baloo 2','Nunito',sans-serif" class="gradient-text" id="topic-who">
           選擇主題
         </h2>
         <p style="font-size:13px;color:#A78BFA;font-weight:600;margin-top:4px">
@@ -225,26 +234,71 @@
     </div>
 
     <!-- ============================================================
+         SECTION: PREVIEWING QUESTION (被猜者預覽題目，其他人等待)
+         ============================================================ -->
+    <div id="section-preview" class="game-section hidden">
+      <!-- Subject player view -->
+      <div id="preview-subject-view">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="font-size:44px;margin-bottom:8px">🔍</div>
+          <h2 style="font-size:21px;font-weight:900" class="gradient-text">先偷看一下題目！</h2>
+          <p style="font-size:13px;color:#9CA3AF;font-weight:600;margin-top:4px">
+            確認後才會讓大家看到
+          </p>
+        </div>
+        <div class="game-card" style="margin-bottom:16px">
+          <div id="preview-question-prompt" class="question-text">
+            這是本回合的題目：
+          </div>
+          <div id="preview-choice-container"><!-- Rendered by JS --></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button id="preview-confirm-btn" class="btn-primary" onclick="GameApp.confirmQuestion()">
+            ✅ 就用這題！
+          </button>
+          <button id="preview-swap-btn" class="btn-swap" onclick="GameApp.swapQuestion()">
+            🔄 換一題（剩 <span id="preview-swap-left">3</span> 次）
+          </button>
+        </div>
+      </div>
+
+      <!-- Other players view -->
+      <div id="preview-waiting-view" class="hidden waiting-card">
+        <div style="font-size:52px;margin-bottom:12px">🤫</div>
+        <span class="loading loading-dots loading-md text-primary" style="margin-bottom:14px"></span>
+        <p style="color:#A78BFA;font-weight:700;font-size:17px">
+          <span id="preview-waiting-name" style="color:#7C3AED">???</span>
+          正在確認題目…
+        </p>
+        <p style="color:#C4B5FD;font-size:13px;font-weight:600;margin-top:8px">
+          等他確認後就輪到你們猜了！
+        </p>
+      </div>
+    </div>
+
+    <!-- ============================================================
          SECTION: SELECTING ANSWER (subject picks A or B privately)
          ============================================================ -->
     <div id="section-answer" class="game-section hidden">
       <div id="answer-title" style="display:none"></div>
+      <div id="answer-topic-badge" style="text-align:center;margin-bottom:12px;display:none">
+        <span style="display:inline-block;background:linear-gradient(135deg,#EDE9FE,#FCE7F3);
+                     border-radius:999px;padding:4px 16px;font-size:13px;
+                     font-weight:800;color:#7C3AED">🏷️ <span id="answer-topic-name"></span></span>
+      </div>
 
       <!-- Subject player sees this -->
       <div id="answer-choices">
         <div id="answer-question-prompt"
-             style="text-align:center;font-size:24px;color:#6B7280;font-weight:700;margin-bottom:10px"></div>
+             class="question-text" style="font-size:22px"></div>
          <div id="answer-guess-status" style="display:none"></div>
         <div id="answer-choice-container"><!-- Rendered by JS --></div>
       </div>
 
       <!-- Other players see this -->
-      <div id="answer-waiting" class="hidden game-card"
-           style="text-align:center;padding:52px 24px">
+      <div id="answer-waiting" class="hidden waiting-card">
         <div style="font-size:52px;margin-bottom:12px">🤫</div>
-        <div class="loading-dots" style="margin-bottom:14px">
-          <span></span><span></span><span></span>
-        </div>
+        <span class="loading loading-dots loading-md text-primary" style="margin-bottom:14px"></span>
         <p style="color:#A78BFA;font-weight:700;font-size:17px">
           <span id="answer-waiting-name" style="color:#7C3AED">???</span>
           正在悄悄選擇答案…
@@ -261,10 +315,14 @@
     <div id="section-guess" class="game-section hidden">
       <div style="text-align:center;margin-bottom:20px">
         <div style="font-size:44px;margin-bottom:8px">🔍</div>
-        <h2 style="font-size:21px;font-weight:900" class="gradient-text">
-          你覺得 <span id="guess-subject-name"
-                       style="color:#EC4899;-webkit-text-fill-color:initial">???</span> 選了哪個？
+        <h2 style="font-size:24px;font-weight:900;font-family:'Baloo 2','Nunito',sans-serif" class="gradient-text">
+          你覺得 <span id="guess-subject-name" class="subject-name-highlight">???</span> 選了哪個？
         </h2>
+        <div id="guess-topic-badge" style="margin-top:8px;display:none">
+          <span style="display:inline-block;background:linear-gradient(135deg,#EDE9FE,#FCE7F3);
+                       border-radius:999px;padding:4px 16px;font-size:13px;
+                       font-weight:800;color:#7C3AED">🏷️ <span id="guess-topic-name"></span></span>
+        </div>
       </div>
 
       <!-- Progress card -->
@@ -275,9 +333,7 @@
           <span id="guess-progress-text"
                 style="font-size:13px;font-weight:900;color:#7C3AED">0 / 0 人已提交</span>
         </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="guess-progress-fill" style="width:0%"></div>
-        </div>
+        <progress class="progress progress-primary w-full" id="guess-progress-fill" value="0" max="100"></progress>
         <div id="guess-status-text"
              style="text-align:center;font-size:13px;color:#9CA3AF;font-weight:600;margin-top:8px">
           選擇你的答案！
@@ -286,22 +342,26 @@
 
       <!-- Non-subject players see choices -->
       <div id="guess-choices">
+        <!-- Player submission status list -->
+        <div class="game-card" style="padding:12px 16px;margin-bottom:16px" id="guess-player-status">
+          <div style="font-size:12px;font-weight:800;color:#A78BFA;margin-bottom:8px">👥 玩家狀態</div>
+          <div id="guess-player-list" style="display:flex;flex-direction:column;gap:6px">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
         <div id="guess-question-prompt"
-             style="text-align:center;font-size:24px;color:#6B7280;font-weight:700;margin-bottom:10px"></div>
+             class="question-text" style="font-size:22px"></div>
         <div id="guess-choice-container"><!-- Rendered by JS --></div>
       </div>
 
       <!-- Subject player sees this -->
-      <div id="guess-subject-waiting" class="hidden game-card"
-           style="text-align:center;padding:52px 24px">
+      <div id="guess-subject-waiting" class="hidden waiting-card">
         <div style="font-size:56px;margin-bottom:12px">😌</div>
         <p style="color:#A78BFA;font-weight:700;font-size:17px">
           大家正在猜你的選擇…
         </p>
         <p style="color:#C4B5FD;font-size:13px;font-weight:600;margin-top:6px">別偷看！🙈</p>
-        <div class="loading-dots" style="margin-top:18px">
-          <span></span><span></span><span></span>
-        </div>
+        <span class="loading loading-dots loading-md text-primary" style="margin-top:18px"></span>
       </div>
     </div>
 
@@ -314,11 +374,29 @@
         <h2 style="font-size:22px;font-weight:900" class="gradient-text">
           <span id="reveal-subject-name">???</span> 的答案揭曉！
         </h2>
+        <div id="reveal-topic-badge" style="margin-top:8px;display:none">
+          <span style="display:inline-block;background:linear-gradient(135deg,#EDE9FE,#FCE7F3);
+                       border-radius:999px;padding:4px 16px;font-size:13px;
+                       font-weight:800;color:#7C3AED">🏷️ <span id="reveal-topic-name"></span></span>
+        </div>
       </div>
 
       <div class="game-card" style="margin-bottom:16px">
         <div id="reveal-body"><!-- Rendered by JS --></div>
       </div>
+
+      <!-- Emoji reactions -->
+      <div class="neon-card" style="padding:14px;margin-bottom:16px;text-align:center">
+        <div style="font-size:14px;font-weight:800;color:#A78BFA;margin-bottom:10px;font-family:'Baloo 2','Nunito',sans-serif">快速反應 👇</div>
+        <div style="display:flex;justify-content:center;gap:12px">
+          <button class="emoji-btn" onclick="GameApp.sendReaction('🎉')">🎉</button>
+          <button class="emoji-btn" onclick="GameApp.sendReaction('😱')">😱</button>
+          <button class="emoji-btn" onclick="GameApp.sendReaction('😅')">😅</button>
+          <button class="emoji-btn" onclick="GameApp.sendReaction('🔥')">🔥</button>
+        </div>
+      </div>
+      <!-- Floating reactions container -->
+      <div id="reaction-container" style="position:fixed;inset:0;pointer-events:none;z-index:200"></div>
 
       <!-- 即時排名 -->
       <div class="game-card" style="margin-bottom:16px">

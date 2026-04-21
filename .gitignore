@@ -16,3 +16,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# UI/UX Pro Max Skill（本機安裝，不提交）
+.github/prompts/

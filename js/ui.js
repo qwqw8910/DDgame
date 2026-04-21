@@ -153,12 +153,12 @@ function renderChoices(question, mode, selectedAnswer, containerId = 'choice-con
 
   function card(letter, text) {
     const bg = letter === 'A'
-      ? 'linear-gradient(135deg,#EDE9FE,#F3E8FF)'
-      : 'linear-gradient(135deg,#FCE7F3,#FDF2F8)';
+      ? 'linear-gradient(135deg,#DBEAFE,#BFDBFE)'
+      : 'linear-gradient(135deg,#FCE7F3,#FBCFE8)';
     const emoji = letter === 'A' ? '🅰️' : '🅱️';
     const sel   = selectedAnswer === letter;
     const cls   = `choice-card${clickable ? ' clickable' : ''}${sel ? ' selected' : ''}`;
-    const click = clickable && !selectedAnswer
+    const click = clickable
       ? `onclick="GameApp.handleChoiceClick('${letter}')"` : '';
     return `
       <div class="${cls}" style="background:${bg}" ${click}>
@@ -246,6 +246,6 @@ function renderScoreboard(players) {
 function updateGuessProgress(submitted, total) {
   const fill = document.getElementById('guess-progress-fill');
   const text = document.getElementById('guess-progress-text');
-  if (fill) fill.style.width = `${total > 0 ? (submitted / total) * 100 : 0}%`;
+  if (fill) fill.value = total > 0 ? Math.round((submitted / total) * 100) : 0;
   if (text) text.textContent = `${submitted} / ${total} 人已提交`;
 }
