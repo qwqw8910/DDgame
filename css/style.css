@@ -2,6 +2,57 @@
    懂我再說 — Custom Styles
    ============================================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Comic+Neue:wght@400;700&display=swap');
+
+/* ── DaisyUI Custom Theme ───────────────────────────────────── */
+[data-theme="mygame"] {
+  color-scheme: light;
+  /* Primary: purple #7C3AED */
+  --p: oklch(54% 0.233 292);
+  --pc: oklch(100% 0 0);
+  /* Secondary: pink #EC4899 */
+  --s: oklch(64% 0.270 338);
+  --sc: oklch(100% 0 0);
+  /* Accent: orange #F97316 */
+  --a: oklch(69% 0.206 47);
+  --ac: oklch(100% 0 0);
+  /* Neutral */
+  --n: oklch(36% 0.020 292);
+  --nc: oklch(100% 0 0);
+  /* Base colors */
+  --b1: oklch(100% 0 0);
+  --b2: oklch(97% 0.008 292);
+  --b3: oklch(93% 0.016 292);
+  --bc: oklch(22% 0.020 292);
+  /* Status */
+  --in: oklch(65% 0.170 230);
+  --inc: oklch(100% 0 0);
+  --su: oklch(72% 0.162 160);
+  --suc: oklch(10% 0.020 160);
+  --wa: oklch(79% 0.166 80);
+  --wac: oklch(10% 0.020 80);
+  --er: oklch(63% 0.210 25);
+  --erc: oklch(100% 0 0);
+  /* Shape */
+  --rounded-box: 1.5rem;
+  --rounded-btn: 0.875rem;
+  --rounded-badge: 999px;
+  --tab-radius: 0.5rem;
+  --border-btn: 0;
+  --animation-btn: 0.2s;
+  --animation-input: 0.2s;
+  --btn-focus-scale: 0.97;
+}
+
+@keyframes countdown-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes float-up {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-200px) scale(1.4); opacity: 0; }
+}
 @keyframes float {
   0%,100% { transform: translateY(0) rotate(0deg); }
   33%      { transform: translateY(-18px) rotate(6deg); }
@@ -39,9 +90,19 @@
   100% { transform: scale(1.45); opacity: 0; }
 }
 
+@keyframes neon-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(139,92,246,0.4), 0 0 20px rgba(139,92,246,0.2); }
+  50% { box-shadow: 0 0 16px rgba(139,92,246,0.8), 0 0 40px rgba(139,92,246,0.4), 0 0 60px rgba(236,72,153,0.2); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
 /* ── Utility ────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
-body { font-family: 'Nunito', sans-serif; }
+body { font-family: 'Comic Neue', 'Nunito', sans-serif; }
+.game-heading { font-family: 'Baloo 2', 'Nunito', sans-serif; }
 
 .gradient-text {
   background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
@@ -76,14 +137,28 @@ body { font-family: 'Nunito', sans-serif; }
   background: white;
   border-radius: 24px;
   padding: 28px;
-  box-shadow: 0 8px 32px rgba(139,92,246,.10);
+  box-shadow: 0 4px 24px rgba(139,92,246,.08);
   transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
-  border: 2px solid transparent;
+  border: 1.5px solid rgba(237,233,254,0.6);
 }
 .game-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 56px rgba(139,92,246,.18);
+  box-shadow: 0 20px 60px rgba(139,92,246,.22), 0 0 0 1px rgba(167,139,250,.25);
   border-color: rgba(167,139,250,.35);
+}
+
+/* ── Neon Card ───────────────────────────────────────────────── */
+.neon-card {
+  background: rgba(255,255,255,0.95);
+  border: 2px solid rgba(139,92,246,0.25);
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 4px 24px rgba(139,92,246,.12), inset 0 1px 0 rgba(255,255,255,.8);
+  transition: all .3s ease;
+}
+.neon-card:hover {
+  border-color: rgba(139,92,246,0.5);
+  box-shadow: 0 8px 40px rgba(139,92,246,.25), 0 0 0 1px rgba(167,139,250,.2), inset 0 1px 0 rgba(255,255,255,.8);
 }
 
 /* ── Inputs ──────────────────────────────────────────────────── */
@@ -115,24 +190,40 @@ body { font-family: 'Nunito', sans-serif; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; padding: 13px 24px;
   background: linear-gradient(135deg, #7C3AED, #EC4899);
-  color: white; font-family: 'Nunito', sans-serif;
+  color: white; font-family: 'Baloo 2', 'Nunito', sans-serif;
   font-weight: 900; font-size: 16px;
   border-radius: 14px; border: none; cursor: pointer;
-  box-shadow: 0 6px 20px rgba(139,92,246,.35);
+  box-shadow: 0 6px 20px rgba(139,92,246,.4), 0 0 0 0 rgba(139,92,246,0);
   transition: transform .2s cubic-bezier(0.34,1.56,0.64,1), box-shadow .2s;
 }
 .btn-primary:hover:not(:disabled) {
   transform: scale(1.03) translateY(-2px);
-  box-shadow: 0 12px 32px rgba(139,92,246,.42);
+  box-shadow: 0 12px 36px rgba(139,92,246,.5), 0 0 24px rgba(139,92,246,.2);
 }
 .btn-primary:active:not(:disabled) { transform: scale(0.97); }
 .btn-primary:disabled               { opacity: .5; cursor: not-allowed; }
+
+.btn-swap {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 13px 24px;
+  background: linear-gradient(135deg, #F97316, #FBBF24);
+  color: white; font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-weight: 800; font-size: 16px;
+  border-radius: 14px; border: none; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(249,115,22,.35);
+  transition: transform .2s cubic-bezier(0.34,1.56,0.64,1), box-shadow .2s;
+}
+.btn-swap:hover:not(:disabled) {
+  transform: scale(1.03) translateY(-2px);
+  box-shadow: 0 12px 32px rgba(249,115,22,.5);
+}
+.btn-swap:disabled { opacity: .4; cursor: not-allowed; }
 
 .btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; padding: 13px 24px;
   background: linear-gradient(135deg, #F472B6, #F43F5E);
-  color: white; font-family: 'Nunito', sans-serif;
+  color: white; font-family: 'Baloo 2', 'Nunito', sans-serif;
   font-weight: 900; font-size: 16px;
   border-radius: 14px; border: none; cursor: pointer;
   box-shadow: 0 6px 20px rgba(244,114,182,.35);
@@ -148,7 +239,7 @@ body { font-family: 'Nunito', sans-serif; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; padding: 11px 24px;
   background: transparent; color: #7C3AED;
-  font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px;
+  font-family: 'Baloo 2', 'Nunito', sans-serif; font-weight: 800; font-size: 15px;
   border-radius: 14px; border: 2px solid #DDD6FE; cursor: pointer;
   transition: background .2s, border-color .2s;
 }
@@ -158,7 +249,7 @@ body { font-family: 'Nunito', sans-serif; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; padding: 13px 24px;
   background: linear-gradient(135deg, #10B981, #34D399);
-  color: white; font-family: 'Nunito', sans-serif;
+  color: white; font-family: 'Baloo 2', 'Nunito', sans-serif;
   font-weight: 900; font-size: 16px;
   border-radius: 14px; border: none; cursor: pointer;
   box-shadow: 0 6px 20px rgba(16,185,129,.35);
@@ -171,7 +262,7 @@ body { font-family: 'Nunito', sans-serif; }
   display: inline-flex; align-items: center; justify-content: center;
   padding: 5px 10px;
   background: #FEE2E2; color: #DC2626;
-  font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 12px;
+  font-family: 'Comic Neue', 'Nunito', sans-serif; font-weight: 700; font-size: 12px;
   border-radius: 8px; border: none; cursor: pointer;
   transition: background .15s;
 }
@@ -262,7 +353,7 @@ body { font-family: 'Nunito', sans-serif; }
 .choice-card.clickable:active { transform: scale(0.97); }
 .choice-card.selected {
   border-color: #8B5CF6;
-  box-shadow: 0 0 0 4px rgba(139,92,246,.15);
+  box-shadow: 0 0 0 4px rgba(139,92,246,.2), 0 8px 24px rgba(139,92,246,.25), 0 0 20px rgba(139,92,246,.15);
   transform: scale(1.04);
 }
 .choice-card.revealed-correct {
@@ -280,8 +371,11 @@ body { font-family: 'Nunito', sans-serif; }
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #7C3AED, #EC4899);
-  border-radius: 999px; transition: width .5s ease;
+  background: linear-gradient(90deg, #7C3AED, #A855F7, #EC4899, #A855F7, #7C3AED);
+  background-size: 200% auto;
+  border-radius: 999px;
+  transition: width .5s ease;
+  animation: shimmer 2s linear infinite;
 }
 
 /* ── Toast ───────────────────────────────────────────────────── */
@@ -289,7 +383,7 @@ body { font-family: 'Nunito', sans-serif; }
   position: fixed; bottom: 28px; left: 50%;
   transform: translateX(-50%) translateY(80px);
   padding: 12px 24px; border-radius: 999px;
-  font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 14px;
+  font-family: 'Comic Neue', 'Nunito', sans-serif; font-weight: 700; font-size: 14px;
   box-shadow: 0 8px 32px rgba(0,0,0,.25);
   z-index: 9999;
   transition: transform .4s cubic-bezier(0.34,1.56,0.64,1);
@@ -304,9 +398,9 @@ body { font-family: 'Nunito', sans-serif; }
 
 /* ── Room Code ───────────────────────────────────────────────── */
 .room-code-display {
-  font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 28px;
-  letter-spacing: 6px;
-  background: linear-gradient(135deg, #7C3AED, #EC4899);
+  font-family: 'Baloo 2', 'Nunito', sans-serif; font-weight: 900; font-size: 28px;
+  letter-spacing: 7px;
+  background: linear-gradient(135deg, #7C3AED, #A855F7, #EC4899);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   background-clip: text; line-height: 1.2;
 }
@@ -340,3 +434,126 @@ body { font-family: 'Nunito', sans-serif; }
   .choice-card      { padding: 18px 12px; }
   .topic-grid-3     { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ── Emoji Reaction Buttons ─────────────────────────────────── */
+.emoji-btn {
+  font-size: 28px;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 2px solid #EDE9FE;
+  background: linear-gradient(135deg, #F5F3FF, #FCE7F3);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, border-color 0.2s;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(139,92,246,.15);
+}
+.emoji-btn:hover { 
+  transform: scale(1.15);
+  border-color: rgba(139,92,246,0.4);
+  box-shadow: 0 4px 16px rgba(139,92,246,.3);
+}
+.emoji-btn:active { transform: scale(0.88); }
+
+/* ── Question Text ───────────────────────────────────────────── */
+.question-text {
+  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #374151;
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+/* ── Subject Name Highlight ──────────────────────────────────── */
+.subject-name-highlight {
+  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-weight: 800;
+  background: linear-gradient(135deg, #7C3AED, #EC4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Topic Badge ─────────────────────────────────────────────── */
+.topic-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #EDE9FE, #FCE7F3);
+  border: 1.5px solid rgba(139,92,246,0.2);
+  border-radius: 999px;
+  padding: 5px 18px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #7C3AED;
+  font-family: 'Baloo 2', 'Nunito', sans-serif;
+}
+
+/* ── Host Badge ──────────────────────────────────────────────── */
+.host-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #FDE68A, #FBBF24);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #92400E;
+  font-family: 'Baloo 2', 'Nunito', sans-serif;
+}
+
+/* ── Waiting Card ────────────────────────────────────────────── */
+.waiting-card {
+  text-align: center;
+  padding: 52px 24px;
+  background: linear-gradient(135deg, rgba(245,243,255,0.8), rgba(252,231,243,0.8));
+  border: 2px dashed rgba(167,139,250,0.4);
+  border-radius: 24px;
+}
+
+/* ── Reveal Countdown ────────────────────────────────────────── */
+.reveal-countdown {
+  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-size: 80px;
+  font-weight: 800;
+  line-height: 1;
+  background: linear-gradient(135deg, #7C3AED, #EC4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: countdown-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+
+/* ── DaisyUI overrides ───────────────────────────────────────── */
+/* Progress bar — use DaisyUI's animated element */
+.progress.progress-primary {
+  height: 10px;
+  border-radius: 999px;
+}
+/* Loading dots color match */
+.loading.text-primary { color: #7C3AED; }
+/* DaisyUI loading spinner color match */
+.loading.loading-spinner.text-primary { color: #7C3AED; }
+/* Ensure DaisyUI doesn't override our game-card */
+.game-card .progress { margin: 0; }
+/* game-input stays custom, block DaisyUI input base styles */
+.game-input { all: unset; box-sizing: border-box;
+  width: 100%;
+  padding: 12px 16px 12px 44px;
+  background: #faf5ff;
+  border: 2px solid #ede9fe;
+  border-radius: 14px;
+  font-family: 'Comic Neue', 'Nunito', sans-serif;
+  font-weight: 700; color: #374151; font-size: 15px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+  -webkit-appearance: none; appearance: none;
+  display: block;
+}
+.game-input:focus {
+  border-color: #8B5CF6; background: white;
+  box-shadow: 0 0 0 3px rgba(139,92,246,.15);
+}
+.game-input::placeholder { color: #c4b5fd; font-weight: 600; }

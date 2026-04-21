@@ -18,6 +18,11 @@ const GameApp = {
   _myCurrentGuess:      null,       // 本回合自己的猜測（樂觀更新）
   _guessSubmitted:      0,          // 猜測進度（由 guess_progress 事件更新）
   _guessTotal:          0,
+  _guessSubmittedIds:   [],         // 已提交猜測的玩家 ID 列表
+  _revealAnimDone:      false,      // 揭曉動畫是否已播放
+  _previewQuestion:     null,       // 被猜者預覽的題目
+  _previewSwapCount:    0,          // 已換題次數
+  _previewSwapLimit:    3,          // 換題上限
   isSubject:            false,
   isHost:               false,
   hasSubmittedAnswer:   false,
@@ -109,6 +114,10 @@ const GameApp = {
       this._myCurrentGuess  = null;
       this._guessSubmitted  = 0;
       this._guessTotal      = 0;
+      this._guessSubmittedIds = [];
+      this._revealAnimDone  = false;
+      this._previewQuestion = null;
+      this._previewSwapCount = 0;
       this.guesses          = [];
       this.render();
     });
@@ -131,6 +140,10 @@ const GameApp = {
         this._myCurrentGuess  = null;
         this._guessSubmitted  = 0;
         this._guessTotal      = 0;
+        this._guessSubmittedIds = [];
+        this._revealAnimDone  = false;
+        this._previewQuestion = null;
+        this._previewSwapCount = 0;
         this.guesses          = [];
       }
 
@@ -138,10 +151,12 @@ const GameApp = {
     });
 
     // ── 猜測進度（即時更新進度條）───────────────────────────────
-    socket.on('guess_progress', ({ submitted, total }) => {
+    socket.on('guess_progress', ({ submitted, total, submittedIds }) => {
       this._guessSubmitted = submitted;
       this._guessTotal     = total;
+      this._guessSubmittedIds = submittedIds || [];
       updateGuessProgress(submitted, total);
+      this._renderGuessPlayerList();
     });
 
     // ── 揭曉結果（含完整答案）───────────────────────────────────
@@ -175,7 +190,24 @@ const GameApp = {
       this._myCurrentGuess  = null;
       this._guessSubmitted  = 0;
       this._guessTotal      = 0;
+      this._guessSubmittedIds = [];
+      this._revealAnimDone  = false;
+      this._previewQuestion = null;
+      this._previewSwapCount = 0;
       this.render();
+    });
+
+    // ── 被猜者預覽題目（Task 1）──────────────────────────────────
+    socket.on('preview_question', ({ question, swapCount, swapLimit }) => {
+      this._previewQuestion  = question;
+      this._previewSwapCount = swapCount;
+      this._previewSwapLimit = swapLimit;
+      this._renderPreviewQuestion();
+    });
+
+    // ── Emoji 反應廣播（Task 5）──────────────────────────────────
+    socket.on('reaction_broadcast', ({ emoji, nickname }) => {
+      this._showFloatingReaction(emoji, nickname);
     });
 
     // ── 答案被後端接受（只通知被猜者）───────────────────────────
@@ -270,8 +302,9 @@ const GameApp = {
     if (rs === 'waiting') {
       this._renderLobby();
     } else if (rs === 'playing') {
-      if      (rnd === 'selecting_topic')  this._renderSelectingTopic();
-      else if (rnd === 'selecting_answer') this._renderSelectingAnswer();
+      if      (rnd === 'selecting_topic')    this._renderSelectingTopic();
+      else if (rnd === 'previewing_question') this._renderPreviewingQuestion();
+      else if (rnd === 'selecting_answer')   this._renderSelectingAnswer();
       else if (rnd === 'guessing')         this._renderGuessing();
       else if (rnd === 'revealing')        this._renderRevealing();
     } else if (rs === 'finished') {
@@ -293,6 +326,17 @@ const GameApp = {
       if (elRndW) elRndW.style.display = 'flex';
     } else {
       if (elRndW) elRndW.style.display = 'none';
+    }
+
+    // Update host name in header
+    const hostWrapper = document.getElementById('header-host-wrapper');
+    const hostNameEl = document.getElementById('header-host-name');
+    if (hostWrapper && hostNameEl) {
+      const hostPlayer = this.players.find(p => p.id === this.room?.host_player_id);
+      if (hostPlayer) {
+        hostNameEl.textContent = hostPlayer.nickname;
+        hostWrapper.style.display = 'flex';
+      }
     }
   },
 
@@ -342,7 +386,15 @@ const GameApp = {
 
   _renderSelectingAnswer() {
     showSection('section-answer');
-    const subject = this.players.find(p => p.id === this.currentRound.subject_player_id);
+    const subject   = this.players.find(p => p.id === this.currentRound.subject_player_id);
+    const topicName = this.currentRound.topic_name;
+
+    const badge = document.getElementById('answer-topic-badge');
+    const nameEl = document.getElementById('answer-topic-name');
+    if (badge && nameEl && topicName) {
+      nameEl.textContent = topicName;
+      badge.style.display = '';
+    }
 
     if (this.isSubject) {
       document.getElementById('answer-waiting')?.classList.add('hidden');
@@ -362,10 +414,18 @@ const GameApp = {
 
   _renderGuessing() {
     showSection('section-guess');
-    const subject = this.players.find(p => p.id === this.currentRound.subject_player_id);
+    const subject   = this.players.find(p => p.id === this.currentRound.subject_player_id);
+    const topicName = this.currentRound.topic_name;
 
     const nameEl = document.getElementById('guess-subject-name');
     if (nameEl) nameEl.textContent = subject?.nickname ?? '??';
+
+    const badge    = document.getElementById('guess-topic-badge');
+    const topicEl  = document.getElementById('guess-topic-name');
+    if (badge && topicEl && topicName) {
+      topicEl.textContent = topicName;
+      badge.style.display = '';
+    }
 
     // 進度由 guess_progress 事件即時更新，這裡用快取值做初始渲染
     updateGuessProgress(this._guessSubmitted, this._guessTotal);
@@ -388,6 +448,7 @@ const GameApp = {
         this.currentQuestion, 'guess', this._myCurrentGuess,
         'guess-choice-container', '你覺得對方最可能會選哪一個？'
       );
+      this._renderGuessPlayerList();
     }
   },
 
@@ -395,21 +456,129 @@ const GameApp = {
     showSection('section-reveal');
     const subject    = this.players.find(p => p.id === this.currentRound.subject_player_id);
     const nonSubject = this.players.filter(p => p.id !== this.currentRound.subject_player_id);
+    const topicName  = this.currentRound.topic_name;
 
     const nameEl = document.getElementById('reveal-subject-name');
     if (nameEl) nameEl.textContent = subject?.nickname ?? '??';
 
-    renderReveal(this.currentQuestion, this.currentRound.subject_answer, this.guesses, nonSubject);
-    renderScoreboard(this.players);
+    const badge   = document.getElementById('reveal-topic-badge');
+    const topicEl = document.getElementById('reveal-topic-name');
+    if (badge && topicEl && topicName) {
+      topicEl.textContent = topicName;
+      badge.style.display = '';
+    }
 
     const nextBtn = document.getElementById('reveal-next-btn');
-    if (nextBtn) nextBtn.style.display = this.isHost ? '' : 'none';
+    if (nextBtn) nextBtn.style.display = 'none';
+    const endBtn = document.getElementById('reveal-end-btn');
+    if (endBtn) endBtn.style.display = 'none';
 
+    const bodyEl  = document.getElementById('reveal-body');
+    const scoreEl = document.getElementById('reveal-scoreboard');
+    if (bodyEl)  bodyEl.innerHTML  = '';
+    if (scoreEl) scoreEl.innerHTML = '';
+
+    // Skip countdown if already revealed (re-render after round_revealed)
+    if (this._revealAnimDone) {
+      this._showRevealFinal(nonSubject);
+      return;
+    }
+
+    this._revealAnimDone = true;
+    let count = 3;
+    const tick = () => {
+      if (bodyEl) {
+        bodyEl.innerHTML = `
+          <div style="text-align:center;padding:40px 0">
+            <div style="font-size:96px;font-weight:900;
+                        background:linear-gradient(135deg,#7C3AED,#EC4899);
+                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                        animation:countdown-pop 0.5s ease">${count}</div>
+            <div style="color:#A78BFA;font-weight:800;font-size:16px;margin-top:8px">答案即將揭曉…</div>
+          </div>`;
+      }
+      count--;
+      if (count >= 0) {
+        setTimeout(tick, 1000);
+      } else {
+        // Phase 2: show count stats
+        const correct = this.guesses.filter(g => g.guess === this.currentRound.subject_answer).length;
+        const wrong   = nonSubject.length - correct;
+        if (bodyEl) {
+          bodyEl.innerHTML = `
+            <div style="text-align:center;padding:32px 16px" class="animate-bounce-in">
+              <div style="font-size:52px;margin-bottom:12px">📊</div>
+              <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap">
+                <div style="background:linear-gradient(135deg,#D1FAE5,#A7F3D0);
+                            border-radius:16px;padding:16px 24px;min-width:100px">
+                  <div style="font-size:36px;font-weight:900;color:#059669">${correct}</div>
+                  <div style="font-size:13px;font-weight:800;color:#065F46">猜對 ✅</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#FEE2E2,#FECACA);
+                            border-radius:16px;padding:16px 24px;min-width:100px">
+                  <div style="font-size:36px;font-weight:900;color:#DC2626">${wrong}</div>
+                  <div style="font-size:13px;font-weight:800;color:#991B1B">猜錯 ❌</div>
+                </div>
+              </div>
+            </div>`;
+        }
+        // Phase 3: show full results after 1.5s
+        setTimeout(() => this._showRevealFinal(nonSubject), 1500);
+      }
+    };
+    setTimeout(tick, 100);
+  },
+
+  _showRevealFinal(nonSubject) {
+    renderReveal(this.currentQuestion, this.currentRound.subject_answer, this.guesses, nonSubject);
+    renderScoreboard(this.players);
+    const nextBtn = document.getElementById('reveal-next-btn');
+    if (nextBtn) nextBtn.style.display = this.isHost ? '' : 'none';
     const endBtn = document.getElementById('reveal-end-btn');
     if (endBtn) endBtn.style.display = this.isHost ? '' : 'none';
-
     const waitEl = document.getElementById('reveal-waiting-next');
     if (waitEl) waitEl.textContent = this.isHost ? '' : '等待房主進入下一回合…';
+  },
+
+  _renderPreviewingQuestion() {
+    showSection('section-preview');
+    const subject = this.players.find(p => p.id === this.currentRound.subject_player_id);
+
+    if (this.isSubject) {
+      document.getElementById('preview-waiting-view')?.classList.add('hidden');
+      document.getElementById('preview-subject-view')?.classList.remove('hidden');
+      this._renderPreviewQuestion();
+    } else {
+      document.getElementById('preview-subject-view')?.classList.add('hidden');
+      document.getElementById('preview-waiting-view')?.classList.remove('hidden');
+      const nameEl = document.getElementById('preview-waiting-name');
+      if (nameEl) nameEl.textContent = subject?.nickname ?? '??';
+    }
+  },
+
+  _renderPreviewQuestion() {
+    if (!this._previewQuestion) return;
+    const swapLeft = (this._previewSwapLimit ?? 2) - (this._previewSwapCount ?? 0);
+    const swapBtn  = document.getElementById('preview-swap-btn');
+    const leftEl   = document.getElementById('preview-swap-left');
+    if (leftEl) leftEl.textContent = swapLeft;
+    if (swapBtn) swapBtn.disabled = swapLeft <= 0;
+
+    renderChoices(this._previewQuestion, 'view', null, 'preview-choice-container', '這是本回合的題目：');
+  },
+
+  _renderGuessPlayerList() {
+    const el = document.getElementById('guess-player-list');
+    if (!el) return;
+    const nonSubject = this.players.filter(p => p.id !== this.currentRound?.subject_player_id);
+    el.innerHTML = nonSubject.map(p => {
+      const submitted = this._guessSubmittedIds.includes(p.id);
+      const isMe = p.id === this.myPlayerId;
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700">
+        <span style="font-size:16px">${submitted ? '✅' : '⏳'}</span>
+        <span style="color:${submitted ? '#10B981' : '#9CA3AF'}">${escHtml(p.nickname)}${isMe ? ' (我)' : ''}</span>
+      </div>`;
+    }).join('');
   },
 
   _renderFinished() {
@@ -501,6 +670,42 @@ const GameApp = {
   copyLink() {
     const url = `${location.origin}${location.pathname}?id=${this.roomId}`;
     copyToClipboard(url, '房間連結已複製 🔗');
+  },
+
+  // ── Task 1: Preview question actions ─────────────────────────
+  swapQuestion() {
+    if (!this.isSubject) return;
+    socket.emit('swap_question');
+  },
+
+  confirmQuestion() {
+    if (!this.isSubject) return;
+    socket.emit('confirm_question');
+  },
+
+  // ── Task 5: Emoji reactions ───────────────────────────────────
+  sendReaction(emoji) {
+    socket.emit('send_reaction', { emoji });
+  },
+
+  _showFloatingReaction(emoji, nickname) {
+    const container = document.getElementById('reaction-container');
+    if (!container) return;
+    const el = document.createElement('div');
+    const x = 10 + Math.random() * 80;
+    el.style.cssText = `
+      position:absolute;
+      bottom:20%;
+      left:${x}%;
+      font-size:40px;
+      animation:float-up 2s ease-out forwards;
+      pointer-events:none;
+      text-align:center;
+      line-height:1;
+    `;
+    el.innerHTML = `${emoji}<div style="font-size:11px;color:#7C3AED;font-weight:800;margin-top:2px">${escHtml(nickname)}</div>`;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 2100);
   },
 
   // ── UI helpers ────────────────────────────────────────────────
