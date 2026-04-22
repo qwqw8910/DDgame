@@ -794,6 +794,10 @@ io.on('connection', (socket) => {
         question: { id: q.id, a: q.option_a, b: q.option_b },
         swapCount: newSwapCount,
         swapLimit: 3,
+      });
+    } catch (err) {
+      console.error('[swap_question]', err.message);
+      socket.emit('error', { message: err.message });
     }
   });
 
