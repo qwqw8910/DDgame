@@ -412,6 +412,9 @@ io.on('connection', (socket) => {
           question: { id: currentQuestion.id, a: currentQuestion.option_a, b: currentQuestion.option_b },
           swapCount,
           swapLimit: 3,
+        });
+      }
+
       // ── 7. 廣播玩家列表更新給房間所有人 ─────────────────────
       io.to(roomId).emit('players_updated', { players: cache.players });
 
