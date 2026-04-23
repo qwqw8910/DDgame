@@ -23,7 +23,7 @@ function getTopicUi(name) {
  */
 function normalizeQuestion(q) {
   if (!q) return null;
-  return { id: q.id, a: q.option_a, b: q.option_b };
+  return { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null };
 }
 
 // 舊版 hardcoded 資料已移除，所有題目由 Supabase DB 提供

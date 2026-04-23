@@ -69,12 +69,12 @@ function renderPlayerList(players, myId, hostId, subjectId, isHost) {
            style="background:${color}">${emoji}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <span style="font-weight:800;font-size:14px;color:#374151">${escHtml(p.nickname)}</span>
+          <span style="font-weight:400;font-size:14px;color:#061b31">${escHtml(p.nickname)}</span>
           ${isMe    ? '<span class="badge badge-me">我</span>' : ''}
           ${isHostP ? '<span class="badge badge-host">👑 房主</span>' : ''}
           ${isSub   ? '<span class="badge badge-subject">🎯 被猜者</span>' : ''}
         </div>
-        <div style="font-size:12px;font-weight:600;color:${p.is_online ? '#10B981' : '#9CA3AF'}">
+        <div style="font-size:12px;font-weight:400;color:${p.is_online ? '#15be53' : '#64748d'}">
           ${p.is_online ? '● 在線' : '○ 離線'}
         </div>
       </div>
@@ -108,13 +108,13 @@ function renderTopics(isSubject, topics = []) {
         <div class="loading-dots" style="margin-bottom:14px">
           <span></span><span></span><span></span>
         </div>
-        <p style="color:#A78BFA;font-weight:700;font-size:16px">等待選擇主題中…</p>
+        <p style="color:#273951;font-weight:400;font-size:15px">等待選擇主題中…</p>
       </div>`;
     return;
   }
 
   if (!topics.length) {
-    el.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#9CA3AF;padding:32px">載入主題中…</div>`;
+    el.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#64748d;padding:32px">載入主題中…</div>`;
     return;
   }
 
@@ -125,8 +125,8 @@ function renderTopics(isSubject, topics = []) {
          style="background:${ui.gradient};animation-delay:${i * 0.07}s"
          onclick="GameApp.selectTopic('${t.id}')">
       <div style="font-size:38px;margin-bottom:8px">${ui.emoji}</div>
-      <div style="color:white;font-weight:900;font-size:17px;
-                  text-shadow:0 2px 8px rgba(0,0,0,.25)">${escHtml(t.name)}</div>
+      <div style="color:white;font-weight:300;font-size:16px;
+                  text-shadow:0 1px 4px rgba(0,0,0,.2)">${escHtml(t.name)}</div>
     </div>`;
   }).join('');
 }
@@ -137,24 +137,29 @@ function renderChoices(question, mode, selectedAnswer, containerId = 'choice-con
   if (!el || !question) return;
 
   const promptMap = {
-    answer: '題目：你最喜歡哪一個？',
+    answer: '題目：你會選哪一個？',
     guess: '題目：你覺得對方會選哪一個？',
+    view: '題目：',
   };
 
   const promptElIdMap = {
     'answer-choice-container': 'answer-question-prompt',
     'guess-choice-container': 'guess-question-prompt',
+    'preview-choice-container': 'preview-question-prompt',
   };
 
+  // 優先使用傳入的 promptText，其次使用題目自帶的 title，最後才用預設文字
+  const finalPrompt = promptText || (question.title ? `題目：${question.title}` : promptMap[mode]) || '';
+
   const promptEl = document.getElementById(promptElIdMap[containerId]);
-  if (promptEl) promptEl.textContent = promptText || promptMap[mode] || '';
+  if (promptEl) promptEl.textContent = finalPrompt;
 
   const clickable = (mode === 'answer' || mode === 'guess');
 
   function card(letter, text) {
     const bg = letter === 'A'
-      ? 'linear-gradient(135deg,#DBEAFE,#BFDBFE)'
-      : 'linear-gradient(135deg,#FCE7F3,#FBCFE8)';
+      ? 'rgba(83,58,253,0.05)'
+      : 'rgba(234,34,97,0.05)';
     const emoji = letter === 'A' ? '🅰️' : '🅱️';
     const sel   = selectedAnswer === letter;
     const cls   = `choice-card${clickable ? ' clickable' : ''}${sel ? ' selected' : ''}`;
@@ -162,8 +167,8 @@ function renderChoices(question, mode, selectedAnswer, containerId = 'choice-con
       ? `onclick="GameApp.handleChoiceClick('${letter}')"` : '';
     return `
       <div class="${cls}" style="background:${bg}" ${click}>
-        <div style="font-size:40px;margin-bottom:12px">${emoji}</div>
-        <div style="font-weight:800;font-size:20px;color:#374151;line-height:1.5">
+        <div style="font-size:32px;margin-bottom:12px">${emoji}</div>
+        <div style="font-weight:300;font-size:18px;color:#061b31;line-height:1.5">
           ${escHtml(text)}
         </div>
       </div>`;
@@ -199,8 +204,8 @@ function renderReveal(question, correctAnswer, guesses, nonSubjectPlayers) {
           ${getPlayerEmoji(p.join_order)}
         </div>
         <div style="flex:1">
-          <div style="font-weight:800;font-size:14px">${escHtml(p.nickname)}</div>
-          <div style="font-size:12px;color:#9CA3AF">
+          <div style="font-weight:400;font-size:14px">${escHtml(p.nickname)}</div>
+          <div style="font-size:12px;color:#64748d">
             猜測：<span class="guess-chip ${guessed}">${guessedLabel}</span>
           </div>
         </div>
@@ -210,13 +215,13 @@ function renderReveal(question, correctAnswer, guesses, nonSubjectPlayers) {
 
   el.innerHTML = `
     <div style="text-align:center;margin-bottom:20px" class="animate-bounce-in">
-      <div style="font-size:60px;margin-bottom:8px">${answerEmoji}</div>
-      <div style="font-weight:900;font-size:20px;color:#374151;line-height:1.45">
+      <div style="font-size:48px;margin-bottom:8px">${answerEmoji}</div>
+      <div style="font-weight:300;font-size:18px;color:#061b31;line-height:1.45">
         ${escHtml(answerText)}
       </div>
-      <div style="margin-top:10px;background:linear-gradient(135deg,#EDE9FE,#FCE7F3);
-                  border-radius:999px;display:inline-block;
-                  padding:4px 16px;font-size:13px;font-weight:800;color:#7C3AED">
+      <div style="margin-top:10px;background:rgba(83,58,253,0.06);
+                  border:1px solid rgba(83,58,253,0.12);border-radius:4px;display:inline-block;
+                  padding:4px 16px;font-size:13px;font-weight:400;color:#533afd">
         🎉 ${correctCount} / ${nonSubjectPlayers.length} 人猜對！
       </div>
     </div>
@@ -237,8 +242,8 @@ function renderScoreboard(players) {
       <div class="player-avatar" style="background:${getPlayerColor(p.join_order)}">
         ${getPlayerEmoji(p.join_order)}
       </div>
-      <div style="flex:1;font-weight:800;font-size:14px">${escHtml(p.nickname)}</div>
-      <div style="font-weight:900;color:#7C3AED;font-size:16px">${p.score} 分</div>
+      <div style="flex:1;font-weight:400;font-size:14px">${escHtml(p.nickname)}</div>
+      <div style="font-weight:400;color:#533afd;font-size:16px">${p.score} 分</div>
     </div>`).join('');
 }
 
