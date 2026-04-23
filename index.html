@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>懂我再說 🎭</title>
+  <title>懂我再說</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Baloo+2:wght@400;500;600;700;800&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Noto+Sans+TC:wght@300;400;500;600&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
   <link rel="stylesheet" href="css/style.css">
 </head>
 
-<body style="background:linear-gradient(135deg,#f5f0ff 0%,#ede9ff 30%,#fdf0ff 60%,#fff0f7 100%);min-height:100vh;overflow-x:hidden">
+<body style="background:linear-gradient(135deg,#f5f0ff 0%,#ede9ff 30%,#fdf0ff 60%,#fff0f7 100%);min-height:100vh;overflow-x:hidden;font-family:'Poppins','Noto Sans TC',system-ui,sans-serif">
 
   <!-- ── Floating background emojis ── -->
   <div style="position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0" aria-hidden="true">
@@ -31,9 +31,11 @@
 
   <!-- ── Config warning ── -->
   <div id="config-warning" class="hidden"
-       style="background:linear-gradient(90deg,#FEF3C7,#FDE68A);padding:10px 20px;text-align:center;
-              font-weight:700;font-size:13px;color:#92400E;position:relative;z-index:10">
-    ⚠️ 請在 <code style="background:#FDE68A;padding:2px 6px;border-radius:4px">js/config.js</code>
+       style="background:rgba(234,34,97,0.06);border-bottom:1px solid rgba(234,34,97,0.12);
+              padding:10px 20px;text-align:center;
+              font-weight:400;font-size:13px;color:#ea2261;position:relative;z-index:10">
+    請在 <code style="background:rgba(83,58,253,0.06);padding:2px 6px;border-radius:3px;
+                       font-family:'Source Code Pro',monospace;color:#533afd;font-size:12px">js/config.js</code>
     填入 Supabase 設定後才能使用
   </div>
 
@@ -43,11 +45,11 @@
               padding:40px 16px">
 
     <!-- Hero -->
-    <div class="animate__animated animate__bounceInDown" style="text-align:center;margin-bottom:36px">
+    <div class="animate__animated animate__fadeIn" style="text-align:center;margin-bottom:36px">
       <img src="logo.svg" alt="懂我再說"
-           style="width:min(480px,90vw);height:auto;filter:drop-shadow(0 8px 28px rgba(139,92,246,.35));margin-bottom:12px">
-      <p style="font-size:18px;color:#A78BFA;font-weight:700;margin-bottom:3px;font-family:'Baloo 2','Nunito',sans-serif">多人互動猜測遊戲</p>
-      <p style="font-size:16px;color:#C4B5FD;font-weight:600">選擇・猜測・揭曉・看看朋友有多了解你！</p>
+           style="width:min(400px,85vw);height:auto;filter:drop-shadow(0 4px 16px rgba(50,50,93,.12));margin-bottom:12px">
+      <p style="font-size:18px;color:#273951;font-weight:300;margin-bottom:3px;letter-spacing:-0.2px">多人互動猜測遊戲</p>
+      <p style="font-size:16px;color:#64748d;font-weight:300">選擇・猜測・揭曉・看看朋友有多了解你！</p>
     </div>
 
     <!-- Action cards -->
@@ -56,18 +58,17 @@
                 grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
 
       <!-- Create Room -->
-      <div class="game-card">
-        <div style="width:62px;height:62px;border-radius:18px;
-                    background:linear-gradient(135deg,#7C3AED,#A855F7);
+      <div class="game-card" style="display:flex;flex-direction:column">
+        <div style="width:48px;height:48px;border-radius:8px;
+                    background:rgba(83,58,253,0.08);
                     display:flex;align-items:center;justify-content:center;
-                    font-size:28px;margin-bottom:14px;
-                    box-shadow:0 8px 24px rgba(124,58,237,.3)">🏠</div>
-        <h2 style="font-size:18px;font-weight:900;color:#1F2937;margin-bottom:4px;font-family:'Baloo 2','Nunito',sans-serif">建立新房間</h2>
-        <p style="font-size:16px;color:#9CA3AF;font-weight:600;margin-bottom:20px">
-          邀請朋友一起猜猜你！
+                    font-size:22px;margin-bottom:14px">🏠</div>
+        <h2 style="font-size:18px;font-weight:300;color:#061b31;margin-bottom:4px">建立新房間</h2>
+        <p style="font-size:16px;color:#64748d;font-weight:300;margin-bottom:20px">
+          邀請朋友一起猜猜你
         </p>
 
-        <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:12px;flex:1;justify-content:flex-end">
           <div class="input-wrapper">
             <span class="input-icon">😊</span>
             <input id="create-nickname" type="text" placeholder="你的暱稱" maxlength="12" class="game-input">
@@ -82,35 +83,31 @@
               <option value="12">最多 12 人</option>
             </select>
           </div>
-          <p id="max-players-hint" style="font-size:13px;color:#A78BFA;font-weight:600;text-align:center;margin-top:-6px">
-            💡 2-4人：節奏快；5-8人：最佳體驗；9-12人：熱鬧但等待較久
-          </p>
           <button id="create-btn" onclick="handleCreateRoom()" class="btn-primary">
-            建立房間 🚀
+            建立房間
           </button>
         </div>
       </div>
 
       <!-- Join Room -->
-      <div class="game-card">
-        <div style="width:62px;height:62px;border-radius:18px;
-                    background:linear-gradient(135deg,#F472B6,#EC4899);
+      <div class="game-card" style="display:flex;flex-direction:column">
+        <div style="width:48px;height:48px;border-radius:8px;
+                    background:rgba(234,34,97,0.08);
                     display:flex;align-items:center;justify-content:center;
-                    font-size:28px;margin-bottom:14px;
-                    box-shadow:0 8px 24px rgba(236,72,153,.3)">🎪</div>
-        <h2 style="font-size:18px;font-weight:900;color:#1F2937;margin-bottom:4px;font-family:'Baloo 2','Nunito',sans-serif">加入房間</h2>
-        <p style="font-size:16px;color:#9CA3AF;font-weight:600;margin-bottom:20px">
+                    font-size:22px;margin-bottom:14px">🎪</div>
+        <h2 style="font-size:18px;font-weight:300;color:#061b31;margin-bottom:4px">加入房間</h2>
+        <p style="font-size:16px;color:#64748d;font-weight:300;margin-bottom:20px">
           輸入朋友分享的房間碼
         </p>
 
-        <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:12px;flex:1;justify-content:flex-end">
           <div class="input-wrapper">
             <span class="input-icon" style="left:50%;transform:translateX(-50%);font-size:0">
             </span>
             <input id="join-code" type="text" placeholder="房間碼（6碼）" maxlength="6"
                    class="game-input"
-                   style="text-align:center;letter-spacing:7px;font-size:22px;
-                          font-weight:900;padding-left:0;padding-right:0"
+                   style="text-align:center;letter-spacing:7px;font-size:20px;
+                          font-weight:600;padding-left:0;padding-right:0"
                    oninput="this.value=this.value.toUpperCase()">
           </div>
           <div class="input-wrapper">
@@ -118,7 +115,7 @@
             <input id="join-nickname" type="text" placeholder="你的暱稱" maxlength="12" class="game-input">
           </div>
           <button id="join-btn" onclick="handleJoinRoom()" class="btn-secondary">
-            加入房間 ✨
+            加入房間
           </button>
         </div>
       </div>
@@ -129,78 +126,78 @@
          style="width:100%;max-width:860px;margin-top:32px">
 
       <div style="text-align:center;margin-bottom:20px">
-        <h2 style="font-size:18px;font-weight:900;font-family:'Baloo 2','Nunito',sans-serif;
-                   color:#7C3AED;margin-bottom:4px">🎮 怎麼玩？</h2>
-        <p style="font-size:16px;color:#A78BFA;font-weight:600">三分鐘上手，一玩就停不下來</p>
+        <h2 style="font-size:18px;font-weight:300;
+                   color:#061b31;margin-bottom:4px">怎麼玩？</h2>
+        <p style="font-size:16px;color:#64748d;font-weight:300">三分鐘上手，一玩就停不下來</p>
       </div>
 
       <!-- Steps -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px">
 
         <div class="game-card" style="padding:20px 18px;text-align:center">
-          <div style="font-size:36px;margin-bottom:8px">🏠</div>
-          <div style="font-size:16px;font-weight:900;color:#7C3AED;font-family:'Baloo 2',sans-serif;margin-bottom:4px">① 建立 / 加入房間</div>
-          <div style="font-size:14px;color:#9CA3AF;font-weight:600;line-height:1.5">輸入暱稱，建立房間後分享連結或房間碼給朋友</div>
+          <div style="font-size:28px;margin-bottom:8px">🏠</div>
+          <div style="font-size:14px;font-weight:400;color:#533afd;margin-bottom:4px">① 建立 / 加入房間</div>
+          <div style="font-size:13px;color:#64748d;font-weight:300;line-height:1.5">輸入暱稱，建立房間後分享連結或房間碼給朋友</div>
         </div>
 
         <div class="game-card" style="padding:20px 18px;text-align:center">
-          <div style="font-size:36px;margin-bottom:8px">🎯</div>
-          <div style="font-size:16px;font-weight:900;color:#EC4899;font-family:'Baloo 2',sans-serif;margin-bottom:4px">② 被猜者選主題</div>
-          <div style="font-size:14px;color:#9CA3AF;font-weight:600;line-height:1.5">輪流當「被猜者」，選擇一個主題，並偷看題目（可換題 3 次）</div>
+          <div style="font-size:28px;margin-bottom:8px">🎯</div>
+          <div style="font-size:14px;font-weight:400;color:#533afd;margin-bottom:4px">② 被猜者選主題</div>
+          <div style="font-size:13px;color:#64748d;font-weight:300;line-height:1.5">輪流當「被猜者」，選擇一個主題，並偷看題目（可換題 3 次）</div>
         </div>
 
         <div class="game-card" style="padding:20px 18px;text-align:center">
-          <div style="font-size:36px;margin-bottom:8px">🤔</div>
-          <div style="font-size:16px;font-weight:900;color:#7C3AED;font-family:'Baloo 2',sans-serif;margin-bottom:4px">③ 大家來猜</div>
-          <div style="font-size:14px;color:#9CA3AF;font-weight:600;line-height:1.5">其他玩家根據題目猜測被猜者的答案是 A 還是 B</div>
+          <div style="font-size:28px;margin-bottom:8px">🤔</div>
+          <div style="font-size:14px;font-weight:400;color:#533afd;margin-bottom:4px">③ 大家來猜</div>
+          <div style="font-size:13px;color:#64748d;font-weight:300;line-height:1.5">其他玩家根據題目猜測被猜者的答案是 A 還是 B</div>
         </div>
 
         <div class="game-card" style="padding:20px 18px;text-align:center">
-          <div style="font-size:36px;margin-bottom:8px">🎊</div>
-          <div style="font-size:16px;font-weight:900;color:#EC4899;font-family:'Baloo 2',sans-serif;margin-bottom:4px">④ 揭曉 & 計分</div>
-          <div style="font-size:14px;color:#9CA3AF;font-weight:600;line-height:1.5">倒數揭曉答案！猜對得分，全對被猜者加分，全錯扣分</div>
+          <div style="font-size:28px;margin-bottom:8px">🎊</div>
+          <div style="font-size:14px;font-weight:400;color:#533afd;margin-bottom:4px">④ 揭曉 & 計分</div>
+          <div style="font-size:13px;color:#64748d;font-weight:300;line-height:1.5">倒數揭曉答案！猜對得分，全對被猜者加分，全錯扣分</div>
         </div>
 
       </div>
 
       <!-- Rules -->
       <div class="game-card" style="padding:20px 24px">
-        <h3 style="font-size:18px;font-weight:900;color:#7C3AED;
-                   font-family:'Baloo 2',sans-serif;margin-bottom:14px">📋 遊戲規則</h3>
+        <h3 style="font-size:16px;font-weight:300;color:#061b31;
+                   margin-bottom:14px">遊戲規則</h3>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;align-items:flex-start;gap:10px">
-            <span style="font-size:18px;flex-shrink:0">🔄</span>
+            <span style="font-size:16px;flex-shrink:0">🔄</span>
             <div>
-              <span style="font-weight:800;font-size:16px;color:#374151">輪流上場</span>
-              <span style="font-size:14px;color:#9CA3AF;font-weight:600">　每位玩家都會輪流擔任「被猜者」，每輪隨機決定順序</span>
+              <span style="font-weight:400;font-size:14px;color:#061b31">輪流上場</span>
+              <span style="font-size:13px;color:#64748d;font-weight:300">　每位玩家都會輪流擔任「被猜者」，每輪隨機決定順序</span>
             </div>
           </div>
           <div style="display:flex;align-items:flex-start;gap:10px">
-            <span style="font-size:18px;flex-shrink:0">💡</span>
+            <span style="font-size:16px;flex-shrink:0">💡</span>
             <div>
-              <span style="font-weight:800;font-size:16px;color:#374151">換題機會</span>
-              <span style="font-size:14px;color:#9CA3AF;font-weight:600">　被猜者每輪最多可以換題 <strong style="color:#F97316">3 次</strong>，選好後確認才廣播給所有人</span>
+              <span style="font-weight:400;font-size:14px;color:#061b31">換題機會</span>
+              <span style="font-size:13px;color:#64748d;font-weight:300">　被猜者每輪最多可以換題 <strong style="color:#533afd">3 次</strong>，選好後確認才廣播給所有人</span>
             </div>
           </div>
           <div style="display:flex;align-items:flex-start;gap:10px">
-            <span style="font-size:18px;flex-shrink:0">🏆</span>
+            <span style="font-size:16px;flex-shrink:0">🏆</span>
             <div>
-              <span style="font-weight:800;font-size:16px;color:#374151">計分方式</span>
-              <span style="font-size:14px;color:#9CA3AF;font-weight:600">　猜對 +1 分，猜錯 0 分。全部猜對：被猜者 +1；全部猜錯：被猜者 -1</span>
+              <span style="font-weight:400;font-size:14px;color:#061b31">計分方式</span>
+              <span style="font-size:13px;color:#64748d;font-weight:300">　猜對 +1 分，猜錯 0 分。全部猜對：被猜者 +1；全部猜錯：被猜者 -1</span>
             </div>
           </div>
           <div style="display:flex;align-items:flex-start;gap:10px">
-            <span style="font-size:18px;flex-shrink:0">✏️</span>
+            <span style="font-size:16px;flex-shrink:0">✏️</span>
             <div>
-              <span style="font-weight:800;font-size:16px;color:#374151">可更改答案</span>
-              <span style="font-size:14px;color:#9CA3AF;font-weight:600">　猜測階段還沒揭曉前，可以隨時更改自己的選擇</span>
+              <span style="font-weight:400;font-size:14px;color:#061b31">可更改答案</span>
+              <span style="font-size:13px;color:#64748d;font-weight:300">　猜測階段還沒揭曉前，可以隨時更改自己的選擇</span>
             </div>
           </div>
           <div style="display:flex;align-items:flex-start;gap:10px">
-            <span style="font-size:18px;flex-shrink:0">😊</span>
+            <span style="font-size:16px;flex-shrink:0">😊</span>
             <div>
-              <span style="font-weight:800;font-size:16px;color:#374151">Emoji 反應</span>
-              <span style="font-size:14px;color:#9CA3AF;font-weight:600">　揭曉後可以用 🎉😱😅🔥 表情互動，讓氣氛更熱鬧！</span>
+              <span style="font-weight:400;font-size:14px;color:#061b31">Emoji 反應</span>
+              <span style="font-size:13px;color:#64748d;font-weight:400">　揭曉後可以用 🎉😱😅🔥 表情互動</span>
             </div>
           </div>
         </div>
@@ -209,8 +206,8 @@
 
     <!-- Footer -->
     <p class="animate__animated animate__fadeIn animate__delay-2s"
-       style="margin-top:36px;color:#A78BFA;font-size:14px;font-weight:700;text-align:center">
-      Made with 💜 · 最多12人同時遊玩 · Supabase 即時同步
+       style="margin-top:36px;color:#64748d;font-size:13px;font-weight:300;text-align:center">
+      Made with ❤️ · 最多12人同時遊玩 · Supabase 即時同步
     </p>
   </div>
 

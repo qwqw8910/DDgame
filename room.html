@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>懂我再說 🎭</title>
+  <title>懂我再說</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Baloo+2:wght@400;500;600;700;800&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Noto+Sans+TC:wght@300;400;500;600&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
@@ -21,23 +21,22 @@
 <div id="nickname-overlay" class="overlay hidden">
   <div class="game-card animate-bounce-in"
        style="max-width:380px;width:100%;text-align:center">
-    <div style="font-size:58px;margin-bottom:10px;
-                filter:drop-shadow(0 4px 8px rgba(139,92,246,.25))">😊</div>
-    <h2 style="font-size:24px;font-weight:900;margin-bottom:4px" class="gradient-text">
+    <div style="font-size:48px;margin-bottom:10px">😊</div>
+    <h2 style="font-size:22px;font-weight:300;margin-bottom:4px;color:#061b31;letter-spacing:-0.22px">
       輸入你的暱稱
     </h2>
-    <p style="font-size:13px;color:#9CA3AF;font-weight:600;margin-bottom:16px">
+    <p style="font-size:13px;color:#64748d;font-weight:400;margin-bottom:16px">
       讓大家認識你吧！
     </p>
     <div id="nickname-error" class="hidden"
-         style="background:#FEE2E2;color:#991B1B;border-radius:10px;
-                padding:8px 14px;font-size:13px;font-weight:700;margin-bottom:12px"></div>
+         style="background:rgba(234,34,97,0.08);color:#ea2261;border:1px solid rgba(234,34,97,0.2);border-radius:4px;
+                padding:8px 14px;font-size:13px;font-weight:500;margin-bottom:12px"></div>
     <div class="input-wrapper" style="margin-bottom:14px">
       <span class="input-icon">😊</span>
       <input id="overlay-nickname" type="text" placeholder="你的暱稱"
              maxlength="12" class="game-input">
     </div>
-    <button onclick="submitNickname()" class="btn-primary">加入房間 🎉</button>
+    <button onclick="submitNickname()" class="btn-primary">加入房間</button>
   </div>
 </div>
 
@@ -45,28 +44,28 @@
      LOADING SCREEN
      ================================================================ -->
 <div id="loading-screen"
-     style="position:fixed;inset:0;background:rgba(253,244,255,.95);backdrop-filter:blur(4px);
+     style="position:fixed;inset:0;background:rgba(255,255,255,.95);backdrop-filter:blur(4px);
             display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100">
-  <div style="font-size:60px;margin-bottom:16px;animation:float 2s ease-in-out infinite">🎭</div>
+  <div style="font-size:48px;margin-bottom:16px;animation:float 2s ease-in-out infinite">🎭</div>
   <span class="loading loading-spinner loading-lg text-primary" style="margin-bottom:14px"></span>
-  <p id="loading-text" style="color:#A78BFA;font-weight:700;font-size:16px">連線中…</p>
+  <p id="loading-text" style="color:#64748d;font-weight:400;font-size:15px">連線中…</p>
 </div>
 
 <!-- ================================================================
      ERROR SCREEN
      ================================================================ -->
 <div id="error-screen"
-     style="position:fixed;inset:0;background:rgba(253,244,255,.95);
+     style="position:fixed;inset:0;background:rgba(255,255,255,.95);
             display:none;flex-direction:column;align-items:center;
             justify-content:center;z-index:100;text-align:center;padding:24px">
-  <div style="font-size:72px;margin-bottom:12px">😢</div>
-  <h2 style="font-size:26px;font-weight:900;margin-bottom:8px" class="gradient-text">哎呀！</h2>
-  <p id="error-message" style="color:#6B7280;font-size:16px;margin-bottom:24px;font-weight:600">
+  <div style="font-size:56px;margin-bottom:12px">😢</div>
+  <h2 style="font-size:26px;font-weight:300;margin-bottom:8px;color:#061b31;letter-spacing:-0.5px">哎呀！</h2>
+  <p id="error-message" style="color:#64748d;font-size:16px;margin-bottom:24px;font-weight:400">
     發生了一點問題
   </p>
   <a href="index.html" class="btn-primary"
-     style="width:auto;padding:12px 32px;text-decoration:none;display:inline-flex">
-    🏠 回首頁
+     style="width:auto;padding:10px 24px;text-decoration:none;display:inline-flex">
+    回首頁
   </a>
 </div>
 
@@ -74,23 +73,23 @@
      CONFIG ERROR SCREEN
      ================================================================ -->
 <div id="config-error-screen"
-     style="position:fixed;inset:0;background:rgba(253,244,255,.95);
+     style="position:fixed;inset:0;background:rgba(255,255,255,.95);
             display:none;flex-direction:column;align-items:center;
             justify-content:center;z-index:100;text-align:center;padding:24px">
-  <div style="font-size:72px;margin-bottom:12px">⚙️</div>
-  <h2 style="font-size:24px;font-weight:900;margin-bottom:8px" class="gradient-text">
+  <div style="font-size:56px;margin-bottom:12px">⚙️</div>
+  <h2 style="font-size:22px;font-weight:300;margin-bottom:8px;color:#061b31;letter-spacing:-0.22px">
     需要設定 Supabase
   </h2>
-  <p style="color:#6B7280;font-size:15px;margin-bottom:8px;font-weight:600">
-    請在 <code style="background:#EDE9FE;padding:2px 8px;border-radius:6px;color:#7C3AED">js/config.js</code>
+  <p style="color:#64748d;font-size:15px;margin-bottom:8px;font-weight:400">
+    請在 <code style="background:rgba(83,58,253,0.06);padding:2px 8px;border-radius:4px;color:#533afd;font-family:'Source Code Pro',monospace;font-size:13px">js/config.js</code>
     填入 Supabase URL 和 anon key
   </p>
-  <p style="color:#9CA3AF;font-size:13px;margin-bottom:24px">
+  <p style="color:#64748d;font-size:13px;margin-bottom:24px">
     到 <strong>supabase.com</strong> 免費建立專案 → Settings → API
   </p>
   <a href="index.html" class="btn-primary"
-     style="width:auto;padding:12px 32px;text-decoration:none;display:inline-flex">
-    🏠 回首頁
+     style="width:auto;padding:10px 24px;text-decoration:none;display:inline-flex">
+    回首頁
   </a>
 </div>
 
@@ -101,61 +100,62 @@
 
   <!-- ── Sticky Header ── -->
   <header style="position:sticky;top:0;z-index:40;
-                 background:rgba(255,255,255,.88);backdrop-filter:blur(14px);
-                 border-bottom:2px solid rgba(237,233,254,.8);padding:10px 16px">
-    <div style="max-width:680px;margin:0 auto;
+                 background:rgba(255,255,255,.95);backdrop-filter:blur(12px);
+                 border-bottom:1px solid #e5edf5;padding:10px 16px">
+    <div style="max-width:800px;margin:0 auto;
                 display:flex;align-items:center;justify-content:space-between;gap:8px">
 
       <a href="index.html" title="回首頁"
-         style="font-size:24px;text-decoration:none;line-height:1;
-                transition:transform .2s;display:inline-block"
-         onmouseover="this.style.transform='scale(1.2) rotate(-10deg)'"
-         onmouseout="this.style.transform='scale(1) rotate(0)'">🎭</a>
+         style="font-size:22px;text-decoration:none;line-height:1;
+                transition:opacity .15s;display:inline-block"
+         onmouseover="this.style.opacity='0.7'"
+         onmouseout="this.style.opacity='1'">🎭</a>
 
       <div style="display:flex;align-items:center;gap:10px;flex:1;justify-content:center;flex-wrap:wrap">
         <div style="text-align:center">
-          <div style="font-size:10px;color:#C4B5FD;font-weight:800;letter-spacing:1px;text-transform:uppercase">
+          <div style="font-size:10px;color:#64748d;font-weight:300;letter-spacing:0.5px;text-transform:uppercase">
             房間碼
           </div>
           <div class="room-code-display" id="header-room-id">------</div>
         </div>
 
-        <div style="height:32px;width:2px;background:linear-gradient(180deg,#EDE9FE,#FCE7F3);border-radius:1px"></div>
+        <div style="height:28px;width:1px;background:#e5edf5"></div>
 
         <div style="text-align:center">
-          <div style="font-size:10px;color:#C4B5FD;font-weight:800;letter-spacing:1px">玩家</div>
-          <div style="font-size:16px;font-weight:900;color:#7C3AED" id="header-player-count">0/0</div>
+          <div style="font-size:10px;color:#64748d;font-weight:300;letter-spacing:0.5px">玩家</div>
+          <div style="font-size:15px;font-weight:400;color:#061b31" id="header-player-count">0/0</div>
         </div>
 
         <div id="header-round-wrapper"
              style="display:none;align-items:center;gap:8px">
-          <div style="height:32px;width:2px;background:linear-gradient(180deg,#EDE9FE,#FCE7F3);border-radius:1px"></div>
+          <div style="height:28px;width:1px;background:#e5edf5"></div>
           <div style="text-align:center">
-            <div style="font-size:10px;color:#C4B5FD;font-weight:800;letter-spacing:1px">回合</div>
-            <div style="font-size:16px;font-weight:900;color:#EC4899" id="header-round"></div>
+            <div style="font-size:10px;color:#64748d;font-weight:300;letter-spacing:0.5px">回合</div>
+            <div style="font-size:15px;font-weight:400;color:#533afd" id="header-round"></div>
           </div>
         </div>
 
         <div id="header-host-wrapper" style="display:none;align-items:center;gap:8px">
-          <div style="height:32px;width:2px;background:linear-gradient(180deg,#EDE9FE,#FCE7F3);border-radius:1px"></div>
+          <div style="height:28px;width:1px;background:#e5edf5"></div>
           <div style="text-align:center">
-            <div style="font-size:10px;color:#C4B5FD;font-weight:800;letter-spacing:1px">房主</div>
-            <div style="font-size:13px;font-weight:900;color:#EC4899;font-family:'Baloo 2','Nunito',sans-serif" id="header-host-name">-</div>
+            <div style="font-size:10px;color:#64748d;font-weight:300;letter-spacing:0.5px">房主</div>
+            <div style="font-size:13px;font-weight:400;color:#061b31" id="header-host-name">-</div>
           </div>
         </div>
       </div>
 
       <button onclick="GameApp.copyLink()" title="複製邀請連結"
-              style="background:linear-gradient(135deg,#EDE9FE,#FCE7F3);border:none;
-                     border-radius:12px;padding:9px 12px;cursor:pointer;font-size:18px;
-                     transition:transform .2s;box-shadow:0 2px 8px rgba(139,92,246,.15)"
-              onmouseover="this.style.transform='scale(1.1)'"
-              onmouseout="this.style.transform='scale(1)'">🔗</button>
+              style="background:#ffffff;border:1px solid #e5edf5;
+                     border-radius:6px;padding:8px 10px;cursor:pointer;font-size:16px;
+                     transition:border-color .15s,box-shadow .15s;
+                     box-shadow:rgba(50,50,93,0.08) 0px 2px 4px"
+              onmouseover="this.style.borderColor='#b9b9f9';this.style.boxShadow='rgba(50,50,93,0.15) 0px 4px 8px'"
+              onmouseout="this.style.borderColor='#e5edf5';this.style.boxShadow='rgba(50,50,93,0.08) 0px 2px 4px'">🔗</button>
     </div>
   </header>
 
   <!-- ── Page Content ── -->
-  <div style="max-width:680px;margin:0 auto;padding:20px 16px">
+  <div style="max-width:800px;margin:0 auto;padding:20px 16px">
 
     <!-- ============================================================
          SECTION: LOBBY
@@ -165,35 +165,35 @@
       <!-- Share card -->
       <div class="neon-card" style="margin-bottom:16px">
         <div style="text-align:center;margin-bottom:18px">
-          <div style="font-size:44px;margin-bottom:6px">🏠</div>
-          <h2 style="font-size:20px;font-weight:900" class="gradient-text">等待玩家加入</h2>
-          <p style="font-size:13px;color:#9CA3AF;font-weight:600;margin-top:3px">
+          <div style="font-size:36px;margin-bottom:6px">🏠</div>
+          <h2 style="font-size:22px;font-weight:300;color:#061b31;letter-spacing:-0.22px">等待玩家加入</h2>
+          <p style="font-size:13px;color:#64748d;font-weight:400;margin-top:4px">
             分享房間碼或連結邀請朋友！
           </p>
         </div>
 
         <!-- Share link row -->
-        <div style="background:linear-gradient(135deg,#F5F3FF,#FCE7F3);
-                    border-radius:14px;padding:12px 14px;margin-bottom:16px;
+        <div style="background:#f8f9fc;
+                    border:1px solid #e5edf5;border-radius:6px;padding:12px 14px;margin-bottom:16px;
                     display:flex;align-items:center;gap:10px">
-          <div style="font-size:20px;flex-shrink:0">🔗</div>
+          <div style="font-size:18px;flex-shrink:0">🔗</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:10px;color:#A78BFA;font-weight:800;
-                        letter-spacing:1px;margin-bottom:2px">邀請連結</div>
+            <div style="font-size:10px;color:#64748d;font-weight:300;
+                        letter-spacing:0.5px;margin-bottom:2px">邀請連結</div>
             <div id="share-url"
-                 style="font-size:12px;color:#6B7280;font-weight:600;
+                 style="font-size:12px;color:#273951;font-weight:400;
                         overflow:hidden;text-overflow:ellipsis;white-space:nowrap">-</div>
           </div>
           <button onclick="GameApp.copyLink()"
-                  style="background:linear-gradient(135deg,#7C3AED,#EC4899);color:white;
-                         border:none;border-radius:10px;padding:8px 14px;
-                         font-weight:800;font-size:13px;font-family:'Nunito',sans-serif;
+                  style="background:#533afd;color:white;
+                         border:none;border-radius:4px;padding:6px 14px;
+                         font-weight:400;font-size:13px;font-family:'Poppins','Noto Sans TC',sans-serif;
                          cursor:pointer;white-space:nowrap;
-                         transition:transform .2s,box-shadow .2s;
-                         box-shadow:0 4px 14px rgba(124,58,237,.3)"
-                  onmouseover="this.style.transform='scale(1.05)'"
-                  onmouseout="this.style.transform='scale(1)'">
-            複製 📋
+                         transition:background .15s;
+                         box-shadow:rgba(50,50,93,0.25) 0px 2px 8px -2px"
+                  onmouseover="this.style.background='#4434d4'"
+                  onmouseout="this.style.background='#533afd'">
+            複製
           </button>
         </div>
 
@@ -204,10 +204,10 @@
       <!-- Lobby actions -->
       <div style="display:flex;flex-direction:column;gap:10px">
         <button id="lobby-ready-btn" class="btn-primary"
-                onclick="GameApp.toggleReady()">準備好了！🙋</button>
+                onclick="GameApp.toggleReady()">準備好了</button>
         <button id="lobby-start-btn" class="btn-success"
                 onclick="GameApp.startGame()" style="display:none">
-          🎮 開始遊戲！
+          開始遊戲
         </button>
       </div>
     </div>
@@ -217,11 +217,11 @@
          ============================================================ -->
     <div id="section-topic" class="game-section hidden">
       <div style="text-align:center;margin-bottom:24px">
-        <div style="font-size:48px;margin-bottom:8px">🎯</div>
-        <h2 style="font-size:26px;font-weight:900;font-family:'Baloo 2','Nunito',sans-serif" class="gradient-text" id="topic-who">
+        <div style="font-size:36px;margin-bottom:8px">🎯</div>
+        <h2 style="font-size:24px;font-weight:300;color:#061b31;letter-spacing:-0.22px" id="topic-who">
           選擇主題
         </h2>
-        <p style="font-size:13px;color:#A78BFA;font-weight:600;margin-top:4px">
+        <p style="font-size:13px;color:#64748d;font-weight:400;margin-top:4px">
           選一個你最想讓大家猜的主題！
         </p>
       </div>
@@ -240,9 +240,9 @@
       <!-- Subject player view -->
       <div id="preview-subject-view">
         <div style="text-align:center;margin-bottom:16px">
-          <div style="font-size:44px;margin-bottom:8px">🔍</div>
-          <h2 style="font-size:21px;font-weight:900" class="gradient-text">先偷看一下題目！</h2>
-          <p style="font-size:13px;color:#9CA3AF;font-weight:600;margin-top:4px">
+          <div style="font-size:36px;margin-bottom:8px">🔍</div>
+          <h2 style="font-size:21px;font-weight:300;color:#061b31;letter-spacing:-0.2px">先偷看一下題目！</h2>
+          <p style="font-size:13px;color:#64748d;font-weight:400;margin-top:4px">
             確認後才會讓大家看到
           </p>
         </div>
@@ -254,23 +254,23 @@
         </div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <button id="preview-confirm-btn" class="btn-primary" onclick="GameApp.confirmQuestion()">
-            ✅ 就用這題！
+            就用這題
           </button>
           <button id="preview-swap-btn" class="btn-swap" onclick="GameApp.swapQuestion()">
-            🔄 換一題（剩 <span id="preview-swap-left">3</span> 次）
+            換一題（剩 <span id="preview-swap-left">3</span> 次）
           </button>
         </div>
       </div>
 
       <!-- Other players view -->
       <div id="preview-waiting-view" class="hidden waiting-card">
-        <div style="font-size:52px;margin-bottom:12px">🤫</div>
+        <div style="font-size:40px;margin-bottom:12px">🤫</div>
         <span class="loading loading-dots loading-md text-primary" style="margin-bottom:14px"></span>
-        <p style="color:#A78BFA;font-weight:700;font-size:17px">
-          <span id="preview-waiting-name" style="color:#7C3AED">???</span>
+        <p style="color:#273951;font-weight:400;font-size:16px">
+          <span id="preview-waiting-name" style="color:#533afd;font-weight:500">???</span>
           正在確認題目…
         </p>
-        <p style="color:#C4B5FD;font-size:13px;font-weight:600;margin-top:8px">
+        <p style="color:#64748d;font-size:13px;font-weight:300;margin-top:8px">
           等他確認後就輪到你們猜了！
         </p>
       </div>
@@ -280,15 +280,20 @@
          SECTION: SELECTING ANSWER (subject picks A or B privately)
          ============================================================ -->
     <div id="section-answer" class="game-section hidden">
-      <div id="answer-title" style="display:none"></div>
-      <div id="answer-topic-badge" style="text-align:center;margin-bottom:12px;display:none">
-        <span style="display:inline-block;background:linear-gradient(135deg,#EDE9FE,#FCE7F3);
-                     border-radius:999px;padding:4px 16px;font-size:13px;
-                     font-weight:800;color:#7C3AED">🏷️ <span id="answer-topic-name"></span></span>
+      <div id="answer-header" style="text-align:center;margin-bottom:20px">
+        <div style="font-size:36px;margin-bottom:8px">🤫</div>
+        <h2 id="answer-header-text" style="font-size:22px;font-weight:300;color:#061b31;letter-spacing:-0.2px">
+          悄悄選擇答案中…
+        </h2>
       </div>
 
       <!-- Subject player sees this -->
       <div id="answer-choices">
+        <div id="answer-topic-badge" style="text-align:center;margin-bottom:8px;display:none">
+          <span style="display:inline-block;background:rgba(83,58,253,0.06);
+                       border:1px solid rgba(83,58,253,0.12);border-radius:4px;padding:5px 16px;font-size:14px;
+                       font-weight:400;color:#533afd">🏷️ <span id="answer-topic-name"></span></span>
+        </div>
         <div id="answer-question-prompt"
              class="question-text" style="font-size:22px"></div>
          <div id="answer-guess-status" style="display:none"></div>
@@ -297,13 +302,13 @@
 
       <!-- Other players see this -->
       <div id="answer-waiting" class="hidden waiting-card">
-        <div style="font-size:52px;margin-bottom:12px">🤫</div>
+        <div style="font-size:40px;margin-bottom:12px">🤫</div>
         <span class="loading loading-dots loading-md text-primary" style="margin-bottom:14px"></span>
-        <p style="color:#A78BFA;font-weight:700;font-size:17px">
-          <span id="answer-waiting-name" style="color:#7C3AED">???</span>
+        <p style="color:#273951;font-weight:400;font-size:16px">
+          <span id="answer-waiting-name" style="color:#533afd;font-weight:500">???</span>
           正在悄悄選擇答案…
         </p>
-        <p style="color:#C4B5FD;font-size:13px;font-weight:600;margin-top:8px">
+        <p style="color:#64748d;font-size:13px;font-weight:300;margin-top:8px">
           選好之後就換你們猜！
         </p>
       </div>
@@ -314,53 +319,54 @@
          ============================================================ -->
     <div id="section-guess" class="game-section hidden">
       <div style="text-align:center;margin-bottom:20px">
-        <div style="font-size:44px;margin-bottom:8px">🔍</div>
-        <h2 style="font-size:24px;font-weight:900;font-family:'Baloo 2','Nunito',sans-serif" class="gradient-text">
+        <div style="font-size:36px;margin-bottom:8px">🔍</div>
+        <h2 style="font-size:22px;font-weight:300;color:#061b31;letter-spacing:-0.2px">
           你覺得 <span id="guess-subject-name" class="subject-name-highlight">???</span> 選了哪個？
         </h2>
-        <div id="guess-topic-badge" style="margin-top:8px;display:none">
-          <span style="display:inline-block;background:linear-gradient(135deg,#EDE9FE,#FCE7F3);
-                       border-radius:999px;padding:4px 16px;font-size:13px;
-                       font-weight:800;color:#7C3AED">🏷️ <span id="guess-topic-name"></span></span>
-        </div>
-      </div>
-
-      <!-- Progress card -->
-      <div class="game-card" style="padding:16px 20px;margin-bottom:16px">
-        <div style="display:flex;justify-content:space-between;
-                    align-items:center;margin-bottom:8px">
-          <span style="font-size:12px;font-weight:800;color:#A78BFA">📊 提交進度</span>
-          <span id="guess-progress-text"
-                style="font-size:13px;font-weight:900;color:#7C3AED">0 / 0 人已提交</span>
-        </div>
-        <progress class="progress progress-primary w-full" id="guess-progress-fill" value="0" max="100"></progress>
-        <div id="guess-status-text"
-             style="text-align:center;font-size:13px;color:#9CA3AF;font-weight:600;margin-top:8px">
-          選擇你的答案！
-        </div>
       </div>
 
       <!-- Non-subject players see choices -->
       <div id="guess-choices">
-        <!-- Player submission status list -->
-        <div class="game-card" style="padding:12px 16px;margin-bottom:16px" id="guess-player-status">
-          <div style="font-size:12px;font-weight:800;color:#A78BFA;margin-bottom:8px">👥 玩家狀態</div>
-          <div id="guess-player-list" style="display:flex;flex-direction:column;gap:6px">
-            <!-- Rendered by JS -->
-          </div>
+        <div id="guess-topic-badge" style="text-align:center;margin-bottom:8px;display:none">
+          <span style="display:inline-block;background:rgba(83,58,253,0.06);
+                       border:1px solid rgba(83,58,253,0.12);border-radius:4px;padding:5px 16px;font-size:14px;
+                       font-weight:400;color:#533afd">🏷️ <span id="guess-topic-name"></span></span>
         </div>
         <div id="guess-question-prompt"
              class="question-text" style="font-size:22px"></div>
         <div id="guess-choice-container"><!-- Rendered by JS --></div>
+
+        <!-- Progress card (moved below choices to prevent layout shift) -->
+        <div class="game-card" style="padding:16px 20px;margin-top:16px;margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;
+                      align-items:center;margin-bottom:8px">
+            <span style="font-size:12px;font-weight:300;color:#64748d">📊 提交進度</span>
+            <span id="guess-progress-text"
+                  style="font-size:13px;font-weight:400;color:#533afd">0 / 0 人已提交</span>
+          </div>
+          <progress class="progress progress-primary w-full" id="guess-progress-fill" value="0" max="100"></progress>
+          <div id="guess-status-text"
+               style="text-align:center;font-size:13px;color:#64748d;font-weight:300;margin-top:8px">
+            選擇你的答案！
+          </div>
+        </div>
+
+        <!-- Player submission status list -->
+        <div class="game-card" style="padding:12px 16px;margin-bottom:16px" id="guess-player-status">
+          <div style="font-size:12px;font-weight:300;color:#64748d;margin-bottom:8px">👥 玩家狀態</div>
+          <div id="guess-player-list" style="display:flex;flex-direction:column;gap:6px">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
       </div>
 
       <!-- Subject player sees this -->
       <div id="guess-subject-waiting" class="hidden waiting-card">
-        <div style="font-size:56px;margin-bottom:12px">😌</div>
-        <p style="color:#A78BFA;font-weight:700;font-size:17px">
+        <div style="font-size:44px;margin-bottom:12px">😌</div>
+        <p style="color:#273951;font-weight:400;font-size:16px">
           大家正在猜你的選擇…
         </p>
-        <p style="color:#C4B5FD;font-size:13px;font-weight:600;margin-top:6px">別偷看！🙈</p>
+        <p style="color:#64748d;font-size:13px;font-weight:300;margin-top:6px">別偷看！🙈</p>
         <span class="loading loading-dots loading-md text-primary" style="margin-top:18px"></span>
       </div>
     </div>
@@ -370,24 +376,24 @@
          ============================================================ -->
     <div id="section-reveal" class="game-section hidden">
       <div style="text-align:center;margin-bottom:20px">
-        <div style="font-size:48px;margin-bottom:8px">🎊</div>
-        <h2 style="font-size:22px;font-weight:900" class="gradient-text">
+        <div style="font-size:36px;margin-bottom:8px">🎉</div>
+        <h2 style="font-size:22px;font-weight:300;color:#061b31;letter-spacing:-0.2px">
           <span id="reveal-subject-name">???</span> 的答案揭曉！
         </h2>
-        <div id="reveal-topic-badge" style="margin-top:8px;display:none">
-          <span style="display:inline-block;background:linear-gradient(135deg,#EDE9FE,#FCE7F3);
-                       border-radius:999px;padding:4px 16px;font-size:13px;
-                       font-weight:800;color:#7C3AED">🏷️ <span id="reveal-topic-name"></span></span>
-        </div>
       </div>
 
+      <div id="reveal-topic-badge" style="text-align:center;margin-bottom:8px;display:none">
+        <span style="display:inline-block;background:rgba(83,58,253,0.06);
+                     border:1px solid rgba(83,58,253,0.12);border-radius:4px;padding:5px 16px;font-size:14px;
+                     font-weight:400;color:#533afd">🏷️ <span id="reveal-topic-name"></span></span>
+      </div>
       <div class="game-card" style="margin-bottom:16px">
         <div id="reveal-body"><!-- Rendered by JS --></div>
       </div>
 
       <!-- Emoji reactions -->
       <div class="neon-card" style="padding:14px;margin-bottom:16px;text-align:center">
-        <div style="font-size:14px;font-weight:800;color:#A78BFA;margin-bottom:10px;font-family:'Baloo 2','Nunito',sans-serif">快速反應 👇</div>
+        <div style="font-size:13px;font-weight:300;color:#64748d;margin-bottom:10px">快速反應 👇</div>
         <div style="display:flex;justify-content:center;gap:12px">
           <button class="emoji-btn" onclick="GameApp.sendReaction('🎉')">🎉</button>
           <button class="emoji-btn" onclick="GameApp.sendReaction('😱')">😱</button>
@@ -400,7 +406,7 @@
 
       <!-- 即時排名 -->
       <div class="game-card" style="margin-bottom:16px">
-        <h3 style="font-size:15px;font-weight:900;color:#7C3AED;
+        <h3 style="font-size:14px;font-weight:400;color:#533afd;
                    margin-bottom:14px;text-align:center">📊 目前排名</h3>
         <div id="reveal-scoreboard"><!-- Rendered by JS --></div>
       </div>
@@ -408,14 +414,14 @@
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center">
         <button id="reveal-next-btn" class="btn-primary" style="display:none"
                 onclick="GameApp.nextRound()">
-          下一回合 ➡️
+          下一回合
         </button>
         <button id="reveal-end-btn" class="btn-ghost" style="display:none"
                 onclick="GameApp.endGame()">
-          🏁 結束遊戲
+          結束遊戲
         </button>
         <p id="reveal-waiting-next"
-           style="font-size:13px;color:#C4B5FD;font-weight:600;text-align:center"></p>
+           style="font-size:13px;color:#64748d;font-weight:400;text-align:center"></p>
       </div>
     </div>
 
@@ -424,15 +430,15 @@
          ============================================================ -->
     <div id="section-finished" class="game-section hidden">
       <div style="text-align:center;margin-bottom:24px">
-        <div style="font-size:76px;margin-bottom:10px;line-height:1">🎉</div>
-        <h2 style="font-size:28px;font-weight:900" class="gradient-text">遊戲結束！</h2>
-        <p style="font-size:14px;color:#A78BFA;font-weight:600;margin-top:6px">
-          感謝所有人的參與 ～
+        <div style="font-size:56px;margin-bottom:10px;line-height:1">🎉</div>
+        <h2 style="font-size:26px;font-weight:300;color:#061b31;letter-spacing:-0.22px">遊戲結束！</h2>
+        <p style="font-size:14px;color:#64748d;font-weight:400;margin-top:6px">
+          感謝所有人的參與
         </p>
       </div>
 
       <div class="game-card" style="margin-bottom:16px">
-        <h3 style="font-size:15px;font-weight:900;color:#7C3AED;
+        <h3 style="font-size:14px;font-weight:400;color:#533afd;
                    margin-bottom:14px;text-align:center">
           📊 最終統計
         </h3>
@@ -442,10 +448,10 @@
       <div style="display:flex;flex-direction:column;gap:10px">
         <button id="finished-restart-btn" class="btn-primary" style="display:none"
                 onclick="GameApp.restartGame()">
-          🔄 再玩一次！
+          再玩一次
         </button>
         <a href="index.html" class="btn-ghost" style="text-decoration:none;text-align:center">
-          🏠 回首頁
+          回首頁
         </a>
       </div>
     </div>
