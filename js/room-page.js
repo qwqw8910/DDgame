@@ -411,12 +411,20 @@ const GameApp = {
         renderChoices(this.currentQuestion, 'answer', null, 'answer-choice-container');
       }
     } else {
-      document.getElementById('answer-waiting')?.classList.add('hidden');
-      document.getElementById('answer-choices')?.classList.remove('hidden');
-      renderChoices(
-        this.currentQuestion, 'view', null, 'answer-choice-container',
-        `等待 ${subject?.nickname ?? '??'} 悄悄作答，先看看題目吧！`
-      );
+      // 非被猜者：若題目已載入則顯示題目（唯讀），否則顯示等待畫面
+      if (this.currentQuestion) {
+        document.getElementById('answer-waiting')?.classList.add('hidden');
+        document.getElementById('answer-choices')?.classList.remove('hidden');
+        renderChoices(
+          this.currentQuestion, 'view', null, 'answer-choice-container',
+          `等待 ${subject?.nickname ?? '??'} 悄悄作答，先看看題目吧！`
+        );
+      } else {
+        document.getElementById('answer-choices')?.classList.add('hidden');
+        document.getElementById('answer-waiting')?.classList.remove('hidden');
+        const waitName = document.getElementById('answer-waiting-name');
+        if (waitName) waitName.textContent = subject?.nickname ?? '??';
+      }
     }
   },
 
@@ -498,10 +506,10 @@ const GameApp = {
       if (bodyEl) {
         bodyEl.innerHTML = `
           <div style="text-align:center;padding:40px 0">
-            <div style="font-size:80px;font-weight:300;
+            <div style="font-size:80px;font-weight:400;
                         color:#533afd;
                         animation:countdown-pop 0.5s ease">${count}</div>
-            <div style="color:#64748d;font-weight:300;font-size:15px;margin-top:8px">答案即將揭曉…</div>
+            <div style="color:#64748d;font-weight:400;font-size:15px;margin-top:8px">答案即將揭曉…</div>
           </div>`;
       }
       count--;
@@ -518,13 +526,13 @@ const GameApp = {
               <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap">
                 <div style="background:rgba(21,190,83,0.08);
                             border:1px solid rgba(21,190,83,0.15);border-radius:6px;padding:16px 24px;min-width:100px">
-                  <div style="font-size:32px;font-weight:300;color:#108c3d">${correct}</div>
-                  <div style="font-size:13px;font-weight:400;color:#108c3d">猜對 ✅</div>
+                  <div style="font-size:32px;font-weight:400;color:#108c3d">${correct}</div>
+                  <div style="font-size:14px;font-weight:400;color:#108c3d">猜對 ✅</div>
                 </div>
                 <div style="background:rgba(234,34,97,0.06);
                             border:1px solid rgba(234,34,97,0.12);border-radius:6px;padding:16px 24px;min-width:100px">
-                  <div style="font-size:32px;font-weight:300;color:#ea2261">${wrong}</div>
-                  <div style="font-size:13px;font-weight:400;color:#ea2261">猜錯 ❌</div>
+                  <div style="font-size:32px;font-weight:400;color:#ea2261">${wrong}</div>
+                  <div style="font-size:14px;font-weight:400;color:#ea2261">猜錯 ❌</div>
                 </div>
               </div>
             </div>`;
@@ -581,7 +589,7 @@ const GameApp = {
     el.innerHTML = nonSubject.map(p => {
       const submitted = this._guessSubmittedIds.includes(p.id);
       const isMe = p.id === this.myPlayerId;
-      return `<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:300">
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400">
         <span style="font-size:16px">${submitted ? '✅' : '⏳'}</span>
         <span style="color:${submitted ? '#15be53' : '#64748d'}">${escHtml(p.nickname)}${isMe ? ' (我)' : ''}</span>
       </div>`;

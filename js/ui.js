@@ -125,7 +125,7 @@ function renderTopics(isSubject, topics = []) {
          style="background:${ui.gradient};animation-delay:${i * 0.07}s"
          onclick="GameApp.selectTopic('${t.id}')">
       <div style="font-size:38px;margin-bottom:8px">${ui.emoji}</div>
-      <div style="color:white;font-weight:300;font-size:16px;
+      <div style="color:white;font-weight:400;font-size:16px;
                   text-shadow:0 1px 4px rgba(0,0,0,.2)">${escHtml(t.name)}</div>
     </div>`;
   }).join('');
@@ -148,11 +148,22 @@ function renderChoices(question, mode, selectedAnswer, containerId = 'choice-con
     'preview-choice-container': 'preview-question-prompt',
   };
 
-  // 優先使用傳入的 promptText，其次使用題目自帶的 title，最後才用預設文字
-  const finalPrompt = promptText || (question.title ? `題目：${question.title}` : promptMap[mode]) || '';
+  // 組合提示文字：若有自訂 promptText 且題目有 title，則兩者都顯示
+  let finalPrompt;
+  const titleText = question.title ? `題目：${question.title}` : '';
+  if (promptText && titleText) {
+    finalPrompt = `${promptText}\n${titleText}`;
+  } else if (promptText) {
+    finalPrompt = promptText;
+  } else {
+    finalPrompt = titleText || promptMap[mode] || '';
+  }
 
   const promptEl = document.getElementById(promptElIdMap[containerId]);
-  if (promptEl) promptEl.textContent = finalPrompt;
+  if (promptEl) {
+    promptEl.style.whiteSpace = 'pre-line';
+    promptEl.textContent = finalPrompt;
+  }
 
   const clickable = (mode === 'answer' || mode === 'guess');
 
@@ -168,7 +179,7 @@ function renderChoices(question, mode, selectedAnswer, containerId = 'choice-con
     return `
       <div class="${cls}" style="background:${bg}" ${click}>
         <div style="font-size:32px;margin-bottom:12px">${emoji}</div>
-        <div style="font-weight:300;font-size:18px;color:#061b31;line-height:1.5">
+        <div style="font-weight:400;font-size:18px;color:#061b31;line-height:1.5">
           ${escHtml(text)}
         </div>
       </div>`;
@@ -216,12 +227,12 @@ function renderReveal(question, correctAnswer, guesses, nonSubjectPlayers) {
   el.innerHTML = `
     <div style="text-align:center;margin-bottom:20px" class="animate-bounce-in">
       <div style="font-size:48px;margin-bottom:8px">${answerEmoji}</div>
-      <div style="font-weight:300;font-size:18px;color:#061b31;line-height:1.45">
+      <div style="font-weight:400;font-size:18px;color:#061b31;line-height:1.45">
         ${escHtml(answerText)}
       </div>
       <div style="margin-top:10px;background:rgba(83,58,253,0.06);
                   border:1px solid rgba(83,58,253,0.12);border-radius:4px;display:inline-block;
-                  padding:4px 16px;font-size:13px;font-weight:400;color:#533afd">
+                  padding:4px 16px;font-size:14px;font-weight:400;color:#533afd">
         🎉 ${correctCount} / ${nonSubjectPlayers.length} 人猜對！
       </div>
     </div>
