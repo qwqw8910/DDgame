@@ -5,6 +5,14 @@
 document.addEventListener('DOMContentLoaded', () => {
   initSupabase();
 
+  // Reset buttons when returning from bfcache (e.g. browser back)
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      setLoading(document.getElementById('create-btn'), false);
+      setLoading(document.getElementById('join-btn'), false);
+    }
+  });
+
   // Pre-fill saved nickname
   const saved = getSavedNickname();
   if (saved) {

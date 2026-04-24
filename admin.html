@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-theme="mygame">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>題庫管理</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Noto+Sans+TC:wght@300;400;500;600&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .admin-table th { background: var(--bg-subtle); font-weight: 500; color: var(--label); text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 1; }
+    .admin-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--heading); vertical-align: top; max-width: 280px; word-break: break-word; }
+    .admin-table tr:hover td { background: rgba(83,58,253,0.02); }
+    .row-insert td { background: rgba(21,190,83,0.06) !important; }
+    .row-update td { background: rgba(155,104,41,0.06) !important; }
+    .row-delete td { background: rgba(234,34,97,0.06) !important; text-decoration: line-through; opacity: .7; }
+    .drop-active { border-color: var(--stripe-purple) !important; background: rgba(83,58,253,0.04) !important; }
+    .stat-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .game-card { cursor: default; }
+    .game-card:hover { transform: none; box-shadow: var(--shadow-ambient) 0px 15px 35px 0px; }
+    #question-list-wrap { max-height: 520px; overflow-y: auto; }
+    .filter-btn { padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 500; border: 1px solid var(--border); background: var(--bg-white); color: var(--body); cursor: pointer; transition: all .15s; }
+    .filter-btn:hover { border-color: var(--border-purple); color: var(--stripe-purple); }
+    .filter-btn.active { background: rgba(83,58,253,0.08); border-color: var(--stripe-purple); color: var(--stripe-purple); }
+    .edit-cell { cursor: pointer; position: relative; }
+    .edit-cell:hover { background: rgba(83,58,253,0.04) !important; }
+    .edit-cell:hover::after { content: '✏️'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 10px; opacity: .5; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(6,27,49,.5); backdrop-filter: blur(8px); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .modal-card { background: var(--bg-white); border-radius: 8px; padding: 28px; max-width: 560px; width: 100%; box-shadow: var(--shadow-blue) 0px 30px 60px -15px; animation: bounce-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
+    .field-label { font-size: 12px; font-weight: 500; color: var(--label); margin-bottom: 4px; display: block; }
+    .field-textarea { width: 100%; padding: 8px 12px; background: var(--bg-white); border: 1px solid var(--border); border-radius: 6px; font-family: 'Poppins','Noto Sans TC',sans-serif; font-size: 13px; color: var(--heading); outline: none; transition: border-color .15s, box-shadow .15s; resize: vertical; min-height: 60px; }
+    .field-textarea:focus { border-color: var(--stripe-purple); box-shadow: 0 0 0 3px rgba(83,58,253,.1); }
+    .field-input-sm { width: 100%; padding: 8px 12px; background: var(--bg-white); border: 1px solid var(--border); border-radius: 6px; font-family: 'Poppins','Noto Sans TC',sans-serif; font-size: 13px; color: var(--heading); outline: none; transition: border-color .15s, box-shadow .15s; }
+    .field-input-sm:focus { border-color: var(--stripe-purple); box-shadow: 0 0 0 3px rgba(83,58,253,.1); }
+    .search-wrap { position: relative; }
+    .search-wrap input { padding-left: 32px; }
+    .search-wrap::before { content: '🔍'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 14px; pointer-events: none; }
+  </style>
+</head>
+
+<body style="background:linear-gradient(135deg,#f5f0ff 0%,#ede9ff 30%,#fdf0ff 60%,#fff0f7 100%);min-height:100vh;font-family:'Poppins','Noto Sans TC',system-ui,sans-serif">
+
+<!-- ── 登入畫面 ── -->
+<div id="login-screen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px">
+  <div class="game-card animate-bounce-in" style="max-width:420px;width:100%;text-align:center">
+    <div style="font-size:48px;margin-bottom:8px">🔐</div>
+    <h2 style="font-size:22px;font-weight:400;margin-bottom:4px;color:var(--heading);letter-spacing:-0.22px">題庫管理後台</h2>
+    <p style="font-size:13px;color:var(--body);margin-bottom:20px">請輸入 Supabase 連線資訊</p>
+
+    <div style="text-align:left;margin-bottom:12px">
+      <label style="font-size:12px;font-weight:500;color:var(--label);margin-bottom:4px;display:block">Supabase URL</label>
+      <div class="input-wrapper">
+        <span class="input-icon">🌐</span>
+        <input id="inp-url" class="game-input" style="padding-left:36px" placeholder="https://xxx.supabase.co">
+      </div>
+    </div>
+    <div style="text-align:left;margin-bottom:20px">
+      <label style="font-size:12px;font-weight:500;color:var(--label);margin-bottom:4px;display:block">Service Role Key</label>
+      <div class="input-wrapper">
+        <span class="input-icon">🔑</span>
+        <input id="inp-key" type="password" class="game-input" style="padding-left:36px" placeholder="eyJhbGciOi...">
+      </div>
+    </div>
+
+    <button id="btn-connect" onclick="connectDB()" class="btn-primary">連線</button>
+    <p id="connect-err" style="font-size:12px;color:var(--ruby);margin-top:8px;display:none"></p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     管理面板
+     ════════════════════════════════════════════════════════════ -->
+<div id="admin-panel" class="hidden" style="max-width:960px;margin:0 auto;padding:24px 16px 64px">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h1 style="font-size:22px;font-weight:400;color:var(--heading);letter-spacing:-0.22px;margin:0">🔧 題庫管理</h1>
+      <p style="font-size:12px;color:var(--body);margin:2px 0 0">本機專用工具</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="db-count" class="stat-pill" style="background:rgba(83,58,253,0.06);color:var(--stripe-purple)">— 題</span>
+      <button onclick="exportCSV()" class="btn-ghost" style="width:auto;padding:6px 14px;font-size:13px">📥 匯出 CSV</button>
+    </div>
+  </div>
+
+  <!-- ── CSV 上傳區 ── -->
+  <div class="game-card" style="margin-bottom:16px">
+    <h3 style="font-size:15px;font-weight:500;color:var(--heading);margin:0 0 12px">📤 上傳 CSV</h3>
+    <div id="drop-zone" style="text-align:center;padding:40px 24px;background:var(--bg-subtle);border:2px dashed var(--border-soft-purple);border-radius:8px;cursor:pointer;transition:all .15s">
+      <div style="font-size:36px;margin-bottom:8px">📁</div>
+      <p style="font-size:14px;color:var(--body);margin:0">拖拉 CSV 檔案到這裡，或<span style="color:var(--stripe-purple);font-weight:500">點擊選擇</span></p>
+      <p style="font-size:11px;color:var(--body);margin:6px 0 0">格式：id, topic_id, option_a, option_b, title</p>
+      <input id="file-input" type="file" accept=".csv" hidden>
+    </div>
+  </div>
+
+  <!-- ── 預覽區（上傳後顯示） ── -->
+  <div id="preview-section" class="game-card hidden" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <h3 style="font-size:15px;font-weight:500;color:var(--heading);margin:0">📋 預覽變更</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span id="cnt-new" class="stat-pill" style="background:rgba(21,190,83,0.1);color:var(--success-text)">🆕 新增 0</span>
+        <span id="cnt-upd" class="stat-pill" style="background:rgba(155,104,41,0.08);color:var(--lemon)">✏️ 修改 0</span>
+        <span id="cnt-del" class="stat-pill" style="background:rgba(234,34,97,0.08);color:var(--ruby)">🗑️ 刪除 0</span>
+      </div>
+    </div>
+    <div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
+      <table class="admin-table" id="preview-table"><thead><tr></tr></thead><tbody></tbody></table>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="submitBatch()" id="btn-submit" class="btn-primary" style="flex:1">✅ 確認提交</button>
+      <button onclick="cancelPreview()" class="btn-ghost" style="flex:0 0 auto;width:auto;padding:10px 20px">取消</button>
+    </div>
+    <div id="submit-result" style="margin-top:10px;font-size:13px;display:none"></div>
+  </div>
+
+  <!-- ── 現有題庫 ── -->
+  <div class="game-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <h3 style="font-size:15px;font-weight:500;color:var(--heading);margin:0">📚 目前題庫</h3>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <div class="search-wrap">
+          <input id="search-input" class="field-input-sm" style="width:180px;font-size:12px;padding:4px 10px 4px 30px" placeholder="搜尋題目…" oninput="renderQuestions()">
+        </div>
+        <button onclick="openAddModal()" class="btn-primary" style="width:auto;padding:6px 14px;font-size:13px">➕ 新增題目</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px" id="topic-filters"></div>
+    <div id="question-list-wrap">
+      <table class="admin-table" id="question-table">
+        <thead><tr>
+          <th style="width:40px">#</th>
+          <th style="width:80px">主題</th>
+          <th>選項 A</th>
+          <th>選項 B</th>
+          <th style="width:160px">標題</th>
+          <th style="width:72px"></th>
+        </tr></thead>
+        <tbody id="question-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── 編輯 / 新增 Modal ── -->
+<div id="edit-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal()">
+  <div class="modal-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 id="modal-title" style="font-size:17px;font-weight:500;color:var(--heading);margin:0">➕ 新增題目</h3>
+      <button onclick="closeModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--body);padding:4px">&times;</button>
+    </div>
+    <input type="hidden" id="edit-id">
+    <div style="margin-bottom:12px">
+      <label class="field-label">主題 (topic_id)</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px" id="topic-quick-btns"></div>
+      <input id="edit-topic" class="field-input-sm" placeholder="例如：career, love, life">
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="field-label">選項 A</label>
+      <textarea id="edit-a" class="field-textarea" rows="2" placeholder="輸入選項 A"></textarea>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="field-label">選項 B</label>
+      <textarea id="edit-b" class="field-textarea" rows="2" placeholder="輸入選項 B"></textarea>
+    </div>
+    <div style="margin-bottom:20px">
+      <label class="field-label">標題 (可留空)</label>
+      <input id="edit-title" class="field-input-sm" placeholder="例如：二選一，你想要哪個？">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="saveEdit()" id="btn-save" class="btn-primary" style="flex:1">💾 儲存</button>
+      <button onclick="closeModal()" class="btn-ghost" style="flex:0 0 auto;width:auto;padding:10px 20px">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+// ================================================================
+//  Admin — 本機題庫管理（直連 Supabase service_role）
+// ================================================================
+
+let db = null;
+let allQuestions = [];
+let pendingRows = [];
+
+// ── 點擊連線 ────────────────────────────────────────────────
+async function connectDB() {
+  const url = document.getElementById('inp-url').value.trim();
+  const key = document.getElementById('inp-key').value.trim();
+  const errEl = document.getElementById('connect-err');
+  const btn = document.getElementById('btn-connect');
+  errEl.style.display = 'none';
+
+  if (!url || !key) { errEl.textContent = '請填入完整資訊'; errEl.style.display = ''; return; }
+
+  btn.disabled = true;
+  btn.textContent = '連線中…';
+  console.log('[Admin] 開始連線...');
+  console.log('[Admin] URL:', url);
+  console.log('[Admin] Key 長度:', key.length);
+
+  try {
+    if (typeof window.supabase === 'undefined') {
+      throw new Error('supabase SDK 未載入，請確認網路連線正常');
+    }
+    db = window.supabase.createClient(url, key, { auth: { persistSession: false } });
+    console.log('[Admin] Supabase client 建立完成');
+    const { data, error } = await db.from('questions').select('id').limit(1);
+    console.log('[Admin] 測試查詢結果:', { data, error });
+    if (error) throw error;
+
+    console.log('[Admin] ✅ 連線成功！');
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('admin-panel').classList.remove('hidden');
+    await loadQuestions();
+  } catch (e) {
+    console.error('[Admin] ❌ 連線失敗:', e);
+    errEl.textContent = '連線失敗：' + e.message;
+    errEl.style.display = '';
+    btn.disabled = false;
+    btn.textContent = '連線';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('inp-key').addEventListener('keydown', e => { if (e.key === 'Enter') connectDB(); });
+  document.getElementById('inp-url').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inp-key').focus(); });
+});
+
+// ── 讀取題庫 ────────────────────────────────────────────────
+async function loadQuestions() {
+  console.log('[Admin] 開始讀取題庫...');
+  const { data, error } = await db.from('questions').select('*').order('topic_id');
+  if (error) { console.error('[Admin] ❌ 讀取題庫失敗:', error); showToast('讀取失敗：' + error.message, 'error'); return; }
+  allQuestions = data || [];
+  console.log('[Admin] ✅ 讀取完成，共', allQuestions.length, '題');
+  document.getElementById('db-count').textContent = allQuestions.length + ' 題';
+  renderTopicFilters();
+  renderQuestions();
+}
+
+// ── 主題篩選 ─────────────────────────────────────────────────
+let activeFilter = '';
+function renderTopicFilters() {
+  const topics = [...new Set(allQuestions.map(q => q.topic_id))].sort();
+  const wrap = document.getElementById('topic-filters');
+  wrap.innerHTML = '<button class="filter-btn ' + (activeFilter === '' ? 'active' : '') + '" onclick="setFilter(\'\')">全部</button>' +
+    topics.map(t => '<button class="filter-btn ' + (activeFilter === t ? 'active' : '') + '" onclick="setFilter(\'' + esc(t) + '\')">' + esc(t) + '</button>').join('');
+}
+function setFilter(f) { activeFilter = f; renderTopicFilters(); renderQuestions(); }
+
+// ── 渲染題目列表（支援搜尋 + 點擊編輯）─────────────────
+function renderQuestions() {
+  const searchTerm = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+  let filtered = activeFilter ? allQuestions.filter(q => q.topic_id === activeFilter) : allQuestions;
+  if (searchTerm) {
+    filtered = filtered.filter(q =>
+      (q.option_a || '').toLowerCase().includes(searchTerm) ||
+      (q.option_b || '').toLowerCase().includes(searchTerm) ||
+      (q.title || '').toLowerCase().includes(searchTerm) ||
+      (q.topic_id || '').toLowerCase().includes(searchTerm)
+    );
+  }
+  const tbody = document.getElementById('question-tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--body);padding:24px">' + (searchTerm ? '沒有符合搜尋的題目' : '沒有題目') + '</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((q, i) => 
+    '<tr>' +
+      '<td style="color:var(--body)">' + (i + 1) + '</td>' +
+      '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')"><span class="badge badge-host">' + esc(q.topic_id) + '</span></td>' +
+      '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')">' + esc(q.option_a) + '</td>' +
+      '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')">' + esc(q.option_b) + '</td>' +
+      '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')" style="color:var(--body);font-size:12px">' + esc(q.title || '') + '</td>' +
+      '<td style="display:flex;gap:4px">' +
+        '<button onclick="openEditModal(\'' + q.id + '\')" class="btn-danger-sm" style="background:rgba(83,58,253,0.08);color:var(--stripe-purple);border-color:rgba(83,58,253,0.2)" title="編輯">✏️</button>' +
+        '<button onclick="deleteOne(\'' + q.id + '\')" class="btn-danger-sm" title="刪除">✕</button>' +
+      '</td>' +
+    '</tr>'
+  ).join('');
+}
+
+// ── 刪除單筆 ─────────────────────────────────────────────────
+async function deleteOne(id) {
+  if (!confirm('確定要刪除這題嗎？')) return;
+  console.log('[Admin] 刪除單筆:', id);
+  const { error } = await db.from('questions').delete().eq('id', id);
+  if (error) { console.error('[Admin] ❌ 刪除失敗:', error); showToast('刪除失敗：' + error.message, 'error'); return; }
+  console.log('[Admin] ✅ 刪除成功');
+  showToast('已刪除', 'success');
+  await loadQuestions();
+}
+
+// ── CSV 拖拉 / 選擇 ─────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drop-active'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drop-active'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drop-active'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  console.log('[Admin] 收到檔案:', file?.name, '大小:', file?.size, 'bytes');
+  if (!file || !file.name.endsWith('.csv')) { showToast('請上傳 .csv 檔案', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    console.log('[Admin] 檔案讀取完成，內容長度:', e.target.result.length);
+    parseAndPreview(e.target.result);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// ── CSV 解析 ─────────────────────────────────────────────────
+function parseCSV(text) {
+  const rows = [];
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return rows;
+
+  // 跳過 header
+  const header = lines[0].toLowerCase();
+  const start = (header.includes('id') && header.includes('topic_id')) ? 1 : 0;
+
+  for (let i = start; i < lines.length; i++) {
+    const cols = splitCSVLine(lines[i]);
+    if (cols.length < 4) continue;
+    rows.push({
+      id:       (cols[0] || '').trim(),
+      topic_id: (cols[1] || '').trim(),
+      option_a: (cols[2] || '').trim(),
+      option_b: (cols[3] || '').trim(),
+      title:    (cols[4] || '').trim(),
+    });
+  }
+  return rows;
+}
+
+// 處理含逗號/引號的 CSV 欄位
+function splitCSVLine(line) {
+  const result = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { result.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
+// ── 預覽 ─────────────────────────────────────────────────────
+function parseAndPreview(text) {
+  console.log('[Admin] 開始解析 CSV...');
+  console.log('[Admin] CSV 前 200 字元:', text.substring(0, 200));
+  const rows = parseCSV(text);
+  console.log('[Admin] 解析出', rows.length, '筆資料');
+  if (rows.length > 0) console.log('[Admin] 第一筆範例:', JSON.stringify(rows[0]));
+  if (!rows.length) { showToast('CSV 中沒有有效資料', 'error'); return; }
+
+  // 分類：無 id → 新增 / 有 id 但欄位全空 → 刪除 / 有 id 且有內容 → 修改
+  const existIds = new Set(allQuestions.map(q => q.id));
+  pendingRows = rows.map(r => {
+    if (!r.id) return { ...r, _action: 'insert' };
+    if (!r.topic_id && !r.option_a && !r.option_b) return { ...r, _action: 'delete' };
+    return { ...r, _action: existIds.has(r.id) ? 'update' : 'insert' };
+  });
+
+  const inserts = pendingRows.filter(r => r._action === 'insert');
+  const updates = pendingRows.filter(r => r._action === 'update');
+  const deletes = pendingRows.filter(r => r._action === 'delete');
+
+  console.log('[Admin] 分類結果 → 新增:', inserts.length, '修改:', updates.length, '刪除:', deletes.length);
+  document.getElementById('cnt-new').textContent = '🆕 新增 ' + inserts.length;
+  document.getElementById('cnt-upd').textContent = '✏️ 修改 ' + updates.length;
+  document.getElementById('cnt-del').textContent = '🗑️ 刪除 ' + deletes.length;
+
+  // 渲染預覽表格
+  const thead = document.querySelector('#preview-table thead tr');
+  thead.innerHTML = '<th>動作</th><th>ID</th><th>主題</th><th>選項 A</th><th>選項 B</th><th>標題</th>';
+
+  const tbody = document.querySelector('#preview-table tbody');
+  tbody.innerHTML = pendingRows.map(r => {
+    const cls = r._action === 'insert' ? 'row-insert' : r._action === 'delete' ? 'row-delete' : 'row-update';
+    const label = r._action === 'insert' ? '🆕 新增' : r._action === 'delete' ? '🗑️ 刪除' : '✏️ 修改';
+    return '<tr class="' + cls + '">' +
+      '<td><span style="font-size:12px">' + label + '</span></td>' +
+      '<td style="font-size:11px;color:var(--body);font-family:\'Source Code Pro\',monospace">' + esc(r.id ? r.id.substring(0, 8) + '…' : '(自動)') + '</td>' +
+      '<td><span class="badge badge-host">' + esc(r.topic_id) + '</span></td>' +
+      '<td>' + esc(r.option_a) + '</td>' +
+      '<td>' + esc(r.option_b) + '</td>' +
+      '<td style="color:var(--body);font-size:12px">' + esc(r.title) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('preview-section').classList.remove('hidden');
+  document.getElementById('preview-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelPreview() {
+  document.getElementById('preview-section').classList.add('hidden');
+  pendingRows = [];
+  fileInput.value = '';
+}
+
+// ── 批次提交（合併為最少 API 請求）─────────────────────────
+async function submitBatch() {
+  const btn = document.getElementById('btn-submit');
+  const resultEl = document.getElementById('submit-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ 提交中…';
+  resultEl.style.display = 'none';
+
+  let inserted = 0, updated = 0, deleted = 0;
+  const errors = [];
+
+  // 分組：同類操作合併為一次 API 呼叫
+  const inserts = pendingRows.filter(r => r._action === 'insert');
+  const updates = pendingRows.filter(r => r._action === 'update');
+  const deletes = pendingRows.filter(r => r._action === 'delete');
+
+  console.log('[Admin] 批次提交 → 新增:', inserts.length, '修改:', updates.length, '刪除:', deletes.length, '（共 3 次 API）');
+
+  // 1) 批次新增（一次 insert 陣列）
+  if (inserts.length) {
+    try {
+      const payloads = inserts.map(r => {
+        const p = { topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null };
+        if (r.id) p.id = r.id;
+        return p;
+      });
+      const { error } = await db.from('questions').insert(payloads);
+      if (error) throw error;
+      inserted = inserts.length;
+      console.log('[Admin] ✅ 批次新增', inserted, '筆完成');
+    } catch (e) {
+      console.error('[Admin] ❌ 批次新增失敗:', e.message);
+      errors.push('批次新增失敗: ' + e.message);
+    }
+  }
+
+  // 2) 批次修改（upsert 一次送出）
+  if (updates.length) {
+    try {
+      const payloads = updates.map(r => ({
+        id: r.id, topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null
+      }));
+      const { error } = await db.from('questions').upsert(payloads, { onConflict: 'id' });
+      if (error) throw error;
+      updated = updates.length;
+      console.log('[Admin] ✅ 批次修改', updated, '筆完成');
+    } catch (e) {
+      console.error('[Admin] ❌ 批次修改失敗:', e.message);
+      errors.push('批次修改失敗: ' + e.message);
+    }
+  }
+
+  // 3) 批次刪除（一次 delete + in）
+  if (deletes.length) {
+    try {
+      const ids = deletes.map(r => r.id);
+      const { error } = await db.from('questions').delete().in('id', ids);
+      if (error) throw error;
+      deleted = deletes.length;
+      console.log('[Admin] ✅ 批次刪除', deleted, '筆完成');
+    } catch (e) {
+      console.error('[Admin] ❌ 批次刪除失敗:', e.message);
+      errors.push('批次刪除失敗: ' + e.message);
+    }
+  }
+
+  console.log('[Admin] 批次提交結果 → 新增:', inserted, '修改:', updated, '刪除:', deleted, '錯誤:', errors.length);
+
+  btn.disabled = false;
+  btn.textContent = '✅ 確認提交';
+
+  const msg = '完成！新增 ' + inserted + ' / 修改 ' + updated + ' / 刪除 ' + deleted +
+    (errors.length ? ' / 錯誤 ' + errors.length : '');
+  resultEl.innerHTML = '<span style="color:' + (errors.length ? 'var(--ruby)' : 'var(--success-text)') + '">' + esc(msg) + '</span>' +
+    (errors.length ? '<br><span style="font-size:11px;color:var(--ruby)">' + errors.map(esc).join('<br>') + '</span>' : '');
+  resultEl.style.display = '';
+
+  showToast(msg, errors.length ? 'error' : 'success');
+  await loadQuestions();
+  if (!errors.length) cancelPreview();
+}
+
+// ── 匯出 CSV ─────────────────────────────────────────────────
+function exportCSV() {
+  if (!allQuestions.length) { showToast('題庫為空', 'error'); return; }
+  const header = 'id,topic_id,option_a,option_b,title';
+  const lines = allQuestions.map(q =>
+    [q.id, q.topic_id, csvEscape(q.option_a), csvEscape(q.option_b), csvEscape(q.title || '')].join(',')
+  );
+  const csv = [header, ...lines].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'questions_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('已匯出 CSV', 'success');
+}
+
+function csvEscape(str) {
+  if (!str) return '';
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+// ── Toast ────────────────────────────────────────────────────
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(() => { t.className = 'toast'; }, 2500);
+}
+
+// ── Escape HTML ─────────────────────────────────────────────
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+// ── 編輯 / 新增 Modal ─────────────────────────────────────────
+function openAddModal() {
+  document.getElementById('modal-title').textContent = '➕ 新增題目';
+  document.getElementById('edit-id').value = '';
+  document.getElementById('edit-topic').value = '';
+  document.getElementById('edit-a').value = '';
+  document.getElementById('edit-b').value = '';
+  document.getElementById('edit-title').value = '';
+  document.getElementById('btn-save').textContent = '➕ 新增';
+  renderTopicQuickBtns();
+  document.getElementById('edit-modal').classList.remove('hidden');
+  document.getElementById('edit-topic').focus();
+}
+
+function openEditModal(id) {
+  const q = allQuestions.find(x => x.id === id);
+  if (!q) return;
+  document.getElementById('modal-title').textContent = '✏️ 編輯題目';
+  document.getElementById('edit-id').value = q.id;
+  document.getElementById('edit-topic').value = q.topic_id || '';
+  document.getElementById('edit-a').value = q.option_a || '';
+  document.getElementById('edit-b').value = q.option_b || '';
+  document.getElementById('edit-title').value = q.title || '';
+  document.getElementById('btn-save').textContent = '💾 儲存';
+  renderTopicQuickBtns();
+  document.getElementById('edit-modal').classList.remove('hidden');
+  document.getElementById('edit-a').focus();
+}
+
+function closeModal() {
+  document.getElementById('edit-modal').classList.add('hidden');
+}
+
+function renderTopicQuickBtns() {
+  const topics = [...new Set(allQuestions.map(q => q.topic_id))].sort();
+  const wrap = document.getElementById('topic-quick-btns');
+  wrap.innerHTML = topics.map(t =>
+    '<button type="button" class="filter-btn" onclick="document.getElementById(\'edit-topic\').value=\'' + esc(t) + '\';" style="font-size:11px;padding:2px 8px">' + esc(t) + '</button>'
+  ).join('');
+}
+
+async function saveEdit() {
+  const id = document.getElementById('edit-id').value;
+  const topic_id = document.getElementById('edit-topic').value.trim();
+  const option_a = document.getElementById('edit-a').value.trim();
+  const option_b = document.getElementById('edit-b').value.trim();
+  const title = document.getElementById('edit-title').value.trim() || null;
+
+  if (!topic_id || !option_a || !option_b) {
+    showToast('請填入主題、選項 A 和選項 B', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true;
+  btn.textContent = '✉️ 儲存中…';
+
+  try {
+    if (id) {
+      // 修改
+      console.log('[Admin] 編輯儲存:', id);
+      const { error } = await db.from('questions').update({ topic_id, option_a, option_b, title }).eq('id', id);
+      if (error) throw error;
+      showToast('✅ 已儲存', 'success');
+    } else {
+      // 新增
+      console.log('[Admin] 新增題目:', topic_id);
+      const { error } = await db.from('questions').insert({ topic_id, option_a, option_b, title });
+      if (error) throw error;
+      showToast('✅ 已新增', 'success');
+    }
+    closeModal();
+    await loadQuestions();
+  } catch (e) {
+    console.error('[Admin] ❌ 儲存失敗:', e);
+    showToast('儲存失敗：' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = id ? '💾 儲存' : '➕ 新增';
+  }
+}
+
+// ── 鍵盤快捷鍵 ────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});</script>
+</body>
+</html>
