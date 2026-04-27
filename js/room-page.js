@@ -506,10 +506,8 @@ const GameApp = {
       if (bodyEl) {
         bodyEl.innerHTML = `
           <div style="text-align:center;padding:40px 0">
-            <div style="font-size:80px;font-weight:400;
-                        color:#533afd;
-                        animation:countdown-pop 0.5s ease">${count}</div>
-            <div style="color:#64748d;font-weight:400;font-size:15px;margin-top:8px">答案即將揭曉…</div>
+            <div class="reveal-countdown">${count}</div>
+            <div style="color:#94A3B8;font-weight:400;font-size:15px;margin-top:8px">答案即將揭曉…</div>
           </div>`;
       }
       count--;
@@ -524,15 +522,15 @@ const GameApp = {
             <div style="text-align:center;padding:32px 16px" class="animate-bounce-in">
               <div style="font-size:52px;margin-bottom:12px">📊</div>
               <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap">
-                <div style="background:rgba(21,190,83,0.08);
-                            border:1px solid rgba(21,190,83,0.15);border-radius:6px;padding:16px 24px;min-width:100px">
-                  <div style="font-size:32px;font-weight:400;color:#108c3d">${correct}</div>
-                  <div style="font-size:14px;font-weight:400;color:#108c3d">猜對 ✅</div>
+                <div style="background:rgba(16,185,129,0.1);
+                            border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:16px 24px;min-width:100px">
+                  <div style="font-size:32px;font-weight:600;color:#34D399">${correct}</div>
+                  <div style="font-size:14px;font-weight:500;color:#34D399">猜對 ✅</div>
                 </div>
-                <div style="background:rgba(234,34,97,0.06);
-                            border:1px solid rgba(234,34,97,0.12);border-radius:6px;padding:16px 24px;min-width:100px">
-                  <div style="font-size:32px;font-weight:400;color:#ea2261">${wrong}</div>
-                  <div style="font-size:14px;font-weight:400;color:#ea2261">猜錯 ❌</div>
+                <div style="background:rgba(244,63,94,0.1);
+                            border:1px solid rgba(244,63,94,0.2);border-radius:10px;padding:16px 24px;min-width:100px">
+                  <div style="font-size:32px;font-weight:600;color:#FDA4AF">${wrong}</div>
+                  <div style="font-size:14px;font-weight:500;color:#FDA4AF">猜錯 ❌</div>
                 </div>
               </div>
             </div>`;
@@ -591,7 +589,7 @@ const GameApp = {
       const isMe = p.id === this.myPlayerId;
       return `<div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400">
         <span style="font-size:16px">${submitted ? '✅' : '⏳'}</span>
-        <span style="color:${submitted ? '#15be53' : '#64748d'}">${escHtml(p.nickname)}${isMe ? ' (我)' : ''}</span>
+        <span style="color:${submitted ? '#34D399' : '#94A3B8'}">${escHtml(p.nickname)}${isMe ? ' (我)' : ''}</span>
       </div>`;
     }).join('');
   },
@@ -613,8 +611,8 @@ const GameApp = {
           <div class="player-avatar" style="background:${getPlayerColor(p.join_order)}">
             ${getPlayerEmoji(p.join_order)}
           </div>
-          <div style="flex:1;font-weight:400;font-size:15px">${escHtml(p.nickname)}</div>
-          <div style="font-weight:400;color:#533afd;font-size:16px">${p.score} 分</div>
+          <div style="flex:1;font-weight:500;font-size:15px;color:#F1F5F9">${escHtml(p.nickname)}</div>
+          <div style="font-weight:600;color:#C4B5FD;font-size:16px">${p.score} 分</div>
         </div>`).join('');
     }
 
@@ -718,7 +716,7 @@ const GameApp = {
       text-align:center;
       line-height:1;
     `;
-    el.innerHTML = `${emoji}<div style="font-size:11px;color:#533afd;font-weight:400;margin-top:2px">${escHtml(nickname)}</div>`;
+    el.innerHTML = `${emoji}<div style="font-size:11px;color:#C4B5FD;font-weight:400;margin-top:2px">${escHtml(nickname)}</div>`;
     container.appendChild(el);
     setTimeout(() => el.remove(), 2100);
   },
@@ -770,7 +768,7 @@ const GameApp = {
     if (typeof confetti !== 'function') return;
     confetti({
       particleCount: 120, spread: 80, origin: { y: 0.6 },
-      colors: ['#533afd', '#ea2261', '#FBBF24', '#15be53', '#60A5FA'],
+      colors: ['#8B5CF6', '#E11D48', '#FBBF24', '#10B981', '#60A5FA'],
     });
   },
 };
