@@ -10,6 +10,25 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    (function(){
+      var t = localStorage.getItem('theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+    })();
+    function toggleTheme(){
+      var html = document.documentElement;
+      var isLight = html.getAttribute('data-theme') === 'light';
+      var next = isLight ? 'mygame' : 'light';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next === 'light' ? 'light' : 'dark');
+      var btn = document.getElementById('theme-toggle-btn');
+      if(btn) btn.textContent = next === 'light' ? '☀️' : '🌙';
+    }
+    document.addEventListener('DOMContentLoaded', function(){
+      var btn = document.getElementById('theme-toggle-btn');
+      if(btn) btn.textContent = document.documentElement.getAttribute('data-theme') === 'light' ? '☀️' : '🌙';
+    });
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -40,27 +59,43 @@
     .search-wrap { position: relative; }
     .search-wrap input { padding-left: 32px; }
     .search-wrap::before { content: '🔍'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 14px; pointer-events: none; }
+
+    /* Light theme overrides for admin */
+    [data-theme="light"] .admin-table th { background: rgba(241,245,249,0.9); color: #475569; border-bottom-color: rgba(100,116,139,0.12); }
+    [data-theme="light"] .admin-table td { color: #1E293B; border-bottom-color: rgba(100,116,139,0.08); }
+    [data-theme="light"] .admin-table tr:hover td { background: rgba(124,58,237,0.03); }
+    [data-theme="light"] .modal-overlay { background: rgba(241,245,249,0.8); }
+    [data-theme="light"] .modal-card { box-shadow: 0 16px 40px rgba(0,0,0,0.1); }
+    [data-theme="light"] .field-label { color: #475569; }
+    [data-theme="light"] .field-textarea,
+    [data-theme="light"] .field-input-sm { background: rgba(255,255,255,0.9); color: #1E293B; }
+    [data-theme="light"] .filter-btn:hover { color: var(--neon-purple); }
+    [data-theme="light"] .filter-btn.active { background: rgba(124,58,237,0.06); color: var(--neon-purple); }
   </style>
 </head>
 
 <body style="min-height:100vh">
 
+<!-- ── Theme toggle (floating) ── -->
+<button onclick="toggleTheme()" title="切換主題" class="theme-toggle"
+        id="theme-toggle-btn"
+        style="position:fixed;top:16px;right:16px;z-index:50">🌙</button>
 <!-- ── 登入畫面 ── -->
 <div id="login-screen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px">
   <div class="game-card animate-bounce-in" style="max-width:420px;width:100%;text-align:center">
     <div style="font-size:48px;margin-bottom:8px">🔐</div>
-    <h2 class="neon-heading" style="font-size:22px;color:#F1F5F9;margin-bottom:4px;letter-spacing:-0.22px">題庫管理後台</h2>
-    <p style="font-size:13px;color:#94A3B8;margin-bottom:20px">請輸入 Supabase 連線資訊</p>
+    <h2 class="neon-heading" style="font-size:22px;color:var(--heading);margin-bottom:4px;letter-spacing:-0.22px">題庫管理後台</h2>
+    <p style="font-size:13px;color:var(--body);margin-bottom:20px">請輸入 Supabase 連線資訊</p>
 
     <div style="text-align:left;margin-bottom:12px">
-      <label style="font-size:12px;font-weight:500;color:#CBD5E1;margin-bottom:4px;display:block">Supabase URL</label>
+      <label style="font-size:12px;font-weight:500;color:var(--label);margin-bottom:4px;display:block">Supabase URL</label>
       <div class="input-wrapper">
         <span class="input-icon">🌐</span>
         <input id="inp-url" class="game-input" style="padding-left:36px" placeholder="https://xxx.supabase.co">
       </div>
     </div>
     <div style="text-align:left;margin-bottom:20px">
-      <label style="font-size:12px;font-weight:500;color:#CBD5E1;margin-bottom:4px;display:block">Service Role Key</label>
+      <label style="font-size:12px;font-weight:500;color:var(--label);margin-bottom:4px;display:block">Service Role Key</label>
       <div class="input-wrapper">
         <span class="input-icon">🔑</span>
         <input id="inp-key" type="password" class="game-input" style="padding-left:36px" placeholder="eyJhbGciOi...">
@@ -68,7 +103,7 @@
     </div>
 
     <button id="btn-connect" onclick="connectDB()" class="btn-primary">連線</button>
-    <p id="connect-err" style="font-size:12px;color:#FDA4AF;margin-top:8px;display:none"></p>
+    <p id="connect-err" style="font-size:12px;color:var(--error-fg);margin-top:8px;display:none"></p>
   </div>
 </div>
 
@@ -80,22 +115,22 @@
   <!-- Header -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px">
     <div>
-      <h1 class="neon-heading" style="font-size:22px;color:#F1F5F9;letter-spacing:-0.22px;margin:0">🔧 題庫管理</h1>
-      <p style="font-size:12px;color:#94A3B8;margin:2px 0 0">本機專用工具</p>
+      <h1 class="neon-heading" style="font-size:22px;color:var(--heading);letter-spacing:-0.22px;margin:0">🔧 題庫管理</h1>
+      <p style="font-size:12px;color:var(--body);margin:2px 0 0">本機專用工具</p>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span id="db-count" class="stat-pill" style="background:rgba(139,92,246,0.1);color:#C4B5FD">&mdash; 題</span>
+      <span id="db-count" class="stat-pill" style="background:rgba(139,92,246,0.1);color:var(--accent)">&mdash; 題</span>
       <button onclick="exportCSV()" class="btn-ghost" style="width:auto;padding:6px 14px;font-size:13px">📥 匯出 CSV</button>
     </div>
   </div>
 
   <!-- ── CSV 上傳區 ── -->
   <div class="game-card" style="margin-bottom:16px">
-    <h3 style="font-size:15px;font-weight:500;color:#F1F5F9;margin:0 0 12px">📤 上傳 CSV</h3>
+    <h3 style="font-size:15px;font-weight:500;color:var(--heading);margin:0 0 12px">📤 上傳 CSV</h3>
     <div id="drop-zone" style="text-align:center;padding:40px 24px;background:rgba(15,15,35,0.6);border:2px dashed rgba(139,92,246,0.25);border-radius:10px;cursor:pointer;transition:all .15s">
       <div style="font-size:36px;margin-bottom:8px">📁</div>
-      <p style="font-size:14px;color:#94A3B8;margin:0">拖拉 CSV 檔案到這裡，或<span style="color:#C4B5FD;font-weight:500">點擊選擇</span></p>
-      <p style="font-size:11px;color:#94A3B8;margin:6px 0 0">格式：id, topic_id, option_a, option_b, title</p>
+      <p style="font-size:14px;color:var(--body);margin:0">拖拉 CSV 檔案到這裡，或<span style="color:var(--accent);font-weight:500">點擊選擇</span></p>
+      <p style="font-size:11px;color:var(--body);margin:6px 0 0">格式：id, topic_id, option_a, option_b, title</p>
       <input id="file-input" type="file" accept=".csv" hidden>
     </div>
   </div>
@@ -105,9 +140,9 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <h3 style="font-size:15px;font-weight:500;color:var(--heading);margin:0">📋 預覽變更</h3>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <span id="cnt-new" class="stat-pill" style="background:rgba(16,185,129,0.12);color:#34D399">🆕 新增 0</span>
+        <span id="cnt-new" class="stat-pill" style="background:rgba(16,185,129,0.12);color:var(--success-fg)">🆕 新增 0</span>
         <span id="cnt-upd" class="stat-pill" style="background:rgba(251,191,36,0.1);color:#FBBF24">✏️ 修改 0</span>
-        <span id="cnt-del" class="stat-pill" style="background:rgba(244,63,94,0.1);color:#FDA4AF">🗑️ 刪除 0</span>
+        <span id="cnt-del" class="stat-pill" style="background:rgba(244,63,94,0.1);color:var(--error-fg)">🗑️ 刪除 0</span>
       </div>
     </div>
     <div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
@@ -284,7 +319,7 @@ function renderQuestions() {
       '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')">' + esc(q.option_b) + '</td>' +
       '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')" style="color:var(--body);font-size:12px">' + esc(q.title || '') + '</td>' +
       '<td style="display:flex;gap:4px">' +
-        '<button onclick="openEditModal(\'' + q.id + '\')" class="btn-danger-sm" style="background:rgba(139,92,246,0.12);color:#C4B5FD;border-color:rgba(139,92,246,0.25)" title="編輯">✏️</button>' +
+        '<button onclick="openEditModal(\'' + q.id + '\')" class="btn-danger-sm" style="background:rgba(139,92,246,0.12);color:var(--accent);border-color:rgba(139,92,246,0.25)" title="編輯">✏️</button>' +
         '<button onclick="deleteOne(\'' + q.id + '\')" class="btn-danger-sm" title="刪除">✕</button>' +
       '</td>' +
     '</tr>'

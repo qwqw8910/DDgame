@@ -67,18 +67,18 @@ function renderPlayerList(players, myId, hostId, subjectId, isHost) {
     <div class="player-row ${isMe ? 'is-me' : ''}">
       <div class="player-avatar ${p.is_online ? 'online' : 'offline'}"
            style="background:${color}">${emoji}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <span style="font-weight:500;font-size:14px;color:#F1F5F9">${escHtml(p.nickname)}</span>
+      <div class="player-info">
+        <div class="player-badges">
+          <span class="player-name">${escHtml(p.nickname)}</span>
           ${isMe    ? '<span class="badge badge-me">我</span>' : ''}
           ${isHostP ? '<span class="badge badge-host">👑 房主</span>' : ''}
           ${isSub   ? '<span class="badge badge-subject">🎯 被猜者</span>' : ''}
         </div>
-        <div style="font-size:12px;font-weight:400;color:${p.is_online ? '#34D399' : '#94A3B8'}">
+        <div class="player-online ${p.is_online ? 'player-online--on' : 'player-online--off'}">
           ${p.is_online ? '● 在線' : '○ 離線'}
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+      <div class="player-actions">
         <span class="badge ${p.is_ready || isHostP ? 'badge-ready' : 'badge-waiting'}">
           ${p.is_ready || isHostP ? '✓ 準備' : '等待中'}
         </span>
@@ -105,10 +105,10 @@ function renderTopics(isSubject, topics = []) {
   if (!isSubject) {
     el.innerHTML = `
       <div style="grid-column:1/-1;text-align:center;padding:48px 0">
-        <div class="loading-dots" style="margin-bottom:14px">
+        <div class="loading-dots mb-14">
           <span></span><span></span><span></span>
         </div>
-        <p style="color:#CBD5E1;font-weight:400;font-size:15px">等待選擇主題中…</p>
+        <p class="text-body" style="font-size:15px">等待選擇主題中…</p>
       </div>`;
     return;
   }
@@ -124,9 +124,8 @@ function renderTopics(isSubject, topics = []) {
     <div class="topic-card animate-pop-in"
          style="background:${ui.gradient};animation-delay:${i * 0.07}s"
          onclick="GameApp.selectTopic('${t.id}')">
-      <div style="font-size:38px;margin-bottom:8px">${ui.emoji}</div>
-      <div style="color:white;font-weight:400;font-size:16px;
-                  text-shadow:0 1px 4px rgba(0,0,0,.2)">${escHtml(t.name)}</div>
+      <div class="topic-emoji">${ui.emoji}</div>
+      <div class="topic-label">${escHtml(t.name)}</div>
     </div>`;
   }).join('');
 }
@@ -178,8 +177,8 @@ function renderChoices(question, mode, selectedAnswer, containerId = 'choice-con
       ? `onclick="GameApp.handleChoiceClick('${letter}')"` : '';
     return `
       <div class="${cls}" style="background:${bg}" ${click}>
-        <div style="font-size:32px;margin-bottom:12px">${emoji}</div>
-        <div style="font-weight:500;font-size:18px;color:#F1F5F9;line-height:1.5">
+        <div class="choice-emoji">${emoji}</div>
+        <div class="choice-text">
           ${escHtml(text)}
         </div>
       </div>`;
@@ -215,8 +214,8 @@ function renderReveal(question, correctAnswer, guesses, nonSubjectPlayers) {
           ${getPlayerEmoji(p.join_order)}
         </div>
         <div style="flex:1">
-          <div style="font-weight:500;font-size:14px;color:#F1F5F9">${escHtml(p.nickname)}</div>
-      <div style="font-size:12px;color:#94A3B8">
+          <div class="player-name">${escHtml(p.nickname)}</div>
+          <div class="text-body" style="font-size:12px">
             猜測：<span class="guess-chip ${guessed}">${guessedLabel}</span>
           </div>
         </div>
@@ -225,14 +224,12 @@ function renderReveal(question, correctAnswer, guesses, nonSubjectPlayers) {
   }).join('');
 
   el.innerHTML = `
-    <div style="text-align:center;margin-bottom:20px" class="animate-bounce-in">
-      <div style="font-size:48px;margin-bottom:8px">${answerEmoji}</div>
-      <div style="font-weight:500;font-size:18px;color:#F1F5F9;line-height:1.45">
+    <div class="text-center animate-bounce-in" style="margin-bottom:20px">
+      <div class="reveal-answer">${answerEmoji}</div>
+      <div class="reveal-answer-text">
         ${escHtml(answerText)}
       </div>
-      <div style="margin-top:10px;background:rgba(139,92,246,0.1);
-                  border:1px solid rgba(139,92,246,0.2);border-radius:8px;display:inline-block;
-                  padding:4px 16px;font-size:14px;font-weight:500;color:#C4B5FD">
+      <div class="reveal-correct-badge">
         🎉 ${correctCount} / ${nonSubjectPlayers.length} 人猜對！
       </div>
     </div>
@@ -247,14 +244,14 @@ function renderScoreboard(players) {
   const medals = ['🥇', '🥈', '🥉'];
   el.innerHTML = sorted.map((p, i) => `
     <div class="player-row animate-slide-up" style="animation-delay:${i * 0.06}s">
-      <div style="font-size:20px;width:28px;text-align:center;flex-shrink:0">
+      <div class="medal-col">
         ${medals[i] ?? `${i + 1}.`}
       </div>
       <div class="player-avatar" style="background:${getPlayerColor(p.join_order)}">
         ${getPlayerEmoji(p.join_order)}
       </div>
-        <div style="flex:1;font-weight:500;font-size:14px;color:#F1F5F9">${escHtml(p.nickname)}</div>
-      <div style="font-weight:600;color:#C4B5FD;font-size:16px">${p.score} 分</div>
+      <div class="player-name" style="flex:1">${escHtml(p.nickname)}</div>
+      <div class="player-score">${p.score} 分</div>
     </div>`).join('');
 }
 

@@ -11,6 +11,25 @@
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    (function(){
+      var t = localStorage.getItem('theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+    })();
+    function toggleTheme(){
+      var html = document.documentElement;
+      var isLight = html.getAttribute('data-theme') === 'light';
+      var next = isLight ? 'mygame' : 'light';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next === 'light' ? 'light' : 'dark');
+      var btn = document.getElementById('theme-toggle-btn');
+      if(btn) btn.textContent = next === 'light' ? '☀️' : '🌙';
+    }
+    document.addEventListener('DOMContentLoaded', function(){
+      var btn = document.getElementById('theme-toggle-btn');
+      if(btn) btn.textContent = document.documentElement.getAttribute('data-theme') === 'light' ? '☀️' : '🌙';
+    });
+  </script>
 </head>
 
 <body style="min-height:100vh">
@@ -19,19 +38,16 @@
      NICKNAME OVERLAY
      ================================================================ -->
 <div id="nickname-overlay" class="overlay hidden">
-  <div class="game-card animate-bounce-in"
-       style="max-width:380px;width:100%;text-align:center">
-    <div style="font-size:48px;margin-bottom:10px">😊</div>
-    <h2 style="font-size:22px;font-weight:400;margin-bottom:4px;color:#F1F5F9;letter-spacing:-0.22px">
+  <div class="game-card animate-bounce-in nickname-card">
+    <div class="section-icon--xl">😊</div>
+    <h2 class="neon-heading" style="font-size:22px;margin-bottom:4px">
       輸入你的暱稱
     </h2>
-    <p style="font-size:14px;color:#94A3B8;font-weight:400;margin-bottom:16px">
+    <p class="text-body" style="margin-bottom:16px">
       讓大家認識你吧！
     </p>
-    <div id="nickname-error" class="hidden"
-         style="background:rgba(225,29,72,0.1);color:#FDA4AF;border:1px solid rgba(225,29,72,0.25);border-radius:6px;
-                padding:8px 14px;font-size:13px;font-weight:500;margin-bottom:12px"></div>
-    <div class="input-wrapper" style="margin-bottom:14px">
+    <div id="nickname-error" class="hidden error-alert"></div>
+    <div class="input-wrapper mb-14">
       <span class="input-icon">😊</span>
       <input id="overlay-nickname" type="text" placeholder="你的暱稱"
              maxlength="12" class="game-input">
@@ -43,24 +59,19 @@
 <!-- ================================================================
      LOADING SCREEN
      ================================================================ -->
-<div id="loading-screen"
-     style="position:fixed;inset:0;background:rgba(10,10,26,.97);backdrop-filter:blur(8px);
-            display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100">
-  <div style="font-size:48px;margin-bottom:16px;animation:float 2s ease-in-out infinite;filter:drop-shadow(0 0 20px rgba(139,92,246,0.3))">🎭</div>
-  <span class="loading loading-spinner loading-lg text-primary" style="margin-bottom:14px"></span>
-  <p id="loading-text" style="color:#94A3B8;font-weight:400;font-size:15px">連線中…</p>
+<div id="loading-screen" class="fullscreen-overlay fullscreen-overlay--blur">
+  <div class="loading-icon">🎭</div>
+  <span class="loading loading-spinner loading-lg text-primary mb-14"></span>
+  <p id="loading-text" class="text-body" style="font-size:15px">連線中…</p>
 </div>
 
 <!-- ================================================================
      ERROR SCREEN
      ================================================================ -->
-<div id="error-screen"
-     style="position:fixed;inset:0;background:rgba(10,10,26,.97);
-            display:none;flex-direction:column;align-items:center;
-            justify-content:center;z-index:100;text-align:center;padding:24px">
-  <div style="font-size:56px;margin-bottom:12px">😢</div>
-  <h2 class="neon-heading" style="font-size:26px;color:#F1F5F9;margin-bottom:8px;letter-spacing:-0.5px">哎呀！</h2>
-  <p id="error-message" style="color:#94A3B8;font-size:16px;margin-bottom:24px;font-weight:400">
+<div id="error-screen" class="fullscreen-overlay fullscreen-overlay--hidden text-center" style="padding:24px">
+  <div class="section-icon--lg">😢</div>
+  <h2 class="neon-heading" style="font-size:26px;margin-bottom:8px;letter-spacing:-0.5px">哎呀！</h2>
+  <p id="error-message" class="text-body" style="font-size:16px;margin-bottom:24px">
     發生了一點問題
   </p>
   <a href="index.html" class="btn-primary"
@@ -72,20 +83,17 @@
 <!-- ================================================================
      CONFIG ERROR SCREEN
      ================================================================ -->
-<div id="config-error-screen"
-     style="position:fixed;inset:0;background:rgba(10,10,26,.97);
-            display:none;flex-direction:column;align-items:center;
-            justify-content:center;z-index:100;text-align:center;padding:24px">
-  <div style="font-size:56px;margin-bottom:12px">⚙️</div>
-  <h2 class="neon-heading" style="font-size:22px;color:#F1F5F9;margin-bottom:8px;letter-spacing:-0.22px">
+<div id="config-error-screen" class="fullscreen-overlay fullscreen-overlay--hidden text-center" style="padding:24px">
+  <div class="section-icon--lg">⚙️</div>
+  <h2 class="neon-heading" style="font-size:22px;margin-bottom:8px">
     需要設定 Supabase
   </h2>
-  <p style="color:#94A3B8;font-size:15px;margin-bottom:8px;font-weight:400">
-    請在 <code style="background:rgba(139,92,246,0.1);padding:2px 8px;border-radius:4px;color:#C4B5FD;font-family:'Source Code Pro',monospace;font-size:13px">js/config.js</code>
+  <p class="text-body" style="font-size:15px;margin-bottom:8px">
+    請在 <code class="code-inline">js/config.js</code>
     填入 Supabase URL 和 anon key
   </p>
-  <p style="color:#94A3B8;font-size:13px;margin-bottom:24px">
-    到 <strong style="color:#F1F5F9">supabase.com</strong> 免費建立專案 → Settings → API
+  <p class="text-body" style="font-size:13px;margin-bottom:24px">
+    到 <strong class="text-heading">supabase.com</strong> 免費建立專案 → Settings → API
   </p>
   <a href="index.html" class="btn-primary"
      style="width:auto;padding:10px 24px;text-decoration:none;display:inline-flex">
@@ -99,63 +107,51 @@
 <div id="game-wrapper" style="display:none;min-height:100vh;padding-bottom:48px">
 
   <!-- ── Sticky Header ── -->
-  <header style="position:sticky;top:0;z-index:40;
-                 background:rgba(10,10,26,.92);backdrop-filter:blur(16px);
-                 border-bottom:1px solid rgba(139,92,246,0.1);padding:10px 16px">
-    <div style="max-width:800px;margin:0 auto;
-                display:flex;align-items:center;justify-content:space-between;gap:8px">
+  <header class="sticky-header">
+    <div class="header-inner">
 
-      <a href="index.html" title="回首頁"
-         style="font-size:22px;text-decoration:none;line-height:1;
-                transition:opacity .15s;display:inline-block;filter:drop-shadow(0 0 8px rgba(139,92,246,0.3))"
-         onmouseover="this.style.opacity='0.7'"
-         onmouseout="this.style.opacity='1'">🎭</a>
+      <a href="index.html" title="回首頁" class="header-logo">🎭</a>
 
-      <div style="display:flex;align-items:center;gap:10px;flex:1;justify-content:center;flex-wrap:wrap">
-        <div style="text-align:center">
-          <div style="font-size:10px;color:#94A3B8;font-weight:400;letter-spacing:0.5px;text-transform:uppercase">
+      <div class="header-stats">
+        <div class="text-center">
+          <div class="header-stat-label header-stat-label--upper">
             房間碼
           </div>
           <div class="room-code-display" id="header-room-id">------</div>
         </div>
 
-        <div style="height:28px;width:1px;background:rgba(139,92,246,0.15)"></div>
+        <div class="header-divider"></div>
 
-        <div style="text-align:center">
-          <div style="font-size:10px;color:#94A3B8;font-weight:400;letter-spacing:0.5px">玩家</div>
-          <div style="font-size:15px;font-weight:500;color:#F1F5F9" id="header-player-count">0/0</div>
+        <div class="text-center">
+          <div class="header-stat-label">玩家</div>
+          <div style="font-size:15px;font-weight:500;color:var(--heading)" id="header-player-count">0/0</div>
         </div>
 
         <div id="header-round-wrapper"
              style="display:none;align-items:center;gap:8px">
-          <div style="height:28px;width:1px;background:rgba(139,92,246,0.15)"></div>
-          <div style="text-align:center">
-            <div style="font-size:10px;color:#94A3B8;font-weight:400;letter-spacing:0.5px">回合</div>
-            <div style="font-size:15px;font-weight:500;color:#C4B5FD" id="header-round"></div>
+          <div class="header-divider"></div>
+          <div class="text-center">
+            <div class="header-stat-label">回合</div>
+            <div style="font-size:15px;font-weight:500;color:var(--accent)" id="header-round"></div>
           </div>
         </div>
 
         <div id="header-host-wrapper" style="display:none;align-items:center;gap:8px">
-          <div style="height:28px;width:1px;background:rgba(139,92,246,0.15)"></div>
-          <div style="text-align:center">
-            <div style="font-size:10px;color:#94A3B8;font-weight:400;letter-spacing:0.5px">房主</div>
-            <div style="font-size:13px;font-weight:400;color:#F1F5F9" id="header-host-name">-</div>
+          <div class="header-divider"></div>
+          <div class="text-center">
+            <div class="header-stat-label">房主</div>
+            <div style="font-size:13px;font-weight:400;color:var(--heading)" id="header-host-name">-</div>
           </div>
         </div>
       </div>
 
-      <button onclick="GameApp.copyLink()" title="複製邀請連結"
-              style="background:rgba(15,15,35,0.8);border:1px solid rgba(139,92,246,0.2);
-                     border-radius:8px;padding:8px 10px;cursor:pointer;font-size:16px;
-                     transition:border-color .2s,box-shadow .2s;
-                     box-shadow:0 2px 8px rgba(0,0,0,0.3)"
-              onmouseover="this.style.borderColor='rgba(139,92,246,0.4)';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.4),0 0 12px rgba(139,92,246,0.1)'"
-              onmouseout="this.style.borderColor='rgba(139,92,246,0.2)';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.3)'">🔗</button>
+      <button onclick="GameApp.copyLink()" title="複製邀請連結" class="header-icon-btn">🔗</button>
+      <button onclick="toggleTheme()" title="切換主題" class="theme-toggle" id="theme-toggle-btn">🌙</button>
     </div>
   </header>
 
   <!-- ── Page Content ── -->
-  <div style="max-width:800px;margin:0 auto;padding:20px 16px">
+  <div class="page-content">
 
     <!-- ============================================================
          SECTION: LOBBY
@@ -163,36 +159,23 @@
     <div id="section-lobby" class="game-section hidden">
 
       <!-- Share card -->
-      <div class="neon-card" style="margin-bottom:16px">
-        <div style="text-align:center;margin-bottom:18px">
-          <div style="font-size:36px;margin-bottom:6px">🏠</div>
-          <h2 class="neon-heading" style="font-size:22px;color:#F1F5F9;letter-spacing:-0.22px">等待玩家加入</h2>
-          <p style="font-size:14px;color:#94A3B8;font-weight:400;margin-top:4px">
+      <div class="neon-card mb-16">
+        <div class="section-header" style="margin-bottom:18px">
+          <div class="section-icon">🏠</div>
+          <h2 class="neon-heading" style="font-size:22px">等待玩家加入</h2>
+          <p class="section-subtitle">
             分享房間碼或連結邀請朋友！
           </p>
         </div>
 
         <!-- Share link row -->
-        <div style="background:rgba(15,15,35,0.9);
-                    border:1px solid rgba(139,92,246,0.15);border-radius:10px;padding:12px 14px;margin-bottom:16px;
-                    display:flex;align-items:center;gap:10px">
+        <div class="share-row">
           <div style="font-size:18px;flex-shrink:0">🔗</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:10px;color:#94A3B8;font-weight:400;
-                        letter-spacing:0.5px;margin-bottom:2px">邀請連結</div>
-            <div id="share-url"
-                 style="font-size:12px;color:#CBD5E1;font-weight:400;
-                        overflow:hidden;text-overflow:ellipsis;white-space:nowrap">-</div>
+            <div class="header-stat-label" style="margin-bottom:2px">邀請連結</div>
+            <div id="share-url" class="share-row__url">-</div>
           </div>
-          <button onclick="GameApp.copyLink()"
-                  style="background:linear-gradient(135deg,#8B5CF6,#7C3AED);color:white;
-                         border:none;border-radius:8px;padding:6px 16px;
-                         font-weight:500;font-size:13px;font-family:'Poppins','Noto Sans TC',sans-serif;
-                         cursor:pointer;white-space:nowrap;
-                         transition:box-shadow .2s;
-                         box-shadow:0 2px 8px rgba(139,92,246,0.3)"
-                  onmouseover="this.style.boxShadow='0 4px 16px rgba(139,92,246,0.4)'"
-                  onmouseout="this.style.boxShadow='0 2px 8px rgba(139,92,246,0.3)'">
+          <button onclick="GameApp.copyLink()" class="btn-copy">
             複製
           </button>
         </div>
@@ -202,7 +185,7 @@
       </div>
 
       <!-- Lobby actions -->
-      <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="action-stack">
         <button id="lobby-ready-btn" class="btn-primary"
                 onclick="GameApp.toggleReady()">準備好了</button>
         <button id="lobby-start-btn" class="btn-success"
@@ -216,12 +199,12 @@
          SECTION: TOPIC SELECTION
          ============================================================ -->
     <div id="section-topic" class="game-section hidden">
-      <div style="text-align:center;margin-bottom:24px">
-        <div style="font-size:36px;margin-bottom:8px">🎯</div>
-        <h2 class="neon-heading" style="font-size:24px;color:#F1F5F9;letter-spacing:-0.22px" id="topic-who">
+      <div class="section-header--lg">
+        <div class="section-icon">🎯</div>
+        <h2 class="neon-heading" style="font-size:24px" id="topic-who">
           選擇主題
         </h2>
-        <p style="font-size:14px;color:#94A3B8;font-weight:400;margin-top:4px">
+        <p class="section-subtitle">
           選一個你最想讓大家猜的主題！
         </p>
       </div>
@@ -239,20 +222,20 @@
     <div id="section-preview" class="game-section hidden">
       <!-- Subject player view -->
       <div id="preview-subject-view">
-        <div style="text-align:center;margin-bottom:16px">
-          <div style="font-size:36px;margin-bottom:8px">🔍</div>
-          <h2 class="neon-heading" style="font-size:21px;color:#F1F5F9;letter-spacing:-0.2px">先偷看一下題目！</h2>
-          <p style="font-size:14px;color:#94A3B8;font-weight:400;margin-top:4px">
+        <div class="section-header" style="margin-bottom:16px">
+          <div class="section-icon">🔍</div>
+          <h2 class="neon-heading" style="font-size:21px">先偷看一下題目！</h2>
+          <p class="section-subtitle">
             確認後才會讓大家看到
           </p>
         </div>
-        <div class="game-card" style="margin-bottom:16px">
+        <div class="game-card mb-16">
           <div id="preview-question-prompt" class="question-text">
             這是本回合的題目：
           </div>
           <div id="preview-choice-container"><!-- Rendered by JS --></div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="action-stack">
           <button id="preview-confirm-btn" class="btn-primary" onclick="GameApp.confirmQuestion()">
             就用這題
           </button>
@@ -264,13 +247,13 @@
 
       <!-- Other players view -->
       <div id="preview-waiting-view" class="hidden waiting-card">
-        <div style="font-size:40px;margin-bottom:12px">🤫</div>
-        <span class="loading loading-dots loading-md text-primary" style="margin-bottom:14px"></span>
-        <p style="color:#CBD5E1;font-weight:400;font-size:16px">
-          <span id="preview-waiting-name" style="color:#C4B5FD;font-weight:500">???</span>
+        <div class="waiting-icon">🤫</div>
+        <span class="loading loading-dots loading-md text-primary mb-14"></span>
+        <p class="waiting-text">
+          <span id="preview-waiting-name" class="waiting-name">???</span>
           正在確認題目…
         </p>
-        <p style="color:#94A3B8;font-size:14px;font-weight:400;margin-top:8px">
+        <p class="waiting-hint">
           等他確認後就輪到你們猜了！
         </p>
       </div>
@@ -280,19 +263,17 @@
          SECTION: SELECTING ANSWER (subject picks A or B privately)
          ============================================================ -->
     <div id="section-answer" class="game-section hidden">
-      <div id="answer-header" style="text-align:center;margin-bottom:20px">
-        <div style="font-size:36px;margin-bottom:8px">🤫</div>
-        <h2 id="answer-header-text" class="neon-heading" style="font-size:22px;color:#F1F5F9;letter-spacing:-0.2px">
+      <div id="answer-header" class="section-header">
+        <div class="section-icon">🤫</div>
+        <h2 id="answer-header-text" class="neon-heading" style="font-size:22px">
           悄悄選擇答案中…
         </h2>
       </div>
 
       <!-- Subject player sees this -->
       <div id="answer-choices">
-        <div id="answer-topic-badge" style="text-align:center;margin-bottom:8px;display:none">
-          <span style="display:inline-block;background:rgba(139,92,246,0.1);
-                       border:1px solid rgba(139,92,246,0.2);border-radius:8px;padding:5px 16px;font-size:14px;
-                       font-weight:400;color:#C4B5FD">🏷️ <span id="answer-topic-name"></span></span>
+        <div id="answer-topic-badge" class="text-center" style="margin-bottom:8px;display:none">
+          <span class="topic-badge">🏷️ <span id="answer-topic-name"></span></span>
         </div>
         <div id="answer-question-prompt"
              class="question-text" style="font-size:22px"></div>
@@ -302,13 +283,13 @@
 
       <!-- Other players see this -->
       <div id="answer-waiting" class="hidden waiting-card">
-        <div style="font-size:40px;margin-bottom:12px">🤫</div>
-        <span class="loading loading-dots loading-md text-primary" style="margin-bottom:14px"></span>
-        <p style="color:#CBD5E1;font-weight:400;font-size:16px">
-          <span id="answer-waiting-name" style="color:#C4B5FD;font-weight:500">???</span>
+        <div class="waiting-icon">🤫</div>
+        <span class="loading loading-dots loading-md text-primary mb-14"></span>
+        <p class="waiting-text">
+          <span id="answer-waiting-name" class="waiting-name">???</span>
           正在悄悄選擇答案…
         </p>
-        <p style="color:#94A3B8;font-size:14px;font-weight:400;margin-top:8px">
+        <p class="waiting-hint">
           選好之後就換你們猜！
         </p>
       </div>
@@ -318,46 +299,41 @@
          SECTION: GUESSING
          ============================================================ -->
     <div id="section-guess" class="game-section hidden">
-      <div style="text-align:center;margin-bottom:20px">
-        <div style="font-size:36px;margin-bottom:8px">🔍</div>
-        <h2 class="neon-heading" style="font-size:22px;color:#F1F5F9;letter-spacing:-0.2px">
+      <div class="section-header">
+        <div class="section-icon">🔍</div>
+        <h2 class="neon-heading" style="font-size:22px">
           猜猜 <span id="guess-subject-name" class="subject-name-highlight">???</span> 的答案
         </h2>
-        <p style="font-size:14px;color:#94A3B8;font-weight:400;margin-top:4px">
+        <p class="section-subtitle">
           你覺得他會選哪一個？
         </p>
       </div>
 
       <!-- Non-subject players see choices -->
       <div id="guess-choices">
-        <div id="guess-topic-badge" style="text-align:center;margin-bottom:8px;display:none">
-          <span style="display:inline-block;background:rgba(139,92,246,0.1);
-                       border:1px solid rgba(139,92,246,0.2);border-radius:8px;padding:5px 16px;font-size:14px;
-                       font-weight:400;color:#C4B5FD">🏷️ <span id="guess-topic-name"></span></span>
+        <div id="guess-topic-badge" class="text-center" style="margin-bottom:8px;display:none">
+          <span class="topic-badge">🏷️ <span id="guess-topic-name"></span></span>
         </div>
         <div id="guess-question-prompt"
              class="question-text" style="font-size:22px"></div>
         <div id="guess-choice-container"><!-- Rendered by JS --></div>
 
-        <!-- Progress card (moved below choices to prevent layout shift) -->
+        <!-- Progress card -->
         <div class="game-card" style="padding:16px 20px;margin-top:16px;margin-bottom:16px">
-          <div style="display:flex;justify-content:space-between;
-                      align-items:center;margin-bottom:8px">
-            <span style="font-size:12px;font-weight:400;color:#94A3B8">📊 提交進度</span>
-            <span id="guess-progress-text"
-                  style="font-size:13px;font-weight:500;color:#C4B5FD">0 / 0 人已提交</span>
+          <div class="progress-header">
+            <span class="progress-label">📊 提交進度</span>
+            <span id="guess-progress-text" class="progress-value">0 / 0 人已提交</span>
           </div>
           <progress class="progress progress-primary w-full" id="guess-progress-fill" value="0" max="100"></progress>
-          <div id="guess-status-text"
-               style="text-align:center;font-size:14px;color:#94A3B8;font-weight:400;margin-top:8px">
+          <div id="guess-status-text" class="progress-hint">
             選擇你的答案！
           </div>
         </div>
 
         <!-- Player submission status list -->
-        <div class="game-card" style="padding:12px 16px;margin-bottom:16px" id="guess-player-status">
-          <div style="font-size:12px;font-weight:400;color:#94A3B8;margin-bottom:8px">👥 玩家狀態</div>
-          <div id="guess-player-list" style="display:flex;flex-direction:column;gap:6px">
+        <div class="game-card mb-16" style="padding:12px 16px" id="guess-player-status">
+          <div class="progress-label" style="margin-bottom:8px">👥 玩家狀態</div>
+          <div id="guess-player-list" class="action-stack" style="gap:6px">
             <!-- Rendered by JS -->
           </div>
         </div>
@@ -365,11 +341,11 @@
 
       <!-- Subject player sees this -->
       <div id="guess-subject-waiting" class="hidden waiting-card">
-        <div style="font-size:44px;margin-bottom:12px">😌</div>
-        <p style="color:#CBD5E1;font-weight:400;font-size:16px">
+        <div class="waiting-icon waiting-icon--lg">😌</div>
+        <p class="waiting-text">
           大家正在猜你的選擇…
         </p>
-        <p style="color:#94A3B8;font-size:14px;font-weight:400;margin-top:6px">別偷看！🙈</p>
+        <p class="waiting-hint" style="margin-top:6px">別偷看！🙈</p>
         <span class="loading loading-dots loading-md text-primary" style="margin-top:18px"></span>
       </div>
     </div>
@@ -378,26 +354,24 @@
          SECTION: REVEALING
          ============================================================ -->
     <div id="section-reveal" class="game-section hidden">
-      <div style="text-align:center;margin-bottom:20px">
-        <div style="font-size:36px;margin-bottom:8px">🎉</div>
-        <h2 class="neon-heading" style="font-size:22px;color:#F1F5F9;letter-spacing:-0.2px">
+      <div class="section-header">
+        <div class="section-icon">🎉</div>
+        <h2 class="neon-heading" style="font-size:22px">
           <span id="reveal-subject-name">???</span> 的答案揭曉！
         </h2>
       </div>
 
-      <div id="reveal-topic-badge" style="text-align:center;margin-bottom:8px;display:none">
-        <span style="display:inline-block;background:rgba(139,92,246,0.1);
-                     border:1px solid rgba(139,92,246,0.2);border-radius:8px;padding:5px 16px;font-size:14px;
-                     font-weight:400;color:#C4B5FD">🏷️ <span id="reveal-topic-name"></span></span>
+      <div id="reveal-topic-badge" class="text-center" style="margin-bottom:8px;display:none">
+        <span class="topic-badge">🏷️ <span id="reveal-topic-name"></span></span>
       </div>
-      <div class="game-card" style="margin-bottom:16px">
+      <div class="game-card mb-16">
         <div id="reveal-body"><!-- Rendered by JS --></div>
       </div>
 
       <!-- Emoji reactions -->
-      <div class="neon-card" style="padding:14px;margin-bottom:16px;text-align:center">
-        <div style="font-size:14px;font-weight:400;color:#94A3B8;margin-bottom:10px">快速反應 👇</div>
-        <div style="display:flex;justify-content:center;gap:12px">
+      <div class="neon-card text-center" style="padding:14px;margin-bottom:16px">
+        <div class="text-body" style="margin-bottom:10px">快速反應 👇</div>
+        <div class="reaction-bar">
           <button class="emoji-btn" onclick="GameApp.sendReaction('🎉')">🎉</button>
           <button class="emoji-btn" onclick="GameApp.sendReaction('😱')">😱</button>
           <button class="emoji-btn" onclick="GameApp.sendReaction('😅')">😅</button>
@@ -408,13 +382,12 @@
       <div id="reaction-container" style="position:fixed;inset:0;pointer-events:none;z-index:200"></div>
 
       <!-- 即時排名 -->
-      <div class="game-card" style="margin-bottom:16px">
-        <h3 class="neon-heading" style="font-size:14px;color:#C4B5FD;
-                   margin-bottom:14px;text-align:center">📊 目前排名</h3>
+      <div class="game-card mb-16">
+        <h3 class="neon-heading scoreboard-title">📊 目前排名</h3>
         <div id="reveal-scoreboard"><!-- Rendered by JS --></div>
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:10px;align-items:center">
+      <div class="action-stack action-stack--center">
         <button id="reveal-next-btn" class="btn-primary" style="display:none"
                 onclick="GameApp.nextRound()">
           下一回合
@@ -423,8 +396,7 @@
                 onclick="GameApp.endGame()">
           結束遊戲
         </button>
-        <p id="reveal-waiting-next"
-           style="font-size:13px;color:#94A3B8;font-weight:400;text-align:center"></p>
+        <p id="reveal-waiting-next" class="text-body text-center"></p>
       </div>
     </div>
 
@@ -432,23 +404,22 @@
          SECTION: FINISHED
          ============================================================ -->
     <div id="section-finished" class="game-section hidden">
-      <div style="text-align:center;margin-bottom:24px">
-        <div style="font-size:56px;margin-bottom:10px;line-height:1">🎉</div>
-        <h2 class="neon-heading" style="font-size:26px;color:#F1F5F9;letter-spacing:-0.22px">遊戲結束！</h2>
-        <p style="font-size:14px;color:#94A3B8;font-weight:400;margin-top:6px">
+      <div class="section-header--lg">
+        <div class="section-icon--lg">🎉</div>
+        <h2 class="neon-heading" style="font-size:26px">遊戲結束！</h2>
+        <p class="section-subtitle" style="margin-top:6px">
           感謝所有人的參與
         </p>
       </div>
 
-      <div class="game-card" style="margin-bottom:16px">
-        <h3 class="neon-heading" style="font-size:14px;color:#C4B5FD;
-                   margin-bottom:14px;text-align:center">
+      <div class="game-card mb-16">
+        <h3 class="neon-heading scoreboard-title">
           📊 最終統計
         </h3>
         <div id="finished-scores"><!-- Rendered by JS --></div>
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="action-stack">
         <button id="finished-restart-btn" class="btn-primary" style="display:none"
                 onclick="GameApp.restartGame()">
           再玩一次
