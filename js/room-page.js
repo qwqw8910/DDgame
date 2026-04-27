@@ -505,9 +505,9 @@ const GameApp = {
     const tick = () => {
       if (bodyEl) {
         bodyEl.innerHTML = `
-          <div style="text-align:center;padding:40px 0">
+          <div class="text-center" style="padding:40px 0">
             <div class="reveal-countdown">${count}</div>
-            <div style="color:#94A3B8;font-weight:400;font-size:15px;margin-top:8px">答案即將揭曉…</div>
+            <div class="text-body" style="font-size:15px;margin-top:8px">答案即將揭曉…</div>
           </div>`;
       }
       count--;
@@ -519,18 +519,16 @@ const GameApp = {
         const wrong   = nonSubject.length - correct;
         if (bodyEl) {
           bodyEl.innerHTML = `
-            <div style="text-align:center;padding:32px 16px" class="animate-bounce-in">
+            <div class="text-center animate-bounce-in" style="padding:32px 16px">
               <div style="font-size:52px;margin-bottom:12px">📊</div>
-              <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap">
-                <div style="background:rgba(16,185,129,0.1);
-                            border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:16px 24px;min-width:100px">
-                  <div style="font-size:32px;font-weight:600;color:#34D399">${correct}</div>
-                  <div style="font-size:14px;font-weight:500;color:#34D399">猜對 ✅</div>
+              <div class="reveal-stat-row">
+                <div class="reveal-stat-box reveal-stat-box--success">
+                  <div class="reveal-stat-number" style="color:var(--success-fg)">${correct}</div>
+                  <div class="reveal-stat-label" style="color:var(--success-fg)">猜對 ✅</div>
                 </div>
-                <div style="background:rgba(244,63,94,0.1);
-                            border:1px solid rgba(244,63,94,0.2);border-radius:10px;padding:16px 24px;min-width:100px">
-                  <div style="font-size:32px;font-weight:600;color:#FDA4AF">${wrong}</div>
-                  <div style="font-size:14px;font-weight:500;color:#FDA4AF">猜錯 ❌</div>
+                <div class="reveal-stat-box reveal-stat-box--error">
+                  <div class="reveal-stat-number" style="color:var(--error-fg)">${wrong}</div>
+                  <div class="reveal-stat-label" style="color:var(--error-fg)">猜錯 ❌</div>
                 </div>
               </div>
             </div>`;
@@ -587,9 +585,9 @@ const GameApp = {
     el.innerHTML = nonSubject.map(p => {
       const submitted = this._guessSubmittedIds.includes(p.id);
       const isMe = p.id === this.myPlayerId;
-      return `<div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400">
-        <span style="font-size:16px">${submitted ? '✅' : '⏳'}</span>
-        <span style="color:${submitted ? '#34D399' : '#94A3B8'}">${escHtml(p.nickname)}${isMe ? ' (我)' : ''}</span>
+      return `<div class="guess-status-item">
+        <span class="guess-status-icon">${submitted ? '✅' : '⏳'}</span>
+        <span class="${submitted ? 'guess-status-name--done' : 'guess-status-name--pending'}">${escHtml(p.nickname)}${isMe ? ' (我)' : ''}</span>
       </div>`;
     }).join('');
   },
@@ -605,14 +603,14 @@ const GameApp = {
       scoresEl.innerHTML = sorted.map((p, i) => `
         <div class="player-row ${i === 0 ? 'is-correct' : ''} animate-slide-up"
              style="animation-delay:${i * 0.08}s">
-          <div style="font-size:26px;width:32px;text-align:center">
+          <div class="medal-col medal-col--lg">
             ${medals[i] ?? `${i + 1}.`}
           </div>
           <div class="player-avatar" style="background:${getPlayerColor(p.join_order)}">
             ${getPlayerEmoji(p.join_order)}
           </div>
-          <div style="flex:1;font-weight:500;font-size:15px;color:#F1F5F9">${escHtml(p.nickname)}</div>
-          <div style="font-weight:600;color:#C4B5FD;font-size:16px">${p.score} 分</div>
+          <div class="player-name player-name--lg" style="flex:1">${escHtml(p.nickname)}</div>
+          <div class="player-score">${p.score} 分</div>
         </div>`).join('');
     }
 
@@ -716,7 +714,7 @@ const GameApp = {
       text-align:center;
       line-height:1;
     `;
-    el.innerHTML = `${emoji}<div style="font-size:11px;color:#C4B5FD;font-weight:400;margin-top:2px">${escHtml(nickname)}</div>`;
+    el.innerHTML = `${emoji}<div style="font-size:11px;color:var(--accent);font-weight:400;margin-top:2px">${escHtml(nickname)}</div>`;
     container.appendChild(el);
     setTimeout(() => el.remove(), 2100);
   },
