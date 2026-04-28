@@ -20,9 +20,10 @@
         </header>
 
         <!-- Loading -->
-        <div v-if="state.loading" class="loading-screen">
-            <div class="spinner"></div>
-            <p class="loading-text">{{ state.loadingText || '載入中…' }}</p>
+        <div v-if="state.loading" class="fullscreen-overlay fullscreen-overlay--blur">
+            <div class="loading-icon">🎭</div>
+            <span class="loading loading-spinner loading-lg text-primary mb-14"></span>
+            <p class="text-body" style="font-size:15px">{{ state.loadingText || '連線中…' }}</p>
         </div>
 
         <!-- Nickname Overlay（沒有暱稱時顯示） -->
