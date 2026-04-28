@@ -310,6 +310,7 @@ const GameApp = {
     } else if (rs === 'finished') {
       this._renderFinished();
     }
+    this._renderHostKickPanel();
   },
 
   _updateHeader() {
@@ -392,9 +393,11 @@ const GameApp = {
     // Update header text based on role
     const headerText = document.getElementById('answer-header-text');
     if (headerText) {
-      headerText.textContent = this.isSubject
-        ? '選擇你的答案！'
-        : `${subject?.nickname ?? '??'} 正在悄悄作答…`;
+      if (this.isSubject) {
+        headerText.textContent = '選擇你的答案！';
+      } else {
+        headerText.innerHTML = `<span class="subject-name-highlight">${escHtml(subject?.nickname ?? '??')}</span> 的題目，先看看吧！`;
+      }
     }
 
     const badge = document.getElementById('answer-topic-badge');
@@ -590,6 +593,43 @@ const GameApp = {
         <span class="${submitted ? 'guess-status-name--done' : 'guess-status-name--pending'}">${escHtml(p.nickname)}${isMe ? ' (我)' : ''}</span>
       </div>`;
     }).join('');
+  },
+
+  _renderHostKickPanel() {
+    const el = document.getElementById('host-kick-panel');
+    if (!el) return;
+
+    if (!this.isHost || this.room?.status !== 'playing') {
+      el.classList.add('hidden');
+      return;
+    }
+
+    const others = this.players.filter(p => p.id !== this.myPlayerId);
+    if (!others.length) {
+      el.classList.add('hidden');
+      return;
+    }
+
+    const subjectId = this.currentRound?.subject_player_id;
+    el.classList.remove('hidden');
+    el.innerHTML = `
+      <div class="game-card" style="padding:12px 16px;margin-top:4px">
+        <div class="progress-label" style="margin-bottom:8px">⚙️ 玩家管理</div>
+        ${others.map(p => {
+          const isSubject = p.id === subjectId;
+          return `<div class="guess-status-item" style="justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span>${p.is_online ? '🟢' : '🔴'}</span>
+              <span>${escHtml(p.nickname)}</span>
+              ${isSubject ? '<span class="badge badge-subject" style="font-size:11px">被猜者</span>' : ''}
+            </div>
+            <button class="btn-danger-sm"
+              data-id="${escHtml(p.id)}"
+              data-nick="${escHtml(p.nickname)}"
+              onclick="GameApp.kickPlayer(this.dataset.id,this.dataset.nick)">踢</button>
+          </div>`;
+        }).join('')}
+      </div>`;
   },
 
   _renderFinished() {

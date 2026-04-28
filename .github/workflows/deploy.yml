@@ -1,12 +1,12 @@
 # =====================================================
-#  懂我再說 — GitHub Actions 自動部署到 GitHub Pages
+#  懂我再說 — GitHub Actions 自動部署 Vue 3 到 GitHub Pages
 #
-#  使用前需在 GitHub 設定 Repository Secrets：
+#  需在 GitHub 設定 Repository Secrets：
 #    Settings > Secrets and variables > Actions > New repository secret
-#    - SUPABASE_URL       ← 你的 Supabase Project URL
-#    - SUPABASE_ANON_KEY  ← 你的 Supabase anon public key
-#    - SOCKET_SERVER_URL  ← 後端部署 URL（Railway / Render）
-#                           例：https://your-app.railway.app
+#    - VITE_SUPABASE_URL       ← Supabase Project URL
+#    - VITE_SUPABASE_ANON_KEY  ← Supabase anon public key
+#    - VITE_SOCKET_URL         ← 後端 URL（Railway）
+#                                 例：https://your-app.railway.app
 # =====================================================
 
 name: Deploy to GitHub Pages
@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -37,24 +37,30 @@ jobs:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🔑 Inject secrets into config.js
-        run: |
-          # 從 config.template.js 複製並替換三個佔位符
-          sed \
-            -e "s|__SUPABASE_URL__|${{ secrets.SUPABASE_URL }}|g" \
-            -e "s|__SUPABASE_ANON_KEY__|${{ secrets.SUPABASE_ANON_KEY }}|g" \
-            -e "s|__SOCKET_SERVER_URL__|${{ secrets.SOCKET_SERVER_URL }}|g" \
-            js/config.template.js > js/config.js
-          echo "✅ config.js 已成功注入所有設定"
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: vue-app/package-lock.json
 
-      - name: 🔍 Verify config.js（確認所有佔位符已替換）
+      - name: 📦 Install dependencies
+        working-directory: vue-app
+        run: npm ci
+
+      - name: 🏗️ Build Vue app
+        working-directory: vue-app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SOCKET_URL: ${{ secrets.VITE_SOCKET_URL }}
+        run: npm run build
+
+      - name: 📋 Copy admin.html and css to dist
         run: |
-          if grep -q "__SUPABASE_URL__\|__SUPABASE_ANON_KEY__\|__SOCKET_SERVER_URL__" js/config.js; then
-            echo "❌ 錯誤：config.js 仍含有未替換的佔位符，請確認 Secrets 是否全部設定"
-            exit 1
-          else
-            echo "✅ 佔位符替換完成"
-          fi
+          cp admin.html vue-app/dist/admin.html
+          mkdir -p vue-app/dist/css
+          cp css/style.css vue-app/dist/css/style.css
 
       - name: 🛠️ Setup GitHub Pages
         uses: actions/configure-pages@v5
@@ -62,8 +68,9 @@ jobs:
       - name: 📦 Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'  # 上傳整個專案根目錄
+          path: 'vue-app/dist'
 
       - name: 🚀 Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+

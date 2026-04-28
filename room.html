@@ -146,7 +146,7 @@
       </div>
 
       <button onclick="GameApp.copyLink()" title="複製邀請連結" class="header-icon-btn">🔗</button>
-      <button onclick="toggleTheme()" title="切換主題" class="theme-toggle" id="theme-toggle-btn">🌙</button>
+      <button onclick="toggleTheme()" title="切換主題" class="header-icon-btn" id="theme-toggle-btn">🌙</button>
     </div>
   </header>
 
@@ -429,6 +429,9 @@
         </a>
       </div>
     </div>
+
+      <!-- Host player management (only visible during game) -->
+      <div id="host-kick-panel" class="hidden"></div>
 
   </div><!-- /content -->
 </div><!-- /game-wrapper -->
