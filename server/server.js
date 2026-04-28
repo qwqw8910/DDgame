@@ -741,6 +741,38 @@ io.on('connection', (socket) => {
         }
       }
       io.to(roomId).emit('players_updated', { players: cache.players });
+
+      // 踢人後根據回合狀態自動處理
+      const round = cache.currentRound;
+      if (round) {
+        const isKickedSubject = round.subject_player_id === targetPlayerId;
+        if (isKickedSubject && ['selecting_topic', 'previewing_question', 'selecting_answer'].includes(round.status)) {
+          // 被猜者被踢 → 跳過此回合，進下一回合
+          await DB.updateRound(round.id, { status: 'finished' });
+          let pool = (cache.round_pool || []).filter(id => id !== targetPlayerId);
+          if (!pool.length) {
+            pool = cache.players.slice().sort(() => Math.random() - 0.5).map(p => p.id);
+          }
+          const nextSubjectId = pool[0];
+          cache.round_pool = pool.slice(1);
+          const newRound = await DB.createRound(roomId, round.round_number + 1, nextSubjectId);
+          const updatedRoom = await DB.updateRoom(roomId, { current_round_id: newRound.id });
+          cache.room = updatedRoom;
+          cache.currentRound = newRound;
+          cache.guesses = [];
+          io.to(roomId).emit('round_updated', {
+            currentRound:    buildRoundPayload(newRound),
+            currentQuestion: null,
+          });
+        } else if (round.status === 'guessing') {
+          // 猜測中踢人 → 重新計算是否全員已提交
+          const eligible  = getEligibleGuessers(cache.players, round);
+          const submitted = new Set(cache.guesses.map(g => g.player_id)).size;
+          if (eligible.length > 0 && submitted >= eligible.length) {
+            setTimeout(() => revealRound(roomId, socket), 800);
+          }
+        }
+      }
     } catch (err) {
       socket.emit('error', { message: err.message });
     }

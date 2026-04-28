@@ -5,6 +5,11 @@
 # Supabase 金鑰設定（本機開發用，不提交到公開 GitHub）
 js/config.js
 
+# Vue app 環境變數（含金鑰，不提交）
+vue-app/.env
+vue-app/.env.local
+vue-app/.env.*.local
+
 # Log 檔
 *.log
 

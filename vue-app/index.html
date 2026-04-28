@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-TW" data-theme="mygame">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>懂我再說</title>
+    <script>
+      (function(){
+        var t = localStorage.getItem('theme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
