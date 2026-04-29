@@ -12,6 +12,19 @@
             <span class="float-emoji" style="font-size:50px;bottom:8%;right:11%;animation-delay:0.2s">🦋</span>
         </div>
 
+        <!-- 返回入口 -->
+        <RouterLink to="/" style="position:fixed;top:16px;left:16px;z-index:50;
+                   display:flex;align-items:center;gap:6px;
+                   font-size:13px;font-weight:500;color:var(--body);
+                   text-decoration:none;padding:6px 12px;
+                   border-radius:8px;border:1px solid var(--border);
+                   background:var(--bg-card);backdrop-filter:blur(8px);
+                   transition:color 0.15s,border-color 0.15s"
+            @mouseenter="e => { e.currentTarget.style.color = 'var(--heading)'; e.currentTarget.style.borderColor = 'var(--border-glow)' }"
+            @mouseleave="e => { e.currentTarget.style.color = 'var(--body)'; e.currentTarget.style.borderColor = 'var(--border)' }">
+            ← 甜甜的小秘密
+        </RouterLink>
+
         <!-- 主要內容 -->
         <div style="position:relative;z-index:10;min-height:100vh;
                 display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -53,7 +66,8 @@
                         <div class="input-wrapper">
                             <span class="input-icon">👥</span>
                             <select v-model="maxPlayers" class="game-input" style="padding-left:44px;cursor:pointer">
-                                <option v-for="n in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]" :key="n" :value="n">最多 {{ n }} 人
+                                <option v-for="n in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]" :key="n" :value="n">最多 {{ n }}
+                                    人
                                 </option>
                             </select>
                         </div>
