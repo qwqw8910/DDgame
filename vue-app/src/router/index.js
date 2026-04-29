@@ -1,10 +1,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import IndexPage from '../pages/IndexPage.vue'
-import RoomPage  from '../pages/RoomPage.vue'
+import PortalPage       from '../pages/PortalPage.vue'
+import IndexPage        from '../pages/IndexPage.vue'
+import RoomPage         from '../pages/RoomPage.vue'
+import DinnerPickerPage from '../pages/DinnerPickerPage.vue'
 
 const routes = [
-  { path: '/',         name: 'home', component: IndexPage },
-  { path: '/room',     name: 'room', component: RoomPage  },
+  { path: '/',              name: 'portal',        component: PortalPage       },  // 工具入口首頁
+  { path: '/game',          name: 'home',          component: IndexPage        },  // 懂我再說
+  { path: '/room',          name: 'room',          component: RoomPage         },  // 遊戲房間
+  { path: '/dinner-picker', name: 'dinner-picker', component: DinnerPickerPage },  // 今晚吃什麼
 ]
 
 export default createRouter({
