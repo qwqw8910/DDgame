@@ -184,10 +184,75 @@
                                 word-break:break-all">
                             {{ winner?.name }}
                         </p>
-                        <p v-if="winner?.distance != null" style="font-size:13px;color:var(--body);margin:0 0 18px">
-                            📍 約 {{ winner.distance }}m 遠
-                        </p>
-                        <p v-else style="margin-bottom:18px"></p>
+                        <!-- 距離 + 料理類型 chips -->
+                        <div style="display:flex;flex-wrap:wrap;justify-content:center;
+                                gap:8px;margin-bottom:16px">
+                            <span v-if="winner?.distance != null"
+                                style="display:inline-flex;align-items:center;gap:4px;
+                                        font-size:12px;color:var(--body);
+                                        background:rgba(255,255,255,0.06);
+                                        border:1px solid rgba(255,255,255,0.1);
+                                        border-radius:20px;padding:4px 10px">
+                                📍 約 {{ winner.distance }}m
+                            </span>
+                            <span v-if="winner?.cuisine"
+                                style="display:inline-flex;align-items:center;gap:4px;
+                                        font-size:12px;color:#FBBF24;
+                                        background:rgba(251,191,36,0.1);
+                                        border:1px solid rgba(251,191,36,0.25);
+                                        border-radius:20px;padding:4px 10px">
+                                {{ cuisineEmoji(winner.cuisine) }} {{ cuisineLabel(winner.cuisine) }}
+                            </span>
+                        </div>
+
+                        <!-- 額外資訊列 -->
+                        <div v-if="winner?.opening_hours || winner?.phone || winner?.address"
+                            style="text-align:left;background:rgba(0,0,0,0.15);
+                                    border-radius:10px;padding:12px 14px;margin-bottom:16px;
+                                    display:flex;flex-direction:column;gap:7px">
+                            <div v-if="winner?.opening_hours"
+                                style="display:flex;align-items:flex-start;gap:8px;
+                                        font-size:12px;color:var(--body)">
+                                <span style="flex-shrink:0">🕐</span>
+                                <span style="line-height:1.5;word-break:break-all">
+                                    {{ winner.opening_hours }}
+                                </span>
+                            </div>
+                            <div v-if="winner?.phone"
+                                style="display:flex;align-items:center;gap:8px;
+                                        font-size:12px;color:var(--body)">
+                                <span>📞</span>
+                                <a :href="'tel:' + winner.phone"
+                                    style="color:#FBBF24;text-decoration:none;
+                                            letter-spacing:0.5px">
+                                    {{ winner.phone }}
+                                </a>
+                            </div>
+                            <div v-if="winner?.address"
+                                style="display:flex;align-items:center;gap:8px;
+                                        font-size:12px;color:var(--body)">
+                                <span>🏠</span>
+                                <span>{{ winner.address }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Google Maps 按鈕 -->
+                        <a :href="googleMapsUrl(winner)" target="_blank" rel="noopener noreferrer"
+                            style="display:flex;align-items:center;justify-content:center;
+                                    gap:8px;width:100%;padding:11px;
+                                    border-radius:10px;border:1px solid rgba(66,133,244,0.4);
+                                    background:rgba(66,133,244,0.08);
+                                    color:#74A9FF;font-size:13px;font-weight:600;
+                                    text-decoration:none;margin-bottom:16px;
+                                    transition:all 0.2s;letter-spacing:0.3px"
+                            @mouseenter="e => { e.currentTarget.style.background='rgba(66,133,244,0.16)'; e.currentTarget.style.borderColor='rgba(66,133,244,0.6)' }"
+                            @mouseleave="e => { e.currentTarget.style.background='rgba(66,133,244,0.08)'; e.currentTarget.style.borderColor='rgba(66,133,244,0.4)' }">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                            </svg>
+                            在 Google Maps 查看
+                        </a>
+
                         <!-- 命理台詞 -->
                         <div style="background:rgba(0,0,0,0.18);border-radius:10px;
                                 padding:12px 16px;border-left:3px solid rgba(251,191,36,0.55)">
@@ -364,12 +429,16 @@ out body;`
         const named = data.elements
             .filter(el => el.tags?.name)
             .map(el => ({
-                id: el.id,
-                name: el.tags.name,
-                lat: el.lat,
-                lon: el.lon,
-                cuisine: el.tags.cuisine ?? null,
-                distance: calcDistance(userLat, userLng, el.lat, el.lon),
+                id:            el.id,
+                name:          el.tags.name,
+                lat:           el.lat,
+                lon:           el.lon,
+                cuisine:       el.tags.cuisine ?? null,
+                opening_hours: el.tags.opening_hours ?? null,
+                phone:         el.tags.phone ?? el.tags['contact:phone'] ?? null,
+                address:       [el.tags['addr:street'], el.tags['addr:housenumber']]
+                                    .filter(Boolean).join(' ') || null,
+                distance:      calcDistance(userLat, userLng, el.lat, el.lon),
             }))
 
         if (named.length === 0) {
@@ -436,6 +505,37 @@ function startSpin() {
     }
 
     tick()
+}
+
+// ── 料理類型 emoji 對應 ──────────────────────────────────────
+const CUISINE_EMOJI_MAP = {
+    chinese: '🥢', taiwanese: '🥢', japanese: '🍱', sushi: '🍣',
+    ramen: '🍜', pizza: '🍕', burger: '🍔', american: '🍔',
+    italian: '🍝', pasta: '🍝', thai: '🌶️', vietnamese: '🍜',
+    korean: '🥩', indian: '🍛', mexican: '🌮', seafood: '🦞',
+    noodle: '🍜', hot_pot: '🫕', bbq: '🔥', sandwich: '🥪',
+    cafe: '☕', coffee: '☕', dessert: '🧁', ice_cream: '🍦',
+    steak: '🥩', chicken: '🍗', fish: '🐟', dumpling: '🥟',
+}
+
+function cuisineEmoji(cuisine) {
+    if (!cuisine) return '🍽️'
+    const c = cuisine.toLowerCase()
+    for (const [key, emoji] of Object.entries(CUISINE_EMOJI_MAP)) {
+        if (c.includes(key)) return emoji
+    }
+    return '🍽️'
+}
+
+function cuisineLabel(cuisine) {
+    if (!cuisine) return null
+    // 取第一個分類（有些 OSM 會填 "chinese;taiwanese"）
+    return cuisine.split(/[;,]/)[0].trim().replace(/_/g, ' ')
+}
+
+function googleMapsUrl(restaurant) {
+    const q = encodeURIComponent(restaurant.name)
+    return `https://www.google.com/maps/search/?api=1&query=${q}`
 }
 
 function resetAll() {
