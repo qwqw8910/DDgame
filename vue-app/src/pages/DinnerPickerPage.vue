@@ -53,22 +53,33 @@
 
                 <!-- ── IDLE：初始設定 ─────────────────────────────── -->
                 <div v-if="phase === 'idle'">
-                    <p style="font-size:13px;color:var(--label);text-align:center;
-                            margin-bottom:12px;letter-spacing:0.5px;text-transform:uppercase">
-                        搜尋範圍
-                    </p>
-                    <!-- 距離選擇 -->
-                    <div style="display:flex;gap:10px;margin-bottom:28px">
-                        <button v-for="r in radiusOptions" :key="r.value" @click="radius = r.value" style="flex:1;padding:10px 0;border-radius:10px;font-size:14px;
-                                    font-weight:500;border:1px solid;cursor:pointer;
-                                    transition:all 0.2s;background:transparent"
+
+                    <!-- 搜尋類型 -->
+                    <p style="font-size:12px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+                            color:var(--label);margin-bottom:10px">搜尋類型</p>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px">
+                        <button v-for="t in placeTypeOptions" :key="t.value" @click="placeType = t.value" style="padding:9px 4px;border-radius:10px;font-size:13px;
+                                   font-weight:500;border:1px solid;cursor:pointer;
+                                   transition:all 0.2s;background:transparent;text-align:center"
+                            :style="placeType === t.value ? activeRadiusStyle : inactiveRadiusStyle">
+                            {{ t.emoji }} {{ t.label }}
+                        </button>
+                    </div>
+
+                    <!-- 搜尋範圍 -->
+                    <p style="font-size:12px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+                            color:var(--label);margin-bottom:10px">搜尋範圍</p>
+                    <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
+                        <button v-for="r in radiusOptions" :key="r.value" @click="radius = r.value" style="flex:1;min-width:52px;padding:9px 0;border-radius:10px;font-size:13px;
+                                   font-weight:500;border:1px solid;cursor:pointer;
+                                   transition:all 0.2s;background:transparent"
                             :style="radius === r.value ? activeRadiusStyle : inactiveRadiusStyle">
                             {{ r.label }}
                         </button>
                     </div>
 
                     <!-- 取得位置按鈕 -->
-                    <button @click="getLocation" style="width:100%;padding:16px;border-radius:12px;border:none;
+                    <button @click="getLocation" style="width:100%;padding:15px;border-radius:12px;border:none;
                                 cursor:pointer;font-size:16px;font-weight:600;
                                 background:linear-gradient(135deg,#FBBF24,#F97316);
                                 color:#1a1a1a;transition:transform 0.2s,box-shadow 0.2s;
@@ -77,6 +88,58 @@
                         @mouseleave="e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(251,191,36,0.3)' }">
                         📍 取得我的位置
                     </button>
+
+                    <!-- 手動輸入座標 -->
+                    <div style="margin-top:12px">
+                        <button @click="showManualCoord = !showManualCoord" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);
+                                   background:transparent;color:var(--body);font-size:13px;font-weight:500;
+                                   cursor:pointer;transition:all 0.2s;display:flex;align-items:center;
+                                   justify-content:center;gap:6px"
+                            @mouseenter="e => { e.currentTarget.style.borderColor = 'var(--border-glow)'; e.currentTarget.style.color = 'var(--heading)' }"
+                            @mouseleave="e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--body)' }">
+                            📌 手動輸入座標
+                            <span style="font-size:10px;opacity:0.6">{{ showManualCoord ? '▲' : '▼' }}</span>
+                        </button>
+
+                        <div v-if="showManualCoord" style="margin-top:10px;
+                                background:rgba(255,255,255,0.04);border:1px solid var(--border);
+                                border-radius:12px;padding:16px">
+                            <p style="font-size:11px;color:var(--body);margin-bottom:12px">
+                                從 Google Maps 複製座標，格式：<code style="color:#FBBF24">25.0330, 121.5654</code>
+                            </p>
+                            <div style="display:flex;gap:8px;margin-bottom:10px">
+                                <div style="flex:1">
+                                    <label style="font-size:11px;color:var(--label);display:block;margin-bottom:4px">緯度
+                                        Lat</label>
+                                    <input v-model="manualLat" type="number" step="0.0001" placeholder="25.0330" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);
+                                               background:var(--bg-input);color:var(--heading);font-size:13px;
+                                               outline:none;box-sizing:border-box"
+                                        @focus="e => e.target.style.borderColor = 'rgba(251,191,36,0.5)'"
+                                        @blur="e => e.target.style.borderColor = 'var(--border)'" />
+                                </div>
+                                <div style="flex:1">
+                                    <label style="font-size:11px;color:var(--label);display:block;margin-bottom:4px">經度
+                                        Lng</label>
+                                    <input v-model="manualLng" type="number" step="0.0001" placeholder="121.5654" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);
+                                               background:var(--bg-input);color:var(--heading);font-size:13px;
+                                               outline:none;box-sizing:border-box"
+                                        @focus="e => e.target.style.borderColor = 'rgba(251,191,36,0.5)'"
+                                        @blur="e => e.target.style.borderColor = 'var(--border)'" />
+                                </div>
+                            </div>
+                            <p v-if="manualCoordError" style="font-size:12px;color:#FDA4AF;margin-bottom:8px">
+                                {{ manualCoordError }}
+                            </p>
+                            <button @click="useManualCoord" style="width:100%;padding:10px;border-radius:8px;border:none;cursor:pointer;
+                                       font-size:13px;font-weight:600;
+                                       background:linear-gradient(135deg,#FBBF24,#F97316);
+                                       color:#1a1a1a;transition:transform 0.15s"
+                                @mouseenter="e => e.currentTarget.style.transform = 'translateY(-1px)'"
+                                @mouseleave="e => e.currentTarget.style.transform = 'translateY(0)'">
+                                🔍 使用此座標搜尋
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ── LOCATING / FETCHING：讀取中 ──────────────────── -->
@@ -306,6 +369,66 @@
 
             </div><!-- /主卡片 -->
 
+            <!-- ── 收藏清單 ────────────────────────────────────── -->
+            <div v-if="favorites.length > 0" style="width:100%;max-width:460px;margin-top:16px">
+                <button @click="showFavorites = !showFavorites" style="width:100%;padding:12px 18px;border-radius:14px;
+                           border:1px solid rgba(251,191,36,0.25);
+                           background:rgba(251,191,36,0.06);color:#FBBF24;
+                           font-size:13px;font-weight:600;cursor:pointer;
+                           display:flex;align-items:center;justify-content:space-between;
+                           transition:all 0.2s"
+                    @mouseenter="e => e.currentTarget.style.background = 'rgba(251,191,36,0.1)'"
+                    @mouseleave="e => e.currentTarget.style.background = 'rgba(251,191,36,0.06)'">
+                    <span>⭐ 收藏清單（{{ favorites.length }}）</span>
+                    <span style="font-size:10px;opacity:0.7">{{ showFavorites ? '▲ 收起' : '▼ 展開' }}</span>
+                </button>
+
+                <div v-if="showFavorites" style="margin-top:8px;background:var(--bg-card);border:1px solid var(--border);
+                           border-radius:14px;overflow:hidden;backdrop-filter:blur(12px)">
+                    <div v-for="(fav, idx) in favorites" :key="fav.savedAt" style="display:flex;align-items:center;gap:12px;
+                               padding:12px 16px;transition:background 0.15s"
+                        :style="idx < favorites.length - 1 ? 'border-bottom:1px solid var(--border)' : ''"
+                        @mouseenter="e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'"
+                        @mouseleave="e => e.currentTarget.style.background = 'transparent'">
+                        <div style="flex:1;min-width:0">
+                            <p style="font-size:14px;font-weight:600;color:var(--heading);
+                                       margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                {{ fav.name }}
+                            </p>
+                            <p style="font-size:11px;color:var(--body);margin:0">
+                                {{ fav.savedAtLabel }}
+                                <span v-if="fav.cuisine" style="margin-left:6px;opacity:0.8">
+                                    · {{ cuisineEmoji(fav.cuisine) }} {{ cuisineLabel(fav.cuisine) }}
+                                </span>
+                            </p>
+                        </div>
+                        <a :href="googleMapsUrl(fav)" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:#74A9FF;text-decoration:none;
+                                   padding:4px 8px;border-radius:6px;
+                                   border:1px solid rgba(66,133,244,0.3);white-space:nowrap;
+                                   transition:all 0.2s"
+                            @mouseenter="e => e.currentTarget.style.background = 'rgba(66,133,244,0.1)'"
+                            @mouseleave="e => e.currentTarget.style.background = 'transparent'">
+                            🗺 Maps
+                        </a>
+                        <button @click="removeFavorite(fav.savedAt)" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(255,100,100,0.25);
+                                   background:transparent;color:rgba(255,120,120,0.7);font-size:12px;
+                                   cursor:pointer;transition:all 0.2s;white-space:nowrap"
+                            @mouseenter="e => { e.currentTarget.style.background = 'rgba(255,100,100,0.1)'; e.currentTarget.style.color = '#FDA4AF' }"
+                            @mouseleave="e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,120,120,0.7)' }">
+                            删除
+                        </button>
+                    </div>
+                    <div style="padding:10px 16px;border-top:1px solid var(--border);text-align:right">
+                        <button @click="clearFavorites" style="font-size:12px;color:var(--body);background:transparent;
+                                   border:none;cursor:pointer;padding:4px 0;
+                                   transition:color 0.15s" @mouseenter="e => e.currentTarget.style.color = '#FDA4AF'"
+                            @mouseleave="e => e.currentTarget.style.color = 'var(--body)'">
+                            清空所有收藏
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Footer 說明 -->
             <p style="margin-top:24px;font-size:12px;color:var(--body);opacity:0.5;text-align:center">
                 餐廳資料來源：OpenStreetMap contributors
@@ -316,12 +439,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 
 // ── 狀態 ─────────────────────────────────────────────────────
 const phase = ref('idle')   // idle | locating | fetching | ready | spinning | result | error
 const radius = ref(500)
+const placeType = ref('food')  // food | drink
 const restaurants = ref([])
 const spinCurrent = ref('')
 const winner = ref(null)
@@ -329,6 +453,17 @@ const fortune = ref('')
 const errorMsg = ref('')
 const isfast = ref(true)
 const canRetryFetch = ref(false)
+
+// 手動座標
+const showManualCoord = ref(false)
+const manualLat = ref('')
+const manualLng = ref('')
+const manualCoordError = ref('')
+
+// 收藏
+const favorites = ref([])
+const showFavorites = ref(false)
+const STORAGE_KEY = 'dinner-picker-favorites'
 
 let userLat = 0
 let userLng = 0
@@ -339,7 +474,60 @@ const radiusOptions = [
     { label: '300m', value: 300 },
     { label: '500m', value: 500 },
     { label: '1km', value: 1000 },
+    { label: '3km', value: 3000 },
+    { label: '5km', value: 5000 },
 ]
+
+const placeTypeOptions = [
+    { label: '餐廳', emoji: '🍽️', value: 'food' },
+    { label: '速食', emoji: '🍔', value: 'fastfood' },
+    { label: '飲料店', emoji: '🧋', value: 'drink' },
+    { label: '甜點', emoji: '🍰', value: 'dessert' },
+    { label: '酒吧', emoji: '🍺', value: 'bar' },
+    { label: '麵包', emoji: '🥖', value: 'bakery' },
+]
+
+const PLACE_TYPE_NAMES = {
+    food: '餐廳',
+    fastfood: '速食店',
+    drink: '飲料店',
+    dessert: '甜點店',
+    bar: '酒吧',
+    bakery: '麵包店',
+}
+
+const PLACE_QUERIES = {
+    food: (r, lat, lng) => [
+        `node["amenity"="restaurant"](around:${r},${lat},${lng});`,
+        `node["amenity"="fast_food"](around:${r},${lat},${lng});`,
+        `node["amenity"="food_court"](around:${r},${lat},${lng});`,
+    ],
+    fastfood: (r, lat, lng) => [
+        `node["amenity"="fast_food"](around:${r},${lat},${lng});`,
+    ],
+    drink: (r, lat, lng) => [
+        `node["amenity"="cafe"](around:${r},${lat},${lng});`,
+        `node["amenity"="bubble_tea"](around:${r},${lat},${lng});`,
+        `node["shop"="tea"](around:${r},${lat},${lng});`,
+        `node["shop"="beverages"](around:${r},${lat},${lng});`,
+        `node["shop"="coffee"](around:${r},${lat},${lng});`,
+    ],
+    dessert: (r, lat, lng) => [
+        `node["shop"="pastry"](around:${r},${lat},${lng});`,
+        `node["shop"="confectionery"](around:${r},${lat},${lng});`,
+        `node["shop"="chocolate"](around:${r},${lat},${lng});`,
+        `node["amenity"="ice_cream"](around:${r},${lat},${lng});`,
+    ],
+    bar: (r, lat, lng) => [
+        `node["amenity"="bar"](around:${r},${lat},${lng});`,
+        `node["amenity"="pub"](around:${r},${lat},${lng});`,
+        `node["amenity"="biergarten"](around:${r},${lat},${lng});`,
+    ],
+    bakery: (r, lat, lng) => [
+        `node["shop"="bakery"](around:${r},${lat},${lng});`,
+        `node["shop"="bread"](around:${r},${lat},${lng});`,
+    ],
+}
 
 const fortunes = [
     '今日吃此處，財運滾滾來，錢包稍感壓力乃正常現象。',
@@ -400,17 +588,31 @@ function getLocation() {
     )
 }
 
+function useManualCoord() {
+    manualCoordError.value = ''
+    const lat = parseFloat(manualLat.value)
+    const lng = parseFloat(manualLng.value)
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+        manualCoordError.value = '緯度格式錯誤，請輸入 -90 ~ 90 之間的數字'
+        return
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+        manualCoordError.value = '經度格式錯誤，請輸入 -180 ~ 180 之間的數字'
+        return
+    }
+    userLat = lat
+    userLng = lng
+    showManualCoord.value = false
+    fetchRestaurants()
+}
+
 async function fetchRestaurants() {
     phase.value = 'fetching'
     canRetryFetch.value = true
 
-    const query = `[out:json][timeout:20];
-(
-  node["amenity"="restaurant"](around:${radius.value},${userLat},${userLng});
-  node["amenity"="fast_food"](around:${radius.value},${userLat},${userLng});
-  node["amenity"="food_court"](around:${radius.value},${userLat},${userLng});
-);
-out body;`
+    const queryFn = PLACE_QUERIES[placeType.value] ?? PLACE_QUERIES.food
+    const nodes = queryFn(radius.value, userLat, userLng).join('\n  ')
+    const query = `[out:json][timeout:25];\n(\n  ${nodes}\n);\nout body;`
 
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`
 
@@ -435,7 +637,9 @@ out body;`
             }))
 
         if (named.length === 0) {
-            errorMsg.value = `${radius.value}m 內找不到餐廳資料，請試試擴大搜尋範圍`
+            const typeName = PLACE_TYPE_NAMES[placeType.value] ?? '店家'
+            const rangeLabel = radius.value >= 1000 ? radius.value / 1000 + 'km' : radius.value + 'm'
+            errorMsg.value = `${rangeLabel} 內找不到${typeName}資料，請試試擴大搜尋範圍或手動輸入座標`
             canRetryFetch.value = false
             phase.value = 'error'
             return
@@ -537,6 +741,54 @@ function resetAll() {
     winner.value = null
     phase.value = 'idle'
 }
+
+// ── 收藏 ─────────────────────────────────────────────────────
+function loadFavorites() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY)
+        favorites.value = raw ? JSON.parse(raw) : []
+    } catch { favorites.value = [] }
+}
+
+function saveFavorites() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites.value))
+}
+
+function isFavorited(restaurant) {
+    if (!restaurant) return false
+    return favorites.value.some(f => f.id === restaurant.id)
+}
+
+function toggleFavorite(restaurant) {
+    if (!restaurant) return
+    if (isFavorited(restaurant)) {
+        favorites.value = favorites.value.filter(f => f.id !== restaurant.id)
+    } else {
+        const now = Date.now()
+        const label = new Date(now).toLocaleString('zh-TW', {
+            month: 'numeric', day: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        })
+        favorites.value = [
+            { ...restaurant, savedAt: now, savedAtLabel: label },
+            ...favorites.value,
+        ]
+        showFavorites.value = true
+    }
+    saveFavorites()
+}
+
+function removeFavorite(savedAt) {
+    favorites.value = favorites.value.filter(f => f.savedAt !== savedAt)
+    saveFavorites()
+}
+
+function clearFavorites() {
+    favorites.value = []
+    localStorage.removeItem(STORAGE_KEY)
+}
+
+onMounted(() => loadFavorites())
 </script>
 
 <style scoped>
