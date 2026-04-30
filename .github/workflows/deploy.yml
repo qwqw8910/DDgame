@@ -56,11 +56,8 @@ jobs:
           VITE_SOCKET_URL: ${{ secrets.VITE_SOCKET_URL }}
         run: npm run build
 
-      - name: 📋 Copy admin.html and css to dist
-        run: |
-          cp admin.html vue-app/dist/admin.html
-          mkdir -p vue-app/dist/css
-          cp css/style.css vue-app/dist/css/style.css
+      - name: 📋 Copy admin.html to dist
+        run: cp admin.html vue-app/dist/admin.html
 
       - name: 🛠️ Setup GitHub Pages
         uses: actions/configure-pages@v5
