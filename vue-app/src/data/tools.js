@@ -40,6 +40,18 @@ export const tools = [
     status: 'live',
     tags: ['單人', '美食', '定位'],
   },
+  {
+    id: 'topic-generator',
+    name: '話題產生器',
+    tagline: '不知道說什麼？讓命運決定',
+    description: '選分類 · 轉動 · 抽題\n打開話匣子的神器！',
+    emoji: '💬',
+    color: 'rose',
+    route: '/topic-generator',
+    externalUrl: null,
+    status: 'live',
+    tags: ['多人', '話題', '聊天'],
+  },
   // ── 未來新增工具範例 ──────────────────────────────────────────
   // {
   //   id: 'my-new-tool',
