@@ -201,6 +201,57 @@ VITE_SOCKET_URL=http://localhost:3000
 | `know-me` | 懂我再說 | 🟢 live | `/game`, `/room` |
 | `dinner-picker` | 今晚吃什麼 | 🟢 live | `/dinner-picker` |
 | `topic-generator` | 話題產生器 | 🟢 live | `/topic-generator` |
+| `character-storm` | 默契傳聲筒：字元風暴 | � live | `/character-storm`, `/character-storm/room` |
+
+---
+
+## 字元風暴 — 房間系統規範
+
+### 後端架構（`server/character-storm/`）
+
+```
+server/character-storm/
+├── index.js          ← Socket.io namespace /character-storm（主邏輯）
+└── filterLogic.js    ← 提示字元過濾與符號代換（validateHint / processHints）
+```
+
+#### Socket 事件列表
+
+| 方向 | 事件 | 說明 |
+|------|------|------|
+| C→S | `cs:create` | 建立房間（帶 roomId, nickname, playerId, maxPlayers）|
+| C→S | `cs:join` | 加入房間（帶 roomId, nickname, playerId）|
+| S→C | `cs:room-state` | 回傳完整房間狀態（加入/重連時）|
+| S→C | `cs:error` | 錯誤通知（code: GAME_STARTED / ROOM_FULL / NICKNAME_TAKEN …）|
+| C→S | `cs:start` | 房主開始遊戲 |
+| S→C | `cs:round1-start` | 第一輪開始（角色分配）|
+| S→C | `cs:role-assigned` | 個人角色通知（role / quota）|
+| S→C | `cs:word-revealed` | 題目推送（僅提示者）|
+| C→S | `cs:submit-hint` | 提示者送出提示（最多 4 字）|
+| S→C | `cs:hint-progress` | 已送出提示的玩家 id 清單 |
+| S→C | `cs:round1-result` | 第一輪結果（forGuesser / forProvider）|
+| S→C | `cs:timer-tick` | 倒數秒數 |
+| C→S | `cs:guess` | 猜題者送出猜測 |
+| S→C | `cs:guess-result` | 猜題結果（correct / answer / a / b / wasRound2）|
+| S→C | `cs:round2-start` | 第二輪開始 |
+| S→C | `cs:round2-result` | 第二輪結果 |
+| S→C | `cs:finished` | 本局結束 |
+
+#### 重連機制
+- 玩家斷線後重新進入同一房間（相同 playerId），後端自動識別為重連
+- 重連時補發：角色、題目（若進行中）、上一階段結果（round1-result / round2-result）
+- 遊戲已開始時，**新玩家（不同 playerId）無法加入**，收到 `GAME_STARTED` 錯誤
+- 前端收到 `GAME_STARTED` 錯誤後，2.5 秒自動導回大廳
+
+#### 暱稱規則
+- 最多 **12 個字**，房間內暱稱不可重複
+
+#### 提示規則
+- 最多 **4 個中文字**（`maxlength="8"`，中文一字兩 byte）
+- 不可包含題目本身的字
+- 只能輸入中文字（不含數字、英文、標點）
+- 不需填滿字數即可送出（≥ 1 字即可）
+- 重複字元自動代換為固定符號（●▲■◆★✖✚⬢），衝突字元加底線標示
 
 ---
 
@@ -211,4 +262,4 @@ VITE_SOCKET_URL=http://localhost:3000
 
 ---
 
-*最後更新：2026-04-30*
+*最後更新：2026-05-11*

@@ -52,6 +52,18 @@ export const tools = [
     status: 'live',
     tags: ['多人', '話題', '聊天'],
   },
+  {
+    id: 'character-storm',
+    name: '默契傳聲筒',
+    tagline: '看穿符號，才能讀懂默契',
+    description: '多人提示 · 字元代換 · 協力猜題',
+    emoji: '🔡',
+    color: 'cyan',
+    route: '/character-storm',
+    externalUrl: null,
+    status: 'active',
+    tags: ['多人', '遊戲', '文字'],
+  },
   // ── 未來新增工具範例 ──────────────────────────────────────────
   // {
   //   id: 'my-new-tool',

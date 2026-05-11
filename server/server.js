@@ -52,6 +52,10 @@ const io = new Server(server, {
 
 app.get('/health', (_, res) => res.json({ status: 'ok', ts: Date.now() }));
 
+// ── 默契傳聲筒 namespace ──────────────────────────────────────
+const { registerNamespace: registerCS } = require('./character-storm');
+registerCS(io, db);
+
 // ── 記憶體快取（加速讀取，DB 為最終資料來源）────────────────
 // roomCache[roomId] = { room, players, currentRound, guesses, topicsLoaded }
 const roomCache = {};
