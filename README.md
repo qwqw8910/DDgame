@@ -18,7 +18,17 @@ cd server && node server.js
 
 # 前端
 cd vue-app && npm run dev
+
+# 一鍵同時啟動前後端（根目錄）
+npm run dev
 ```
+
+## 近期更新
+
+- Character Storm 房間頁 UX 強化：階段轉場、操作提示與更清楚的回合資訊。
+- 角色辨識修正：玩家卡片明確區分「猜題者」與「提示者」。
+- 提示提交流程修正：輸入超過字數上限時會即時提示，不再卡在已送出狀態。
+- 新增 `character-storm` 音效管理 composable，提供階段提示音與靜音切換。
 
 ## 目前工具
 
