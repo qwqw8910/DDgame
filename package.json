@@ -1,0 +1,13 @@
+{
+  "name": "testdemo-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently -n server,web -c yellow,cyan \"npm run dev --prefix server\" \"npm run dev --prefix vue-app\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:web": "npm run dev --prefix vue-app"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

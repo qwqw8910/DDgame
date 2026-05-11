@@ -13,6 +13,9 @@ vue-app/.env.*.local
 # Log 檔
 *.log
 
+# 依賴套件
+node_modules/
+
 # 系統檔案
 .DS_Store
 Thumbs.db

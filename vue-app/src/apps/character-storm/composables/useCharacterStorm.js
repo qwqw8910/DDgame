@@ -40,6 +40,7 @@ const state = reactive({
   myQuota: null,        // 2 | 4 | 6 | null
   isHost: false,
   isGuesser: false,
+  currentGuesserPlayerId: '',
   // 遊戲狀態
   status: 'waiting',    // waiting | round1 | round1-result | round2 | round2-result | revealing | finished
   currentWord: null,    // { id, word, category } — 提示者才看得到
@@ -80,6 +81,8 @@ function registerHandlers(socket) {
     state.players    = data.players
     state.status     = data.room.status
     state.isHost     = data.room.hostId === state.myPlayerId
+    const guesser = state.players.find(p => p.role === 'guesser')
+    state.currentGuesserPlayerId = guesser?.id ?? ''
     state.loading    = false
   })
 
@@ -156,7 +159,10 @@ function registerHandlers(socket) {
     state.timerRemaining      = 60
     // 更新 isGuesser（猜題者輪轉）
     const guesser = state.players[currentGuesserIndex]
-    if (guesser) state.isGuesser = guesser.id === state.myPlayerId
+    if (guesser) {
+      state.currentGuesserPlayerId = guesser.id
+      state.isGuesser = guesser.id === state.myPlayerId
+    }
   })
 
   // 進入第二輪
