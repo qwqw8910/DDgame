@@ -25,8 +25,38 @@ npm run dev            # 使用 node --watch 自動重啟
 | `SUPABASE_SERVICE_KEY` | Service Role Key（Settings → API → service_role）|
 | `CORS_ORIGIN` | 前端來源，多個用逗號分隔 |
 | `PORT` | 伺服器 Port（預設 3000，Railway 會自動注入）|
+| `CS_WEEKDAY_MODE` | 題庫模式：`fixed` 或 `auto` |
+| `CS_WEEKDAY_OVERRIDE` | 固定題庫星期（0=日...6=六），`fixed` 模式生效 |
 
 > ⚠️ **使用 `service_role` key**，可繞過 RLS，請勿在前端使用。
+
+---
+
+## 七天題庫（Character Storm）
+
+目前後端已支援 `character_storm_words.weekday_bank`：
+- `0=週日`
+- `1=週一`
+- `2=週二`
+- `3=週三`
+- `4=週四`
+- `5=週五`
+- `6=週六`
+
+### 目前設定（依需求）
+- 預設鎖定週二題庫：
+   - `CS_WEEKDAY_MODE=fixed`
+   - `CS_WEEKDAY_OVERRIDE=2`
+
+### 遷移現有資料庫
+請在 Supabase SQL Editor 執行：
+
+`server/character-storm/sql/weekday-bank-migration.sql`
+
+執行後會：
+1. 新增 `weekday_bank` 欄位。
+2. 將現有所有題目先設為週二（`2`）。
+3. 建立 weekday 索引。
 
 ---
 

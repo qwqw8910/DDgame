@@ -7,6 +7,7 @@ import { io } from 'socket.io-client'
 import { getOrCreatePlayerId } from '../../../data/identity.js'
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
+const GAME_TIMER_SECONDS = 90
 
 // 單一 socket 實例（/character-storm namespace）
 let _socket = null
@@ -33,7 +34,8 @@ const state = reactive({
   myNickname: '',
   // 房間
   roomId: '',
-  room: null,           // { id, hostId, status, maxPlayers }
+  room: null,           // { id, hostId, status, maxPlayers, themePreference }
+  themePreference: -1,  // -1=隨機, 0=原始, 1=綜合...
   players: [],          // [{ id, nickname, role, quota, connected }]
   // 角色
   myRole: null,         // 'guesser' | 'clue-2' | 'clue-4' | 'clue-6'
@@ -43,7 +45,7 @@ const state = reactive({
   currentGuesserPlayerId: '',
   // 遊戲狀態
   status: 'waiting',    // waiting | round1 | round1-result | round2 | round2-result | revealing | finished
-  currentWord: null,    // { id, word, category } — 提示者才看得到
+  currentWord: null,    // { id, word, category, author } — 提示者才看得到
   // 提示
   round1Hints: [],      // [{ playerId, maskedText }] — 猜題者視角
   round2Hints: [],
@@ -52,7 +54,7 @@ const state = reactive({
   symbolMap: {},        // { '字': '●' }
   // 進度
   submittedPlayerIds: [], // 已送出提示的玩家 id
-  timerRemaining: 60,
+  timerRemaining: GAME_TIMER_SECONDS,
   // 猜題
   guessResult: null,      // { correct, answer } — 最新一次
   round1GuessResult: null, // { correct, answer, a, b } — 第一輪猜題存檔
@@ -77,10 +79,11 @@ function registerHandlers(socket) {
 
   // 完整房間狀態（加入/重連）
   socket.on('cs:room-state', (data) => {
-    state.room       = data.room
-    state.players    = data.players
-    state.status     = data.room.status
-    state.isHost     = data.room.hostId === state.myPlayerId
+    state.room            = data.room
+    state.themePreference = data.room.themePreference ?? -1
+    state.players         = data.players
+    state.status          = data.room.status
+    state.isHost          = data.room.hostId === state.myPlayerId
     const guesser = state.players.find(p => p.role === 'guesser')
     state.currentGuesserPlayerId = guesser?.id ?? ''
     state.loading    = false
@@ -94,8 +97,8 @@ function registerHandlers(socket) {
   })
 
   // 題目（提示者才收到）
-  socket.on('cs:word-revealed', ({ word, category }) => {
-    state.currentWord = { word, category }
+  socket.on('cs:word-revealed', ({ word, category, author }) => {
+    state.currentWord = { word, category, author }
   })
 
   // 提示進度更新（只有 id 清單，不含內容）
@@ -115,7 +118,7 @@ function registerHandlers(socket) {
     state.symbolMap           = symbolMap
     state.status              = 'round1-result'
     state.submittedPlayerIds  = []
-    state.timerRemaining      = 60
+    state.timerRemaining      = GAME_TIMER_SECONDS
     state.wordLength          = wordLength ?? null
   })
 
@@ -126,16 +129,16 @@ function registerHandlers(socket) {
     state.symbolMap           = symbolMap
     state.status              = 'round2-result'
     state.submittedPlayerIds  = []
-    state.timerRemaining      = 60
+    state.timerRemaining      = GAME_TIMER_SECONDS
     state.wordLength          = wordLength ?? null
   })
 
   // 猜題結果
-  socket.on('cs:guess-result', ({ correct, answer, word, wasRound2, a, b }) => {
+  socket.on('cs:guess-result', ({ correct, answer, word, author, wasRound2, a, b }) => {
     state.guessResult = { correct, answer }
     state.guessAB     = (a !== undefined) ? { a, b } : null
     state.status      = 'revealing'
-    if (word) state.currentWord = { word }
+    if (word) state.currentWord = { word, author: author ?? null }
     // 第一輪答錯時存檔（wasRound2=false 表示是第一輪的猜題結果）
     if (!wasRound2) {
       state.round1GuessResult = { correct, answer: answer || '', a: a ?? 0, b: b ?? 0 }
@@ -143,7 +146,11 @@ function registerHandlers(socket) {
   })
 
   // 進入第一輪
-  socket.on('cs:round1-start', ({ currentGuesserIndex }) => {
+  socket.on('cs:round1-start', ({ currentGuesserIndex, players }) => {
+    if (Array.isArray(players) && players.length) {
+      state.players = players
+    }
+
     state.status              = 'round1'
     state.currentWord         = null
     state.round1Hints         = []
@@ -156,9 +163,9 @@ function registerHandlers(socket) {
     state.guessAB             = null
     state.round1GuessResult   = null
     state.wordLength          = null
-    state.timerRemaining      = 60
+    state.timerRemaining      = GAME_TIMER_SECONDS
     // 更新 isGuesser（猜題者輪轉）
-    const guesser = state.players[currentGuesserIndex]
+    const guesser = state.players[currentGuesserIndex] || state.players.find(p => p.role === 'guesser')
     if (guesser) {
       state.currentGuesserPlayerId = guesser.id
       state.isGuesser = guesser.id === state.myPlayerId
@@ -166,10 +173,13 @@ function registerHandlers(socket) {
   })
 
   // 進入第二輪
-  socket.on('cs:round2-start', () => {
+  socket.on('cs:round2-start', ({ players }) => {
+    if (Array.isArray(players) && players.length) {
+      state.players = players
+    }
     state.status             = 'round2'
     state.submittedPlayerIds = []
-    state.timerRemaining     = 60
+    state.timerRemaining     = GAME_TIMER_SECONDS
   })
 
   // 揭曉
@@ -180,15 +190,20 @@ function registerHandlers(socket) {
 
   // 新玩家加入
   socket.on('cs:player-joined', ({ player }) => {
-    if (!state.players.find(p => p.id === player.id)) {
+    const idx = state.players.findIndex(p => p.id === player.id)
+    if (idx === -1) {
       state.players.push(player)
+    } else {
+      state.players[idx] = { ...state.players[idx], ...player }
     }
     state.isHost = state.room?.hostId === state.myPlayerId
   })
 
   // 玩家離開
   socket.on('cs:player-left', ({ playerId }) => {
-    state.players = state.players.filter(p => p.id !== playerId)
+    state.players = state.players.map(p => (
+      p.id === playerId ? { ...p, connected: false } : p
+    ))
     state.isHost  = state.room?.hostId === state.myPlayerId
   })
 
@@ -224,7 +239,7 @@ export function useCharacterStorm() {
     _handlersRegistered = true
   }
 
-  function connect(roomId, nickname, isCreating = false, maxPlayers = 6) {
+  function connect(roomId, nickname, isCreating = false, maxPlayers = 6, themePreference = -1) {
     state.myPlayerId = getOrCreatePlayerId()
     state.myNickname = nickname
     state.roomId     = roomId
@@ -233,7 +248,7 @@ export function useCharacterStorm() {
 
     const doEmit = () => {
       if (isCreating) {
-        socket.emit('cs:create', { roomId, nickname, playerId: state.myPlayerId, maxPlayers })
+        socket.emit('cs:create', { roomId, nickname, playerId: state.myPlayerId, maxPlayers, themePreference })
       } else {
         socket.emit('cs:join', { roomId, nickname, playerId: state.myPlayerId })
       }
