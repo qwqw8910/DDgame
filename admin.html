@@ -363,50 +363,77 @@ function handleFile(file) {
   reader.readAsText(file, 'UTF-8');
 }
 
-// ── CSV 解析 ─────────────────────────────────────────────────
+// ── CSV 解析（RFC 4180 狀態機，支援欄位內換行）────────────
 function parseCSV(text) {
+  // 偵錯：舊方法切行數 vs 狀態機解析筆數
+  const naiveLinesCount = text.split(/\r?\n/).filter(l => l.trim()).length;
+  console.log('[CSV] 原始行數（含標頭、含欄位內換行斷點）:', naiveLinesCount);
+
+  const records = [];   // 最終每筆 = string[]
+  let curField = '';
+  let inQuotes = false;
+  let curRecord = [];
+  const n = text.length;
+
+  for (let i = 0; i < n; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (inQuotes) {
+      if (ch === '"' && next === '"') { curField += '"'; i++; }        // escaped quote
+      else if (ch === '"')            { inQuotes = false; }             // end of quoted field
+      else                            { curField += ch; }               // normal char (incl. \n)
+    } else {
+      if      (ch === '"')  { inQuotes = true; }                        // start quoted field
+      else if (ch === ',')  { curRecord.push(curField); curField = ''; }// field separator
+      else if (ch === '\r' && next === '\n') {                          // CRLF
+        curRecord.push(curField); curField = '';
+        records.push(curRecord); curRecord = [];
+        i++;
+      } else if (ch === '\n' || ch === '\r') {                          // LF or CR
+        curRecord.push(curField); curField = '';
+        records.push(curRecord); curRecord = [];
+      } else {
+        curField += ch;
+      }
+    }
+  }
+  // 最後一欄 / 最後一列
+  if (curField || curRecord.length) {
+    curRecord.push(curField);
+    if (curRecord.some(f => f.trim())) records.push(curRecord);
+  }
+
+  console.log('[CSV] 狀態機解析出記錄數（含標頭）:', records.length);
+
+  if (!records.length) return [];
+
+  // 判斷是否有標頭
+  const headerRow = records[0].map(h => h.toLowerCase().trim());
+  const hasHeader = headerRow.includes('id') && headerRow.includes('topic_id');
+  const start = hasHeader ? 1 : 0;
+  console.log('[CSV] 有標頭:', hasHeader, '→ 資料從第', start, '列開始');
+
   const rows = [];
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (!lines.length) return rows;
-
-  // 跳過 header
-  const header = lines[0].toLowerCase();
-  const start = (header.includes('id') && header.includes('topic_id')) ? 1 : 0;
-
-  for (let i = start; i < lines.length; i++) {
-    const cols = splitCSVLine(lines[i]);
-    if (cols.length < 4) continue;
+  let skipped = 0;
+  for (let i = start; i < records.length; i++) {
+    const cols = records[i];
+    if (cols.length < 4) {
+      console.warn('[CSV] 第', i + 1, '列欄位數不足（' + cols.length + '），跳過:', JSON.stringify(cols));
+      skipped++;
+      continue;
+    }
     rows.push({
-      id:       (cols[0] || '').trim(),
-      topic_id: (cols[1] || '').trim(),
-      option_a: (cols[2] || '').trim(),
-      option_b: (cols[3] || '').trim(),
+      id:       cols[0].trim(),
+      topic_id: cols[1].trim(),
+      option_a: cols[2].trim(),
+      option_b: cols[3].trim(),
       title:    (cols[4] || '').trim(),
       author:   (cols[5] || '').trim(),
     });
   }
+  console.log('[CSV] 有效資料筆數:', rows.length, '跳過:', skipped);
   return rows;
-}
-
-// 處理含逗號/引號的 CSV 欄位
-function splitCSVLine(line) {
-  const result = [];
-  let cur = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (inQuotes) {
-      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-      else if (ch === '"') { inQuotes = false; }
-      else { cur += ch; }
-    } else {
-      if (ch === '"') { inQuotes = true; }
-      else if (ch === ',') { result.push(cur); cur = ''; }
-      else { cur += ch; }
-    }
-  }
-  result.push(cur);
-  return result;
 }
 
 // ── 預覽 ─────────────────────────────────────────────────────
@@ -480,39 +507,70 @@ async function submitBatch() {
   const updates = pendingRows.filter(r => r._action === 'update');
   const deletes = pendingRows.filter(r => r._action === 'delete');
 
-  console.log('[Admin] 批次提交 → 新增:', inserts.length, '修改:', updates.length, '刪除:', deletes.length, '（共 3 次 API）');
+  // ── 提交前：查 DB 目前筆數
+  const { count: countBefore } = await db.from('questions').select('*', { count: 'exact', head: true });
+  console.log('[Admin] ── 提交前 DB 筆數:', countBefore);
+  console.log('[Admin] 批次提交 → 新增:', inserts.length, '修改:', updates.length, '刪除:', deletes.length);
+  console.log('[Admin] 預期提交後 DB 筆數:', (countBefore || 0) + inserts.length - deletes.length);
 
-  // 1) 批次新增（一次 insert 陣列）
+  // ── helper: 分批切割陣列
+  function chunk(arr, size) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  // 1) 批次新增（每批 100 筆，避免超出限制）
   if (inserts.length) {
-    try {
-      const payloads = inserts.map(r => {
-        const p = { topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null, author: r.author || null };
-        if (r.id) p.id = r.id;
-        return p;
-      });
-      const { error } = await db.from('questions').insert(payloads);
-      if (error) throw error;
-      inserted = inserts.length;
-      console.log('[Admin] ✅ 批次新增', inserted, '筆完成');
-    } catch (e) {
-      console.error('[Admin] ❌ 批次新增失敗:', e.message);
-      errors.push('批次新增失敗: ' + e.message);
+    const chunks = chunk(inserts, 100);
+    console.log('[Admin] INSERT 分', chunks.length, '批（每批 ≤100）');
+    for (let ci = 0; ci < chunks.length; ci++) {
+      const batch = chunks[ci];
+      try {
+        const payloads = batch.map(r => {
+          const p = { topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null, author: r.author || null };
+          if (r.id) p.id = r.id;
+          return p;
+        });
+        console.log('[Admin] INSERT 第', ci + 1, '批（', batch.length, '筆）payload[0]:', JSON.stringify(payloads[0]));
+        const { error } = await db.from('questions').insert(payloads);
+        if (error) {
+          console.error('[Admin] ❌ INSERT 第', ci + 1, '批失敗:', error.message, error.details);
+          errors.push('新增第' + (ci + 1) + '批失敗: ' + error.message);
+        } else {
+          inserted += batch.length;
+          console.log('[Admin] ✅ INSERT 第', ci + 1, '批完成，累計新增:', inserted);
+        }
+      } catch (e) {
+        console.error('[Admin] ❌ INSERT 第', ci + 1, '批例外:', e.message);
+        errors.push('新增第' + (ci + 1) + '批例外: ' + e.message);
+      }
     }
   }
 
-  // 2) 批次修改（upsert 一次送出）
+  // 2) 批次修改（每批 200 筆 upsert）
   if (updates.length) {
-    try {
-      const payloads = updates.map(r => ({
-        id: r.id, topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null, author: r.author || null
-      }));
-      const { error } = await db.from('questions').upsert(payloads, { onConflict: 'id' });
-      if (error) throw error;
-      updated = updates.length;
-      console.log('[Admin] ✅ 批次修改', updated, '筆完成');
-    } catch (e) {
-      console.error('[Admin] ❌ 批次修改失敗:', e.message);
-      errors.push('批次修改失敗: ' + e.message);
+    const chunks = chunk(updates, 200);
+    console.log('[Admin] UPSERT 分', chunks.length, '批（每批 ≤200）');
+    for (let ci = 0; ci < chunks.length; ci++) {
+      const batch = chunks[ci];
+      try {
+        const payloads = batch.map(r => ({
+          id: r.id, topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null, author: r.author || null
+        }));
+        console.log('[Admin] UPSERT 第', ci + 1, '批（', batch.length, '筆）');
+        const { error } = await db.from('questions').upsert(payloads, { onConflict: 'id' });
+        if (error) {
+          console.error('[Admin] ❌ UPSERT 第', ci + 1, '批失敗:', error.message, error.details);
+          errors.push('修改第' + (ci + 1) + '批失敗: ' + error.message);
+        } else {
+          updated += batch.length;
+          console.log('[Admin] ✅ UPSERT 第', ci + 1, '批完成，累計修改:', updated);
+        }
+      } catch (e) {
+        console.error('[Admin] ❌ UPSERT 第', ci + 1, '批例外:', e.message);
+        errors.push('修改第' + (ci + 1) + '批例外: ' + e.message);
+      }
     }
   }
 
@@ -520,16 +578,24 @@ async function submitBatch() {
   if (deletes.length) {
     try {
       const ids = deletes.map(r => r.id);
+      console.log('[Admin] DELETE', ids.length, '筆，IDs:', ids.slice(0, 5), '…');
       const { error } = await db.from('questions').delete().in('id', ids);
-      if (error) throw error;
-      deleted = deletes.length;
-      console.log('[Admin] ✅ 批次刪除', deleted, '筆完成');
+      if (error) {
+        console.error('[Admin] ❌ DELETE 失敗:', error.message, error.details);
+        errors.push('刪除失敗: ' + error.message);
+      } else {
+        deleted = deletes.length;
+        console.log('[Admin] ✅ DELETE 完成', deleted, '筆');
+      }
     } catch (e) {
-      console.error('[Admin] ❌ 批次刪除失敗:', e.message);
-      errors.push('批次刪除失敗: ' + e.message);
+      console.error('[Admin] ❌ DELETE 例外:', e.message);
+      errors.push('刪除例外: ' + e.message);
     }
   }
 
+  // ── 提交後：再查一次 DB 筆數驗證
+  const { count: countAfter } = await db.from('questions').select('*', { count: 'exact', head: true });
+  console.log('[Admin] ── 提交後 DB 筆數:', countAfter, '（差值:', (countAfter || 0) - (countBefore || 0), '）');
   console.log('[Admin] 批次提交結果 → 新增:', inserted, '修改:', updated, '刪除:', deleted, '錯誤:', errors.length);
 
   btn.disabled = false;

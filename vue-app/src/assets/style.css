@@ -6,6 +6,7 @@
 
 /* ── CSS Custom Properties (Neon Party Palette) ─────────────── */
 :root {
+  --font-ui: 'Poppins', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --neon-rose: #E11D48;
   --neon-rose-hover: #BE123C;
   --neon-rose-deep: #9F1239;
@@ -51,6 +52,13 @@
   --stripe-purple-deep: #6D28D9;
   --stripe-purple-light: #C4B5FD;
   --bg-white: rgba(15, 15, 35, 0.8);
+
+  /* ── 字體大小規範（最小 16px，不得使用更小值）── */
+  --fs-base: 16px;   /* 最小：所有內容文字、輔助文字、標籤 */
+  --fs-md:   18px;   /* 次要標題、重要標籤 */
+  --fs-lg:   20px;   /* 段落標題 */
+  --fs-xl:   22px;   /* 區塊標題 */
+  --fs-2xl:  24px;   /* 主標題、頁面標題 */
 }
 
 /* ── Light Theme Override ───────────────────────────────────── */
@@ -325,6 +333,38 @@
   color: var(--neon-purple) !important;
 }
 
+/* ── Light Theme: Character Storm ───────────────────────────── */
+[data-theme="light"] .cs-player-card--clue {
+  background: linear-gradient(160deg, rgba(8, 145, 178, 0.12), rgba(241, 245, 249, 0.95));
+  border-color: rgba(8, 145, 178, 0.26);
+}
+[data-theme="light"] .cs-player-card--guesser {
+  background: linear-gradient(160deg, rgba(244, 63, 94, 0.12), rgba(255, 241, 242, 0.95));
+  border-color: rgba(251, 113, 133, 0.32);
+}
+[data-theme="light"] .cs-player-card--self {
+  box-shadow: 0 0 0 1px rgba(8, 145, 178, 0.35), 0 8px 18px rgba(8, 145, 178, 0.12);
+}
+[data-theme="light"] .phase-flash {
+  background: rgba(241, 245, 249, 0.55);
+}
+[data-theme="light"] .phase-flash__inner {
+  border-color: rgba(8, 145, 178, 0.28);
+  background:
+    radial-gradient(circle at 15% 20%, rgba(8, 145, 178, 0.12), transparent 45%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.94));
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+}
+[data-theme="light"] .phase-flash__title { color: #0f172a; }
+[data-theme="light"] .phase-flash__desc  { color: #0f766e; }
+[data-theme="light"] .phase-flash__tag   { color: #0e7490; }
+[data-theme="light"] .phase-flash__meter {
+  background: linear-gradient(90deg, rgba(8, 145, 178, 0.2), rgba(8, 145, 178, 0.65));
+}
+[data-theme="light"] .cs-word-display { letter-spacing: 2px; }
+[data-theme="light"] .header-room-id  { color: #be123c; }
+[data-theme="light"] .logo-sm         { color: #6d28d9; }
+
 /* ── Theme toggle button ────────────────────────────────────── */
 .theme-toggle {
   background: var(--bg-card);
@@ -433,10 +473,28 @@
 /* ── Base ───────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 body {
-  font-family: 'Poppins', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-ui);
+  font-size: 16px;
   color: var(--heading);
   background: var(--bg-dark);
   -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: var(--font-ui);
+  font-size: 16px;
+}
+
+/* ── 全域字體大小下限（最小 16px）────────────────────────── */
+/* 規定：所有內容文字元素不得小於 16px（--fs-base）。         */
+/* 例外：裝飾性 emoji／icon 的 font-size 代表視覺大小非文字。 */
+p, span, a, li, label,
+button, input, select, textarea,
+td, th, dt, dd, caption {
+  font-size: max(var(--fs-base), 1em);
 }
 
 /* ── Animated background ─────────────────────────────────────── */
@@ -458,7 +516,8 @@ body::before {
   background-clip: text;
 }
 .neon-heading {
-  font-family: 'Righteous', 'Poppins', 'Noto Sans TC', cursive;
+  font-family: var(--font-ui);
+  font-weight: 700;
   letter-spacing: 1px;
 }
 .float-emoji {
@@ -542,8 +601,8 @@ body::before {
   background: rgba(15, 15, 35, 0.9);
   border: 1px solid var(--border);
   border-radius: 10px;
-  font-family: 'Poppins', 'Noto Sans TC', sans-serif;
-  font-weight: 400; color: var(--heading); font-size: 15px;
+  font-family: var(--font-ui);
+  font-weight: 400; color: var(--heading); font-size: 16px;
   outline: none;
   transition: border-color .2s, box-shadow .2s;
   -webkit-appearance: none; appearance: none;
@@ -645,7 +704,7 @@ body::before {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 4px 12px;
   background: rgba(244,63,94,0.12); color: var(--ruby);
-  font-family: 'Poppins', 'Noto Sans TC', sans-serif; font-weight: 500; font-size: 12px;
+  font-family: 'Poppins', 'Noto Sans TC', sans-serif; font-weight: 500; font-size: 16px;
   border-radius: 6px; border: 1px solid rgba(244,63,94,0.25); cursor: pointer;
   transition: background .15s, box-shadow .15s;
 }
@@ -658,7 +717,7 @@ body::before {
 .badge {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 2px 10px; border-radius: 6px;
-  font-size: 11px; font-weight: 500; white-space: nowrap;
+  font-size: 16px; font-weight: 500; white-space: nowrap;
 }
 .badge-host    { background: rgba(139,92,246,0.15); color: var(--neon-purple-light); border: 1px solid rgba(139,92,246,0.25); }
 .badge-me      { background: rgba(139,92,246,0.2); color: #DDD6FE; border: 1px solid rgba(139,92,246,0.3); }
@@ -683,7 +742,7 @@ body::before {
 .guess-chip {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 42px; padding: 3px 10px;
-  border-radius: 6px; font-size: 12px; font-weight: 500;
+  border-radius: 6px; font-size: 16px; font-weight: 500;
 }
 .guess-chip.a { background: rgba(139,92,246,0.15); color: var(--neon-purple-light); }
 .guess-chip.b { background: rgba(225,29,72,0.15); color: var(--neon-rose-light); }
@@ -777,7 +836,7 @@ body::before {
   position: fixed; bottom: 24px; left: 50%;
   transform: translateX(-50%) translateY(80px);
   padding: 12px 24px; border-radius: 10px;
-  font-family: 'Poppins', 'Noto Sans TC', sans-serif; font-weight: 500; font-size: 14px;
+  font-family: 'Poppins', 'Noto Sans TC', sans-serif; font-weight: 500; font-size: 16px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   z-index: 9999;
   transition: transform .3s cubic-bezier(0.34,1.56,0.64,1);
@@ -857,9 +916,9 @@ body::before {
 
 /* ── Question Text ───────────────────────────────────────────── */
 .question-text {
-  font-family: 'Righteous', 'Poppins', 'Noto Sans TC', cursive;
+  font-family: var(--font-ui);
   font-size: 20px;
-  font-weight: 400;
+  font-weight: 700;
   color: var(--heading);
   text-align: center;
   line-height: 1.5;
@@ -869,8 +928,8 @@ body::before {
 
 /* ── Subject Name Highlight ──────────────────────────────────── */
 .subject-name-highlight {
-  font-family: 'Righteous', 'Poppins', 'Noto Sans TC', cursive;
-  font-weight: 400;
+  font-family: var(--font-ui);
+  font-weight: 700;
   background: linear-gradient(135deg, var(--neon-purple-light) 0%, var(--neon-rose-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -898,7 +957,7 @@ body::before {
   border: 1px solid rgba(251,191,36,0.2);
   border-radius: 6px;
   padding: 2px 8px;
-  font-size: 11px; font-weight: 500;
+  font-size: 16px; font-weight: 500;
   color: var(--lemon);
   font-family: 'Poppins', 'Noto Sans TC', sans-serif;
 }
@@ -914,9 +973,9 @@ body::before {
 
 /* ── Reveal Countdown ────────────────────────────────────────── */
 .reveal-countdown {
-  font-family: 'Righteous', 'Poppins', 'Noto Sans TC', cursive;
+  font-family: var(--font-ui);
   font-size: 80px;
-  font-weight: 400;
+  font-weight: 700;
   line-height: 1;
   background: linear-gradient(135deg, var(--neon-purple-light) 0%, var(--neon-rose-light) 100%);
   -webkit-background-clip: text;
@@ -942,8 +1001,8 @@ body::before {
   background: rgba(15, 15, 35, 0.9);
   border: 1px solid var(--border);
   border-radius: 10px;
-  font-family: 'Poppins', 'Noto Sans TC', sans-serif;
-  font-weight: 400; color: var(--heading); font-size: 15px;
+  font-family: var(--font-ui);
+  font-weight: 400; color: var(--heading); font-size: 16px;
   outline: none;
   transition: border-color .2s, box-shadow .2s;
   -webkit-appearance: none; appearance: none;
@@ -1006,7 +1065,7 @@ body::before {
 .section-icon--lg { font-size: 56px; margin-bottom: 12px; line-height: 1; }
 .section-icon--xl { font-size: 48px; margin-bottom: 10px; }
 .section-subtitle {
-  font-size: 14px; color: var(--body);
+  font-size: 16px; color: var(--body);
   font-weight: 400; margin-top: 4px;
 }
 
@@ -1026,7 +1085,7 @@ body::before {
   flex: 1; justify-content: center; flex-wrap: wrap;
 }
 .header-stat-label {
-  font-size: 10px; color: var(--body);
+  font-size: 16px; color: var(--body);
   font-weight: 400; letter-spacing: 0.5px;
 }
 .header-stat-label--upper { text-transform: uppercase; }
@@ -1056,13 +1115,13 @@ body::before {
   display: flex; align-items: center; gap: 10px;
 }
 .share-row__url {
-  font-size: 12px; color: var(--label); font-weight: 400;
+  font-size: 16px; color: var(--label); font-weight: 400;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .btn-copy {
   background: linear-gradient(135deg, #8B5CF6, #7C3AED); color: white;
   border: none; border-radius: 8px; padding: 6px 16px;
-  font-weight: 500; font-size: 13px;
+  font-weight: 500; font-size: 16px;
   font-family: 'Poppins', 'Noto Sans TC', sans-serif;
   cursor: pointer; white-space: nowrap;
   transition: box-shadow .2s;
@@ -1074,17 +1133,17 @@ body::before {
 .waiting-icon { font-size: 40px; margin-bottom: 12px; }
 .waiting-icon--lg { font-size: 44px; }
 .waiting-text { color: var(--label); font-weight: 400; font-size: 16px; }
-.waiting-hint { color: var(--body); font-size: 14px; font-weight: 400; margin-top: 8px; }
+.waiting-hint { color: var(--body); font-size: 16px; font-weight: 400; margin-top: 8px; }
 .waiting-name { color: var(--accent); font-weight: 500; }
 
 /* ── Player info (for JS templates) ─────────────────────────── */
 .player-info { flex: 1; min-width: 0; }
 .player-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.player-name { font-weight: 500; font-size: 14px; color: var(--heading); }
-.player-name--lg { font-size: 15px; }
+.player-name { font-weight: 500; font-size: 16px; color: var(--heading); }
+.player-name--lg { font-size: 16px; }
 .player-score { font-weight: 600; color: var(--accent); font-size: 16px; }
 .player-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.player-online { font-size: 12px; font-weight: 400; }
+.player-online { font-size: 16px; font-weight: 400; }
 .player-online--on { color: var(--success-text); }
 .player-online--off { color: var(--body); }
 
@@ -1103,7 +1162,7 @@ body::before {
   margin-top: 10px; display: inline-block;
   background: rgba(139,92,246,0.1);
   border: 1px solid rgba(139,92,246,0.2); border-radius: 8px;
-  padding: 4px 16px; font-size: 14px; font-weight: 500; color: var(--accent);
+  padding: 4px 16px; font-size: 16px; font-weight: 500; color: var(--accent);
 }
 .reveal-stat-row { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
 .reveal-stat-box {
@@ -1112,7 +1171,7 @@ body::before {
 .reveal-stat-box--success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2); }
 .reveal-stat-box--error { background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.2); }
 .reveal-stat-number { font-size: 32px; font-weight: 600; }
-.reveal-stat-label { font-size: 14px; font-weight: 500; }
+.reveal-stat-label { font-size: 16px; font-weight: 500; }
 
 /* ── Medal / rank column ────────────────────────────────────── */
 .medal-col { font-size: 20px; width: 28px; text-align: center; flex-shrink: 0; }
@@ -1120,12 +1179,12 @@ body::before {
 
 /* ── Scoreboard title ───────────────────────────────────────── */
 .scoreboard-title {
-  font-size: 14px; color: var(--accent);
+  font-size: 16px; color: var(--accent);
   margin-bottom: 14px; text-align: center;
 }
 
 /* ── Guess player status (JS template) ──────────────────────── */
-.guess-status-item { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 400; }
+.guess-status-item { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 400; }
 .guess-status-icon { font-size: 16px; }
 .guess-status-name--done { color: var(--success-text); }
 .guess-status-name--pending { color: var(--body); }
@@ -1147,7 +1206,7 @@ body::before {
 .error-alert {
   background: rgba(225,29,72,0.1); color: var(--error-fg);
   border: 1px solid rgba(225,29,72,0.25); border-radius: 6px;
-  padding: 8px 14px; font-size: 13px; font-weight: 500; margin-bottom: 12px;
+  padding: 8px 14px; font-size: 16px; font-weight: 500; margin-bottom: 12px;
 }
 
 /* ── Misc text helpers ──────────────────────────────────────── */
@@ -1162,7 +1221,7 @@ body::before {
 /* ── Code inline ────────────────────────────────────────────── */
 .code-inline {
   background: var(--bg-accent); padding: 2px 8px; border-radius: 4px;
-  color: var(--accent); font-family: 'Source Code Pro', monospace; font-size: 13px;
+  color: var(--accent); font-family: 'Source Code Pro', monospace; font-size: 16px;
 }
 
 /* ── Progress info row ──────────────────────────────────────── */
@@ -1170,10 +1229,10 @@ body::before {
   display: flex; justify-content: space-between;
   align-items: center; margin-bottom: 8px;
 }
-.progress-label { font-size: 12px; font-weight: 400; color: var(--body); }
-.progress-value { font-size: 13px; font-weight: 500; color: var(--accent); }
+.progress-label { font-size: 16px; font-weight: 400; color: var(--body); }
+.progress-value { font-size: 16px; font-weight: 500; color: var(--accent); }
 .progress-hint {
-  text-align: center; font-size: 14px; color: var(--body);
+  text-align: center; font-size: 16px; color: var(--body);
   font-weight: 400; margin-top: 8px;
 }
 
@@ -1249,7 +1308,7 @@ body::before {
   overflow: hidden;
 }
 .cs-card-label {
-  font-size: 11px;
+  font-size: 16px;
   color: var(--label);
   font-weight: 600;
   text-transform: uppercase;
@@ -1265,7 +1324,7 @@ body::before {
   word-break: break-all;
 }
 .cs-word-category {
-  font-size: 11px;
+  font-size: 16px;
   color: var(--body);
   margin: 0;
 }
@@ -1282,7 +1341,7 @@ body::before {
   .cs-players-grid { grid-template-columns: repeat(2, 1fr); height: auto; }
 }
 
-.divider { text-align: center; color: var(--body); margin: 20px 0; font-size: 14px; position: relative; }
+.divider { text-align: center; color: var(--body); margin: 20px 0; font-size: 16px; position: relative; }
 .divider::before,
 .divider::after { content: ''; position: absolute; top: 50%; width: calc(50% - 24px); height: 1px; background: var(--border); }
 .divider::before { left: 0; }
@@ -1291,27 +1350,27 @@ body::before {
 /* ── Header room ── */
 .app-header--room { padding: 8px 16px; }
 .header-inner--room { display: flex; align-items: center; justify-content: space-between; }
-.logo-sm { font-family: 'Righteous', cursive; font-size: 16px; color: var(--neon-purple); }
-.header-info { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--label); }
+.logo-sm { font-family: var(--font-ui); font-size: 18px; font-weight: 700; color: var(--neon-purple); }
+.header-info { display: flex; gap: 10px; align-items: center; font-size: 16px; color: var(--label); }
 .header-room-id { font-family: 'Source Code Pro', monospace; font-weight: 700; color: var(--neon-rose); letter-spacing: 2px; }
-.header-round { background: var(--neon-purple); color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+.header-round { background: var(--neon-purple); color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 16px; }
 
 /* ── Game section ── */
 .game-section { padding: 4px 0 16px; }
 .section-header { margin-bottom: 16px; }
 .section-title { font-size: 18px; color: var(--heading); margin: 0 0 6px; }
-.section-hint { font-size: 13px; color: var(--body); margin: 0; }
+.section-hint { font-size: 16px; color: var(--body); margin: 0; }
 
 /* ── Topic grid ── */
 .topic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 /* ── Choices ── */
 .choices-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.submitted-hint { text-align: center; color: var(--success-fg); font-size: 14px; margin-top: 12px; }
+.submitted-hint { text-align: center; color: var(--success-fg); font-size: 16px; margin-top: 12px; }
 
 /* ── Progress ── */
 .progress-section { margin-top: 16px; }
-.progress-label { font-size: 13px; color: var(--body); margin-bottom: 6px; }
+.progress-label { font-size: 16px; color: var(--body); margin-bottom: 6px; }
 .progress-bar { background: var(--bg-subtle); border-radius: 8px; height: 8px; overflow: hidden; }
 .progress-fill { height: 100%; background: var(--neon-purple); border-radius: 8px; transition: width 0.3s ease; }
 .guess-player-list { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1320,17 +1379,17 @@ body::before {
 .reveal-countdown-container { text-align: center; padding: 40px 0; }
 .reveal-stats { padding: 32px 16px; }
 .reveal-answer { text-align: center; margin-bottom: 16px; }
-.reveal-answer-label { font-size: 13px; color: var(--body); margin-bottom: 8px; }
+.reveal-answer-label { font-size: 16px; color: var(--body); margin-bottom: 8px; }
 .reveal-answer-badge { display: inline-block; font-size: 18px; font-weight: 700; padding: 10px 20px; border-radius: 12px; }
 .reveal-answer-badge--a { background: rgba(139,92,246,0.2); color: var(--neon-purple); }
 .reveal-answer-badge--b { background: rgba(225,29,72,0.2);  color: var(--neon-rose); }
 .reveal-results { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-.reveal-guess-badge { padding: 2px 8px; border-radius: 8px; font-size: 13px; background: var(--bg-subtle); color: var(--label); }
+.reveal-guess-badge { padding: 2px 8px; border-radius: 8px; font-size: 16px; background: var(--bg-subtle); color: var(--label); }
 .reveal-result-icon { font-size: 18px; }
 .reveal-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 16px; }
 .scoreboard { margin-top: 16px; }
-.scoreboard-title { font-size: 14px; color: var(--body); margin-bottom: 8px; }
-.scoreboard-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.scoreboard-title { font-size: 16px; color: var(--body); margin-bottom: 8px; }
+.scoreboard-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 16px; }
 .scoreboard-rank { width: 28px; }
 .scoreboard-name { flex: 1; color: var(--label); }
 .scoreboard-score { color: var(--neon-purple); font-weight: 700; }
@@ -1344,12 +1403,12 @@ body::before {
 /* ── Overlay ── */
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .overlay-card { background: var(--bg-card); border: 1px solid var(--border-glow); border-radius: 16px; padding: 24px; width: min(340px, 90vw); }
-.error-text { color: var(--neon-rose); font-size: 13px; margin-bottom: 8px; }
+.error-text { color: var(--neon-rose); font-size: 16px; margin-bottom: 8px; }
 
 /* ── Reaction ── */
 .reaction-container { position: fixed; bottom: 80px; left: 0; right: 0; height: 200px; overflow: hidden; pointer-events: none; z-index: 50; }
 .floating-reaction { position: absolute; bottom: 0; text-align: center; font-size: 36px; animation: float-up 2.5s ease-out forwards; }
-.reaction-name { font-size: 11px; color: var(--neon-purple); font-weight: 500; }
+.reaction-name { font-size: 16px; color: var(--neon-purple); font-weight: 500; }
 .reaction-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card-solid); border-top: 1px solid var(--border); display: flex; justify-content: center; gap: 8px; padding: 10px; z-index: 60; }
 .reaction-btn { background: none; border: none; font-size: 24px; cursor: pointer; padding: 4px 8px; border-radius: 8px; transition: transform 0.15s; }
 .reaction-btn:hover { transform: scale(1.3); }
@@ -1380,7 +1439,7 @@ body::before {
 /* ── Lobby ── */
 .lobby-room-info { margin-bottom: 16px; }
 .room-code-display { display: flex; align-items: center; gap: 10px; background: var(--bg-subtle); border-radius: 12px; padding: 12px 16px; }
-.room-code-label { font-size: 12px; color: var(--body); }
+.room-code-label { font-size: 16px; color: var(--body); }
 .room-code-value { font-family: 'Source Code Pro', monospace; font-size: 20px; font-weight: 700; color: var(--neon-rose); letter-spacing: 4px; flex: 1; }
 .btn-icon { background: none; border: none; font-size: 18px; cursor: pointer; padding: 4px; }
 .lobby-actions { margin-top: 16px; }

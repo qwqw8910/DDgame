@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS character_storm_words (
   word       TEXT         NOT NULL,
   category   TEXT         NOT NULL,
   difficulty TEXT         NOT NULL DEFAULT 'normal',
+  weekday_bank SMALLINT   NOT NULL DEFAULT 2 CHECK (weekday_bank BETWEEN 0 AND 6),
   is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
@@ -33,6 +34,9 @@ CREATE TABLE IF NOT EXISTS character_storm_words (
 -- 快速過濾用索引
 CREATE INDEX IF NOT EXISTS idx_csw_active_category
   ON character_storm_words (is_active, category);
+
+CREATE INDEX IF NOT EXISTS idx_csw_active_weekday
+  ON character_storm_words (is_active, weekday_bank);
 `.trim();
 
 // ── 種子詞庫 ────────────────────────────────────────────────────
