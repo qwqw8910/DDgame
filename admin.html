@@ -204,9 +204,13 @@
       <label class="field-label">選項 B</label>
       <textarea id="edit-b" class="field-textarea" rows="2" placeholder="輸入選項 B"></textarea>
     </div>
-    <div style="margin-bottom:20px">
+    <div style="margin-bottom:12px">
       <label class="field-label">標題 (可留空)</label>
       <input id="edit-title" class="field-input-sm" placeholder="例如：二選一，你想要哪個？">
+    </div>
+    <div style="margin-bottom:20px">
+      <label class="field-label">作者 (可留空)</label>
+      <input id="edit-author" class="field-input-sm" placeholder="留空則不顯示" maxlength="20">
     </div>
     <div style="display:flex;gap:8px">
       <button onclick="saveEdit()" id="btn-save" class="btn-primary" style="flex:1">💾 儲存</button>
@@ -318,6 +322,7 @@ function renderQuestions() {
       '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')">' + esc(q.option_a) + '</td>' +
       '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')">' + esc(q.option_b) + '</td>' +
       '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')" style="color:var(--body);font-size:12px">' + esc(q.title || '') + '</td>' +
+      '<td class="edit-cell" onclick="openEditModal(\'' + q.id + '\')" style="color:var(--label);font-size:12px">' + esc(q.author || '') + '</td>' +
       '<td style="display:flex;gap:4px">' +
         '<button onclick="openEditModal(\'' + q.id + '\')" class="btn-danger-sm" style="background:rgba(139,92,246,0.12);color:var(--accent);border-color:rgba(139,92,246,0.25)" title="編輯">✏️</button>' +
         '<button onclick="deleteOne(\'' + q.id + '\')" class="btn-danger-sm" title="刪除">✕</button>' +
@@ -377,6 +382,7 @@ function parseCSV(text) {
       option_a: (cols[2] || '').trim(),
       option_b: (cols[3] || '').trim(),
       title:    (cols[4] || '').trim(),
+      author:   (cols[5] || '').trim(),
     });
   }
   return rows;
@@ -431,7 +437,7 @@ function parseAndPreview(text) {
 
   // 渲染預覽表格
   const thead = document.querySelector('#preview-table thead tr');
-  thead.innerHTML = '<th>動作</th><th>ID</th><th>主題</th><th>選項 A</th><th>選項 B</th><th>標題</th>';
+  thead.innerHTML = '<th>動作</th><th>ID</th><th>主題</th><th>選項 A</th><th>選項 B</th><th>標題</th><th>作者</th>';
 
   const tbody = document.querySelector('#preview-table tbody');
   tbody.innerHTML = pendingRows.map(r => {
@@ -444,6 +450,7 @@ function parseAndPreview(text) {
       '<td>' + esc(r.option_a) + '</td>' +
       '<td>' + esc(r.option_b) + '</td>' +
       '<td style="color:var(--body);font-size:12px">' + esc(r.title) + '</td>' +
+      '<td style="color:var(--label);font-size:12px">' + esc(r.author) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -479,7 +486,7 @@ async function submitBatch() {
   if (inserts.length) {
     try {
       const payloads = inserts.map(r => {
-        const p = { topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null };
+        const p = { topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null, author: r.author || null };
         if (r.id) p.id = r.id;
         return p;
       });
@@ -497,7 +504,7 @@ async function submitBatch() {
   if (updates.length) {
     try {
       const payloads = updates.map(r => ({
-        id: r.id, topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null
+        id: r.id, topic_id: r.topic_id, option_a: r.option_a, option_b: r.option_b, title: r.title || null, author: r.author || null
       }));
       const { error } = await db.from('questions').upsert(payloads, { onConflict: 'id' });
       if (error) throw error;
@@ -542,9 +549,9 @@ async function submitBatch() {
 // ── 匯出 CSV ─────────────────────────────────────────────────
 function exportCSV() {
   if (!allQuestions.length) { showToast('題庫為空', 'error'); return; }
-  const header = 'id,topic_id,option_a,option_b,title';
+  const header = 'id,topic_id,option_a,option_b,title,author';
   const lines = allQuestions.map(q =>
-    [q.id, q.topic_id, csvEscape(q.option_a), csvEscape(q.option_b), csvEscape(q.title || '')].join(',')
+    [q.id, q.topic_id, csvEscape(q.option_a), csvEscape(q.option_b), csvEscape(q.title || ''), csvEscape(q.author || '')].join(',')
   );
   const csv = [header, ...lines].join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -587,6 +594,7 @@ function openAddModal() {
   document.getElementById('edit-a').value = '';
   document.getElementById('edit-b').value = '';
   document.getElementById('edit-title').value = '';
+  document.getElementById('edit-author').value = '';
   document.getElementById('btn-save').textContent = '➕ 新增';
   renderTopicQuickBtns();
   document.getElementById('edit-modal').classList.remove('hidden');
@@ -602,6 +610,7 @@ function openEditModal(id) {
   document.getElementById('edit-a').value = q.option_a || '';
   document.getElementById('edit-b').value = q.option_b || '';
   document.getElementById('edit-title').value = q.title || '';
+  document.getElementById('edit-author').value = q.author || '';
   document.getElementById('btn-save').textContent = '💾 儲存';
   renderTopicQuickBtns();
   document.getElementById('edit-modal').classList.remove('hidden');
@@ -626,6 +635,7 @@ async function saveEdit() {
   const option_a = document.getElementById('edit-a').value.trim();
   const option_b = document.getElementById('edit-b').value.trim();
   const title = document.getElementById('edit-title').value.trim() || null;
+  const author = document.getElementById('edit-author').value.trim() || null;
 
   if (!topic_id || !option_a || !option_b) {
     showToast('請填入主題、選項 A 和選項 B', 'error');
@@ -640,13 +650,13 @@ async function saveEdit() {
     if (id) {
       // 修改
       console.log('[Admin] 編輯儲存:', id);
-      const { error } = await db.from('questions').update({ topic_id, option_a, option_b, title }).eq('id', id);
+      const { error } = await db.from('questions').update({ topic_id, option_a, option_b, title, author }).eq('id', id);
       if (error) throw error;
       showToast('✅ 已儲存', 'success');
     } else {
       // 新增
       console.log('[Admin] 新增題目:', topic_id);
-      const { error } = await db.from('questions').insert({ topic_id, option_a, option_b, title });
+      const { error } = await db.from('questions').insert({ topic_id, option_a, option_b, title, author });
       if (error) throw error;
       showToast('✅ 已新增', 'success');
     }

@@ -394,7 +394,7 @@ io.on('connection', (socket) => {
       // 在 previewing_question 階段，不在 room_state 裡暴露題目（由 preview_question 事件單獨傳給被猜者）
       const questionForState = (isPreviewingQuestion || !currentQuestion)
         ? null
-        : { id: currentQuestion.id, a: currentQuestion.option_a, b: currentQuestion.option_b, title: currentQuestion.title || null };
+        : { id: currentQuestion.id, a: currentQuestion.option_a, b: currentQuestion.option_b, title: currentQuestion.title || null, author: currentQuestion.author || null };
 
       socket.emit('room_state', {
         room,
@@ -413,7 +413,7 @@ io.on('connection', (socket) => {
       if (isPreviewingQuestion && playerId === currentRound.subject_player_id && currentQuestion) {
         const swapCount = cache.currentRound?.swap_count ?? 0;
         socket.emit('preview_question', {
-          question: { id: currentQuestion.id, a: currentQuestion.option_a, b: currentQuestion.option_b, title: currentQuestion.title || null },
+          question: { id: currentQuestion.id, a: currentQuestion.option_a, b: currentQuestion.option_b, title: currentQuestion.title || null, author: currentQuestion.author || null },
           swapCount,
           swapLimit: 3,
         });
@@ -518,7 +518,7 @@ io.on('connection', (socket) => {
       cache._previewUsedIds = [...usedIds, q.id];
       cache._previewTopicId = topicId;
 
-      const question = { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null };
+      const question = { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null };
 
       // Broadcast status change to all (but NOT the question)
       io.to(roomId).emit('round_updated', {
@@ -827,7 +827,7 @@ io.on('connection', (socket) => {
       cache._previewUsedIds = [...usedIds, q.id];
 
       socket.emit('preview_question', {
-        question: { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null },
+        question: { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null, author: q.author || null },
         swapCount: newSwapCount,
         swapLimit: 3,
       });
@@ -851,7 +851,7 @@ io.on('connection', (socket) => {
       cache.currentRound = enrichRoundWithTopic({ ...updatedRound, swap_count: round.swap_count ?? 0 }, cache.topics);
 
       const q = await DB.getQuestionById(updatedRound.question_id);
-      const question = { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null };
+      const question = { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null };
 
       io.to(roomId).emit('round_updated', {
         currentRound:    buildRoundPayload(cache.currentRound),

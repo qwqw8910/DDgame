@@ -9,6 +9,8 @@
             <div class="choice-text">{{ opt === 'A' ? question.a : question.b }}</div>
         </div>
     </div>
+    <p v-if="question.author" style="text-align:center;font-size:13px;color:var(--label);margin-top:8px">✍️ {{
+        question.author }}</p>
 </template>
 
 <script setup>
