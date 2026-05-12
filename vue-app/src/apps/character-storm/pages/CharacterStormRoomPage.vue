@@ -43,7 +43,8 @@
                 <div class="input-wrapper" style="margin-bottom:12px">
                     <span class="input-icon">✏️</span>
                     <input v-model="overlayNickname" ref="overlayInputRef" class="game-input" type="text"
-                        placeholder="你的暱稱…" maxlength="12" aria-label="暱稱" @keydown.enter="joinWithNickname" />
+                        placeholder="你的暱稱…" maxlength="12" aria-label="暱稱" autocomplete="off" autocorrect="off"
+                        autocapitalize="off" spellcheck="false" @keydown.enter="joinWithNickname" />
                 </div>
                 <button class="btn-primary" @click="joinWithNickname">
                     加入房間 🚀
@@ -139,7 +140,11 @@
 
                     <!-- 題目 -->
                     <div class="game-card">
-                        <p class="cs-card-label">題目</p>
+                        <div style="display:flex;align-items:baseline;gap:8px">
+                            <p class="cs-card-label" style="margin:0">題目</p>
+                            <span v-if="state.currentWord?.author && !state.isGuesser"
+                                style="font-size:13px;color:var(--label)">✍️ {{ state.currentWord.author }}</span>
+                        </div>
                         <!-- 猜題者：顯示字數格子 -->
                         <template v-if="state.isGuesser && state.status !== 'revealing'">
                             <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">
@@ -200,7 +205,7 @@
                             </p>
                             <div style="display:flex;gap:12px;margin-top:4px">
                                 <span style="font-weight:700;color:var(--neon-cyan)">{{ state.round1GuessResult.a
-                                }}A</span>
+                                    }}A</span>
                                 <span style="font-weight:700;color:#F59E0B">{{ state.round1GuessResult.b }}B</span>
                             </div>
                         </template>
@@ -290,7 +295,7 @@
                             <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;
                                     margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--divider)">
                                 <span style="font-weight:600;font-size:15px;color:var(--heading)">{{ p.nickname
-                                    }}</span>
+                                }}</span>
                                 <span v-if="p.id === state.myPlayerId" class="badge" style="font-size:10px">我</span>
                                 <span class="badge" :style="{
                                     fontSize: '10px',
@@ -315,7 +320,7 @@
                                     {{ state.status === 'round1' || state.status === 'round2'
                                         ? '等待提示線索'
                                         : (state.status === 'round1-result' || state.status === 'round2-result' ? '正在作答中' :
-                                    '等待下一階段') }}
+                                            '等待下一階段') }}
                                 </p>
                             </div>
                             <!-- 第一輪提示 -->
@@ -367,7 +372,8 @@
                                 <input v-model="guessInput" type="text" class="game-input" style="flex:1"
                                     ref="guessInputRef"
                                     :placeholder="state.status === 'round1-result' ? '根據第一輪線索猜…' : '根據兩輪線索猜…'"
-                                    aria-label="猜題答案" @keydown.enter.prevent="handleSubmitGuess" />
+                                    aria-label="猜題答案" autocomplete="off" autocorrect="off" autocapitalize="off"
+                                    spellcheck="false" @keydown.enter.prevent="handleSubmitGuess" />
                                 <span style="font-size:13px;font-weight:700;white-space:nowrap"
                                     :style="{ color: guessTimerRemaining <= 10 ? 'var(--ruby)' : 'var(--neon-cyan)' }">
                                     {{ guessTimerRemaining }}s
@@ -392,14 +398,15 @@
                                     </span>
                                     <input v-model="hintInput" type="text" class="game-input" style="flex:1"
                                         ref="hintInputRef" :placeholder="`輸入中文提示（1 ～ ${maxHintChars} 字）`"
-                                        :maxlength="12" aria-label="提示輸入" @input="onHintInput"
+                                        :maxlength="12" aria-label="提示輸入" autocomplete="off" autocorrect="off"
+                                        autocapitalize="off" spellcheck="false" @input="onHintInput"
                                         @keydown.enter.prevent="handleSubmitHint" />
                                     <button class="btn-primary" style="white-space:nowrap;padding:8px 16px;width:auto"
                                         :disabled="hintCharCount === 0 || !!hintError || hintSubmitted"
                                         @click="handleSubmitHint">送出</button>
                                 </div>
                                 <p v-if="hintError" style="font-size:11px;color:var(--error-fg);margin:0">{{ hintError
-                                }}</p>
+                                    }}</p>
                             </div>
                         </div>
                         <div v-else class="cs-hint-bar" style="justify-content:center">
@@ -466,6 +473,7 @@ import { getSavedNickname, saveNickname } from '../../../data/identity.js'
 const route = useRoute()
 const router = useRouter()
 const MIN_PLAYERS_REQUIRED = 2
+const GUESS_TIMER_SECONDS = 90
 
 // 主題切換
 const isDark = ref(true)
@@ -549,12 +557,12 @@ const phaseFlash = ref({ show: false, title: '', desc: '' })
 let _phaseFlashTimer = null
 
 // ── 猜題倒數計時 ──────────────────────────────────────────────────
-const guessTimerRemaining = ref(60)
+const guessTimerRemaining = ref(GUESS_TIMER_SECONDS)
 let _guessTimerInterval = null
 
 function startGuessTimer() {
     clearInterval(_guessTimerInterval)
-    guessTimerRemaining.value = 60
+    guessTimerRemaining.value = GUESS_TIMER_SECONDS
     _guessTimerInterval = setInterval(() => {
         if (guessTimerRemaining.value > 0) guessTimerRemaining.value--
         else clearInterval(_guessTimerInterval)
@@ -570,7 +578,7 @@ watch(() => state.status, (val) => {
         nextTick(() => guessInputRef.value?.focus())
     } else {
         clearInterval(_guessTimerInterval)
-        guessTimerRemaining.value = 60
+        guessTimerRemaining.value = GUESS_TIMER_SECONDS
     }
     // 進入第二輪時，重置提示輸入狀態讓提示者可以再輸入
     if (val === 'round2') {
@@ -586,7 +594,7 @@ watch(() => state.status, (val) => {
 watch(() => state.status, (nextStatus, prevStatus) => {
     if (!prevStatus || prevStatus === nextStatus) return
 
-    const allowFlash = ['round1', 'round1-result', 'round2', 'round2-result', 'revealing', 'finished']
+    const allowFlash = ['round1', 'round2', 'revealing', 'finished']
     if (!allowFlash.includes(nextStatus)) return
 
     phaseFlash.value = {
@@ -841,7 +849,8 @@ function joinWithNickname() {
     showNicknameOverlay.value = false
     const isCreating = route.query.create === '1'
     const maxPlayers = parseInt(route.query.max) || 6
-    connect(state.roomId || route.query.id, nickname, isCreating, maxPlayers)
+    const themePreference = parseInt(route.query.theme ?? '-1')
+    connect(state.roomId || route.query.id, nickname, isCreating, maxPlayers, themePreference)
 }
 
 // ── 初始化 ────────────────────────────────────────────────────────
@@ -853,6 +862,7 @@ onMounted(() => {
     const nickname = route.query.nickname?.trim() || getSavedNickname()
     const isCreating = route.query.create === '1'
     const maxPlayers = parseInt(route.query.max) || 6
+    const themePreference = parseInt(route.query.theme ?? '-1')
 
     if (!roomId) { router.push({ name: 'character-storm' }); return }
 
@@ -868,7 +878,7 @@ onMounted(() => {
         router.replace({ name: 'character-storm-room', query: { id: roomId, nickname } })
     }
 
-    connect(roomId, nickname, isCreating, maxPlayers)
+    connect(roomId, nickname, isCreating, maxPlayers, themePreference)
 })
 
 watch(guessTimerRemaining, (val) => {
@@ -907,6 +917,10 @@ onUnmounted(() => {
 .page-wrapper :is(button, input, a):focus-visible {
     outline: 2px solid var(--neon-cyan);
     outline-offset: 2px;
+}
+
+.page-wrapper :is(p, span, a, button, input, label, div) {
+    font-size: max(16px, 1em);
 }
 
 .sr-live {

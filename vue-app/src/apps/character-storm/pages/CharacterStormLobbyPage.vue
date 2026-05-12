@@ -77,6 +77,15 @@
                                 <option v-for="n in [4, 5, 6, 7, 8, 9, 10]" :key="n" :value="n">最多 {{ n }} 人</option>
                             </select>
                         </div>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🎲</span>
+                            <select v-model="selectedTheme" class="game-input" style="padding-left:44px;cursor:pointer">
+                                <option :value="-1">隨機主題（每局不同）</option>
+                                <option :value="0">原始題庫</option>
+                                <option :value="1">綜合主題包</option>
+                                <option :value="2">好友精選包</option>
+                            </select>
+                        </div>
                         <button class="btn-primary" :disabled="createLoading" @click="handleCreateRoom"
                             style="background:linear-gradient(135deg,#0891B2,#06B6D4);border-color:rgba(6,182,212,0.4)">
                             <span v-if="createLoading" class="spinner spinner-sm"></span>
@@ -150,6 +159,7 @@ function toggleTheme() {
 
 const createNickname = ref('')
 const maxPlayers = ref(6)
+const selectedTheme = ref(-1)
 const joinCode = ref('')
 const joinNickname = ref('')
 const createLoading = ref(false)
@@ -208,7 +218,7 @@ function handleCreateRoom() {
         saveNickname(nickname)
         router.push({
             name: 'character-storm-room',
-            query: { id: roomId, nickname, create: '1', max: maxPlayers.value }
+            query: { id: roomId, nickname, create: '1', max: maxPlayers.value, theme: selectedTheme.value }
         })
     } catch (err) {
         showToast('建立失敗：' + err.message, 'error')
