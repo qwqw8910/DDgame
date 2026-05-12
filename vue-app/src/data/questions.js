@@ -17,5 +17,5 @@ export function getTopicUi(name) {
 
 export function normalizeQuestion(q) {
   if (!q) return null
-  return { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null }
+  return { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null }
 }
