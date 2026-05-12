@@ -11,7 +11,15 @@ const { assignRoles }                = require('./roleAssign');
 
 // ── 第二輪固定字數 ──────────────────────────────────────────────
 const ROUND2_QUOTA = 4;
-const TIMER_SECONDS = 60;
+const TIMER_SECONDS = 90;
+// 可用主題包編號（0 = 原始題庫，1 = 綜合主題包，2 = 好友精選包，未來可擴充）
+const AVAILABLE_THEMES = [0, 1, 2];
+
+let hasLoggedThemeColumnMissing = false;
+
+function pickRandomTheme() {
+  return AVAILABLE_THEMES[Math.floor(Math.random() * AVAILABLE_THEMES.length)];
+}
 
 // A/B 判定（Bulls & Cows）
 function calculateAB(word, guess) {
@@ -48,6 +56,8 @@ function initRoom(roomId, hostId, maxPlayers) {
     guesserHistory:      [],          // 已猜過的 playerId（本局）
     currentWord:         null,        // { id, word, category }
     usedWordIds:         [],
+    themePreference:     -1,           // -1=隨機, 0~6=指定主題包
+    themeId:             null,         // 本局使用的主題包編號
     roundPhase:          null,        // round1 | round1-result | round2 | round2-result | revealing
     round1Hints:         {},          // { playerId: text }
     round2Hints:         {},
@@ -109,32 +119,64 @@ function makeDB(db) {
       return data ?? [];
     },
 
-    async drawWord(usedIds = []) {
-      let query = db.from('character_storm_words')
-        .select('id, word, category')
-        .eq('is_active', true);
+    async drawWord(usedIds = [], themeId = 0) {
+      const usedFilter = `(${usedIds.length ? usedIds.join(',') : 0})`;
 
-      if (usedIds.length) {
-        query = query.not('id', 'in', `(${usedIds.join(',')})`);
+      async function drawWithoutThemeFilter() {
+        const { count, error: countError } = await db.from('character_storm_words')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_active', true)
+          .not('id', 'in', usedFilter);
+
+        if (countError) throw countError;
+        if (!count) return null;
+
+        const offset = Math.floor(Math.random() * count);
+        const { data, error } = await db.from('character_storm_words')
+          .select('id, word, category, author')
+          .eq('is_active', true)
+          .not('id', 'in', usedFilter)
+          .range(offset, offset);
+
+        if (error) throw error;
+        return data?.[0] ?? null;
       }
 
-      // Supabase 隨機抽一筆：先取 count，再 range(offset, offset)
-      const { count } = await db.from('character_storm_words')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_active', true)
-        .not('id', 'in', `(${usedIds.length ? usedIds.join(',') : 0})`);
+      async function drawByTheme(id) {
+        const { count, error: countError } = await db.from('character_storm_words')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_active', true)
+          .eq('theme_id', id)
+          .not('id', 'in', usedFilter);
 
-      if (!count) return null;
+        if (countError) throw countError;
+        if (!count) return null;
 
-      const offset = Math.floor(Math.random() * count);
-      const { data, error } = await db.from('character_storm_words')
-        .select('id, word, category')
-        .eq('is_active', true)
-        .not('id', 'in', `(${usedIds.length ? usedIds.join(',') : 0})`)
-        .range(offset, offset);
+        const offset = Math.floor(Math.random() * count);
+        const { data, error } = await db.from('character_storm_words')
+          .select('id, word, category, author')
+          .eq('is_active', true)
+          .eq('theme_id', id)
+          .not('id', 'in', usedFilter)
+          .range(offset, offset);
 
-      if (error) throw error;
-      return data?.[0] ?? null;
+        if (error) throw error;
+        return data?.[0] ?? null;
+      }
+
+      try {
+        return await drawByTheme(themeId);
+      } catch (error) {
+        // 相容舊 schema：尚未執行 theme-migration.sql 時仍可正常抽題
+        if (error?.code === '42703') {
+          if (!hasLoggedThemeColumnMissing) {
+            hasLoggedThemeColumnMissing = true;
+            console.warn('[CS] theme_id 欄位不存在，已回退為舊題庫模式。請執行 theme-migration.sql');
+          }
+          return await drawWithoutThemeFilter();
+        }
+        throw error;
+      }
     },
   };
 }
@@ -150,7 +192,7 @@ function clearTimer(room) {
 }
 
 /**
- * 啟動 60 秒倒數，到期後自動觸發 onExpire
+ * 啟動倒數，到期後自動觸發 onExpire
  * @param {object}   ns       - Socket.io namespace
  * @param {object}   room     - 房間 cache 物件
  * @param {Function} onExpire - 到期回調（async）
@@ -268,7 +310,7 @@ function registerNamespace(io, db) {
     console.log(`[CS] connect: ${socket.id}`);
 
     // ── 建立房間 ──────────────────────────────────────────────
-    socket.on('cs:create', async ({ roomId, nickname, playerId, maxPlayers }) => {
+    socket.on('cs:create', async ({ roomId, nickname, playerId, maxPlayers, themePreference }) => {
       if (!roomId || !nickname || !playerId) return;
       try {
         // 寫入 Supabase（service_role）
@@ -277,17 +319,19 @@ function registerNamespace(io, db) {
 
         // 初始化 cache
         const room = initRoom(roomId, playerId, maxPlayers || 6);
+        const pref = (themePreference !== undefined && themePreference !== null) ? Number(themePreference) : -1;
+        room.themePreference = Number.isInteger(pref) ? pref : -1;
         room.players.push({ id: playerId, nickname, socketId: socket.id, role: null, quota: null, connected: true });
 
         socket.data = { roomId, playerId };
         socket.join(roomId);
 
         socket.emit('cs:room-state', {
-          room:    { id: roomId, hostId: playerId, status: 'waiting', maxPlayers: room.maxPlayers },
+          room:    { id: roomId, hostId: playerId, status: 'waiting', maxPlayers: room.maxPlayers, themePreference: room.themePreference },
           players: buildPlayerList(room),
         });
 
-        console.log(`[CS] create room ${roomId} by ${nickname}`);
+        console.log(`[CS] create room ${roomId} by ${nickname} themePreference=${room.themePreference}`);
       } catch (err) {
         console.error('[CS cs:create]', err.message);
         // 房間已存在（duplicate key）→ 降級為 join
@@ -376,7 +420,7 @@ function registerNamespace(io, db) {
           }
           // 補發題目（round1/round2 的提示者）
           if (['round1', 'round2'].includes(room.status) && existing.role !== 'guesser' && room.currentWord) {
-            socket.emit('cs:word-revealed', { word: room.currentWord.word, category: room.currentWord.category });
+            socket.emit('cs:word-revealed', { word: room.currentWord.word, category: room.currentWord.category, author: room.currentWord.author });
           }
           // 補發第一輪結果
           if (room.status === 'round1-result' && room.cachedRound1Result) {
@@ -430,7 +474,8 @@ function registerNamespace(io, db) {
         if (room.status !== 'waiting') return;
 
         room.status             = 'playing';
-        room.currentGuesserIndex = 0;
+        room.currentGuesserIndex = pickRandomConnectedGuesserIndex(room);
+        room.themeId            = room.themePreference === -1 ? pickRandomTheme() : room.themePreference;
         room.roundNumber        = 1;
         room.guesserHistory     = [];
         room.usedWordIds        = [];
@@ -501,11 +546,14 @@ function registerNamespace(io, db) {
         room.roundPhase = 'revealing';
         clearTimer(room);
 
+        const shouldRevealWord = correct || isRound2;
+
         // 廣播揭曉結果（含 A/B 判定）
         ns.to(roomId).emit('cs:guess-result', {
           correct,
           answer:    trimmed,
-          word:      room.currentWord?.word,
+          word:      shouldRevealWord ? room.currentWord?.word : null,
+          author:    shouldRevealWord ? room.currentWord?.author : null,
           wasRound2: isRound2,
           a:         ab.a,
           b:         ab.b,
@@ -565,7 +613,8 @@ function registerNamespace(io, db) {
 
         // 重置局狀態
         room.status             = 'playing';
-        room.currentGuesserIndex = 0;
+        room.currentGuesserIndex = pickRandomConnectedGuesserIndex(room);
+        room.themeId            = room.themePreference === -1 ? pickRandomTheme() : room.themePreference;
         room.roundNumber         = 1;
         room.guesserHistory      = [];
         room.usedWordIds         = [];  // 此局題庫重置
@@ -674,15 +723,14 @@ async function startNewGuesserRound(ns, DB, room) {
   }
 
   // 抽題（題目只推給提示者）
-  let word = await DB.drawWord(room.usedWordIds).catch(() => null);
-  if (!word) {
-    // 題庫用完 → 清空已用，重新抽
-    room.usedWordIds = [];
-    word = await DB.drawWord([]).catch(() => null);
-  }
+  let word = await DB.drawWord(room.usedWordIds, room.themeId ?? 0).catch(() => null);
 
   if (!word) {
-    ns.to(room.id).emit('cs:error', { code: 'NO_WORD', message: '題庫無可用題目，請聯繫管理員' });
+    clearTimer(room);
+    room.status = 'finished';
+    room.roundPhase = null;
+    ns.to(room.id).emit('cs:error', { code: 'NO_WORD_LEFT', message: '本局題庫已用完，為避免重複題目，已直接結束本局。' });
+    ns.to(room.id).emit('cs:finished', { players: buildPlayerList(room) });
     return;
   }
 
@@ -692,7 +740,7 @@ async function startNewGuesserRound(ns, DB, room) {
   // 推送題目（僅提示者）
   for (const player of room.players.filter(p => p.role !== 'guesser')) {
     const sock = ns.sockets.get(player.socketId);
-    sock?.emit('cs:word-revealed', { word: word.word, category: word.category });
+    sock?.emit('cs:word-revealed', { word: word.word, category: word.category, author: word.author ?? null });
   }
 
   // 啟動倒數
@@ -704,7 +752,7 @@ async function startNewGuesserRound(ns, DB, room) {
 
 /**
  * 啟動第二輪
- * 重置提示 + 啟動 60 秒倒數
+ * 重置提示 + 啟動倒數
  */
 async function startRound2(ns, DB, room) {
   room.round2Hints = {};
@@ -729,7 +777,7 @@ async function startRound2(ns, DB, room) {
   // 第二輪也看得到題目（提示者）
   for (const player of room.players.filter(p => p.role !== 'guesser')) {
     const sock = ns.sockets.get(player.socketId);
-    sock?.emit('cs:word-revealed', { word: room.currentWord?.word, category: room.currentWord?.category });
+    sock?.emit('cs:word-revealed', { word: room.currentWord?.word, category: room.currentWord?.category, author: room.currentWord?.author });
   }
 
   startTimer(ns, room, async () => {
@@ -746,9 +794,20 @@ function findNextGuesserIndex(room) {
   for (let i = 1; i <= total; i++) {
     const idx    = (room.currentGuesserIndex + i) % total;
     const player = room.players[idx];
+    if (!player?.connected) continue;
     if (!room.guesserHistory.includes(player.id)) return idx;
   }
   return -1; // 全員都猜過
+}
+
+function pickRandomConnectedGuesserIndex(room) {
+  const candidates = room.players
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => player?.connected);
+
+  if (!candidates.length) return 0;
+  const randomPick = candidates[Math.floor(Math.random() * candidates.length)];
+  return randomPick.index;
 }
 
 module.exports = { registerNamespace };
