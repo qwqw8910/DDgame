@@ -472,7 +472,15 @@
 
 /* ── Base ───────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
+html {
+  overflow: hidden;
+  height: 100%;
+  max-width: 100vw;
+}
 body {
+  overflow: hidden;
+  height: 100%;
+  max-width: 100vw;
   font-family: var(--font-ui);
   font-size: 16px;
   color: var(--heading);
@@ -624,6 +632,7 @@ body::before {
   box-shadow: 0 4px 16px rgba(225,29,72,0.3), 0 0 20px rgba(225,29,72,0.1);
   transition: transform .15s ease, box-shadow .2s ease;
   position: relative; overflow: hidden;
+  touch-action: manipulation;
 }
 .btn-primary::before {
   content: '';
@@ -1241,22 +1250,34 @@ body::before {
    ================================================================ */
 
 /* ── Layout ── */
-.page-wrapper { min-height: 100vh; }
-.main-content { max-width: 500px; margin: 0 auto; padding: 16px; }
-.main-content--room { padding-bottom: 80px; }
+/* page-wrapper 用 flex column 正確分配 header + main 的高度 */
+.page-wrapper {
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.page-wrapper .sticky-header { flex-shrink: 0; }
+/* 一般頁面（大廳等） */
+.main-content { max-width: 500px; margin: 0 auto; padding: 16px; flex: 1; overflow-y: auto; min-height: 0; }
+.main-content--room { padding-bottom: 16px; }
+.main-content--lobby { width: 100% !important; max-width: 900px !important; margin: 0 auto !important; }
 /* 遊戲進行中：全寬左右排版 */
 .main-content--game {
   max-width: none !important;
   margin: 0 !important;
   padding: 0 !important;
-  padding-bottom: 80px !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  height: auto !important;
 }
-/* 左右兩欄容器 */
+/* 左右兩欄容器：充滿 parent (main) 高度 */
 .cs-game-layout {
   display: flex;
   gap: 0;
-  align-items: flex-start;
-  height: calc(100vh - 52px);
+  align-items: stretch;
+  height: 100%;
   overflow: hidden;
 }
 /* 左側面板 */
@@ -1266,7 +1287,7 @@ body::before {
   flex-shrink: 0;
   height: 100%;
   overflow-y: auto;
-  padding: 10px 8px 80px 10px;
+  padding: 10px 8px 10px 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1333,12 +1354,18 @@ body::before {
   color: var(--neon-cyan);
   opacity: 0.6;
 }
-/* 小螢幕退回單欄 */
+/* 小螢幕退回單欄可滾動 */
 @media (max-width: 640px) {
-  .cs-right-area { height: auto; }
+  html { overflow: auto !important; height: auto !important; }
+  body { overflow-x: hidden !important; overflow-y: auto !important; height: auto !important; }
+  .page-wrapper { height: auto; min-height: 100vh; overflow: visible; }
+  .main-content { height: auto; overflow-y: visible; }
+  .main-content--game { overflow: visible !important; height: auto !important; }
   .cs-game-layout { flex-direction: column; height: auto; overflow: visible; }
-  .cs-left-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border); height: auto; }
-  .cs-players-grid { grid-template-columns: repeat(2, 1fr); height: auto; }
+  .cs-right-area { height: auto; overflow: visible; }
+  .cs-left-panel { width: 100%; min-width: 0; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 10px; }
+  .cs-players-grid { grid-template-columns: repeat(2, 1fr); height: auto; overflow: visible; }
+  .cs-hint-bar { position: sticky; bottom: 0; z-index: 30; }
 }
 
 .divider { text-align: center; color: var(--body); margin: 20px 0; font-size: 16px; position: relative; }

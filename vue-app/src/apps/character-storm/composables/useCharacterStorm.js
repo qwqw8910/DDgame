@@ -68,9 +68,14 @@ const state = reactive({
   // A/B 判定（Bulls & Cows）
   guessAB: null,   // { a, b },
   floatingReactions: [],
+  revealCountdown: 0, // 公布答案前倒數秒數
 })
 
 let _reactionId = 0
+let _revealTimer = null  // 公布答案倒數計時器，可被取消
+
+// guess-result 回調（由 component 設置）
+let _onGuessResultCb = null
 
 // ── 事件處理 ──────────────────────────────────────────────────────
 function registerHandlers(socket) {
@@ -82,7 +87,8 @@ function registerHandlers(socket) {
     state.room            = data.room
     state.themePreference = data.room.themePreference ?? -1
     state.players         = data.players
-    state.status          = data.room.status
+    // roundPhase 優先：進行中重連時可直接還原正確階段
+    state.status          = data.room.roundPhase || data.room.status
     state.isHost          = data.room.hostId === state.myPlayerId
     const guesser = state.players.find(p => p.role === 'guesser')
     state.currentGuesserPlayerId = guesser?.id ?? ''
@@ -133,15 +139,33 @@ function registerHandlers(socket) {
     state.wordLength          = wordLength ?? null
   })
 
-  // 猜題結果
+  // 猜題結果 → 立即更新狀態，並通知 component 顯示結果卡片
   socket.on('cs:guess-result', ({ correct, answer, word, author, wasRound2, a, b }) => {
+    if (_revealTimer) { clearInterval(_revealTimer); _revealTimer = null }
+    state.revealCountdown = 0
+
+    // 馬上存入結果資料（供卡片顯示）
     state.guessResult = { correct, answer }
     state.guessAB     = (a !== undefined) ? { a, b } : null
-    state.status      = 'revealing'
     if (word) state.currentWord = { word, author: author ?? null }
-    // 第一輪答錯時存檔（wasRound2=false 表示是第一輪的猜題結果）
     if (!wasRound2) {
       state.round1GuessResult = { correct, answer: answer || '', a: a ?? 0, b: b ?? 0 }
+    }
+
+    // 通知 component 顯示結果卡片
+    if (_onGuessResultCb) {
+      _onGuessResultCb({ correct, answer, a: a ?? 0, b: b ?? 0, isFinal: wasRound2 })
+    }
+
+    // 卡片動畫結束後再切 status
+    // 答對 / 第二輪結束 → 3s 後設 revealing
+    // 答錯第一輪 → 不切，等 cs:round2-start 接手
+    if (correct || wasRound2) {
+      _revealTimer = setTimeout(() => {
+        _revealTimer = null
+        state.status = 'revealing'
+        if (word) state.currentWord = { word, author: author ?? null }
+      }, 5000)
     }
   })
 
@@ -174,6 +198,9 @@ function registerHandlers(socket) {
 
   // 進入第二輪
   socket.on('cs:round2-start', ({ players }) => {
+    // 取消第一輪猜題結果的倒數，避免覆蓋 round2 狀態
+    if (_revealTimer) { clearInterval(_revealTimer); _revealTimer = null }
+    state.revealCountdown = 0
     if (Array.isArray(players) && players.length) {
       state.players = players
     }
@@ -299,6 +326,14 @@ export function useCharacterStorm() {
     return link
   }
 
+  function sendReaction(type) {
+    socket.emit('cs:reaction', { roomId: state.roomId, type })
+  }
+
+  function onGuessResult(cb) {
+    _onGuessResultCb = cb
+  }
+
   return {
     state: readonly(state),
     connect,
@@ -310,5 +345,7 @@ export function useCharacterStorm() {
     endGame,
     disconnect,
     copyInviteLink,
+    sendReaction,
+    onGuessResult,
   }
 }

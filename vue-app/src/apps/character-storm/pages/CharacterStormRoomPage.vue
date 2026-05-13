@@ -54,7 +54,7 @@
 
         <!-- 遊戲主畫面 -->
         <main v-else-if="state.room" id="cs-main-content" class="main-content main-content--room"
-            :class="{ 'main-content--game': isGamePhase }">
+            :class="{ 'main-content--game': isGamePhase, 'main-content--lobby': !isGamePhase }">
 
             <!-- ── 大廳 ── -->
             <div v-if="state.status === 'waiting'" class="game-card animate-slide-up">
@@ -126,6 +126,7 @@
                                 <template v-else>揭曉</template>
                             </span>
                             <span style="font-size:20px;font-weight:700;font-family:'Source Code Pro',monospace"
+                                :class="{ 'timer-shake': activeTimer !== '' && activeTimer <= 10 }"
                                 :style="{ color: timerColor }">
                                 {{ activeTimer !== '' ? activeTimer + 's' : '' }}
                             </span>
@@ -162,105 +163,72 @@
                         </template>
                     </div>
 
-                    <!-- 已送出狀態（左側顯示） -->
-                    <div v-if="!state.isGuesser && hintSubmitted && (state.status === 'round1' || state.status === 'round2')"
-                        class="game-card" style="text-align:center;padding:12px">
-                        <p style="color:var(--success-text);font-size:13px;font-weight:600">✓ 已送出，等待其他提示者…</p>
-                    </div>
-
                     <!-- 猜題者等待提示 -->
                     <div v-if="state.isGuesser && (state.status === 'round1' || state.status === 'round2')"
-                        class="game-card" style="text-align:center;padding:20px 12px">
-                        <div style="font-size:36px;margin-bottom:8px;opacity:0.6">🤔</div>
-                        <p style="color:var(--label);font-size:13px">
+                        class="game-card" style="display:flex;align-items:center;gap:8px;padding:10px 14px">
+                        <span style="font-size:22px;opacity:0.7">🤔</span>
+                        <p style="color:var(--label);font-size:12px;margin:0">
                             {{ state.status === 'round1' ? '提示者輸入線索中…' : '提示者輸入第二輪線索中…' }}
                         </p>
                     </div>
 
-                    <!-- 第一輪答案 -->
-                    <div class="game-card">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                            <p class="cs-card-label" style="margin:0">第一輪答案</p>
-                            <span v-if="state.isGuesser && state.status === 'round1-result'"
-                                style="font-size:15px;font-weight:700;font-family:monospace"
-                                :style="{ color: guessTimerRemaining <= 10 ? 'var(--ruby)' : 'var(--neon-cyan)' }">
-                                {{ guessTimerRemaining }}s
-                            </span>
+                    <!-- 答案卡（第一輪 + 第二輪 + 揭曉操作 合一） -->
+                    <div class="game-card" style="padding:10px 14px">
+                        <!-- 第一輪列 -->
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+                            <span style="font-size:11px;color:var(--label);white-space:nowrap">第一輪</span>
+                            <template v-if="state.isGuesser && state.status === 'round1-result'">
+                                <span v-if="!guessSubmitted" style="font-size:12px;color:var(--body);flex:1;text-align:right">↘ 右下角輸入</span>
+                                <span v-else style="font-size:12px;color:var(--success-text);font-weight:600;flex:1;text-align:right">✓ {{ guessInput || '（空白）' }}</span>
+                            </template>
+                            <template v-else-if="!state.isGuesser && state.status === 'round1-result'">
+                                <span style="font-size:12px;color:var(--body);flex:1;text-align:right">等待猜題者…</span>
+                            </template>
+                            <template v-else-if="state.round1GuessResult">
+                                <span style="font-size:14px;font-weight:700;color:var(--heading);flex:1;text-align:right">{{ state.round1GuessResult.answer || '（空白）' }}</span>
+                                <span style="font-weight:700;color:var(--neon-cyan);font-size:13px;white-space:nowrap">{{ state.round1GuessResult.a }}A</span>
+                                <span style="font-weight:700;color:#F59E0B;font-size:13px;white-space:nowrap">{{ state.round1GuessResult.b }}B</span>
+                            </template>
+                            <template v-else>
+                                <span style="color:var(--body);font-size:13px;opacity:0.4;flex:1;text-align:right">—</span>
+                            </template>
                         </div>
-                        <!-- 猜題者在 round1-result：等待輸入（輸入在右下角）-->
-                        <template v-if="state.isGuesser && state.status === 'round1-result'">
-                            <p v-if="!guessSubmitted" style="color:var(--body);font-size:13px">輸入答案在右下角 ↘</p>
-                            <p v-else style="color:var(--success-text);font-size:13px;font-weight:600">
-                                ✓ 已送出「{{ guessInput || '（空白）' }}」
-                            </p>
-                        </template>
-                        <!-- 提示者在 round1-result 等待 -->
-                        <template v-else-if="!state.isGuesser && state.status === 'round1-result'">
-                            <p style="color:var(--body);font-size:13px">等待猜題者答題…</p>
-                        </template>
-                        <!-- 有第一輪結果（round2 / round2-result / revealing）-->
-                        <template v-else-if="state.round1GuessResult">
-                            <p style="font-size:15px;font-weight:600;color:var(--heading)">
-                                {{ state.round1GuessResult.answer || '（空白）' }}
-                            </p>
-                            <div style="display:flex;gap:12px;margin-top:4px">
-                                <span style="font-weight:700;color:var(--neon-cyan)">{{ state.round1GuessResult.a
-                                    }}A</span>
-                                <span style="font-weight:700;color:#F59E0B">{{ state.round1GuessResult.b }}B</span>
+                        <!-- 第二輪列 -->
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:6px;border-top:1px solid var(--divider)">
+                            <span style="font-size:11px;color:var(--label);white-space:nowrap">第二輪</span>
+                            <template v-if="state.isGuesser && state.status === 'round2-result'">
+                                <span v-if="!guessSubmitted" style="font-size:12px;color:var(--body);flex:1;text-align:right">↘ 右下角輸入</span>
+                                <span v-else style="font-size:12px;color:var(--success-text);font-weight:600;flex:1;text-align:right">✓ {{ guessInput || '（空白）' }}</span>
+                            </template>
+                            <template v-else-if="state.status === 'revealing' && state.guessResult">
+                                <span style="font-size:14px;font-weight:700;flex:1;text-align:right"
+                                    :style="{ color: state.guessResult.correct ? 'var(--success-text)' : 'var(--heading)' }">
+                                    {{ state.guessResult.correct ? '🎉 ' : '' }}{{ state.guessResult.answer || '（空白）' }}
+                                </span>
+                                <template v-if="state.guessAB">
+                                    <span style="font-weight:700;color:var(--neon-cyan);font-size:13px;white-space:nowrap">{{ state.guessAB.a }}A</span>
+                                    <span style="font-weight:700;color:#F59E0B;font-size:13px;white-space:nowrap">{{ state.guessAB.b }}B</span>
+                                </template>
+                            </template>
+                            <template v-else>
+                                <span style="color:var(--body);font-size:13px;opacity:0.4;flex:1;text-align:right">—</span>
+                            </template>
+                        </div>
+                        <!-- 揭曉：下一位按鈕 -->
+                        <template v-if="state.status === 'revealing'">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px">
+                                <span style="font-size:22px">{{ state.guessResult?.correct ? '🎉' : '😅' }}</span>
+                                <span class="neon-heading gradient-text" style="font-size:16px;font-weight:800">
+                                    {{ state.guessResult?.correct ? '答對了！' : '下次加油！' }}
+                                </span>
+                                <button v-if="state.isHost" type="button" class="btn-primary"
+                                    style="white-space:nowrap;padding:6px 14px;width:auto;font-size:13px"
+                                    @click="handleNextTurn">
+                                    下一位 →
+                                </button>
+                                <span v-else style="font-size:11px;color:var(--label);text-align:right">等待房主…</span>
                             </div>
                         </template>
-                        <template v-else>
-                            <p style="color:var(--body);font-size:13px;opacity:0.4">—</p>
-                        </template>
-                    </div>
-
-                    <!-- 第二輪答案 -->
-                    <div class="game-card">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                            <p class="cs-card-label" style="margin:0">第二輪答案</p>
-                            <span v-if="state.isGuesser && state.status === 'round2-result'"
-                                style="font-size:15px;font-weight:700;font-family:monospace"
-                                :style="{ color: guessTimerRemaining <= 10 ? 'var(--ruby)' : 'var(--neon-cyan)' }">
-                                {{ guessTimerRemaining }}s
-                            </span>
-                        </div>
-                        <!-- 猜題者在 round2-result：等待輸入（輸入在右下角）-->
-                        <template v-if="state.isGuesser && state.status === 'round2-result'">
-                            <p v-if="!guessSubmitted" style="color:var(--body);font-size:13px">輸入答案在右下角 ↘</p>
-                            <p v-else style="color:var(--success-text);font-size:13px;font-weight:600">
-                                ✓ 已送出「{{ guessInput || '（空白）' }}」
-                            </p>
-                        </template>
-                        <!-- 揭曉：最終答案 + A/B -->
-                        <template v-else-if="state.status === 'revealing' && state.guessResult">
-                            <p style="font-size:15px;font-weight:600"
-                                :style="{ color: state.guessResult.correct ? 'var(--success-text)' : 'var(--heading)' }">
-                                {{ state.guessResult.correct ? '🎉 ' : '' }}{{ state.guessResult.answer || '（空白）' }}
-                            </p>
-                            <div v-if="state.guessAB" style="display:flex;gap:12px;margin-top:4px">
-                                <span style="font-weight:700;color:var(--neon-cyan)">{{ state.guessAB.a }}A</span>
-                                <span style="font-weight:700;color:#F59E0B">{{ state.guessAB.b }}B</span>
-                            </div>
-                        </template>
-                        <template v-else>
-                            <p style="color:var(--body);font-size:13px;opacity:0.4">—</p>
-                        </template>
-                    </div>
-
-                    <!-- 揭曉結果 + 下一位按鈕 -->
-                    <div v-if="state.status === 'revealing'" class="game-card" style="text-align:center">
-                        <div style="font-size:44px;margin-bottom:6px">
-                            {{ state.guessResult?.correct ? '🎉' : '😅' }}
-                        </div>
-                        <p class="neon-heading gradient-text" style="font-size:20px;margin-bottom:8px">
-                            {{ state.guessResult?.correct ? '答對了！' : '下次加油！' }}
-                        </p>
-                        <button v-if="state.isHost" class="btn-primary"
-                            style="width:100%;background:linear-gradient(135deg,#0891B2,#06B6D4);border-color:rgba(6,182,212,0.4)"
-                            @click="handleNextTurn">
-                            下一位 →
-                        </button>
-                        <p v-else style="color:var(--body);font-size:13px;margin-top:8px">等待房主進入下一位…</p>
                     </div>
                 </div>
 
@@ -290,7 +258,8 @@
 
                     <div class="cs-players-grid">
                         <div v-for="p in state.players" :key="p.id"
-                            :class="['game-card', 'cs-player-card', getPlayerCardClass(p.role, p.id)]">
+                            :class="['game-card', 'cs-player-card', getPlayerCardClass(p.role, p.id),
+                                     { 'hint-just-submitted': state.submittedPlayerIds.includes(p.id) && isHintPhase }]">
                             <!-- 玩家資訊列 -->
                             <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;
                                     margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--divider)">
@@ -311,8 +280,7 @@
                                     v-else-if="(state.status === 'round1' || state.status === 'round2') && !isPlayerGuesser(p)"
                                     style="margin-left:auto;color:var(--label);font-size:11px">待送出</span>
                             </div>
-                            <div v-if="isPlayerGuesser(p)" style="text-align:center;padding:8px 0 2px">
-                                <p style="font-size:12px;color:var(--label);margin-bottom:6px">本輪角色</p>
+                            <div v-if="isPlayerGuesser(p)" style="text-align:center;padding:4px 0 2px">
                                 <p style="font-size:18px;font-weight:700;color:var(--heading);margin:0">
                                     {{ p.id === state.myPlayerId ? '你是猜題者' : '猜題者' }}
                                 </p>
@@ -326,15 +294,17 @@
                             <!-- 第一輪提示 -->
                             <div v-else style="margin-bottom:6px;text-align:center">
                                 <p style="font-size:10px;color:var(--label);margin-bottom:2px">第一輪</p>
-                                <template v-if="getPlayerR1Hint(p.id).length">
-                                    <span v-for="(c, i) in getPlayerR1Hint(p.id)" :key="i" :style="{
-                                        fontSize: '22px', fontWeight: '700', letterSpacing: '3px', color: c.color,
-                                        textDecoration: c.isConflict ? 'underline wavy' : 'none'
-                                    }">
+                                <TransitionGroup name="hint-char" tag="span" class="hint-chars-wrap">
+                                    <span v-for="(c, i) in getPlayerR1Hint(p.id)" :key="i"
+                                        :style="{
+                                            '--i': i,
+                                            fontSize: '22px', fontWeight: '700', letterSpacing: '3px', color: c.color,
+                                            textDecoration: c.isConflict ? 'underline wavy' : 'none'
+                                        }">
                                         {{ c.char }}
                                     </span>
-                                </template>
-                                <p v-else style="font-size:11px;color:var(--body);opacity:0.5">
+                                </TransitionGroup>
+                                <p v-if="!getPlayerR1Hint(p.id).length" style="font-size:11px;color:var(--body);opacity:0.5">
                                     {{ state.status === 'round1'
                                         ? (state.submittedPlayerIds.includes(p.id) ? '✓' : '…')
                                         : '—' }}
@@ -344,15 +314,17 @@
                             <div v-if="['round2', 'round2-result', 'revealing'].includes(state.status) && !isPlayerGuesser(p)"
                                 style="text-align:center">
                                 <p style="font-size:10px;color:var(--label);margin-bottom:2px">第二輪</p>
-                                <template v-if="getPlayerR2Hint(p.id).length">
-                                    <span v-for="(c, i) in getPlayerR2Hint(p.id)" :key="i" :style="{
-                                        fontSize: '22px', fontWeight: '700', letterSpacing: '3px', color: c.color,
-                                        textDecoration: c.isConflict ? 'underline wavy' : 'none'
-                                    }">
+                                <TransitionGroup name="hint-char" tag="span" class="hint-chars-wrap">
+                                    <span v-for="(c, i) in getPlayerR2Hint(p.id)" :key="i"
+                                        :style="{
+                                            '--i': i,
+                                            fontSize: '22px', fontWeight: '700', letterSpacing: '3px', color: c.color,
+                                            textDecoration: c.isConflict ? 'underline wavy' : 'none'
+                                        }">
                                         {{ c.char }}
                                     </span>
-                                </template>
-                                <p v-else style="font-size:11px;color:var(--body);opacity:0.5">
+                                </TransitionGroup>
+                                <p v-if="!getPlayerR2Hint(p.id).length" style="font-size:11px;color:var(--body);opacity:0.5">
                                     {{ state.status === 'round2'
                                         ? (state.submittedPlayerIds.includes(p.id) ? '✓' : '…')
                                         : '—' }}
@@ -366,19 +338,17 @@
                         v-if="state.isGuesser && (state.status === 'round1-result' || state.status === 'round2-result')">
                         <div v-if="!guessSubmitted" class="cs-hint-bar">
                             <div style="flex:1;display:flex;align-items:center;gap:8px">
-                                <span style="font-size:12px;color:var(--label);white-space:nowrap">
-                                    {{ state.status === 'round1-result' ? '第一輪' : '第二輪' }}答案
+                                <span style="font-size:13px;font-weight:700;white-space:nowrap"
+                                    :class="{ 'timer-shake': guessTimerRemaining <= 10 }"
+                                    :style="{ color: guessTimerRemaining <= 10 ? 'var(--ruby)' : 'var(--neon-cyan)' }">
+                                    {{ guessTimerRemaining }}s
                                 </span>
                                 <input v-model="guessInput" type="text" class="game-input" style="flex:1"
                                     ref="guessInputRef"
                                     :placeholder="state.status === 'round1-result' ? '根據第一輪線索猜…' : '根據兩輪線索猜…'"
                                     aria-label="猜題答案" autocomplete="off" autocorrect="off" autocapitalize="off"
                                     spellcheck="false" @keydown.enter.prevent="handleSubmitGuess" />
-                                <span style="font-size:13px;font-weight:700;white-space:nowrap"
-                                    :style="{ color: guessTimerRemaining <= 10 ? 'var(--ruby)' : 'var(--neon-cyan)' }">
-                                    {{ guessTimerRemaining }}s
-                                </span>
-                                <button class="btn-primary" style="white-space:nowrap;padding:8px 16px;width:auto"
+                                <button type="button" class="btn-primary" style="white-space:nowrap;padding:8px 16px;width:auto"
                                     :disabled="guessSubmitted" @click="handleSubmitGuess">送出</button>
                             </div>
                         </div>
@@ -393,15 +363,16 @@
                         <div v-if="!hintSubmitted" class="cs-hint-bar">
                             <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                                 <div style="display:flex;align-items:center;gap:8px">
-                                    <span style="font-size:12px;color:var(--label);white-space:nowrap">
-                                        {{ state.status === 'round1' ? '第一輪' : '第二輪' }}
+                                    <span style="font-size:13px;font-weight:700;white-space:nowrap"
+                                        :style="{ color: state.timerRemaining <= 10 ? 'var(--ruby)' : 'var(--neon-cyan)' }">
+                                        {{ state.timerRemaining }}s
                                     </span>
                                     <input v-model="hintInput" type="text" class="game-input" style="flex:1"
                                         ref="hintInputRef" :placeholder="`輸入中文提示（1 ～ ${maxHintChars} 字）`"
                                         :maxlength="12" aria-label="提示輸入" autocomplete="off" autocorrect="off"
                                         autocapitalize="off" spellcheck="false" @input="onHintInput"
                                         @keydown.enter.prevent="handleSubmitHint" />
-                                    <button class="btn-primary" style="white-space:nowrap;padding:8px 16px;width:auto"
+                                    <button type="button" class="btn-primary" style="white-space:nowrap;padding:8px 16px;width:auto"
                                         :disabled="hintCharCount === 0 || !!hintError || hintSubmitted"
                                         @click="handleSubmitHint">送出</button>
                                 </div>
@@ -459,6 +430,34 @@
             </div>
         </Transition>
 
+        <!-- 結果揭曉卡片（取代全屏倒數） -->
+        <Transition name="result-card">
+            <div v-if="resultCard.show" class="result-card-overlay" aria-live="assertive">
+                <div class="result-card-box" :class="resultCard.phase === 'reveal' ? (resultCard.correct ? 'result-card-box--correct' : 'result-card-box--wrong') : ''">
+                    <!-- 計算中 -->
+                    <template v-if="resultCard.phase === 'counting'">
+                        <div class="result-card-spinner"></div>
+                        <p class="result-card-label">計算中…</p>
+                    </template>
+                    <!-- 揭曉 -->
+                    <template v-else-if="resultCard.phase === 'reveal'">
+                        <div class="result-card-emoji" :class="resultCard.correct ? 'pop-in' : 'shake'">
+                            {{ resultCard.correct ? '🎉' : '😅' }}
+                        </div>
+                        <p class="result-card-verdict">{{ resultCard.correct ? '答對了！' : '答錯了' }}</p>
+                        <p class="result-card-answer">
+                            {{ resultCard.answer || '（空白）' }}
+                        </p>
+                        <div v-if="resultCard.a !== null" class="result-card-ab">
+                            <span class="ab-a">{{ resultCard.a }}A</span>
+                            <span class="ab-b">{{ resultCard.b }}B</span>
+                        </div>
+                        <p v-if="!resultCard.correct && !resultCard.isFinal" class="result-card-next">進入第二輪…</p>
+                    </template>
+                </div>
+            </div>
+        </Transition>
+
         <p class="sr-live" aria-live="polite">{{ liveStatusText }}</p>
     </div>
 </template>
@@ -497,6 +496,7 @@ const {
     endGame,
     disconnect,
     copyInviteLink,
+    onGuessResult,
 } = useCharacterStorm()
 
 const {
@@ -556,6 +556,30 @@ const hintInputRef = ref(null)
 const phaseFlash = ref({ show: false, title: '', desc: '' })
 let _phaseFlashTimer = null
 
+// ── 結果揭曉卡片 ──────────────────────────────────────────────────
+const resultCard = ref({ show: false, phase: 'counting', correct: false, answer: '', a: null, b: null, isFinal: false })
+let _resultCardTimer = null
+
+function showResultCard({ correct, answer, a, b, isFinal }) {
+    // 清掉上次
+    clearTimeout(_resultCardTimer)
+    resultCard.value = { show: true, phase: 'counting', correct, answer, a, b: b ?? null, isFinal: isFinal ?? false }
+    // 1.5s 後翻牌揭曉
+    _resultCardTimer = setTimeout(() => {
+        resultCard.value.phase = 'reveal'
+        // 如果是答錯第一輪，再等 3.2s 後收起（讓 round2 phase-flash 接手）
+        if (!correct && !isFinal) {
+            _resultCardTimer = setTimeout(() => { resultCard.value.show = false }, 3200)
+        } else {
+            // 答對或第二輪結束，等 4.5s 後收起
+            _resultCardTimer = setTimeout(() => { resultCard.value.show = false }, 4500)
+        }
+    }, 1500)
+}
+
+// 綁定 composable 的猜題結果回調
+onGuessResult(showResultCard)
+
 // ── 猜題倒數計時 ──────────────────────────────────────────────────
 const guessTimerRemaining = ref(GUESS_TIMER_SECONDS)
 let _guessTimerInterval = null
@@ -594,7 +618,7 @@ watch(() => state.status, (val) => {
 watch(() => state.status, (nextStatus, prevStatus) => {
     if (!prevStatus || prevStatus === nextStatus) return
 
-    const allowFlash = ['round1', 'round2', 'revealing', 'finished']
+    const allowFlash = ['round1', 'round2', 'finished']
     if (!allowFlash.includes(nextStatus)) return
 
     phaseFlash.value = {
@@ -811,6 +835,8 @@ function handleSubmitHint() {
         }
     }
     submitHint(stripped)
+    hintInput.value = ''
+    hintError.value = ''
 }
 
 function handleSubmitGuess() {
@@ -891,6 +917,7 @@ watch(guessTimerRemaining, (val) => {
 onUnmounted(() => {
     clearInterval(_guessTimerInterval)
     clearTimeout(_phaseFlashTimer)
+    clearTimeout(_resultCardTimer)
     stopSfx()
     // 不強制斷線（讓重連機制生效），頁面 push 回大廳時才斷
 })
@@ -1131,5 +1158,207 @@ onUnmounted(() => {
         transition: none;
         animation: none;
     }
+}
+
+/* ── 計時器震動 ─────────────────────────────────────────────── */
+.timer-shake {
+    display: inline-block;
+    animation: timerShake 0.5s ease infinite;
+}
+
+@keyframes timerShake {
+    0%, 100% { transform: translateX(0); }
+    20%       { transform: translateX(-2px) rotate(-1deg); }
+    40%       { transform: translateX(2px) rotate(1deg); }
+    60%       { transform: translateX(-2px); }
+    80%       { transform: translateX(2px); }
+}
+
+/* ── 玩家卡送出後 neon 閃光 ─────────────────────────────────── */
+.hint-just-submitted {
+    animation: neonFlash 0.6s ease forwards;
+}
+
+@keyframes neonFlash {
+    0%   { box-shadow: 0 0 0 0 rgba(6,182,212,0); border-color: rgba(8,145,178,0.36); }
+    30%  { box-shadow: 0 0 0 4px rgba(6,182,212,0.55), 0 0 18px rgba(6,182,212,0.4); border-color: rgba(6,182,212,0.9); }
+    100% { box-shadow: 0 0 0 0 rgba(6,182,212,0); border-color: rgba(8,145,178,0.36); }
+}
+
+/* ── 提示字 stagger 淡入 ─────────────────────────────────────── */
+.hint-chars-wrap {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1px;
+}
+
+.hint-char-enter-active {
+    transition: opacity 300ms ease, transform 300ms ease;
+    transition-delay: calc(var(--i, 0) * 80ms);
+}
+
+.hint-char-enter-from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.85);
+}
+
+.hint-char-leave-active {
+    transition: opacity 150ms ease;
+}
+
+.hint-char-leave-to {
+    opacity: 0;
+}
+
+/* ── 結果揭曉卡片 ─────────────────────────────────────────────── */
+.result-card-overlay {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(2, 8, 23, 0.55);
+    backdrop-filter: blur(4px);
+    z-index: 140;
+    pointer-events: none;
+}
+
+.result-card-box {
+    min-width: min(82vw, 380px);
+    padding: 28px 32px;
+    border-radius: 18px;
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.97), rgba(8, 47, 73, 0.92));
+    box-shadow: 0 24px 60px rgba(2, 8, 23, 0.5);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.result-card-box--correct {
+    border-color: rgba(34, 197, 94, 0.55);
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.97), rgba(6, 47, 20, 0.88));
+    box-shadow: 0 0 40px rgba(34, 197, 94, 0.18), 0 24px 60px rgba(2, 8, 23, 0.5);
+}
+
+.result-card-box--wrong {
+    border-color: rgba(244, 63, 94, 0.45);
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.97), rgba(47, 8, 20, 0.88));
+}
+
+.result-card-spinner {
+    width: 44px;
+    height: 44px;
+    border: 3px solid rgba(6, 182, 212, 0.2);
+    border-top-color: var(--neon-cyan);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 4px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.result-card-label {
+    font-size: 14px;
+    color: var(--label);
+    margin: 0;
+    letter-spacing: 0.05em;
+}
+
+.result-card-emoji {
+    font-size: 60px;
+    line-height: 1;
+}
+
+.result-card-emoji.pop-in {
+    animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.result-card-emoji.shake {
+    animation: wrongShake 0.5s ease forwards;
+}
+
+@keyframes popIn {
+    0%   { transform: scale(0.3); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes wrongShake {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    20%       { transform: translateX(-6px) rotate(-4deg); }
+    40%       { transform: translateX(6px) rotate(4deg); }
+    60%       { transform: translateX(-4px); }
+    80%       { transform: translateX(4px); }
+}
+
+.result-card-verdict {
+    font-size: 26px;
+    font-weight: 800;
+    color: #d7fbff;
+    margin: 0;
+}
+
+.result-card-box--correct .result-card-verdict {
+    color: #86efac;
+}
+
+.result-card-answer {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--heading);
+    margin: 0;
+    letter-spacing: 0.08em;
+}
+
+.result-card-ab {
+    display: flex;
+    gap: 18px;
+    margin-top: 4px;
+}
+
+.ab-a {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--neon-cyan);
+    font-family: 'Source Code Pro', monospace;
+}
+
+.ab-b {
+    font-size: 28px;
+    font-weight: 800;
+    color: #F59E0B;
+    font-family: 'Source Code Pro', monospace;
+}
+
+.result-card-next {
+    font-size: 13px;
+    color: var(--label);
+    margin: 0;
+    letter-spacing: 0.05em;
+}
+
+.result-card-enter-active,
+.result-card-leave-active {
+    transition: opacity 250ms ease;
+}
+
+.result-card-enter-active .result-card-box,
+.result-card-leave-active .result-card-box {
+    transition: transform 250ms ease, opacity 250ms ease;
+}
+
+.result-card-enter-from,
+.result-card-leave-to {
+    opacity: 0;
+}
+
+.result-card-enter-from .result-card-box,
+.result-card-leave-to .result-card-box {
+    transform: scale(0.9) translateY(16px);
+    opacity: 0;
 }
 </style>

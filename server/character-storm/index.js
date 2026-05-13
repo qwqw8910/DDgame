@@ -165,7 +165,10 @@ function makeDB(db) {
       }
 
       try {
-        return await drawByTheme(themeId);
+        const word = await drawByTheme(themeId);
+        // 該主題包已抽完 → fallback 到全題庫
+        if (!word) return await drawWithoutThemeFilter();
+        return word;
       } catch (error) {
         // 相容舊 schema：尚未執行 theme-migration.sql 時仍可正常抽題
         if (error?.code === '42703') {
@@ -409,7 +412,7 @@ function registerNamespace(io, db) {
 
         // 回傳完整狀態給加入者
         socket.emit('cs:room-state', {
-          room:    { id: roomId, hostId: room.hostId, status: room.status, maxPlayers: room.maxPlayers },
+          room:    { id: roomId, hostId: room.hostId, status: room.status, maxPlayers: room.maxPlayers, roundPhase: room.roundPhase ?? null },
           players: buildPlayerList(room),
         });
 
@@ -639,6 +642,19 @@ function registerNamespace(io, db) {
       room.status     = 'finished';
       room.roundPhase = null;
       ns.to(roomId).emit('cs:finished', { players: buildPlayerList(room) });
+    });
+
+    // ── 互動反應（丟雞蛋等）────────────────────────────────────
+    socket.on('cs:reaction', ({ roomId, type }) => {
+      const { playerId } = socket.data ?? {};
+      if (!roomId || !playerId || !type) return;
+      const ALLOWED = ['🥚', '🎉', '👏', '❤️', '😂', '💪', '👍'];
+      if (!ALLOWED.includes(type)) return;
+      const room = getRoom(roomId);
+      if (!room) return;
+      const player = room.players.find(p => p.id === playerId);
+      if (!player) return;
+      ns.to(roomId).emit('cs:reaction', { fromId: playerId, fromNickname: player.nickname, type });
     });
 
     // ── 斷線處理 ──────────────────────────────────────────────
