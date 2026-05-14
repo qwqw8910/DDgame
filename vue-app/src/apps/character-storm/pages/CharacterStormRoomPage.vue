@@ -11,7 +11,14 @@
                     <span style="font-size:12px;color:var(--body)">{{ state.players.length }}/{{ state.room?.maxPlayers
                         ?? '?' }} 人</span>
                 </div>
-                <div style="display:flex;gap:6px">
+                <div style="display:flex;gap:6px;align-items:center">
+                    <RoomPlayerPanel
+                        :players="roomState.players"
+                        :my-id="roomState.myPlayerId"
+                        :host-id="roomState.room?.host_player_id"
+                        :is-host="roomState.isHost"
+                        @kick="handleKick"
+                        @transfer-host="handleTransferHost" />
                     <button class="header-icon-btn" title="切換主題" aria-label="切換主題" @click="toggleTheme">{{ isDark ? '🌙'
                         : '☀️' }}</button>
                     <button class="header-icon-btn" :title="isSfxMuted ? '開啟音效' : '關閉音效'"
@@ -80,7 +87,7 @@
                                padding:10px 14px;border-radius:10px;
                                background:var(--bg-subtle);border:1px solid var(--border)">
                         <div style="display:flex;align-items:center;gap:8px">
-                            <span>{{ p.connected ? '🟢' : '🔴' }}</span>
+                            <span>{{ (p.is_online ?? p.connected) ? '🟢' : '🔴' }}</span>
                             <span style="font-weight:500;color:var(--heading)">{{ p.nickname }}</span>
                             <span v-if="p.id === state.room.hostId" class="badge" style="font-size:11px;background:rgba(6,182,212,0.15);
                                 color:var(--neon-cyan);border:1px solid rgba(6,182,212,0.3)">房主</span>
@@ -259,7 +266,23 @@
                     <div class="cs-players-grid">
                         <div v-for="p in state.players" :key="p.id"
                             :class="['game-card', 'cs-player-card', getPlayerCardClass(p.role, p.id),
-                                     { 'hint-just-submitted': state.submittedPlayerIds.includes(p.id) && isHintPhase }]">
+                                     { 'hint-just-submitted': state.submittedPlayerIds.includes(p.id) && isHintPhase }]"
+                            style="position:relative;overflow:hidden">
+                            <!-- 丟火/丟雞蛋按鈕（只對其他人顯示） -->
+                            <div v-if="p.id !== state.myPlayerId" class="cs-react-btns">
+                                <button class="cs-react-btn" title="這很屬🔥" @click.stop="sendReaction(p.id, '\uD83D\uDD25')">🔥</button>
+                                <button class="cs-react-btn" title="這很装🥚" @click.stop="sendReaction(p.id, '\uD83E\uDD5A')">🥚</button>
+                            </div>
+
+                            <!-- 浮動反應 emoji 覆層 -->
+                            <TransitionGroup name="cs-react" tag="div" class="cs-react-overlay" aria-hidden="true">
+                                <span v-for="r in (state.reactions[p.id] || [])" :key="r.id"
+                                    class="cs-react-fly"
+                                    :style="{ '--x': r.x }">
+                                    {{ r.emoji }}
+                                </span>
+                            </TransitionGroup>
+
                             <!-- 玩家資訊列 -->
                             <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;
                                     margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--divider)">
@@ -468,6 +491,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStorm } from '../composables/useCharacterStorm.js'
 import { useCharacterStormSfx } from '../composables/useCharacterStormSfx.js'
 import { getSavedNickname, saveNickname } from '../../../data/identity.js'
+import RoomPlayerPanel from '../../../components/RoomPlayerPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -487,6 +511,7 @@ function toggleTheme() {
 
 const {
     state,
+    roomState,
     connect,
     submitHint,
     submitGuess,
@@ -497,6 +522,9 @@ const {
     disconnect,
     copyInviteLink,
     onGuessResult,
+    sendReaction,
+    kickPlayer,
+    transferHost,
 } = useCharacterStorm()
 
 const {
@@ -867,6 +895,16 @@ function handleCopyLink() {
     showToast(`已複製邀請連結！`, 'success')
 }
 
+function handleKick(playerId, nickname) {
+    kickPlayer(playerId)
+    showToast(`已踢出 ${nickname}`, 'info')
+}
+
+function handleTransferHost(playerId, nickname) {
+    transferHost(playerId)
+    showToast(`房主已移交給 ${nickname}`, 'success')
+}
+
 // ── 暱稱遮罩 ──────────────────────────────────────────────────────
 function joinWithNickname() {
     const nickname = overlayNickname.value.trim()
@@ -1025,6 +1063,68 @@ onUnmounted(() => {
     box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.45), 0 12px 22px rgba(6, 182, 212, 0.12);
     transform: translateY(-1px);
 }
+
+/* ── 丟火/丟雞蛋互動 ── */
+.cs-react-btns {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+}
+.cs-player-card:hover .cs-react-btns {
+    opacity: 1;
+}
+.cs-react-btn {
+    font-size: 16px;
+    line-height: 1;
+    padding: 3px 5px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    cursor: pointer;
+    transition: transform 0.1s, background 0.1s;
+}
+.cs-react-btn:hover {
+    transform: scale(1.3);
+    background: var(--bg-subtle);
+}
+.cs-react-btn:active {
+    transform: scale(0.9);
+}
+
+/* 浮動 emoji 容器（覆蓋整張卡片） */
+.cs-react-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 20;
+}
+
+/* 飛起來的 emoji */
+.cs-react-fly {
+    position: absolute;
+    bottom: 8px;
+    left: var(--x, 40%);
+    font-size: 28px;
+    line-height: 1;
+    animation: cs-react-float 2.4s ease-out forwards;
+    pointer-events: none;
+    will-change: transform, opacity;
+}
+@keyframes cs-react-float {
+    0%   { transform: translateY(0)   scale(1);    opacity: 1; }
+    60%  { transform: translateY(-80px) scale(1.3); opacity: 1; }
+    100% { transform: translateY(-120px) scale(0.8); opacity: 0; }
+}
+
+/* TransitionGroup */
+.cs-react-enter-active { animation: cs-react-float 2.4s ease-out forwards; }
+.cs-react-leave-active { display: none; }
 
 .phase-flash {
     position: fixed;

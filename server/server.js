@@ -1,6 +1,6 @@
 // ================================================================
 //  懂我再說 — Socket.io 遊戲後端伺服器
-//  架構：Express + Socket.io + Supabase (service_role)
+//  架構：Express + Socket.io + Supabase (service_role) + 統一房間模組
 // ================================================================
 
 'use strict';
@@ -39,13 +39,11 @@ const allowedOrigins = CORS_ORIGIN.split(',').map(o => o.trim());
 const io = new Server(server, {
   cors: {
     origin: (origin, cb) => {
-      // 允許無 origin（curl、Postman）與設定中的來源
       if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
       cb(new Error(`CORS blocked: ${origin}`));
     },
     methods: ['GET', 'POST'],
   },
-  // 連線 30 秒沒有 ping 就標記為斷線
   pingTimeout:  30000,
   pingInterval: 10000,
 });
@@ -56,9 +54,24 @@ app.get('/health', (_, res) => res.json({ status: 'ok', ts: Date.now() }));
 const { registerNamespace: registerCS } = require('./character-storm');
 registerCS(io, db);
 
-// ── 記憶體快取（加速讀取，DB 為最終資料來源）────────────────
-// roomCache[roomId] = { room, players, currentRound, guesses, topicsLoaded }
-const roomCache = {};
+// ── 遊戲狀態快取（房間/玩家改由統一房間模組管理）────────────
+// gameCache[roomId] = { currentRound, currentQuestion, guesses, topics, round_pool, _previewUsedIds, _previewTopicId }
+const gameCache = {};
+
+function getGameCache(roomId) {
+  if (!gameCache[roomId]) {
+    gameCache[roomId] = {
+      currentRound:    null,
+      currentQuestion: null,
+      guesses:         [],
+      topics:          null,
+      round_pool:      [],
+      _previewUsedIds: [],
+      _previewTopicId: null,
+    };
+  }
+  return gameCache[roomId];
+}
 
 // ================================================================
 //  DB 工具函式（伺服器端，使用 service_role）
@@ -96,7 +109,6 @@ const DB = {
   },
 
   async removePlayer(playerId) {
-    // guesses 沒有 ON DELETE CASCADE，需先手動刪除
     await db.from('guesses').delete().eq('player_id', playerId);
     const { error } = await db.from('players').delete().eq('id', playerId);
     if (error) throw error;
@@ -188,7 +200,6 @@ const DB = {
     const now = new Date().toISOString();
     const ops = [];
 
-    // Correct guessers get +1
     const winners = guesses.filter(g => g.guess === correctAnswer);
     const losers  = guesses.filter(g => g.guess !== correctAnswer);
 
@@ -201,14 +212,13 @@ const DB = {
       }
     }
 
-    // All correct → subject +1; All wrong → subject -1
     const totalEligible = eligibleGuessers ? eligibleGuessers.length : guesses.length;
     if (subjectPlayerId && totalEligible > 0) {
       const { data: subj } = await db.from('players').select('id,score').eq('id', subjectPlayerId).single();
       if (subj) {
         let subjectDelta = 0;
-        if (winners.length === totalEligible) subjectDelta = 1;   // 全對
-        else if (losers.length === totalEligible) subjectDelta = -1; // 全錯
+        if (winners.length === totalEligible) subjectDelta = 1;
+        else if (losers.length === totalEligible) subjectDelta = -1;
         if (subjectDelta !== 0) {
           ops.push(db.from('players').update({ score: Math.max(0, (subj.score ?? 0) + subjectDelta), updated_at: now }).eq('id', subj.id));
         }
@@ -220,16 +230,8 @@ const DB = {
 };
 
 // ================================================================
-//  快取工具
+//  遊戲工具函式
 // ================================================================
-
-/** 取得或初始化房間快取 */
-function getCache(roomId) {
-  if (!roomCache[roomId]) {
-    roomCache[roomId] = { room: null, players: [], currentRound: null, guesses: [], round_pool: [] };
-  }
-  return roomCache[roomId];
-}
 
 /** 計算本回合有資格猜測的玩家（非被猜者、回合開始前已在房間） */
 function getEligibleGuessers(players, round) {
@@ -242,10 +244,7 @@ function getEligibleGuessers(players, round) {
   });
 }
 
-/**
- * 建構要廣播的回合物件。
- * subject_answer 在 revealing 前一律遮蔽（改為 null）。
- */
+/** 建構要廣播的回合物件，揭曉前遮蔽 subject_answer */
 function buildRoundPayload(round, forReveal = false) {
   if (!round) return null;
   return {
@@ -254,10 +253,7 @@ function buildRoundPayload(round, forReveal = false) {
   };
 }
 
-/**
- * 將 topic_name 注入 round 物件（不修改原始 DB 資料）。
- * 用於所有 cache.currentRound 寫入點，確保前端能顯示主題名稱。
- */
+/** 注入 topic_name 到 round 物件 */
 function enrichRoundWithTopic(round, topics = []) {
   if (!round || !round.topic_id) return round;
   const topic = topics.find(t => t.id === round.topic_id);
@@ -265,218 +261,148 @@ function enrichRoundWithTopic(round, topics = []) {
 }
 
 // ================================================================
-//  Socket.io 事件處理
+//  統一房間模組（懂我再說主 namespace）
+// ================================================================
+
+const { registerRoomHandlers } = require('./room');
+
+const { roomCache } = registerRoomHandlers(io, db, {
+
+  minPlayers: 2,
+
+  // 懂我再說允許遊戲進行中隨時加入
+  canJoinAsPlayer(_roomId) {
+    return true;
+  },
+
+  // 提供給 room:join-ack 的遊戲狀態
+  buildGameState(roomId) {
+    const gc = gameCache[roomId];
+    if (!gc) return null;
+    const round = gc.currentRound;
+    const isRevealing           = round?.status === 'revealing';
+    const isPreviewingQuestion  = round?.status === 'previewing_question';
+    return {
+      currentRound:    buildRoundPayload(round, isRevealing),
+      topics:          gc.topics || [],
+      currentQuestion: isPreviewingQuestion ? null : (gc.currentQuestion ?? null),
+      guesses: isRevealing
+        ? gc.guesses || []
+        : (gc.guesses || []).map(g => ({
+            id:        g.id,
+            round_id:  g.round_id,
+            player_id: g.player_id,
+            guess:     g.guess,
+          })),
+    };
+  },
+
+  // 玩家加入或重連
+  async onPlayerJoined(socket, roomId, playerId, isReconnect) {
+    if (!isReconnect) return;
+    const gc = getGameCache(roomId);
+    // 補載主題清單
+    if (!gc.topics) gc.topics = await DB.getTopics();
+    // 被猜者在 previewing_question 重連 → 重傳 preview_question
+    const round = gc.currentRound;
+    if (round?.status === 'previewing_question' && playerId === round.subject_player_id) {
+      let q = gc.currentQuestion;
+      if (!q && round.question_id) q = await DB.getQuestionById(round.question_id);
+      if (q) {
+        socket.emit('preview_question', {
+          question: { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null },
+          swapCount: round.swap_count ?? 0,
+          swapLimit: 3,
+        });
+      }
+    }
+  },
+
+  // 玩家離開（踢出 / 斷線 / 主動）
+  async onPlayerLeft(roomId, playerId) {
+    const gc = getGameCache(roomId);
+    const round = gc.currentRound;
+    if (!round) return;
+
+    const isSubject = round.subject_player_id === playerId;
+
+    if (isSubject && ['selecting_topic', 'previewing_question', 'selecting_answer'].includes(round.status)) {
+      // 被猜者離場 → 自動跳下一回合
+      try {
+        await DB.updateRound(round.id, { status: 'finished' });
+        const players = roomCache.getPlayers(roomId);
+        let pool = (gc.round_pool || []).filter(id => id !== playerId);
+        if (!pool.length) {
+          pool = players
+            .filter(p => p.id !== playerId)
+            .sort(() => Math.random() - 0.5)
+            .map(p => p.id);
+        }
+        if (!pool.length) return;
+        const nextSubjectId = pool[0];
+        gc.round_pool      = pool.slice(1);
+        const newRound     = await DB.createRound(roomId, round.round_number + 1, nextSubjectId);
+        await DB.updateRoom(roomId, { current_round_id: newRound.id });
+        gc.currentRound    = newRound;
+        gc.currentQuestion = null;
+        gc.guesses         = [];
+        io.to(roomId).emit('round_updated', {
+          currentRound:    buildRoundPayload(newRound),
+          currentQuestion: null,
+        });
+      } catch (err) {
+        console.error('[KM:onPlayerLeft] 跳關', err.message);
+      }
+
+    } else if (round.status === 'guessing') {
+      // 猜測中 → 重新計算是否全員已提交（只算在線玩家）
+      const allPlayers = roomCache.getPlayers(roomId);
+      const eligible   = getEligibleGuessers(allPlayers, round).filter(p => p.is_online);
+      const submitted  = new Set(gc.guesses.map(g => g.player_id)).size;
+      if (eligible.length > 0 && submitted >= eligible.length) {
+        setTimeout(() => revealRound(roomId, null), 800);
+      }
+    }
+  },
+});
+
+// ================================================================
+//  Socket.io 遊戲事件（房間管理由 registerRoomHandlers 負責）
 // ================================================================
 
 io.on('connection', (socket) => {
   console.log(`[connect] ${socket.id}`);
 
-  // ── 加入房間 ────────────────────────────────────────────────
-  /**
-   * 事件：join_room
-   * 資料：{ roomId, playerId, nickname }
-   * 回應：room_state（給自己）、players_updated（廣播給房間）
-   *       join_error（加入失敗時只給自己）
-   */
-  socket.on('join_room', async ({ roomId, playerId, nickname }) => {
-    if (!roomId || !playerId) return;
-    console.log(`[join_room] roomId=${roomId} playerId=${playerId} nickname=${nickname}`);
-
-    socket.data.roomId   = roomId;
-    socket.data.playerId = playerId;
-
-    try {
-      const cache = getCache(roomId);
-
-      // ── 1. 載入房間 ────────────────────────────────────────
-      let room;
-      try {
-        room = await DB.getRoom(roomId);
-      } catch {
-        socket.emit('join_error', { message: '找不到房間，可能已關閉或不存在' });
-        return;
-      }
-      cache.room = room;
-
-      // ── 2. 載入現有玩家 ────────────────────────────────────
-      let players = await DB.getPlayers(roomId);
-      cache.players = players;
-
-      // ── 3. 判斷是重連還是新加入 ────────────────────────────
-      const existingInRoom = players.find(p => p.id === playerId);
-
-      if (existingInRoom) {
-        // 重連：更新上線狀態（保留分數與暱稱）
-        const { data: updated } = await db.from('players')
-          .update({
-            is_online:  true,
-            nickname:   nickname || existingInRoom.nickname,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', playerId).select().single();
-        const idx = cache.players.findIndex(p => p.id === playerId);
-        if (idx >= 0 && updated) cache.players[idx] = updated;
-
-      } else if (nickname) {
-        // 新加入：驗證房間狀態
-        if (!['waiting', 'playing'].includes(room.status)) {
-          socket.emit('join_error', { message: '此房間目前不可加入！' });
-          return;
-        }
-        if (players.length >= room.max_players) {
-          socket.emit('join_error', { message: `房間已滿（最多 ${room.max_players} 人）` });
-          return;
-        }
-        if (players.some(p => p.nickname === nickname)) {
-          socket.emit('join_error', { message: '此暱稱已被使用，請換一個！' });
-          return;
-        }
-
-        // upsert：全新玩家 → INSERT；已存在其他房間 → UPDATE 移轉
-        const { data: upserted, error: upsertErr } = await db.from('players')
-          .upsert({
-            id:         playerId,
-            room_id:    roomId,
-            nickname,
-            is_ready:   false,
-            is_online:  true,
-            join_order: players.length,
-            score:      0,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'id' })
-          .select().single();
-        if (upsertErr) throw upsertErr;
-        cache.players.push(upserted);
-
-        // 重新排序確保 join_order 正確
-        players = await DB.getPlayers(roomId);
-        cache.players = players;
-      }
-      // nickname 為空且不在房間 → 靜默忽略（不可能正常發生）
-
-      socket.join(roomId);
-
-      // ── 4. 載入回合狀態 ────────────────────────────────────
-      let currentRound    = null;
-      let currentQuestion = null;
-      let guesses         = [];
-
-      if (room.current_round_id) {
-        const { data: rd } = await db.from('rounds')
-          .select('*').eq('id', room.current_round_id).single();
-        if (rd) {
-          currentRound       = rd;
-          cache.currentRound = rd;
-          if (['guessing', 'revealing'].includes(rd.status)) {
-            guesses           = await DB.getGuesses(rd.id);
-            cache.guesses     = guesses;
-          }
-          if (rd.question_id) {
-            currentQuestion = await DB.getQuestionById(rd.question_id);
-          }
-        }
-      }
-
-      // ── 5. 載入主題（快取，只取一次）────────────────────────
-      if (!cache.topics) {
-        cache.topics = await DB.getTopics();
-      }
-
-      // 補注 topic_name（DB 裡沒有此欄位，需在 cache 層補）
-      if (currentRound) {
-        currentRound       = enrichRoundWithTopic(currentRound, cache.topics);
-        cache.currentRound = currentRound;
-      }
-
-      // ── 6. 回傳完整房間狀態給剛加入的玩家 ─────────────────
-      const isRevealing = currentRound?.status === 'revealing';
-      const isPreviewingQuestion = currentRound?.status === 'previewing_question';
-      // 在 previewing_question 階段，不在 room_state 裡暴露題目（由 preview_question 事件單獨傳給被猜者）
-      const questionForState = (isPreviewingQuestion || !currentQuestion)
-        ? null
-        : { id: currentQuestion.id, a: currentQuestion.option_a, b: currentQuestion.option_b, title: currentQuestion.title || null, author: currentQuestion.author || null };
-
-      socket.emit('room_state', {
-        room,
-        players:         cache.players,
-        topics:          cache.topics,
-        currentRound:    buildRoundPayload(currentRound, isRevealing),
-        currentQuestion: questionForState,
-        // 揭曉前只傳自己看得見的資訊（player_id + guess），揭曉後傳完整資料
-        guesses: isRevealing
-          ? guesses
-          : guesses.map(g => ({ id: g.id, round_id: g.round_id, player_id: g.player_id, guess: g.guess })),
-        myPlayerId: playerId,
-      });
-
-      // 重連時，若在 previewing_question 階段且是被猜者，重新傳送 preview_question
-      if (isPreviewingQuestion && playerId === currentRound.subject_player_id && currentQuestion) {
-        const swapCount = cache.currentRound?.swap_count ?? 0;
-        socket.emit('preview_question', {
-          question: { id: currentQuestion.id, a: currentQuestion.option_a, b: currentQuestion.option_b, title: currentQuestion.title || null, author: currentQuestion.author || null },
-          swapCount,
-          swapLimit: 3,
-        });
-      }
-
-      // ── 7. 廣播玩家列表更新給房間所有人 ─────────────────────
-      io.to(roomId).emit('players_updated', { players: cache.players });
-
-    } catch (err) {
-      console.error('[join_room]', err.message);
-      socket.emit('join_error', { message: err.message });
-    }
-  });
-
-  // ── 切換準備狀態 ─────────────────────────────────────────────
-  /**
-   * 事件：toggle_ready
-   */
-  socket.on('toggle_ready', async () => {
-    const { roomId, playerId } = socket.data;
-    if (!roomId || !playerId) return;
-    try {
-      const cache  = getCache(roomId);
-      const me     = cache.players.find(p => p.id === playerId);
-      if (!me) return;
-      const updated = await DB.updatePlayer(playerId, { is_ready: !me.is_ready });
-      const idx = cache.players.findIndex(p => p.id === playerId);
-      if (idx >= 0) cache.players[idx] = updated;
-      io.to(roomId).emit('players_updated', { players: cache.players });
-    } catch (err) {
-      socket.emit('error', { message: err.message });
-    }
-  });
-
   // ── 開始遊戲（房主）──────────────────────────────────────────
-  /**
-   * 事件：start_game
-   */
   socket.on('start_game', async () => {
     const { roomId, playerId } = socket.data;
     if (!roomId || !playerId) return;
     try {
-      const cache = getCache(roomId);
-      if (cache.room?.host_player_id !== playerId) {
+      const gc      = getGameCache(roomId);
+      const entry   = roomCache.getEntry(roomId);
+      const room    = entry?.room;
+      const players = roomCache.getPlayers(roomId);
+
+      if (room?.host_player_id !== playerId) {
         return socket.emit('error', { message: '只有房主可以開始遊戲' });
       }
-      if (cache.players.length < 2) {
+      if (players.length < 2) {
         return socket.emit('error', { message: '至少需要 2 位玩家才能開始！' });
       }
 
-      // Shuffle all players, pick first as subject
-      const shuffled = [...cache.players].sort(() => Math.random() - 0.5);
-      cache.round_pool = shuffled.slice(1).map(p => p.id);
+      const shuffled = [...players].sort(() => Math.random() - 0.5);
+      gc.round_pool = shuffled.slice(1).map(p => p.id);
       const firstSubject = shuffled[0];
       const round = await DB.createRound(roomId, 1, firstSubject.id);
-      const room  = await DB.updateRoom(roomId, { status: 'playing', current_round_id: round.id });
+      const updatedRoom = await DB.updateRoom(roomId, { status: 'playing', current_round_id: round.id });
+      roomCache.updateRoom(roomId, { status: 'playing', current_round_id: round.id });
 
-      cache.room         = room;
-      cache.currentRound = round;
-      cache.guesses      = [];
+      gc.currentRound    = round;
+      gc.currentQuestion = null;
+      gc.guesses         = [];
 
       io.to(roomId).emit('game_started', {
-        room,
+        room:         updatedRoom,
         currentRound: buildRoundPayload(round),
       });
     } catch (err) {
@@ -485,16 +411,12 @@ io.on('connection', (socket) => {
   });
 
   // ── 選主題（被猜者）─────────────────────────────────────────
-  /**
-   * 事件：select_topic
-   * 資料：{ topicId }
-   */
   socket.on('select_topic', async ({ topicId }) => {
     const { roomId, playerId } = socket.data;
     if (!roomId || !playerId || !topicId) return;
     try {
-      const cache = getCache(roomId);
-      const round = cache.currentRound;
+      const gc    = getGameCache(roomId);
+      const round = gc.currentRound;
 
       if (!round || round.subject_player_id !== playerId) {
         return socket.emit('error', { message: '只有被猜者可以選主題' });
@@ -514,19 +436,18 @@ io.on('connection', (socket) => {
         topic_id:    topicId,
         status:      'previewing_question',
       });
-      cache.currentRound = enrichRoundWithTopic({ ...updatedRound, swap_count: 0 }, cache.topics);
-      cache._previewUsedIds = [...usedIds, q.id];
-      cache._previewTopicId = topicId;
+      gc.currentRound     = enrichRoundWithTopic({ ...updatedRound, swap_count: 0 }, gc.topics);
+      gc.currentQuestion  = q;
+      gc._previewUsedIds  = [...usedIds, q.id];
+      gc._previewTopicId  = topicId;
 
       const question = { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null };
 
-      // Broadcast status change to all (but NOT the question)
       io.to(roomId).emit('round_updated', {
-        currentRound:    buildRoundPayload(cache.currentRound),
+        currentRound:    buildRoundPayload(gc.currentRound),
         currentQuestion: null,
       });
 
-      // Only send question to subject player
       socket.emit('preview_question', {
         question,
         swapCount: 0,
@@ -538,17 +459,13 @@ io.on('connection', (socket) => {
   });
 
   // ── 提交答案（被猜者，私下）─────────────────────────────────
-  /**
-   * 事件：submit_answer
-   * 資料：{ answer }  ('A' | 'B')
-   */
   socket.on('submit_answer', async ({ answer }) => {
     const { roomId, playerId } = socket.data;
     if (!roomId || !playerId) return;
     if (!['A', 'B'].includes(answer)) return;
     try {
-      const cache = getCache(roomId);
-      const round = cache.currentRound;
+      const gc    = getGameCache(roomId);
+      const round = gc.currentRound;
 
       if (!round || round.subject_player_id !== playerId) {
         return socket.emit('error', { message: '只有被猜者可以提交答案' });
@@ -561,15 +478,12 @@ io.on('connection', (socket) => {
         subject_answer: answer,
         status:         'guessing',
       });
-      cache.currentRound = enrichRoundWithTopic(updatedRound, cache.topics);
-      cache.guesses      = [];
+      gc.currentRound = enrichRoundWithTopic(updatedRound, gc.topics);
+      gc.guesses      = [];
 
-      // ⚠️ 廣播時不含 subject_answer（伺服器保護）
       io.to(roomId).emit('round_updated', {
-        currentRound: buildRoundPayload(cache.currentRound, false), // answer 遮蔽
+        currentRound: buildRoundPayload(gc.currentRound, false),
       });
-
-      // 只告訴被猜者本人答案已收到
       socket.emit('answer_accepted', { answer });
     } catch (err) {
       socket.emit('error', { message: err.message });
@@ -577,17 +491,13 @@ io.on('connection', (socket) => {
   });
 
   // ── 提交猜測（其他玩家）─────────────────────────────────────
-  /**
-   * 事件：submit_guess
-   * 資料：{ guess }  ('A' | 'B')
-   */
   socket.on('submit_guess', async ({ guess }) => {
     const { roomId, playerId } = socket.data;
     if (!roomId || !playerId) return;
     if (!['A', 'B'].includes(guess)) return;
     try {
-      const cache = getCache(roomId);
-      const round = cache.currentRound;
+      const gc    = getGameCache(roomId);
+      const round = gc.currentRound;
 
       if (!round || round.status !== 'guessing') {
         return socket.emit('error', { message: '目前不是猜測階段' });
@@ -598,22 +508,22 @@ io.on('connection', (socket) => {
 
       await DB.submitGuess(round.id, playerId, guess);
 
-      // 更新快取中的 guesses
-      const existing = cache.guesses.findIndex(g => g.player_id === playerId);
+      const existing = gc.guesses.findIndex(g => g.player_id === playerId);
       const newGuess = { round_id: round.id, player_id: playerId, guess };
-      if (existing >= 0) cache.guesses[existing] = { ...cache.guesses[existing], ...newGuess };
-      else cache.guesses.push(newGuess);
+      if (existing >= 0) gc.guesses[existing] = { ...gc.guesses[existing], ...newGuess };
+      else gc.guesses.push(newGuess);
 
-      // 計算進度
-      const eligible  = getEligibleGuessers(cache.players, round);
-      const submitted = new Set(cache.guesses.map(g => g.player_id)).size;
+      const players  = roomCache.getPlayers(roomId);
+      const eligible = getEligibleGuessers(players, round);
+      const submitted = new Set(gc.guesses.map(g => g.player_id)).size;
       const total     = eligible.length;
 
-      // 廣播進度給所有人
-      const submittedIds = cache.guesses.map(g => g.player_id);
-      io.to(roomId).emit('guess_progress', { submitted, total, submittedIds });
+      io.to(roomId).emit('guess_progress', {
+        submitted,
+        total,
+        submittedIds: gc.guesses.map(g => g.player_id),
+      });
 
-      // 全員提交 → 自動揭曉
       if (submitted >= total && total > 0) {
         setTimeout(() => revealRound(roomId, socket), 800);
       }
@@ -623,38 +533,36 @@ io.on('connection', (socket) => {
   });
 
   // ── 下一回合（房主）─────────────────────────────────────────
-  /**
-   * 事件：next_round
-   */
   socket.on('next_round', async () => {
     const { roomId, playerId } = socket.data;
     if (!roomId || !playerId) return;
     try {
-      const cache = getCache(roomId);
-      if (cache.room?.host_player_id !== playerId) {
+      const gc    = getGameCache(roomId);
+      const entry = roomCache.getEntry(roomId);
+      if (entry?.room?.host_player_id !== playerId) {
         return socket.emit('error', { message: '只有房主可以進行下一回合' });
       }
 
-      const round   = cache.currentRound;
+      const round = gc.currentRound;
       await DB.updateRound(round.id, { status: 'finished' });
 
-      // 從 pool 隨機選下一位被猜者，pool 空了就重新洗牌（排除此輪 subject）
-      let pool = cache.round_pool || [];
+      let pool = gc.round_pool || [];
       if (!pool.length) {
-        pool = cache.players
+        pool = roomCache.getPlayers(roomId)
           .filter(p => p.id !== round.subject_player_id)
           .sort(() => Math.random() - 0.5)
           .map(p => p.id);
-        if (!pool.length) pool = cache.players.map(p => p.id).sort(() => Math.random() - 0.5);
+        if (!pool.length) pool = roomCache.getPlayers(roomId).map(p => p.id).sort(() => Math.random() - 0.5);
       }
       const nextSubjectId = pool[0];
-      cache.round_pool = pool.slice(1);
-      const newRound  = await DB.createRound(roomId, round.round_number + 1, nextSubjectId);
-      const room = await DB.updateRoom(roomId, { current_round_id: newRound.id });
+      gc.round_pool = pool.slice(1);
+      const newRound = await DB.createRound(roomId, round.round_number + 1, nextSubjectId);
+      const updatedRoom = await DB.updateRoom(roomId, { current_round_id: newRound.id });
+      roomCache.updateRoom(roomId, { current_round_id: newRound.id });
 
-      cache.room         = room;
-      cache.currentRound = newRound;
-      cache.guesses      = [];
+      gc.currentRound    = newRound;
+      gc.currentQuestion = null;
+      gc.guesses         = [];
 
       io.to(roomId).emit('round_updated', {
         currentRound:    buildRoundPayload(newRound),
@@ -666,156 +574,77 @@ io.on('connection', (socket) => {
   });
 
   // ── 結束遊戲（房主）─────────────────────────────────────────
-  /**
-   * 事件：end_game
-   */
   socket.on('end_game', async () => {
     const { roomId, playerId } = socket.data;
     if (!roomId || !playerId) return;
     try {
-      const cache = getCache(roomId);
-      if (cache.room?.host_player_id !== playerId) {
+      const gc    = getGameCache(roomId);
+      const entry = roomCache.getEntry(roomId);
+      if (entry?.room?.host_player_id !== playerId) {
         return socket.emit('error', { message: '只有房主可以結束遊戲' });
       }
-      if (cache.currentRound) {
-        await DB.updateRound(cache.currentRound.id, { status: 'finished' });
+      if (gc.currentRound) {
+        await DB.updateRound(gc.currentRound.id, { status: 'finished' });
       }
-      const room = await DB.updateRoom(roomId, { status: 'finished' });
-      cache.room = room;
+      const updatedRoom = await DB.updateRoom(roomId, { status: 'finished' });
+      roomCache.updateRoom(roomId, { status: 'finished' });
+      gc.currentRound = null;
 
-      // 取最新分數
       const players = await DB.getPlayers(roomId);
-      cache.players = players;
+      // 同步分數到 roomCache
+      players.forEach(p => roomCache.updatePlayer(roomId, p.id, { score: p.score }));
 
-      io.to(roomId).emit('game_finished', { room, players });
+      io.to(roomId).emit('game_finished', { room: updatedRoom, players });
     } catch (err) {
       socket.emit('error', { message: err.message });
     }
   });
 
   // ── 重新開始（房主）─────────────────────────────────────────
-  /**
-   * 事件：restart_game
-   */
   socket.on('restart_game', async () => {
     const { roomId, playerId } = socket.data;
     if (!roomId || !playerId) return;
     try {
-      const cache = getCache(roomId);
-      if (cache.room?.host_player_id !== playerId) {
+      const gc     = getGameCache(roomId);
+      const entry  = roomCache.getEntry(roomId);
+      if (entry?.room?.host_player_id !== playerId) {
         return socket.emit('error', { message: '只有房主可以重新開始' });
       }
-      await Promise.all(cache.players.map(p =>
+      const players = roomCache.getPlayers(roomId);
+      await Promise.all(players.map(p =>
         DB.updatePlayer(p.id, { is_ready: false, score: 0 })
       ));
-      const room    = await DB.updateRoom(roomId, { status: 'waiting', current_round_id: null });
-      const players = await DB.getPlayers(roomId);
-      cache.room         = room;
-      cache.players      = players;
-      cache.currentRound = null;
-      cache.guesses      = [];
+      const updatedRoom = await DB.updateRoom(roomId, { status: 'waiting', current_round_id: null });
+      roomCache.updateRoom(roomId, { status: 'waiting', current_round_id: null });
+      players.forEach(p => roomCache.updatePlayer(roomId, p.id, { is_ready: false, score: 0 }));
 
-      io.to(roomId).emit('game_restarted', { room, players });
+      gc.currentRound    = null;
+      gc.currentQuestion = null;
+      gc.guesses         = [];
+      gc.round_pool      = [];
+
+      const freshPlayers = await DB.getPlayers(roomId);
+      io.to(roomId).emit('game_restarted', { room: updatedRoom, players: freshPlayers });
     } catch (err) {
       socket.emit('error', { message: err.message });
     }
   });
 
-  // ── 踢出玩家（房主）─────────────────────────────────────────
-  /**
-   * 事件：kick_player
-   * 資料：{ targetPlayerId }
-   */
-  socket.on('kick_player', async ({ targetPlayerId }) => {
-    const { roomId, playerId } = socket.data;
-    if (!roomId || !playerId || !targetPlayerId) return;
-    try {
-      const cache = getCache(roomId);
-      if (cache.room?.host_player_id !== playerId) {
-        return socket.emit('error', { message: '只有房主可以踢人' });
-      }
-      await DB.removePlayer(targetPlayerId);
-      cache.players = cache.players.filter(p => p.id !== targetPlayerId);
-
-      // 通知被踢玩家（透過 playerId 找到對應 socket）
-      for (const [sid, s] of io.of('/').sockets) {
-        if (s.data.playerId === targetPlayerId && s.data.roomId === roomId) {
-          s.emit('you_were_kicked');
-          s.leave(roomId);
-        }
-      }
-      io.to(roomId).emit('players_updated', { players: cache.players });
-
-      // 踢人後根據回合狀態自動處理
-      const round = cache.currentRound;
-      if (round) {
-        const isKickedSubject = round.subject_player_id === targetPlayerId;
-        if (isKickedSubject && ['selecting_topic', 'previewing_question', 'selecting_answer'].includes(round.status)) {
-          // 被猜者被踢 → 跳過此回合，進下一回合
-          await DB.updateRound(round.id, { status: 'finished' });
-          let pool = (cache.round_pool || []).filter(id => id !== targetPlayerId);
-          if (!pool.length) {
-            pool = cache.players.slice().sort(() => Math.random() - 0.5).map(p => p.id);
-          }
-          const nextSubjectId = pool[0];
-          cache.round_pool = pool.slice(1);
-          const newRound = await DB.createRound(roomId, round.round_number + 1, nextSubjectId);
-          const updatedRoom = await DB.updateRoom(roomId, { current_round_id: newRound.id });
-          cache.room = updatedRoom;
-          cache.currentRound = newRound;
-          cache.guesses = [];
-          io.to(roomId).emit('round_updated', {
-            currentRound:    buildRoundPayload(newRound),
-            currentQuestion: null,
-          });
-        } else if (round.status === 'guessing') {
-          // 猜測中踢人 → 重新計算是否全員已提交
-          const eligible  = getEligibleGuessers(cache.players, round);
-          const submitted = new Set(cache.guesses.map(g => g.player_id)).size;
-          if (eligible.length > 0 && submitted >= eligible.length) {
-            setTimeout(() => revealRound(roomId, socket), 800);
-          }
-        }
-      }
-    } catch (err) {
-      socket.emit('error', { message: err.message });
-    }
-  });
-
-  // ── 更新上線狀態 ─────────────────────────────────────────────
-  /**
-   * 事件：set_online
-   * 資料：{ isOnline }
-   */
-  socket.on('set_online', async ({ isOnline }) => {
-    const { roomId, playerId } = socket.data;
-    if (!playerId) return;
-    try {
-      await DB.updatePlayer(playerId, { is_online: isOnline });
-      // 同步更新 cache，確保 getEligibleGuessers 使用最新上線狀態
-      if (roomId) {
-        const cache = getCache(roomId);
-        const idx = cache.players.findIndex(p => p.id === playerId);
-        if (idx >= 0) cache.players[idx] = { ...cache.players[idx], is_online: isOnline };
-      }
-    } catch {}
-  });
-
-  // ── 換題（被猜者，最多2次）──────────────────────────────────
+  // ── 換題（被猜者，最多3次）──────────────────────────────────
   socket.on('swap_question', async () => {
     const { roomId, playerId } = socket.data;
     if (!roomId || !playerId) return;
     try {
-      const cache = getCache(roomId);
-      const round = cache.currentRound;
+      const gc    = getGameCache(roomId);
+      const round = gc.currentRound;
       if (!round || round.subject_player_id !== playerId) return;
       if (round.status !== 'previewing_question') return;
       if ((round.swap_count ?? 0) >= 3) {
         return socket.emit('error', { message: '換題次數已用完' });
       }
 
-      const topicId = cache._previewTopicId || round.topic_id;
-      const usedIds = cache._previewUsedIds || [];
+      const topicId = gc._previewTopicId || round.topic_id;
+      const usedIds = gc._previewUsedIds || [];
       const q = await DB.getRandomQuestion(topicId, usedIds);
       if (!q) {
         return socket.emit('error', { message: '此主題已無更多題目可換' });
@@ -823,11 +652,12 @@ io.on('connection', (socket) => {
 
       const newSwapCount = (round.swap_count ?? 0) + 1;
       const updatedRound = await DB.updateRound(round.id, { question_id: q.id });
-      cache.currentRound = enrichRoundWithTopic({ ...updatedRound, swap_count: newSwapCount }, cache.topics);
-      cache._previewUsedIds = [...usedIds, q.id];
+      gc.currentRound     = enrichRoundWithTopic({ ...updatedRound, swap_count: newSwapCount }, gc.topics);
+      gc.currentQuestion  = q;
+      gc._previewUsedIds  = [...usedIds, q.id];
 
       socket.emit('preview_question', {
-        question: { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null, author: q.author || null },
+        question: { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null },
         swapCount: newSwapCount,
         swapLimit: 3,
       });
@@ -842,19 +672,21 @@ io.on('connection', (socket) => {
     const { roomId, playerId } = socket.data;
     if (!roomId || !playerId) return;
     try {
-      const cache = getCache(roomId);
-      const round = cache.currentRound;
+      const gc    = getGameCache(roomId);
+      const round = gc.currentRound;
       if (!round || round.subject_player_id !== playerId) return;
       if (round.status !== 'previewing_question') return;
 
       const updatedRound = await DB.updateRound(round.id, { status: 'selecting_answer' });
-      cache.currentRound = enrichRoundWithTopic({ ...updatedRound, swap_count: round.swap_count ?? 0 }, cache.topics);
+      gc.currentRound = enrichRoundWithTopic({ ...updatedRound, swap_count: round.swap_count ?? 0 }, gc.topics);
 
-      const q = await DB.getQuestionById(updatedRound.question_id);
-      const question = { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null };
+      const q = gc.currentQuestion || (round.question_id ? await DB.getQuestionById(round.question_id) : null);
+      const question = q
+        ? { id: q.id, a: q.option_a, b: q.option_b, title: q.title || null, author: q.author || null }
+        : null;
 
       io.to(roomId).emit('round_updated', {
-        currentRound:    buildRoundPayload(cache.currentRound),
+        currentRound:    buildRoundPayload(gc.currentRound),
         currentQuestion: question,
       });
     } catch (err) {
@@ -868,86 +700,65 @@ io.on('connection', (socket) => {
     if (!roomId || !playerId) return;
     const validEmojis = ['🎉', '😱', '😅', '🔥'];
     if (!validEmojis.includes(emoji)) return;
-    const cache = getCache(roomId);
-    const player = cache.players.find(p => p.id === playerId);
+    const player = roomCache.getPlayers(roomId).find(p => p.id === playerId);
     io.to(roomId).emit('reaction_broadcast', {
       emoji,
       nickname: player?.nickname ?? '???',
     });
   });
+});
 
-  // ── 斷線處理 ─────────────────────────────────────────────────
-  socket.on('disconnect', async () => {
-    const { roomId, playerId } = socket.data ?? {};
-    console.log(`[disconnect] ${socket.id} playerId=${playerId}`);
-    if (!playerId) return;
-    try {
-      await DB.updatePlayer(playerId, { is_online: false });
-      if (roomId) {
-        const cache = getCache(roomId);
-        const idx   = cache.players.findIndex(p => p.id === playerId);
-        if (idx >= 0) {
-          cache.players[idx] = { ...cache.players[idx], is_online: false };
-        }
-        io.to(roomId).emit('players_updated', { players: cache.players });
-      }
-    } catch {}
+// ── 房主手動觸發揭曉（以防自動揭曉未觸發）──────────────────
+io.on('connection', (socket) => {
+  socket.on('reveal_round', async () => {
+    const { roomId, playerId } = socket.data;
+    if (!roomId || !playerId) return;
+    const entry = roomCache.getEntry(roomId);
+    if (entry?.room?.host_player_id !== playerId) return;
+    await revealRound(roomId, socket);
   });
 });
 
 // ================================================================
-//  揭曉回合（內部函式，可由全員提交或房主手動觸發）
+//  揭曉回合（內部函式）
 // ================================================================
 
 async function revealRound(roomId, triggerSocket) {
-  const cache = getCache(roomId);
-  const round = cache.currentRound;
+  const gc    = getGameCache(roomId);
+  const round = gc.currentRound;
   if (!round || round.status !== 'guessing') return;
 
-  // 加鎖，防止重複觸發
-  if (cache._revealing) return;
-  cache._revealing = true;
+  if (gc._revealing) return;
+  gc._revealing = true;
 
   try {
-    const guesses = await DB.getGuesses(round.id);
-    // ⚠️ 必須接住 markGuessesCorrect 的回傳值（含 is_correct 欄位），
-    //    否則廣播的 guesses 裡 is_correct 永遠是 DB 的 null 初始值。
-    const eligible = getEligibleGuessers(cache.players, round);
+    const guesses  = await DB.getGuesses(round.id);
+    const players  = roomCache.getPlayers(roomId);
+    const eligible = getEligibleGuessers(players, round);
     const [markedGuesses] = await Promise.all([
       DB.markGuessesCorrect(round.id, round.subject_answer, guesses),
       DB.applyRoundScores(round.id, round.subject_answer, guesses, round.subject_player_id, eligible),
     ]);
     const updatedRound = await DB.updateRound(round.id, { status: 'revealing' });
-    const players      = await DB.getPlayers(roomId);
+    const freshPlayers = await DB.getPlayers(roomId);
 
-    cache.currentRound = enrichRoundWithTopic(updatedRound, cache.topics);
-    cache.guesses      = markedGuesses;
-    cache.players      = players;
+    gc.currentRound = enrichRoundWithTopic(updatedRound, gc.topics);
+    gc.guesses      = markedGuesses;
+    // 同步分數到 roomCache
+    freshPlayers.forEach(p => roomCache.updatePlayer(roomId, p.id, { score: p.score }));
 
-    // 揭曉時才廣播完整資訊（含 subject_answer + is_correct）
     io.to(roomId).emit('round_revealed', {
-      currentRound: buildRoundPayload(cache.currentRound, true), // 含答案
+      currentRound: buildRoundPayload(gc.currentRound, true),
       guesses:      markedGuesses,
-      players,
+      players:      freshPlayers,
     });
   } catch (err) {
     console.error('[revealRound]', err.message);
     if (triggerSocket) triggerSocket.emit('error', { message: err.message });
   } finally {
-    cache._revealing = false;
+    gc._revealing = false;
   }
 }
-
-// 讓前端也可以主動觸發揭曉（房主手動，以防自動揭曉未觸發）
-io.on('connection', (socket) => {
-  socket.on('reveal_round', async () => {
-    const { roomId, playerId } = socket.data;
-    if (!roomId || !playerId) return;
-    const cache = getCache(roomId);
-    if (cache.room?.host_player_id !== playerId) return;
-    await revealRound(roomId, socket);
-  });
-});
 
 // ================================================================
 //  啟動伺服器

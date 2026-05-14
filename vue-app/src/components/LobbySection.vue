@@ -22,7 +22,8 @@
 
             <!-- 玩家列表 -->
             <PlayerList :players="players" :my-id="myId" :host-id="hostId" :is-host="isHost"
-                @kick="$emit('kick', $event)" />
+                @kick="$emit('kick', $event)"
+                @transfer-host="(id, name) => $emit('transfer-host', id, name)" />
         </div>
 
         <!-- 操作按鈕 -->
@@ -51,7 +52,7 @@ const props = defineProps({
     isHost: { type: Boolean, default: false },
     roomId: { type: String, default: '' },
 })
-const emit = defineEmits(['toggle-ready', 'start-game', 'kick', 'copy-link'])
+const emit = defineEmits(['toggle-ready', 'start-game', 'kick', 'transfer-host', 'copy-link'])
 
 const shareUrl = computed(() => `${location.origin}${location.pathname}#/room?id=${props.roomId}`)
 const meReady = computed(() => props.players.find(p => p.id === props.myId)?.is_ready ?? false)

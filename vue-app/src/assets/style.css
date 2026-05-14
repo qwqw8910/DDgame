@@ -709,6 +709,19 @@ body::before {
 }
 .btn-success:disabled { opacity: .4; cursor: not-allowed; }
 
+.btn-ghost-sm {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 10px;
+  background: rgba(139,92,246,0.1); color: var(--neon-purple-light);
+  font-family: 'Poppins', 'Noto Sans TC', sans-serif; font-weight: 500; font-size: 16px;
+  border-radius: 6px; border: 1px solid rgba(139,92,246,0.25); cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+}
+.btn-ghost-sm:hover {
+  background: rgba(139,92,246,0.2);
+  box-shadow: 0 0 12px rgba(139,92,246,0.15);
+}
+
 .btn-danger-sm {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 4px 12px;
@@ -1109,6 +1122,71 @@ body::before {
   border-color: rgba(139,92,246,0.4);
   box-shadow: 0 4px 16px rgba(0,0,0,0.4), 0 0 12px rgba(139,92,246,0.1);
 }
+
+/* ── RoomPlayerPanel ─────────────────────────────────────────── */
+.rpp-wrap { position: relative; }
+.rpp__trigger { display: inline-flex; align-items: center; gap: 4px; }
+.rpp__count {
+  font-size: 13px; font-weight: 600; color: var(--neon-purple-light);
+  background: rgba(139,92,246,0.15); border-radius: 20px;
+  padding: 0 6px; line-height: 1.6;
+}
+.rpp__backdrop {
+  position: fixed; inset: 0; z-index: 200;
+}
+.rpp__panel {
+  position: fixed;
+  top: calc(var(--header-height, 56px) + 6px);
+  right: 12px;
+  z-index: 201;
+  width: min(300px, calc(100vw - 24px));
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border-glow);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 30px rgba(139,92,246,0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+.rpp__panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--divider);
+}
+.rpp__list {
+  padding: 8px 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.rpp__row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  transition: background .12s;
+}
+.rpp__row:hover { background: var(--bg-subtle); }
+.rpp__dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.rpp__dot--on  { background: var(--success); box-shadow: 0 0 6px rgba(16,185,129,0.6); }
+.rpp__dot--off { background: var(--body); opacity: 0.4; }
+.rpp__info {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+}
+.rpp__name {
+  font-size: 15px; font-weight: 500; color: var(--heading);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rpp__actions {
+  display: flex; gap: 4px; flex-shrink: 0;
+}
+
+/* 動畫 */
+.rpp-slide-enter-active { transition: opacity .15s, transform .15s; }
+.rpp-slide-leave-active { transition: opacity .1s, transform .1s; }
+.rpp-slide-enter-from,
+.rpp-slide-leave-to   { opacity: 0; transform: translateY(-6px) scale(0.97); }
+
 .header-logo {
   font-size: 22px; text-decoration: none; line-height: 1;
   transition: opacity .15s; display: inline-block;

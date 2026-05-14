@@ -1,10 +1,12 @@
 // ================================================================
 //  默契傳聲筒：字元風暴 — Socket.io Composable
-//  連接後端 /character-storm namespace，管理所有遊戲狀態
+//  房間部分由 useRoom() 處理（room:create / room:join / room:join-ack 等）
+//  本檔案只處理：cs:* 遊戲事件 + 遊戲狀態
 // ================================================================
 import { reactive, readonly } from 'vue'
 import { io } from 'socket.io-client'
 import { getOrCreatePlayerId } from '../../../data/identity.js'
+import { useRoom, ROOM_EVENTS } from '../../../composables/useRoom.js'
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 const GAME_TIMER_SECONDS = 90
@@ -25,317 +27,337 @@ function getSocket() {
   return _socket
 }
 
-// ── 全域遊戲狀態 ──────────────────────────────────────────────────
-const state = reactive({
-  // 連線
-  connected: false,
-  // 玩家
-  myPlayerId: '',
-  myNickname: '',
-  // 房間
-  roomId: '',
-  room: null,           // { id, hostId, status, maxPlayers, themePreference }
-  themePreference: -1,  // -1=隨機, 0=原始, 1=綜合...
-  players: [],          // [{ id, nickname, role, quota, connected }]
+// ── 遊戲專屬狀態（房間/玩家狀態改由 roomState 管理）────────────
+const gameState = reactive({
   // 角色
   myRole: null,         // 'guesser' | 'clue-2' | 'clue-4' | 'clue-6'
-  myQuota: null,        // 2 | 4 | 6 | null
-  isHost: false,
+  myQuota: null,
   isGuesser: false,
   currentGuesserPlayerId: '',
-  // 遊戲狀態
+  themePreference: -1,
+  // 遊戲流程
   status: 'waiting',    // waiting | round1 | round1-result | round2 | round2-result | revealing | finished
-  currentWord: null,    // { id, word, category, author } — 提示者才看得到
+  currentWord: null,
   // 提示
-  round1Hints: [],      // [{ playerId, maskedText }] — 猜題者視角
+  round1Hints: [],
   round2Hints: [],
-  round1HintsProvider: [], // [{ playerId, chars:[{char,isConflict}] }] — 提示者視角
+  round1HintsProvider: [],
   round2HintsProvider: [],
-  symbolMap: {},        // { '字': '●' }
-  // 進度
-  submittedPlayerIds: [], // 已送出提示的玩家 id
+  symbolMap: {},
+  submittedPlayerIds: [],
   timerRemaining: GAME_TIMER_SECONDS,
   // 猜題
-  guessResult: null,      // { correct, answer } — 最新一次
-  round1GuessResult: null, // { correct, answer, a, b } — 第一輪猜題存檔
+  guessResult: null,
+  round1GuessResult: null,
+  guessAB: null,
+  wordLength: null,
   // UI
   loading: false,
   loadingText: '',
   error: '',
   errorCode: '',
-  // 答案字數（猜題者參考）
-  wordLength: null,
-  // A/B 判定（Bulls & Cows）
-  guessAB: null,   // { a, b },
-  floatingReactions: [],
-  revealCountdown: 0, // 公布答案前倒數秒數
+  // ── 鏡像 roomState（讓 template 的 state.players 等可用）──
+  players:    [],
+  spectators: [],
+  room:       null,
+  roomId:     '',
+  myPlayerId: '',
+  isHost:     false,
+  // ── 串聊互動（丟火/丟雞蛋）──
+  reactions:  {}, // { [playerId]: Array<{ id, emoji, fromPlayerId }> }
 })
 
-let _reactionId = 0
-let _revealTimer = null  // 公布答案倒數計時器，可被取消
-
-// guess-result 回調（由 component 設置）
+let _revealTimer = null
 let _onGuessResultCb = null
+let _gameHandlersRegistered = false
 
-// ── 事件處理 ──────────────────────────────────────────────────────
-function registerHandlers(socket) {
-  socket.on('connect', () => { state.connected = true })
-  socket.on('disconnect', () => { state.connected = false })
-
-  // 完整房間狀態（加入/重連）
-  socket.on('cs:room-state', (data) => {
-    state.room            = data.room
-    state.themePreference = data.room.themePreference ?? -1
-    state.players         = data.players
-    // roundPhase 優先：進行中重連時可直接還原正確階段
-    state.status          = data.room.roundPhase || data.room.status
-    state.isHost          = data.room.hostId === state.myPlayerId
-    const guesser = state.players.find(p => p.role === 'guesser')
-    state.currentGuesserPlayerId = guesser?.id ?? ''
-    state.loading    = false
-  })
-
-  // 角色分配
-  socket.on('cs:role-assigned', ({ role, quota }) => {
-    state.myRole   = role
-    state.myQuota  = quota
-    state.isGuesser = role === 'guesser'
-  })
+// ── CS 遊戲事件處理 ───────────────────────────────────────────────
+function registerGameHandlers(socket) {
+  if (_gameHandlersRegistered) return
+  _gameHandlersRegistered = true
 
   // 題目（提示者才收到）
   socket.on('cs:word-revealed', ({ word, category, author }) => {
-    state.currentWord = { word, category, author }
+    gameState.currentWord = { word, category, author }
   })
 
-  // 提示進度更新（只有 id 清單，不含內容）
+  // 提示進度
   socket.on('cs:hint-progress', ({ submittedIds }) => {
-    state.submittedPlayerIds = submittedIds
+    gameState.submittedPlayerIds = submittedIds
   })
 
   // 倒數
   socket.on('cs:timer-tick', ({ remaining }) => {
-    state.timerRemaining = remaining
+    gameState.timerRemaining = remaining
   })
 
   // 第一輪結果
   socket.on('cs:round1-result', ({ hints, hintsProvider, symbolMap, wordLength }) => {
-    state.round1Hints         = hints
-    state.round1HintsProvider = hintsProvider ?? []
-    state.symbolMap           = symbolMap
-    state.status              = 'round1-result'
-    state.submittedPlayerIds  = []
-    state.timerRemaining      = GAME_TIMER_SECONDS
-    state.wordLength          = wordLength ?? null
+    gameState.round1Hints         = hints
+    gameState.round1HintsProvider = hintsProvider ?? []
+    gameState.symbolMap           = symbolMap
+    gameState.status              = 'round1-result'
+    gameState.submittedPlayerIds  = []
+    gameState.timerRemaining      = GAME_TIMER_SECONDS
+    gameState.wordLength          = wordLength ?? null
   })
 
   // 第二輪結果
   socket.on('cs:round2-result', ({ hints, hintsProvider, symbolMap, wordLength }) => {
-    state.round2Hints         = hints
-    state.round2HintsProvider = hintsProvider ?? []
-    state.symbolMap           = symbolMap
-    state.status              = 'round2-result'
-    state.submittedPlayerIds  = []
-    state.timerRemaining      = GAME_TIMER_SECONDS
-    state.wordLength          = wordLength ?? null
+    gameState.round2Hints         = hints
+    gameState.round2HintsProvider = hintsProvider ?? []
+    gameState.symbolMap           = symbolMap
+    gameState.status              = 'round2-result'
+    gameState.submittedPlayerIds  = []
+    gameState.timerRemaining      = GAME_TIMER_SECONDS
+    gameState.wordLength          = wordLength ?? null
   })
 
-  // 猜題結果 → 立即更新狀態，並通知 component 顯示結果卡片
+  // 猜題結果
   socket.on('cs:guess-result', ({ correct, answer, word, author, wasRound2, a, b }) => {
     if (_revealTimer) { clearInterval(_revealTimer); _revealTimer = null }
-    state.revealCountdown = 0
-
-    // 馬上存入結果資料（供卡片顯示）
-    state.guessResult = { correct, answer }
-    state.guessAB     = (a !== undefined) ? { a, b } : null
-    if (word) state.currentWord = { word, author: author ?? null }
+    gameState.guessResult = { correct, answer }
+    gameState.guessAB     = (a !== undefined) ? { a, b } : null
+    if (word) gameState.currentWord = { word, author: author ?? null }
     if (!wasRound2) {
-      state.round1GuessResult = { correct, answer: answer || '', a: a ?? 0, b: b ?? 0 }
+      gameState.round1GuessResult = { correct, answer: answer || '', a: a ?? 0, b: b ?? 0 }
     }
-
-    // 通知 component 顯示結果卡片
     if (_onGuessResultCb) {
       _onGuessResultCb({ correct, answer, a: a ?? 0, b: b ?? 0, isFinal: wasRound2 })
     }
-
-    // 卡片動畫結束後再切 status
-    // 答對 / 第二輪結束 → 3s 後設 revealing
-    // 答錯第一輪 → 不切，等 cs:round2-start 接手
     if (correct || wasRound2) {
       _revealTimer = setTimeout(() => {
         _revealTimer = null
-        state.status = 'revealing'
-        if (word) state.currentWord = { word, author: author ?? null }
+        gameState.status = 'revealing'
+        if (word) gameState.currentWord = { word, author: author ?? null }
       }, 5000)
     }
   })
 
   // 進入第一輪
-  socket.on('cs:round1-start', ({ currentGuesserIndex, players }) => {
-    if (Array.isArray(players) && players.length) {
-      state.players = players
+  socket.on('cs:round1-start', ({ currentGuesserIndex, players: updatedPlayers }) => {
+    // 玩家清單更新透過 room:players-updated 來，這裡有後端額外傳送時保留
+    if (Array.isArray(updatedPlayers) && updatedPlayers.length) {
+      // 此事件的 players 含 role 等遊戲欄位，不干擾 roomState.players
+      _updateRoomPlayers(updatedPlayers)
     }
-
-    state.status              = 'round1'
-    state.currentWord         = null
-    state.round1Hints         = []
-    state.round2Hints         = []
-    state.round1HintsProvider = []
-    state.round2HintsProvider = []
-    state.symbolMap           = {}
-    state.submittedPlayerIds  = []
-    state.guessResult         = null
-    state.guessAB             = null
-    state.round1GuessResult   = null
-    state.wordLength          = null
-    state.timerRemaining      = GAME_TIMER_SECONDS
-    // 更新 isGuesser（猜題者輪轉）
-    const guesser = state.players[currentGuesserIndex] || state.players.find(p => p.role === 'guesser')
-    if (guesser) {
-      state.currentGuesserPlayerId = guesser.id
-      state.isGuesser = guesser.id === state.myPlayerId
-    }
+    gameState.status              = 'round1'
+    gameState.currentWord         = null
+    gameState.round1Hints         = []
+    gameState.round2Hints         = []
+    gameState.round1HintsProvider = []
+    gameState.round2HintsProvider = []
+    gameState.symbolMap           = {}
+    gameState.submittedPlayerIds  = []
+    gameState.guessResult         = null
+    gameState.guessAB             = null
+    gameState.round1GuessResult   = null
+    gameState.wordLength          = null
+    gameState.timerRemaining      = GAME_TIMER_SECONDS
   })
 
   // 進入第二輪
-  socket.on('cs:round2-start', ({ players }) => {
-    // 取消第一輪猜題結果的倒數，避免覆蓋 round2 狀態
+  socket.on('cs:round2-start', ({ players: updatedPlayers }) => {
     if (_revealTimer) { clearInterval(_revealTimer); _revealTimer = null }
-    state.revealCountdown = 0
-    if (Array.isArray(players) && players.length) {
-      state.players = players
+    if (Array.isArray(updatedPlayers) && updatedPlayers.length) {
+      _updateRoomPlayers(updatedPlayers)
     }
-    state.status             = 'round2'
-    state.submittedPlayerIds = []
-    state.timerRemaining     = GAME_TIMER_SECONDS
+    gameState.status             = 'round2'
+    gameState.submittedPlayerIds = []
+    gameState.timerRemaining     = GAME_TIMER_SECONDS
   })
 
   // 揭曉
   socket.on('cs:revealing', ({ word }) => {
-    state.status = 'revealing'
-    state.currentWord = { word }
+    gameState.status = 'revealing'
+    gameState.currentWord = { word }
   })
 
-  // 新玩家加入
-  socket.on('cs:player-joined', ({ player }) => {
-    const idx = state.players.findIndex(p => p.id === player.id)
-    if (idx === -1) {
-      state.players.push(player)
-    } else {
-      state.players[idx] = { ...state.players[idx], ...player }
-    }
-    state.isHost = state.room?.hostId === state.myPlayerId
-  })
-
-  // 玩家離開
-  socket.on('cs:player-left', ({ playerId }) => {
-    state.players = state.players.map(p => (
-      p.id === playerId ? { ...p, connected: false } : p
-    ))
-    state.isHost  = state.room?.hostId === state.myPlayerId
-  })
-
-  // 房間狀態更新（房主轉移等）
-  socket.on('cs:room-updated', (room) => {
-    state.room   = room
-    state.isHost = room.hostId === state.myPlayerId
-    if (room.status) state.status = room.status
-  })
-
-  // 結算
+  // 房間狀態更新（結算等）
   socket.on('cs:finished', () => {
-    state.status = 'finished'
+    gameState.status = 'finished'
+  })
+
+  // 互動反應（丟火/丟雞蛋）
+  socket.on('cs:react', ({ fromPlayerId, toPlayerId, emoji }) => {
+    if (!gameState.reactions[toPlayerId]) gameState.reactions[toPlayerId] = []
+    const id = Date.now() + Math.random()
+    const x = (Math.random() * 60 + 20).toFixed(1) + '%'
+    gameState.reactions[toPlayerId].push({ id, emoji, fromPlayerId, x })
+    setTimeout(() => {
+      if (gameState.reactions[toPlayerId]) {
+        gameState.reactions[toPlayerId] = gameState.reactions[toPlayerId].filter(r => r.id !== id)
+      }
+    }, 2500)
   })
 
   // 錯誤
   socket.on('cs:error', ({ code, message }) => {
-    state.error    = message
-    state.errorCode = code
-    state.loading  = false
+    gameState.error     = message
+    gameState.errorCode = code
+    gameState.loading   = false
     console.error(`[CS] error ${code}:`, message)
   })
 }
 
-let _handlersRegistered = false
+// 輔助：從 cs 遊戲事件更新 roomState 的 players（以 role/quota 等欄位為主）
+let _roomStateRef = null
+function _updateRoomPlayers(updatedPlayers) {
+  if (!_roomStateRef) return
+  // 以 ID 為鍵合併，保留 room 模組的 is_online/is_ready 欄位
+  const merged = _roomStateRef.players.map(p => {
+    const up = updatedPlayers.find(u => u.id === p.id)
+    return up ? { ...p, ...up } : p
+  })
+  // 同步角色合併結果到 gameState.players（讓 template 取得 role 等欄位）
+  gameState.players = merged
+  // 同步角色到 gameState
+  const guesser = merged.find(p => p.role === 'guesser')
+  gameState.currentGuesserPlayerId = guesser?.id ?? ''
+  if (_roomStateRef.myPlayerId) {
+    const me = merged.find(p => p.id === _roomStateRef.myPlayerId)
+    if (me) {
+      gameState.myRole   = me.role   ?? gameState.myRole
+      gameState.myQuota  = me.quota  ?? gameState.myQuota
+      gameState.isGuesser = me.role === 'guesser'
+    }
+  }
+}
 
 // ── Public API ────────────────────────────────────────────────────
 export function useCharacterStorm() {
   const socket = getSocket()
+  registerGameHandlers(socket)
 
-  if (!_handlersRegistered) {
-    registerHandlers(socket)
-    _handlersRegistered = true
+  // 建立 room composable（共用房間邏輯）
+  const room = useRoom(socket, {
+    onJoinAck(data) {
+      gameState.loading = false
+      // ── 同步 roomState 鏡像屬性（讓 template state.players 等正常運作）
+      gameState.players    = data.players    ?? []
+      gameState.spectators = data.spectators ?? []
+      gameState.room       = data.room
+      gameState.roomId     = data.room?.id ?? ''
+      gameState.myPlayerId = data.myPlayerId
+      gameState.isHost     = data.room?.host_player_id === data.myPlayerId
+      // 從 gameState 恢復玩家角色（重連時）
+      if (data.gameState?.players) {
+        _updateRoomPlayers(data.gameState.players)
+      }
+      const gs = data.gameState
+      if (gs) {
+        gameState.status = gs.roundPhase || gs.status || 'waiting'
+        gameState.themePreference = gs.themePreference ?? -1
+        if (Array.isArray(gs.players)) _updateRoomPlayers(gs.players)
+      }
+    },
+    onPlayersUpdated(players) {
+      gameState.players = players
+      gameState.isHost  = room.roomState.isHost
+    },
+    onRoomError(code, message) {
+      gameState.error     = message
+      gameState.errorCode = code
+      gameState.loading   = false
+    },
+  })
+
+  // 保存 roomState 引用供 _updateRoomPlayers 使用
+  _roomStateRef = room.roomState
+
+  // socket 重連自動重新加入
+  socket.on('connect', () => {
+    room.rejoinOnReconnect()
+  })
+
+  // 房主更換時同步鏡像屬性
+  socket.on(ROOM_EVENTS.HOST_CHANGED, ({ newHostId }) => {
+    gameState.isHost = newHostId === gameState.myPlayerId
+    if (gameState.room) gameState.room = { ...gameState.room, host_player_id: newHostId }
+  })
+
+  // ── 連線進入遊戲 ──────────────────────────────────────────────
+  function connect(roomId, nickname, isCreating = false, maxPlayers = 6, themePreference = -1) {
+    const playerId = getOrCreatePlayerId()
+    gameState.loading     = true
+    gameState.loadingText = isCreating ? '建立房間中…' : '加入房間中…'
+    gameState.themePreference = themePreference
+
+    if (isCreating) {
+      room.createRoom({
+        roomId, nickname, playerId, maxPlayers,
+        appId: 'character-storm',
+        options: { themePreference },
+      })
+    } else {
+      room.joinRoom({ roomId, nickname, playerId })
+    }
   }
 
-  function connect(roomId, nickname, isCreating = false, maxPlayers = 6, themePreference = -1) {
-    state.myPlayerId = getOrCreatePlayerId()
-    state.myNickname = nickname
-    state.roomId     = roomId
-    state.loading    = true
-    state.loadingText = isCreating ? '建立房間中…' : '加入房間中…'
-
-    const doEmit = () => {
-      if (isCreating) {
-        socket.emit('cs:create', { roomId, nickname, playerId: state.myPlayerId, maxPlayers, themePreference })
-      } else {
-        socket.emit('cs:join', { roomId, nickname, playerId: state.myPlayerId })
+  // ── 角色分配事件（與 room:join-ack 分開，可能在遊戲開始後送出）
+  socket.on('cs:role-assigned', ({ role, quota }) => {
+    gameState.myRole    = role
+    gameState.myQuota   = quota
+    gameState.isGuesser = role === 'guesser'
+    // 同步更新 roomState players
+    if (_roomStateRef?.myPlayerId) {
+      const idx = _roomStateRef.players.findIndex(p => p.id === _roomStateRef.myPlayerId)
+      if (idx >= 0) {
+        _roomStateRef.players[idx] = { ..._roomStateRef.players[idx], role, quota }
       }
     }
+  })
 
-    if (!socket.connected) {
-      socket.once('connect', doEmit)
-      socket.connect()
-    } else {
-      doEmit()
-    }
-  }
-
+  // ── 遊戲操作 ──────────────────────────────────────────────────
   function submitHint(text) {
-    socket.emit('cs:submit-hint', { roomId: state.roomId, text })
+    socket.emit('cs:submit-hint', { roomId: room.roomState.roomId, text })
   }
 
   function submitGuess(answer) {
-    socket.emit('cs:submit-guess', { roomId: state.roomId, answer })
+    socket.emit('cs:submit-guess', { roomId: room.roomState.roomId, answer })
   }
 
   function startGame() {
-    socket.emit('cs:start', { roomId: state.roomId })
+    socket.emit('cs:start', { roomId: room.roomState.roomId })
   }
 
   function nextTurn() {
-    socket.emit('cs:next-round', { roomId: state.roomId })
+    socket.emit('cs:next-round', { roomId: room.roomState.roomId })
   }
 
   function continueGame() {
-    socket.emit('cs:continue', { roomId: state.roomId })
+    socket.emit('cs:continue', { roomId: room.roomState.roomId })
   }
 
   function endGame() {
-    socket.emit('cs:end-game', { roomId: state.roomId })
+    socket.emit('cs:end-game', { roomId: room.roomState.roomId })
   }
 
   function disconnect() {
+    if (_revealTimer) clearInterval(_revealTimer)
     socket.disconnect()
     _socket = null
-    _handlersRegistered = false
+    _gameHandlersRegistered = false
   }
 
   function copyInviteLink() {
-    const base = window.location.href.split('#')[0]
-    const link = `${base}#/character-storm?room=${state.roomId}`
-    navigator.clipboard.writeText(link).catch(() => {})
-    return link
-  }
-
-  function sendReaction(type) {
-    socket.emit('cs:reaction', { roomId: state.roomId, type })
+    return room.copyInviteLink('/character-storm')
   }
 
   function onGuessResult(cb) {
     _onGuessResultCb = cb
   }
 
+  function sendReaction(toPlayerId, emoji) {
+    socket.emit('cs:react', { roomId: room.roomState.roomId, toPlayerId, emoji })
+  }
+
   return {
-    state: readonly(state),
+    // 遊戲狀態（唯讀）
+    state: readonly(gameState),
+    // 房間狀態（唯讀）
+    roomState: room.roomState,
+    // 連線 / 遊戲操作
     connect,
     submitHint,
     submitGuess,
@@ -345,7 +367,13 @@ export function useCharacterStorm() {
     endGame,
     disconnect,
     copyInviteLink,
-    sendReaction,
     onGuessResult,
+    sendReaction,
+    // 房間操作（轉發 useRoom 的方法）
+    kickPlayer:      room.kickPlayer,
+    transferHost:    room.transferHost,
+    setReady:        room.setReady,
+    leaveRoom:       room.leaveRoom,
+    upgradeFromSpectator: room.upgradeFromSpectator,
   }
 }
