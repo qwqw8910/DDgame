@@ -55,8 +55,8 @@
             <div style="width:100%;max-width:720px;display:grid;
                   grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px">
 
-                <!-- 建立房間 -->
-                <div class="game-card" style="display:flex;flex-direction:column">
+                <!-- 建立房間（透過 URL 分享進入時隱藏） -->
+                <div v-if="!hasRoomFromUrl" class="game-card" style="display:flex;flex-direction:column">
                     <div style="width:50px;height:50px;border-radius:10px;
                       background:rgba(6,182,212,0.12);border:1px solid rgba(6,182,212,0.25);
                       display:flex;align-items:center;justify-content:center;
@@ -102,10 +102,10 @@
                       font-size:24px;margin-bottom:16px">🔑</div>
                     <h2 class="neon-heading" style="font-size:20px;color:var(--heading);margin-bottom:6px">加入房間</h2>
                     <p style="font-size:15px;color:var(--body);font-weight:400;margin-bottom:22px">
-                        輸入朋友分享的房間碼
+                        {{ hasRoomFromUrl ? `房間碼：${joinCode}` : '輸入朋友分享的房間碼' }}
                     </p>
                     <div style="display:flex;flex-direction:column;gap:12px;flex:1;justify-content:flex-end">
-                        <div class="input-wrapper">
+                        <div v-if="!hasRoomFromUrl" class="input-wrapper">
                             <input v-model="joinCode" type="text" placeholder="房間碼（6碼）" maxlength="6" class="game-input"
                                 style="text-align:center;letter-spacing:6px;font-size:16px;font-weight:600;padding-left:0;padding-right:0"
                                 @input="joinCode = joinCode.toUpperCase()" @keydown.enter="focusJoinNickname" />
@@ -166,6 +166,7 @@ const createLoading = ref(false)
 const joinLoading = ref(false)
 const createNicknameRef = ref(null)
 const joinNicknameRef = ref(null)
+const hasRoomFromUrl = ref(false)
 
 const toast = ref({ show: false, msg: '', type: '' })
 let _toastTimer = null
@@ -200,7 +201,8 @@ onMounted(() => {
 
     if (roomCode) {
         joinCode.value = roomCode
-        joinNicknameRef.value?.focus()
+        hasRoomFromUrl.value = true
+        setTimeout(() => joinNicknameRef.value?.focus(), 100)
         showToast('請輸入暱稱後加入房間 🎉', 'info')
     } else {
         createNicknameRef.value?.focus()

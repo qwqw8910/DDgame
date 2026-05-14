@@ -12,7 +12,14 @@
                         第 {{ state.currentRound.round_number }} 回合
                     </span>
                 </div>
-                <div style="display:flex;gap:6px">
+                <div style="display:flex;gap:6px;align-items:center">
+                    <RoomPlayerPanel
+                        :players="state.players"
+                        :my-id="state.myPlayerId"
+                        :host-id="state.room?.host_player_id"
+                        :is-host="state.isHost"
+                        @kick="handleKick"
+                        @transfer-host="handleTransferHost" />
                     <button class="header-icon-btn" title="複製邀請連結" @click="copyLink">🔗</button>
                     <button class="header-icon-btn" title="切換主題" @click="toggleTheme">{{ themeIcon }}</button>
                 </div>
@@ -51,7 +58,8 @@
             <!-- 大廳 -->
             <LobbySection v-if="state.room.status === 'waiting'" :players="state.players" :my-id="state.myPlayerId"
                 :host-id="state.room.host_player_id" :is-host="state.isHost" :room-id="state.roomId"
-                @toggle-ready="toggleReady" @start-game="startGame" @kick="handleKick" @copy-link="copyLink" />
+                @toggle-ready="toggleReady" @start-game="startGame"
+                @kick="handleKick" @transfer-host="handleTransferHost" @copy-link="copyLink" />
 
             <template v-else-if="state.room.status === 'playing'">
                 <!-- 房主踢人面板（遊戲進行中） -->
@@ -147,6 +155,7 @@ import GuessSection from '../components/GuessSection.vue'
 import RevealSection from '../components/RevealSection.vue'
 import FinishedSection from '../components/FinishedSection.vue'
 import PreviewSection from '../components/PreviewSection.vue'
+import RoomPlayerPanel from '../components/RoomPlayerPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -192,6 +201,7 @@ const {
     endGame,
     restartGame,
     kickPlayer,
+    transferHost,
     sendReaction,
     swapPreview,
     confirmPreview,
@@ -289,6 +299,11 @@ function handleSubmitGuess(letter) {
 function handleKick(playerId, nickname) {
     if (!confirm(`確定要踢出 ${nickname}？`)) return
     kickPlayer(playerId)
+}
+
+function handleTransferHost(playerId, nickname) {
+    if (!confirm(`將房主移交給 ${nickname}？`)) return
+    transferHost(playerId)
 }
 
 function copyLink() {

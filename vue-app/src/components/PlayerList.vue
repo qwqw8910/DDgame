@@ -20,8 +20,12 @@
                 <span :class="['badge', (p.is_ready || p.id === hostId) ? 'badge-ready' : 'badge-waiting']">
                     {{ (p.is_ready || p.id === hostId) ? '✓ 準備' : '等待中' }}
                 </span>
-                <button v-if="isHost && p.id !== myId && p.id !== hostId" class="btn-danger-sm"
-                    @click="$emit('kick', p.id, p.nickname)">踢</button>
+                <template v-if="isHost && p.id !== myId">
+                    <button class="btn-ghost-sm"
+                        @click="$emit('transfer-host', p.id, p.nickname)">👑</button>
+                    <button class="btn-danger-sm"
+                        @click="$emit('kick', p.id, p.nickname)">踢</button>
+                </template>
             </div>
         </div>
     </div>
@@ -37,5 +41,5 @@ defineProps({
     subjectId: { type: String, default: '' },
     isHost: { type: Boolean, default: false },
 })
-defineEmits(['kick'])
+defineEmits(['kick', 'transfer-host'])
 </script>
