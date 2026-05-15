@@ -1,12 +1,10 @@
 // ================================================================
 //  Socket.io composable — useSocket()
-//  提供 socket 單例與遊戲所有狀態（reactive）
-//  房間事件：room:join / room:join-ack / room:players-updated / room:kicked 等
-//  遊戲事件：game_started / round_updated / ... 等（不變）
+//  房間事件由 useRoom() 處理；本檔案只負責懂我再說的遊戲事件
 // ================================================================
 import { reactive, readonly } from 'vue'
 import { io } from 'socket.io-client'
-import { ROOM_EVENTS } from './useRoom.js'
+import { useRoom } from './useRoom.js'
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 
@@ -68,101 +66,18 @@ const state = reactive({
 })
 
 let _reactionId = 0
+let _gameListenersAttached = false
 
-function setupListeners(socket, callbacks = {}) {
-  // ── 連線狀態 ──────────────────────────────────────────────────
-  socket.on('connect', () => {
-    state.connected = true
-    // socket 重連後自動重新加入
-    if (state.myNickname && state.roomId && state.myPlayerId) {
-      callbacks.onReconnect?.()
-      socket.emit(ROOM_EVENTS.JOIN, {
-        roomId:   state.roomId,
-        playerId: state.myPlayerId,
-        nickname: state.myNickname,
-      })
-    }
-  })
+// ── 遊戲事件監聽（房間事件已由 useRoom 接管） ────────────────────
+function setupGameListeners(socket, callbacks) {
+  socket.on('connect',    () => { state.connected = true })
+  socket.on('disconnect', () => { state.connected = false })
 
-  socket.on('disconnect', () => {
-    state.connected = false
-  })
-
-  // ── 房間：加入確認（room:join-ack）────────────────────────────
-  socket.on(ROOM_EVENTS.JOIN_ACK, (data) => {
-    state.room       = data.room
-    state.players    = data.players ?? []
-    state.myPlayerId = data.myPlayerId
-
-    // gameState 攜帶遊戲特定資料
-    const gs = data.gameState
-    state.topics          = gs?.topics          ?? []
-    state.currentRound    = gs?.currentRound    ?? null
-    state.currentQuestion = gs?.currentQuestion ?? null
-    state.guesses         = gs?.guesses         ?? []
-    state.isHost          = data.room?.host_player_id === state.myPlayerId
-    state.isSubject       = state.currentRound?.subject_player_id === state.myPlayerId
-
-    const rndStatus = state.currentRound?.status
-    if (['guessing', 'revealing'].includes(rndStatus)) {
-      state.hasSubmittedGuess = state.guesses.some(g => g.player_id === state.myPlayerId)
-      const mine = state.guesses.find(g => g.player_id === state.myPlayerId)
-      if (mine) state.myCurrentGuess = mine.guess
-    }
-    if (rndStatus === 'selecting_answer' && state.isSubject) {
-      state.hasSubmittedAnswer = !!state.currentRound.subject_answer
-    }
-
-    state.loading = false
-    callbacks.onRoomState?.()
-  })
-
-  // ── 房間：錯誤（取代舊 join_error）───────────────────────────
-  socket.on(ROOM_EVENTS.ERROR, ({ code, message }) => {
-    state.loading = false
-    state.error   = message
-    callbacks.onJoinError?.(message)
-  })
-
-  // ── 房間：玩家清單更新 ────────────────────────────────────────
-  socket.on(ROOM_EVENTS.PLAYERS_UPDATED, ({ players }) => {
-    state.players = players
-    state.isHost  = state.room?.host_player_id === state.myPlayerId
-  })
-
-  // ── 房間：玩家離線（標記）────────────────────────────────────
-  socket.on(ROOM_EVENTS.PLAYER_OFFLINE, ({ playerId }) => {
-    const idx = state.players.findIndex(p => p.id === playerId)
-    if (idx >= 0) state.players[idx] = { ...state.players[idx], is_online: false }
-  })
-
-  // ── 房間：玩家重連 ────────────────────────────────────────────
-  socket.on(ROOM_EVENTS.PLAYER_RECONNECTED, ({ playerId, nickname }) => {
-    const idx = state.players.findIndex(p => p.id === playerId)
-    if (idx >= 0) state.players[idx] = { ...state.players[idx], is_online: true, nickname }
-  })
-
-  // ── 房間：玩家離開（主動或被踢）─────────────────────────────
-  socket.on(ROOM_EVENTS.PLAYER_LEFT, ({ playerId }) => {
-    state.players = state.players.filter(p => p.id !== playerId)
-  })
-
-  // ── 房間：房主更換 ────────────────────────────────────────────
-  socket.on(ROOM_EVENTS.HOST_CHANGED, ({ newHostId }) => {
-    if (state.room) state.room = { ...state.room, host_player_id: newHostId }
-    state.isHost = newHostId === state.myPlayerId
-  })
-
-  // ── 房間：被踢出（取代舊 you_were_kicked）────────────────────
-  socket.on(ROOM_EVENTS.KICKED, () => {
-    callbacks.onKicked?.()
-  })
-
-  // ── 遊戲：以下事件名稱不變 ────────────────────────────────────
-  socket.on('game_started', ({ room, currentRound }) => {
+  socket.on('game_started', ({ room, currentRound, topics }) => {
     state.room             = room
     state.isHost           = room.host_player_id === state.myPlayerId
     state.currentRound     = currentRound
+    if (Array.isArray(topics)) state.topics = topics
     state.currentQuestion  = null
     state.isSubject        = currentRound.subject_player_id === state.myPlayerId
     state.hasSubmittedAnswer = false
@@ -240,6 +155,10 @@ function setupListeners(socket, callbacks = {}) {
   socket.on('reaction_broadcast', ({ emoji, nickname }) => {
     const id = ++_reactionId
     state.floatingReactions.push({ id, emoji, nickname })
+    // 限制畫面上同時飛舞的 emoji 數量，避免大量同時 animation 拖累主執行緒
+    if (state.floatingReactions.length > 12) {
+      state.floatingReactions.splice(0, state.floatingReactions.length - 12)
+    }
     setTimeout(() => {
       const idx = state.floatingReactions.findIndex(r => r.id === id)
       if (idx !== -1) state.floatingReactions.splice(idx, 1)
@@ -260,11 +179,60 @@ function setupListeners(socket, callbacks = {}) {
 export function useSocket(callbacks = {}) {
   const socket = getSocket()
 
-  if (!socket._listenersAttached) {
-    socket._listenersAttached = true
-    setupListeners(socket, callbacks)
-  } else {
-    Object.assign(socket._callbacks || {}, callbacks)
+  // 房間事件透過 useRoom 接管，並把 roomState 透過 callback 同步到 state
+  const room = useRoom(socket, {
+    onJoinAck(data) {
+      state.room       = data.room
+      state.players    = data.players ?? []
+      state.myPlayerId = data.myPlayerId
+
+      const gs = data.gameState
+      state.topics          = gs?.topics          ?? []
+      state.currentRound    = gs?.currentRound    ?? null
+      state.currentQuestion = gs?.currentQuestion ?? null
+      state.guesses         = gs?.guesses         ?? []
+      state.isHost          = data.room?.host_player_id === state.myPlayerId
+      state.isSubject       = state.currentRound?.subject_player_id === state.myPlayerId
+
+      const rndStatus = state.currentRound?.status
+      if (['guessing', 'revealing'].includes(rndStatus)) {
+        state.hasSubmittedGuess = state.guesses.some(g => g.player_id === state.myPlayerId)
+        const mine = state.guesses.find(g => g.player_id === state.myPlayerId)
+        if (mine) state.myCurrentGuess = mine.guess
+      }
+      if (rndStatus === 'selecting_answer' && state.isSubject) {
+        state.hasSubmittedAnswer = !!state.currentRound.subject_answer
+      }
+
+      state.loading = false
+      callbacks.onRoomState?.()
+    },
+    onPlayersUpdated(players) {
+      state.players = players
+      state.isHost  = state.room?.host_player_id === state.myPlayerId
+    },
+    onHostChanged(newHostId) {
+      if (state.room) state.room = { ...state.room, host_player_id: newHostId }
+      state.isHost = newHostId === state.myPlayerId
+    },
+    onKicked() {
+      callbacks.onKicked?.()
+    },
+    onRoomError(_code, message) {
+      state.loading = false
+      state.error   = message
+      callbacks.onJoinError?.(message)
+    },
+  })
+
+  if (!_gameListenersAttached) {
+    _gameListenersAttached = true
+    setupGameListeners(socket, callbacks)
+    // 重連後自動 rejoin（useRoom 內部記住了 roomId/playerId/nickname）
+    socket.on('connect', () => {
+      callbacks.onReconnect?.()
+      room.rejoinOnReconnect()
+    })
   }
 
   function connectAndJoin(roomId, playerId, nickname) {
@@ -274,14 +242,7 @@ export function useSocket(callbacks = {}) {
     state.loading     = true
     state.loadingText = '連線中…'
     state.error       = ''
-
-    const doJoin = () => socket.emit(ROOM_EVENTS.JOIN, { roomId, playerId, nickname })
-    if (!socket.connected) {
-      socket.once('connect', doJoin)
-      socket.connect()
-    } else {
-      doJoin()
-    }
+    room.joinRoom({ roomId, playerId, nickname })
   }
 
   function emit(event, payload) {
@@ -290,13 +251,13 @@ export function useSocket(callbacks = {}) {
 
   // 遊戲動作包裝
   const actions = {
-    // 房間操作（改用 room:* 事件）
-    toggleReady:    () => socket.emit(ROOM_EVENTS.READY,         { ready: true }),
-    kickPlayer:     (targetId) => socket.emit(ROOM_EVENTS.KICK,  { targetPlayerId: targetId }),
-    transferHost:   (targetId) => socket.emit(ROOM_EVENTS.TRANSFER_HOST, { targetPlayerId: targetId }),
-    leaveRoom:      () => socket.emit(ROOM_EVENTS.LEAVE),
+    // 房間操作（委派給 useRoom）
+    toggleReady:    () => room.setReady(true),
+    kickPlayer:     (targetId) => room.kickPlayer(targetId),
+    transferHost:   (targetId) => room.transferHost(targetId),
+    leaveRoom:      () => room.leaveRoom(),
 
-    // 遊戲操作（事件名稱不變）
+    // 遊戲操作
     startGame:      () => emit('start_game',      {}),
     selectTopic:    (topicId) => emit('select_topic',   { topicId }),
     submitAnswer:   (answer)  => emit('submit_answer',  { answer }),

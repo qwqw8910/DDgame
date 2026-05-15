@@ -1,5 +1,5 @@
 <template>
-    <div class="page-wrapper">
+    <div class="page-wrapper page-wrapper--scrollable">
         <!-- Header -->
         <header class="sticky-header app-header--room">
             <div class="header-inner header-inner--room">
@@ -54,7 +54,8 @@
         </div>
 
         <!-- 遊戲主畫面 -->
-        <main v-else-if="state.room" class="main-content main-content--room">
+        <main v-else-if="state.room" class="main-content main-content--room"
+            :class="{ 'main-content--game': state.room.status === 'playing', 'main-content--lobby': state.room.status !== 'playing' }">
             <!-- 大廳 -->
             <LobbySection v-if="state.room.status === 'waiting'" :players="state.players" :my-id="state.myPlayerId"
                 :host-id="state.room.host_player_id" :is-host="state.isHost" :room-id="state.roomId"
@@ -62,22 +63,6 @@
                 @kick="handleKick" @transfer-host="handleTransferHost" @copy-link="copyLink" />
 
             <template v-else-if="state.room.status === 'playing'">
-                <!-- 房主踢人面板（遊戲進行中） -->
-                <div v-if="state.isHost && state.players.filter(p => p.id !== state.myPlayerId).length"
-                    class="game-card" style="padding:12px 16px;margin-bottom:12px">
-                    <div class="progress-label" style="margin-bottom:8px">⚙️ 玩家管理</div>
-                    <div v-for="p in state.players.filter(p => p.id !== state.myPlayerId)" :key="p.id"
-                        class="guess-status-item" style="justify-content:space-between;padding:4px 0">
-                        <div style="display:flex;align-items:center;gap:6px">
-                            <span>{{ p.is_online ? '🟢' : '🔴' }}</span>
-                            <span>{{ p.nickname }}</span>
-                            <span v-if="p.id === state.currentRound?.subject_player_id" class="badge badge-subject"
-                                style="font-size:11px">被猜者</span>
-                        </div>
-                        <button class="btn-danger-sm" @click="handleKick(p.id, p.nickname)">踢</button>
-                    </div>
-                </div>
-
                 <!-- 選主題 -->
                 <TopicSection v-if="state.currentRound?.status === 'selecting_topic'" :topics="state.topics"
                     :is-subject="state.isSubject" :players="state.players"

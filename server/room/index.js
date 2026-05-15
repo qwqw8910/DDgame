@@ -8,6 +8,7 @@
 //    registerRoomHandlers(namespace, db, hooks);
 //
 //  hooks（全部可選）：
+//    hooks.appId               {string}   app 識別字串，設定後拒絕跨遊戲房間（未設則不驗證）
 //    hooks.minPlayers          {number}   最低玩家數，預設 2
 //    hooks.canJoinAsPlayer      {fn}       (roomId) => boolean
 //    hooks.spectatorCanUpgrade  {fn}       (roomId) => boolean
@@ -167,6 +168,14 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
         }
 
         const { room, players, spectators } = entry;
+
+        // 跨 app 房間隔離：若 register 時帶 appId，拒絕加入屬於其他 app 的房間
+        if (hooks.appId !== undefined) {
+          if ((room.app_id || '') !== (hooks.appId || '')) {
+            return sendError(socket, EV.ERR_WRONG_APP,
+              '此房號屬於其他遊戲，無法加入。');
+          }
+        }
 
         // 判斷重連 or 新玩家 or 觀戰
         const existingPlayer = players.find(p => p.id === playerId);

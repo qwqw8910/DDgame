@@ -7,8 +7,8 @@
             <div class="header-inner header-inner--room">
                 <span class="logo-sm">默契傳聲筒 🔡</span>
                 <div class="header-info">
-                    <span class="header-room-id">{{ state.roomId }}</span>
-                    <span style="font-size:12px;color:var(--body)">{{ state.players.length }}/{{ state.room?.maxPlayers
+                    <span class="header-room-id">{{ roomState.roomId }}</span>
+                    <span style="font-size:12px;color:var(--body)">{{ playersWithRoles.length }}/{{ roomState.room?.maxPlayers
                         ?? '?' }} 人</span>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
@@ -60,7 +60,7 @@
         </div>
 
         <!-- 遊戲主畫面 -->
-        <main v-else-if="state.room" id="cs-main-content" class="main-content main-content--room"
+        <main v-else-if="roomState.room" id="cs-main-content" class="main-content main-content--room"
             :class="{ 'main-content--game': isGamePhase, 'main-content--lobby': !isGamePhase }">
 
             <!-- ── 大廳 ── -->
@@ -68,14 +68,14 @@
                 <div class="section-header">
                     <div class="section-icon">🏠</div>
                     <h2 class="neon-heading" style="font-size:22px">等待玩家加入</h2>
-                    <p class="section-subtitle">需要 {{ minPlayersRequired }} ～ {{ state.room.maxPlayers }} 人才能開始</p>
+                    <p class="section-subtitle">需要 {{ minPlayersRequired }} ～ {{ roomState.room.maxPlayers }} 人才能開始</p>
                 </div>
 
                 <!-- 房間碼 + 分享 -->
                 <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:16px 0 24px">
                     <div style="font-size:28px;font-weight:700;letter-spacing:6px;
                                 color:var(--neon-cyan);font-family:'Source Code Pro',monospace">
-                        {{ state.roomId }}
+                        {{ roomState.roomId }}
                     </div>
                     <button class="header-icon-btn" style="font-size:18px" title="複製邀請連結" aria-label="複製邀請連結"
                         @click="handleCopyLink">🔗</button>
@@ -83,32 +83,32 @@
 
                 <!-- 玩家列表 -->
                 <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">
-                    <div v-for="p in state.players" :key="p.id" style="display:flex;align-items:center;justify-content:space-between;
+                    <div v-for="p in playersWithRoles" :key="p.id" style="display:flex;align-items:center;justify-content:space-between;
                                padding:10px 14px;border-radius:10px;
                                background:var(--bg-subtle);border:1px solid var(--border)">
                         <div style="display:flex;align-items:center;gap:8px">
                             <span>{{ (p.is_online ?? p.connected) ? '🟢' : '🔴' }}</span>
                             <span style="font-weight:500;color:var(--heading)">{{ p.nickname }}</span>
-                            <span v-if="p.id === state.room.hostId" class="badge" style="font-size:11px;background:rgba(6,182,212,0.15);
+                            <span v-if="p.id === roomState.room.hostId" class="badge" style="font-size:11px;background:rgba(6,182,212,0.15);
                                 color:var(--neon-cyan);border:1px solid rgba(6,182,212,0.3)">房主</span>
-                            <span v-if="p.id === state.myPlayerId" class="badge" style="font-size:11px">我</span>
+                            <span v-if="p.id === roomState.myPlayerId" class="badge" style="font-size:11px">我</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 人數不足提示 -->
-                <p v-if="state.players.length < minPlayersRequired"
+                <p v-if="playersWithRoles.length < minPlayersRequired"
                     style="text-align:center;font-size:13px;color:var(--body);margin-bottom:16px">
-                    還需要 {{ Math.max(minPlayersRequired - state.players.length, 0) }} 人才能開始
+                    還需要 {{ Math.max(minPlayersRequired - playersWithRoles.length, 0) }} 人才能開始
                 </p>
 
                 <!-- 開始按鈕（僅房主） -->
-                <button v-if="state.isHost" class="btn-primary"
+                <button v-if="roomState.isHost" class="btn-primary"
                     style="width:100%;background:linear-gradient(135deg,#0891B2,#06B6D4);border-color:rgba(6,182,212,0.4)"
-                    :disabled="state.players.length < minPlayersRequired" @click="handleStartGame">
+                    :disabled="playersWithRoles.length < minPlayersRequired" @click="handleStartGame">
                     開始遊戲 🚀
                 </button>
-                <p v-if="state.isHost && state.players.length < minPlayersRequired"
+                <p v-if="roomState.isHost && playersWithRoles.length < minPlayersRequired"
                     style="text-align:center;font-size:12px;color:var(--label);margin-top:8px">
                     目前人數不足，無法開始
                 </p>
@@ -179,63 +179,20 @@
                         </p>
                     </div>
 
-                    <!-- 答案卡（第一輪 + 第二輪 + 揭曉操作 合一） -->
-                    <div class="game-card" style="padding:10px 14px">
-                        <!-- 第一輪列 -->
-                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
-                            <span style="font-size:11px;color:var(--label);white-space:nowrap">第一輪</span>
-                            <template v-if="state.isGuesser && state.status === 'round1-result'">
-                                <span v-if="!guessSubmitted" style="font-size:12px;color:var(--body);flex:1;text-align:right">↘ 右下角輸入</span>
-                                <span v-else style="font-size:12px;color:var(--success-text);font-weight:600;flex:1;text-align:right">✓ {{ guessInput || '（空白）' }}</span>
-                            </template>
-                            <template v-else-if="!state.isGuesser && state.status === 'round1-result'">
-                                <span style="font-size:12px;color:var(--body);flex:1;text-align:right">等待猜題者…</span>
-                            </template>
-                            <template v-else-if="state.round1GuessResult">
-                                <span style="font-size:14px;font-weight:700;color:var(--heading);flex:1;text-align:right">{{ state.round1GuessResult.answer || '（空白）' }}</span>
-                                <span style="font-weight:700;color:var(--neon-cyan);font-size:13px;white-space:nowrap">{{ state.round1GuessResult.a }}A</span>
-                                <span style="font-weight:700;color:#F59E0B;font-size:13px;white-space:nowrap">{{ state.round1GuessResult.b }}B</span>
-                            </template>
-                            <template v-else>
-                                <span style="color:var(--body);font-size:13px;opacity:0.4;flex:1;text-align:right">—</span>
-                            </template>
+                    <!-- 揭曉：下一位 CTA（僅揭曉階段顯示，答案已移至猜題者卡片內） -->
+                    <div v-if="state.status === 'revealing'" class="game-card" style="padding:10px 14px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                            <span style="font-size:22px">{{ state.guessResult?.correct ? '🎉' : '😅' }}</span>
+                            <span class="neon-heading gradient-text" style="font-size:16px;font-weight:800">
+                                {{ state.guessResult?.correct ? '答對了！' : '下次加油！' }}
+                            </span>
+                            <button v-if="roomState.isHost" type="button" class="btn-primary"
+                                style="white-space:nowrap;padding:6px 14px;width:auto;font-size:13px"
+                                @click="handleNextTurn">
+                                下一位 →
+                            </button>
+                            <span v-else style="font-size:11px;color:var(--label);text-align:right">等待房主…</span>
                         </div>
-                        <!-- 第二輪列 -->
-                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:6px;border-top:1px solid var(--divider)">
-                            <span style="font-size:11px;color:var(--label);white-space:nowrap">第二輪</span>
-                            <template v-if="state.isGuesser && state.status === 'round2-result'">
-                                <span v-if="!guessSubmitted" style="font-size:12px;color:var(--body);flex:1;text-align:right">↘ 右下角輸入</span>
-                                <span v-else style="font-size:12px;color:var(--success-text);font-weight:600;flex:1;text-align:right">✓ {{ guessInput || '（空白）' }}</span>
-                            </template>
-                            <template v-else-if="state.status === 'revealing' && state.guessResult">
-                                <span style="font-size:14px;font-weight:700;flex:1;text-align:right"
-                                    :style="{ color: state.guessResult.correct ? 'var(--success-text)' : 'var(--heading)' }">
-                                    {{ state.guessResult.correct ? '🎉 ' : '' }}{{ state.guessResult.answer || '（空白）' }}
-                                </span>
-                                <template v-if="state.guessAB">
-                                    <span style="font-weight:700;color:var(--neon-cyan);font-size:13px;white-space:nowrap">{{ state.guessAB.a }}A</span>
-                                    <span style="font-weight:700;color:#F59E0B;font-size:13px;white-space:nowrap">{{ state.guessAB.b }}B</span>
-                                </template>
-                            </template>
-                            <template v-else>
-                                <span style="color:var(--body);font-size:13px;opacity:0.4;flex:1;text-align:right">—</span>
-                            </template>
-                        </div>
-                        <!-- 揭曉：下一位按鈕 -->
-                        <template v-if="state.status === 'revealing'">
-                            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px">
-                                <span style="font-size:22px">{{ state.guessResult?.correct ? '🎉' : '😅' }}</span>
-                                <span class="neon-heading gradient-text" style="font-size:16px;font-weight:800">
-                                    {{ state.guessResult?.correct ? '答對了！' : '下次加油！' }}
-                                </span>
-                                <button v-if="state.isHost" type="button" class="btn-primary"
-                                    style="white-space:nowrap;padding:6px 14px;width:auto;font-size:13px"
-                                    @click="handleNextTurn">
-                                    下一位 →
-                                </button>
-                                <span v-else style="font-size:11px;color:var(--label);text-align:right">等待房主…</span>
-                            </div>
-                        </template>
                     </div>
                 </div>
 
@@ -264,12 +221,12 @@
                     </div>
 
                     <div class="cs-players-grid">
-                        <div v-for="p in state.players" :key="p.id"
+                        <div v-for="p in playersWithRoles" :key="p.id"
                             :class="['game-card', 'cs-player-card', getPlayerCardClass(p.role, p.id),
                                      { 'hint-just-submitted': state.submittedPlayerIds.includes(p.id) && isHintPhase }]"
                             style="position:relative;overflow:hidden">
                             <!-- 丟火/丟雞蛋按鈕（只對其他人顯示） -->
-                            <div v-if="p.id !== state.myPlayerId" class="cs-react-btns">
+                            <div v-if="p.id !== roomState.myPlayerId" class="cs-react-btns">
                                 <button class="cs-react-btn" title="這很屬🔥" @click.stop="sendReaction(p.id, '\uD83D\uDD25')">🔥</button>
                                 <button class="cs-react-btn" title="這很装🥚" @click.stop="sendReaction(p.id, '\uD83E\uDD5A')">🥚</button>
                             </div>
@@ -288,7 +245,7 @@
                                     margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--divider)">
                                 <span style="font-weight:600;font-size:15px;color:var(--heading)">{{ p.nickname
                                 }}</span>
-                                <span v-if="p.id === state.myPlayerId" class="badge" style="font-size:10px">我</span>
+                                <span v-if="p.id === roomState.myPlayerId" class="badge" style="font-size:10px">我</span>
                                 <span class="badge" :style="{
                                     fontSize: '10px',
                                     background: isPlayerGuesser(p) ? 'rgba(251, 113, 133, 0.15)' : 'rgba(6, 182, 212, 0.14)',
@@ -304,14 +261,57 @@
                                     style="margin-left:auto;color:var(--label);font-size:11px">待送出</span>
                             </div>
                             <div v-if="isPlayerGuesser(p)" style="text-align:center;padding:4px 0 2px">
-                                <p style="font-size:18px;font-weight:700;color:var(--heading);margin:0">
-                                    {{ p.id === state.myPlayerId ? '你是猜題者' : '猜題者' }}
+                                <p style="font-size:16px;font-weight:700;color:var(--heading);margin:0">
+                                    {{ p.id === roomState.myPlayerId ? '你是猜題者' : '猜題者' }}
                                 </p>
-                                <p style="font-size:12px;color:var(--body);margin-top:6px">
-                                    {{ state.status === 'round1' || state.status === 'round2'
-                                        ? '等待提示線索'
-                                        : (state.status === 'round1-result' || state.status === 'round2-result' ? '正在作答中' :
-                                            '等待下一階段') }}
+                                <!-- 兩輪答案 -->
+                                <div class="cs-guess-rows">
+                                    <!-- R1 -->
+                                    <div class="cs-guess-row">
+                                        <span class="cs-guess-label">R1</span>
+                                        <template v-if="state.round1GuessResult">
+                                            <span class="cs-guess-answer">{{ state.round1GuessResult.answer || '（空白）' }}</span>
+                                            <span class="cs-guess-ab cs-guess-ab--a">{{ state.round1GuessResult.a }}A</span>
+                                            <span class="cs-guess-ab cs-guess-ab--b">{{ state.round1GuessResult.b }}B</span>
+                                        </template>
+                                        <template v-else-if="state.status === 'round1-result' && p.id === roomState.myPlayerId">
+                                            <span class="cs-guess-pending">作答中…</span>
+                                        </template>
+                                        <template v-else-if="state.status === 'round1-result'">
+                                            <span class="cs-guess-pending">等待作答</span>
+                                        </template>
+                                        <template v-else>
+                                            <span class="cs-guess-empty">—</span>
+                                        </template>
+                                    </div>
+                                    <!-- R2 (進入 round2 後才顯示) -->
+                                    <div v-if="['round2', 'round2-result', 'revealing'].includes(state.status)"
+                                        class="cs-guess-row">
+                                        <span class="cs-guess-label">R2</span>
+                                        <template v-if="state.status === 'revealing' && state.guessResult">
+                                            <span class="cs-guess-answer"
+                                                :style="{ color: state.guessResult.correct ? 'var(--success-text)' : 'var(--heading)' }">
+                                                {{ state.guessResult.correct ? '🎉 ' : '' }}{{ state.guessResult.answer || '（空白）' }}
+                                            </span>
+                                            <template v-if="state.guessAB">
+                                                <span class="cs-guess-ab cs-guess-ab--a">{{ state.guessAB.a }}A</span>
+                                                <span class="cs-guess-ab cs-guess-ab--b">{{ state.guessAB.b }}B</span>
+                                            </template>
+                                        </template>
+                                        <template v-else-if="state.status === 'round2-result' && p.id === roomState.myPlayerId">
+                                            <span class="cs-guess-pending">作答中…</span>
+                                        </template>
+                                        <template v-else-if="state.status === 'round2-result'">
+                                            <span class="cs-guess-pending">等待作答</span>
+                                        </template>
+                                        <template v-else>
+                                            <span class="cs-guess-empty">—</span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <p v-if="state.status === 'round1' || state.status === 'round2'"
+                                    style="font-size:11px;color:var(--body);margin-top:8px;opacity:0.7">
+                                    等待提示線索
                                 </p>
                             </div>
                             <!-- 第一輪提示 -->
@@ -416,7 +416,7 @@
                 <h2 class="neon-heading gradient-text" style="font-size:26px;margin-bottom:8px">一局結束！</h2>
                 <p style="color:var(--body);font-size:15px;margin-bottom:28px">所有人都猜過一圈了</p>
 
-                <div v-if="state.isHost" style="display:flex;flex-direction:column;gap:10px">
+                <div v-if="roomState.isHost" style="display:flex;flex-direction:column;gap:10px">
                     <button class="btn-primary"
                         style="background:linear-gradient(135deg,#0891B2,#06B6D4);border-color:rgba(6,182,212,0.4)"
                         @click="handleContinue">
@@ -453,29 +453,27 @@
             </div>
         </Transition>
 
-        <!-- 結果揭曉卡片（取代全屏倒數） -->
+        <!-- 結果 overlay：短倒數(1.2s) → reveal(1.2s)；答案/AB 已在猜題者卡片內，不重複顯示 -->
         <Transition name="result-card">
             <div v-if="resultCard.show" class="result-card-overlay" aria-live="assertive">
-                <div class="result-card-box" :class="resultCard.phase === 'reveal' ? (resultCard.correct ? 'result-card-box--correct' : 'result-card-box--wrong') : ''">
-                    <!-- 計算中 -->
-                    <template v-if="resultCard.phase === 'counting'">
-                        <div class="result-card-spinner"></div>
-                        <p class="result-card-label">計算中…</p>
+                <div class="result-card-box"
+                    :class="resultCard.phase === 'reveal' ? (resultCard.correct ? 'result-card-box--correct' : 'result-card-box--wrong') : ''">
+                    <!-- 倒數 -->
+                    <template v-if="resultCard.phase === 'countdown'">
+                        <div :key="resultCard.countdownNum" class="result-card-countdown">
+                            {{ resultCard.countdownNum }}
+                        </div>
                     </template>
                     <!-- 揭曉 -->
-                    <template v-else-if="resultCard.phase === 'reveal'">
+                    <template v-else>
                         <div class="result-card-emoji" :class="resultCard.correct ? 'pop-in' : 'shake'">
                             {{ resultCard.correct ? '🎉' : '😅' }}
                         </div>
-                        <p class="result-card-verdict">{{ resultCard.correct ? '答對了！' : '答錯了' }}</p>
-                        <p class="result-card-answer">
-                            {{ resultCard.answer || '（空白）' }}
+                        <p class="result-card-verdict">
+                            {{ resultCard.correct
+                                ? '答對了！'
+                                : (resultCard.isFinal ? '答錯了' : '答錯，進入第二輪') }}
                         </p>
-                        <div v-if="resultCard.a !== null" class="result-card-ab">
-                            <span class="ab-a">{{ resultCard.a }}A</span>
-                            <span class="ab-b">{{ resultCard.b }}B</span>
-                        </div>
-                        <p v-if="!resultCard.correct && !resultCard.isFinal" class="result-card-next">進入第二輪…</p>
                     </template>
                 </div>
             </div>
@@ -512,6 +510,7 @@ function toggleTheme() {
 const {
     state,
     roomState,
+    playersWithRoles,
     connect,
     submitHint,
     submitGuess,
@@ -545,7 +544,7 @@ const hintInput = ref('')
 const hintError = ref('')
 const hintSubmitted = computed(() => {
     const isHintPhase = state.status === 'round1' || state.status === 'round2'
-    return isHintPhase && state.submittedPlayerIds.includes(state.myPlayerId)
+    return isHintPhase && state.submittedPlayerIds.includes(roomState.myPlayerId)
 })
 const maxHintChars = computed(() => state.myQuota || 4)
 
@@ -585,24 +584,26 @@ const phaseFlash = ref({ show: false, title: '', desc: '' })
 let _phaseFlashTimer = null
 
 // ── 結果揭曉卡片 ──────────────────────────────────────────────────
-const resultCard = ref({ show: false, phase: 'counting', correct: false, answer: '', a: null, b: null, isFinal: false })
+const resultCard = ref({ show: false, phase: 'countdown', countdownNum: 3, correct: false, answer: '', a: null, b: null, isFinal: false })
 let _resultCardTimer = null
 
 function showResultCard({ correct, answer, a, b, isFinal }) {
-    // 清掉上次
+    // 1.2s 倒數（3→2→1 各 400ms）營造期待感 → 1.2s reveal → 收起
     clearTimeout(_resultCardTimer)
-    resultCard.value = { show: true, phase: 'counting', correct, answer, a, b: b ?? null, isFinal: isFinal ?? false }
-    // 1.5s 後翻牌揭曉
-    _resultCardTimer = setTimeout(() => {
-        resultCard.value.phase = 'reveal'
-        // 如果是答錯第一輪，再等 3.2s 後收起（讓 round2 phase-flash 接手）
-        if (!correct && !isFinal) {
-            _resultCardTimer = setTimeout(() => { resultCard.value.show = false }, 3200)
+    resultCard.value = {
+        show: true, phase: 'countdown', countdownNum: 3,
+        correct, answer, a, b: b ?? null, isFinal: isFinal ?? false
+    }
+    const tick = () => {
+        if (resultCard.value.countdownNum > 1) {
+            resultCard.value.countdownNum--
+            _resultCardTimer = setTimeout(tick, 400)
         } else {
-            // 答對或第二輪結束，等 4.5s 後收起
-            _resultCardTimer = setTimeout(() => { resultCard.value.show = false }, 4500)
+            resultCard.value.phase = 'reveal'
+            _resultCardTimer = setTimeout(() => { resultCard.value.show = false }, 1200)
         }
-    }, 1500)
+    }
+    _resultCardTimer = setTimeout(tick, 400)
 }
 
 // 綁定 composable 的猜題結果回調
@@ -682,7 +683,7 @@ function showToast(msg, type = '', duration = 3000) {
 
 // ── 工具 ──────────────────────────────────────────────────────────
 function playerName(pid) {
-    return state.players.find(p => p.id === pid)?.nickname ?? pid
+    return playersWithRoles.value.find(p => p.id === pid)?.nickname ?? pid
 }
 
 const GAME_PHASES = ['round1', 'round2', 'round1-result', 'round2-result', 'revealing']
@@ -697,10 +698,10 @@ const currentPhaseTitle = computed(() => {
     if (state.status === 'finished') return '本局結束'
     return '等待開始'
 })
-const cluePlayers = computed(() => state.players.filter(p => p.role !== 'guesser'))
+const cluePlayers = computed(() => playersWithRoles.value.filter(p => p.role !== 'guesser'))
 const currentGuesserName = computed(() => {
-    const guesser = state.players.find(p => p.id === state.currentGuesserPlayerId) ||
-        state.players.find(p => p.role === 'guesser')
+    const guesser = playersWithRoles.value.find(p => p.id === state.currentGuesserPlayerId) ||
+        playersWithRoles.value.find(p => p.role === 'guesser')
     return guesser?.nickname || '尚未分配'
 })
 const isHintPhase = computed(() => state.status === 'round1' || state.status === 'round2')
@@ -724,8 +725,8 @@ const phaseHintText = computed(() => {
 })
 const liveStatusText = computed(() => {
     if (state.loading) return state.loadingText || '連線中'
-    if (!state.room) return ''
-    if (state.status === 'waiting') return `目前 ${state.players.length} 人，等待遊戲開始`
+    if (!roomState.room) return ''
+    if (state.status === 'waiting') return `目前 ${playersWithRoles.value.length} 人，等待遊戲開始`
     if (state.status === 'round1' || state.status === 'round2') return `提示階段，剩餘 ${state.timerRemaining} 秒`
     if (state.status === 'round1-result' || state.status === 'round2-result') return `作答階段，剩餘 ${guessTimerRemaining.value} 秒`
     if (state.status === 'revealing') return state.guessResult?.correct ? '本輪答對' : '本輪未答對'
@@ -790,7 +791,7 @@ function getPlayerCardClass(role, playerId) {
     }
     else classes.push('cs-player-card--clue')
 
-    if (playerId === state.myPlayerId) classes.push('cs-player-card--self')
+    if (playerId === roomState.myPlayerId) classes.push('cs-player-card--self')
     return classes
 }
 
@@ -834,7 +835,7 @@ function triggerPhaseCue(status) {
         detail: {
             cue,
             status,
-            roomId: state.roomId,
+            roomId: roomState.roomId,
             at: Date.now(),
         },
     }))
@@ -914,7 +915,7 @@ function joinWithNickname() {
     const isCreating = route.query.create === '1'
     const maxPlayers = parseInt(route.query.max) || 6
     const themePreference = parseInt(route.query.theme ?? '-1')
-    connect(state.roomId || route.query.id, nickname, isCreating, maxPlayers, themePreference)
+    connect(roomState.roomId || route.query.id, nickname, isCreating, maxPlayers, themePreference)
 }
 
 // ── 初始化 ────────────────────────────────────────────────────────
@@ -931,7 +932,7 @@ onMounted(() => {
     if (!roomId) { router.push({ name: 'character-storm' }); return }
 
     if (!nickname) {
-        state.roomId = roomId
+        roomState.roomId = roomId
         showNicknameOverlay.value = true
         nextTick(() => overlayInputRef.value?.focus())
         return

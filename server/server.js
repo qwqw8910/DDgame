@@ -79,12 +79,6 @@ function getGameCache(roomId) {
 
 const DB = {
 
-  async getRoom(roomId) {
-    const { data, error } = await db.from('rooms').select('*').eq('id', roomId).single();
-    if (error) throw error;
-    return data;
-  },
-
   async updateRoom(roomId, updates) {
     const { data, error } = await db.from('rooms')
       .update({ ...updates, updated_at: new Date().toISOString() })
@@ -268,6 +262,7 @@ const { registerRoomHandlers } = require('./room');
 
 const { roomCache } = registerRoomHandlers(io, db, {
 
+  appId:      'know-me',   // 對齊 DB rooms.app_id 預設值（見 sql/001_room_module_migration.sql）
   minPlayers: 2,
 
   // 懂我再說允許遊戲進行中隨時加入
@@ -342,7 +337,7 @@ const { roomCache } = registerRoomHandlers(io, db, {
         const nextSubjectId = pool[0];
         gc.round_pool      = pool.slice(1);
         const newRound     = await DB.createRound(roomId, round.round_number + 1, nextSubjectId);
-        await DB.updateRoom(roomId, { current_round_id: newRound.id });
+        await persistRoomUpdate(roomId, { current_round_id: newRound.id });
         gc.currentRound    = newRound;
         gc.currentQuestion = null;
         gc.guesses         = [];
@@ -365,6 +360,13 @@ const { roomCache } = registerRoomHandlers(io, db, {
     }
   },
 });
+
+// 寫房間更新時，同時持久化 DB + 同步 roomCache，避免兩處遺漏
+async function persistRoomUpdate(roomId, updates) {
+  const updated = await DB.updateRoom(roomId, updates);
+  roomCache.updateRoom(roomId, updates);
+  return updated;
+}
 
 // ================================================================
 //  Socket.io 遊戲事件（房間管理由 registerRoomHandlers 負責）
@@ -394,8 +396,10 @@ io.on('connection', (socket) => {
       gc.round_pool = shuffled.slice(1).map(p => p.id);
       const firstSubject = shuffled[0];
       const round = await DB.createRound(roomId, 1, firstSubject.id);
-      const updatedRoom = await DB.updateRoom(roomId, { status: 'playing', current_round_id: round.id });
-      roomCache.updateRoom(roomId, { status: 'playing', current_round_id: round.id });
+      const updatedRoom = await persistRoomUpdate(roomId, { status: 'playing', current_round_id: round.id });
+
+      // 選主題階段需要 topics 清單；buildGameState 只在 reconnect 時補發，這裡確保所有玩家拿到
+      if (!gc.topics) gc.topics = await DB.getTopics();
 
       gc.currentRound    = round;
       gc.currentQuestion = null;
@@ -404,6 +408,7 @@ io.on('connection', (socket) => {
       io.to(roomId).emit('game_started', {
         room:         updatedRoom,
         currentRound: buildRoundPayload(round),
+        topics:       gc.topics,
       });
     } catch (err) {
       socket.emit('error', { message: err.message });
@@ -557,8 +562,7 @@ io.on('connection', (socket) => {
       const nextSubjectId = pool[0];
       gc.round_pool = pool.slice(1);
       const newRound = await DB.createRound(roomId, round.round_number + 1, nextSubjectId);
-      const updatedRoom = await DB.updateRoom(roomId, { current_round_id: newRound.id });
-      roomCache.updateRoom(roomId, { current_round_id: newRound.id });
+      const updatedRoom = await persistRoomUpdate(roomId, { current_round_id: newRound.id });
 
       gc.currentRound    = newRound;
       gc.currentQuestion = null;
@@ -586,8 +590,7 @@ io.on('connection', (socket) => {
       if (gc.currentRound) {
         await DB.updateRound(gc.currentRound.id, { status: 'finished' });
       }
-      const updatedRoom = await DB.updateRoom(roomId, { status: 'finished' });
-      roomCache.updateRoom(roomId, { status: 'finished' });
+      const updatedRoom = await persistRoomUpdate(roomId, { status: 'finished' });
       gc.currentRound = null;
 
       const players = await DB.getPlayers(roomId);
@@ -614,8 +617,7 @@ io.on('connection', (socket) => {
       await Promise.all(players.map(p =>
         DB.updatePlayer(p.id, { is_ready: false, score: 0 })
       ));
-      const updatedRoom = await DB.updateRoom(roomId, { status: 'waiting', current_round_id: null });
-      roomCache.updateRoom(roomId, { status: 'waiting', current_round_id: null });
+      const updatedRoom = await persistRoomUpdate(roomId, { status: 'waiting', current_round_id: null });
       players.forEach(p => roomCache.updatePlayer(roomId, p.id, { is_ready: false, score: 0 }));
 
       gc.currentRound    = null;

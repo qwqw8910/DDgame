@@ -41,10 +41,10 @@ function calculateAB(word, guess) {
 }
 
 // ────────────────────────────────────────────────────────────────
-//  遊戲快取（只存遊戲狀態；房間/玩家List由 RoomModule 的 roomCache 管理）
+//  遊戲快取（只存遊戲狀態；房間/玩家清單與在線狀態由 RoomModule 的 roomCache 管理）
 //
 //  csCache[roomId] = {
-//    hostId, maxPlayers, status, players
+//    maxPlayers, status, players (id/nickname/socketId/role/quota),
 //    currentGuesserIndex, roundNumber, guesserHistory,
 //    currentWord, usedWordIds, themePreference, themeId,
 //    roundPhase, round1Hints, round2Hints, symbolMap,
@@ -54,9 +54,8 @@ function calculateAB(word, guess) {
 // ────────────────────────────────────────────────────────────────
 const csCache = {};
 
-function initGame(roomId, hostId, maxPlayers, themePreference = -1) {
+function initGame(roomId, maxPlayers, themePreference = -1) {
   csCache[roomId] = {
-    hostId,
     maxPlayers,
     status:              'waiting',
     players:             [],
@@ -80,6 +79,15 @@ function initGame(roomId, hostId, maxPlayers, themePreference = -1) {
 }
 
 function getGame(roomId) { return csCache[roomId] || null; }
+
+// 在線/房主判斷一律走 roomCache，避免雙寫 desync
+function isOnline(roomCache, roomId, playerId) {
+  return roomCache?.getEntry(roomId)?.players.find(p => p.id === playerId)?.is_online ?? false;
+}
+
+function isHost(roomCache, roomId, playerId) {
+  return roomCache?.getEntry(roomId)?.room?.host_player_id === playerId;
+}
 
 // ── DB 工具（只有遊戲相關，房間/玩家 DB 操作已移至 RoomModule）──
 function makeDB(db) {
@@ -172,26 +180,28 @@ function startTimer(ns, roomId, game, onExpire) {
 }
 
 // ── 廣播工具 ─────────────────────────────────────────────────────
-function buildPlayerList(game) {
+function buildPlayerList(game, roomCache, roomId) {
   return game.players.map(p => ({
-    id: p.id, nickname: p.nickname, role: p.role, quota: p.quota, connected: p.connected,
+    id: p.id, nickname: p.nickname, role: p.role, quota: p.quota,
+    connected: isOnline(roomCache, roomId, p.id),
   }));
 }
 
 function getCurrentGuesser(game) { return game.players[game.currentGuesserIndex] ?? null; }
 
-function pickRandomConnectedGuesserIndex(game) {
-  const candidates = game.players.map((p, i) => ({ p, i })).filter(({ p }) => p?.connected);
+function pickRandomConnectedGuesserIndex(game, roomCache, roomId) {
+  const candidates = game.players.map((p, i) => ({ p, i }))
+    .filter(({ p }) => isOnline(roomCache, roomId, p?.id));
   if (!candidates.length) return 0;
   return candidates[Math.floor(Math.random() * candidates.length)].i;
 }
 
-function findNextGuesserIndex(game) {
+function findNextGuesserIndex(game, roomCache, roomId) {
   const total = game.players.length;
   for (let i = 1; i <= total; i++) {
     const idx    = (game.currentGuesserIndex + i) % total;
     const player = game.players[idx];
-    if (!player?.connected) continue;
+    if (!player || !isOnline(roomCache, roomId, player.id)) continue;
     if (!game.guesserHistory.includes(player.id)) return idx;
   }
   return -1;
@@ -235,7 +245,7 @@ async function processRoundHints(ns, roomId, game, isRound2) {
 }
 
 // ── 核心：開始新一輪（新猜題者）─────────────────────────────────
-async function startNewGuesserRound(ns, DB, roomId, game) {
+async function startNewGuesserRound(ns, DB, roomCache, roomId, game) {
   game.round1Hints = {};
   game.round2Hints = {};
   game.symbolMap   = {};
@@ -255,7 +265,7 @@ async function startNewGuesserRound(ns, DB, roomId, game) {
   ns.to(roomId).emit('cs:round1-start', {
     roundNumber:         game.roundNumber,
     currentGuesserIndex: game.currentGuesserIndex,
-    players:             buildPlayerList(game),
+    players:             buildPlayerList(game, roomCache, roomId),
   });
 
   for (const player of game.players) {
@@ -269,7 +279,7 @@ async function startNewGuesserRound(ns, DB, roomId, game) {
     clearTimer(game);
     game.status = 'finished'; game.roundPhase = null;
     ns.to(roomId).emit('cs:error', { code: 'NO_WORD_LEFT', message: '本局題庫已用完，直接結束本局。' });
-    ns.to(roomId).emit('cs:finished', { players: buildPlayerList(game) });
+    ns.to(roomId).emit('cs:finished', { players: buildPlayerList(game, roomCache, roomId) });
     return;
   }
 
@@ -287,7 +297,7 @@ async function startNewGuesserRound(ns, DB, roomId, game) {
 }
 
 // ── 核心：啟動第二輪 ─────────────────────────────────────────────
-async function startRound2(ns, roomId, game) {
+async function startRound2(ns, roomCache, roomId, game) {
   game.round2Hints = {};
   game.roundPhase  = 'round2';
 
@@ -295,7 +305,7 @@ async function startRound2(ns, roomId, game) {
     if (p.role !== 'guesser') p.quota = ROUND2_QUOTA;
   }
 
-  ns.to(roomId).emit('cs:round2-start', { players: buildPlayerList(game) });
+  ns.to(roomId).emit('cs:round2-start', { players: buildPlayerList(game, roomCache, roomId) });
 
   for (const player of game.players) {
     const sock = ns.sockets.get(player.socketId);
@@ -329,6 +339,7 @@ function registerNamespace(io, db) {
   let _roomCache = null;
 
   const hooks = {
+    appId:      'character-storm',
     minPlayers: 2, // TODO: 正式上線改回 4
 
     canJoinAsPlayer(roomId) {
@@ -355,7 +366,7 @@ function registerNamespace(io, db) {
         currentGuesserIndex: game.currentGuesserIndex,
         themePreference:     game.themePreference,
         timerRemaining:      game.timerRemaining,
-        players:             buildPlayerList(game),
+        players:             buildPlayerList(game, _roomCache, roomId),
       };
     },
 
@@ -363,15 +374,15 @@ function registerNamespace(io, db) {
       let game = getGame(roomId);
       if (!game) {
         // csCache 尚未建立 → 從 roomCache 同步初始化（建立房間或重連時）
-        const entry = _roomCache?._cache?.[roomId];
+        const entry = _roomCache?.getEntry(roomId);
         if (!entry) return;
         const pref = entry.room.options?.themePreference ?? -1;
-        game = initGame(roomId, entry.room.host_player_id, entry.room.max_players, pref);
+        game = initGame(roomId, entry.room.max_players, pref);
         for (const p of entry.players) {
           game.players.push({
             id: p.id, nickname: p.nickname,
             socketId: p.id === playerId ? socket.id : null,
-            role: null, quota: null, connected: p.is_online ?? true,
+            role: null, quota: null,
           });
         }
         console.log(`[CS] initGame from roomCache: ${roomId} (${game.players.length} players)`);
@@ -381,15 +392,14 @@ function registerNamespace(io, db) {
       // 同步 socketId
       const p = game.players.find(p => p.id === playerId);
       if (p) {
-        p.socketId  = socket.id;
-        p.connected = true;
+        p.socketId = socket.id;
       } else {
         // 新玩家後加入（觀戰升玩家等）
-        const entry = _roomCache?._cache?.[roomId];
+        const entry = _roomCache?.getEntry(roomId);
         const rp = entry?.players.find(ep => ep.id === playerId);
         game.players.push({
           id: playerId, nickname: rp?.nickname ?? '', socketId: socket.id,
-          role: null, quota: null, connected: true,
+          role: null, quota: null,
         });
       }
 
@@ -432,23 +442,20 @@ function registerNamespace(io, db) {
       if (!p) return;
 
       if (reason === 'disconnect') {
-        p.connected = false;
-        p.socketId  = null;
+        p.socketId = null;
       } else {
         game.players = game.players.filter(p => p.id !== playerId);
       }
 
-      if (game.hostId === playerId) {
-        const next = game.players.find(p => p.connected && p.id !== playerId);
-        if (next) game.hostId = next.id;
-      }
+      // 房主轉移由統一房間模組處理
 
       // 若在提示輸入中且剩餘在線提示者全已送出 → 提前結束倒數
       if (['round1', 'round2'].includes(game.roundPhase)) {
         const isRound2 = game.roundPhase === 'round2';
         const hintRecord = isRound2 ? game.round2Hints : game.round1Hints;
-        const activeProviders = game.players.filter(p => p.role !== 'guesser' && p.connected);
-        if (activeProviders.length > 0 && activeProviders.every(p => hintRecord[p.id])) {
+        const activeProviders = game.players.filter(pp =>
+          pp.role !== 'guesser' && isOnline(_roomCache, roomId, pp.id));
+        if (activeProviders.length > 0 && activeProviders.every(pp => hintRecord[pp.id])) {
           processRoundHints(ns, roomId, game, isRound2).catch(console.error);
         }
       }
@@ -460,7 +467,7 @@ function registerNamespace(io, db) {
       if (!game.players.find(p => p.id === playerId)) {
         game.players.push({
           id: playerId, nickname: '', socketId: socket.id,
-          role: null, quota: null, connected: true,
+          role: null, quota: null,
         });
       }
     },
@@ -481,7 +488,7 @@ function registerNamespace(io, db) {
       try {
         const game = getGame(roomId);
         if (!game) return socket.emit('cs:error', { code: 'ROOM_NOT_FOUND', message: '房間不存在' });
-        if (game.hostId !== playerId)
+        if (!isHost(_roomCache, roomId, playerId))
           return socket.emit('cs:error', { code: 'FORBIDDEN', message: '只有房主可以開始遊戲' });
         if (game.players.length < hooks.minPlayers)
           return socket.emit('cs:error', { code: 'NOT_ENOUGH', message: `至少需要 ${hooks.minPlayers} 位玩家！` });
@@ -489,13 +496,13 @@ function registerNamespace(io, db) {
 
         if (themePreference !== undefined) game.themePreference = Number(themePreference);
         game.status              = 'playing';
-        game.currentGuesserIndex = pickRandomConnectedGuesserIndex(game);
+        game.currentGuesserIndex = pickRandomConnectedGuesserIndex(game, _roomCache, roomId);
         game.themeId             = game.themePreference === -1 ? pickRandomTheme() : game.themePreference;
         game.roundNumber         = 1;
         game.guesserHistory      = [];
         game.usedWordIds         = [];
 
-        await startNewGuesserRound(ns, DB, roomId, game);
+        await startNewGuesserRound(ns, DB, _roomCache, roomId, game);
       } catch (err) {
         console.error('[CS cs:start]', err.message);
         socket.emit('cs:error', { code: 'START_FAILED', message: err.message });
@@ -563,7 +570,7 @@ function registerNamespace(io, db) {
           wasRound2: isRound2, a: ab.a, b: ab.b,
         });
 
-        if (!correct && !isRound2) setTimeout(() => startRound2(ns, roomId, game), 2000);
+        if (!correct && !isRound2) setTimeout(() => startRound2(ns, _roomCache, roomId, game), 2000);
       } catch (err) {
         console.error('[CS cs:submit-guess]', err.message);
       }
@@ -575,21 +582,21 @@ function registerNamespace(io, db) {
       if (!roomId || !playerId) return;
       try {
         const game = getGame(roomId);
-        if (!game || game.hostId !== playerId) return;
+        if (!game || !isHost(_roomCache, roomId, playerId)) return;
         if (game.roundPhase !== 'revealing') return;
 
         const prevGuesser = getCurrentGuesser(game);
         if (prevGuesser) game.guesserHistory.push(prevGuesser.id);
 
-        const nextIndex = findNextGuesserIndex(game);
+        const nextIndex = findNextGuesserIndex(game, _roomCache, roomId);
         if (nextIndex === -1) {
           game.status = 'finished'; game.roundPhase = null;
           clearTimer(game);
-          ns.to(roomId).emit('cs:finished', { players: buildPlayerList(game) });
+          ns.to(roomId).emit('cs:finished', { players: buildPlayerList(game, _roomCache, roomId) });
         } else {
           game.currentGuesserIndex = nextIndex;
           game.roundNumber        += 1;
-          await startNewGuesserRound(ns, DB, roomId, game);
+          await startNewGuesserRound(ns, DB, _roomCache, roomId, game);
         }
       } catch (err) { console.error('[CS cs:next-round]', err.message); }
     });
@@ -600,16 +607,16 @@ function registerNamespace(io, db) {
       if (!roomId || !playerId) return;
       try {
         const game = getGame(roomId);
-        if (!game || game.hostId !== playerId) return;
+        if (!game || !isHost(_roomCache, roomId, playerId)) return;
 
         game.status = 'playing';
-        game.currentGuesserIndex = pickRandomConnectedGuesserIndex(game);
+        game.currentGuesserIndex = pickRandomConnectedGuesserIndex(game, _roomCache, roomId);
         game.themeId  = game.themePreference === -1 ? pickRandomTheme() : game.themePreference;
         game.roundNumber = 1; game.guesserHistory = []; game.usedWordIds = [];
         game.symbolMap = {}; game.round1Hints = {}; game.round2Hints = {};
         game.roundPhase = null; game.cachedRound1Result = null; game.cachedRound2Result = null;
 
-        await startNewGuesserRound(ns, DB, roomId, game);
+        await startNewGuesserRound(ns, DB, _roomCache, roomId, game);
       } catch (err) { console.error('[CS cs:continue]', err.message); }
     });
 
@@ -618,10 +625,10 @@ function registerNamespace(io, db) {
       const { playerId } = socket.data ?? {};
       if (!roomId || !playerId) return;
       const game = getGame(roomId);
-      if (!game || game.hostId !== playerId) return;
+      if (!game || !isHost(_roomCache, roomId, playerId)) return;
       clearTimer(game);
       game.status = 'finished'; game.roundPhase = null;
-      ns.to(roomId).emit('cs:finished', { players: buildPlayerList(game) });
+      ns.to(roomId).emit('cs:finished', { players: buildPlayerList(game, _roomCache, roomId) });
     });
 
     // ── 丟火/丟雞蛋互動（任何玩家都可對其他人發動）────────

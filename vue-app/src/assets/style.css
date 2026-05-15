@@ -421,10 +421,6 @@
   60% { transform: scale(1.2); }
   100% { transform: scale(1); opacity: 1; }
 }
-@keyframes float-up {
-  0%   { transform: translateY(0) scale(1); opacity: 1; }
-  100% { transform: translateY(-200px) scale(1.4); opacity: 0; }
-}
 @keyframes float {
   0%,100% { transform: translateY(0); }
   50%     { transform: translateY(-12px); }
@@ -786,11 +782,13 @@ body::before {
 
 /* ── Topic Cards ─────────────────────────────────────────────── */
 .topic-card {
-  border-radius: 12px; padding: 22px 16px;
+  border-radius: 16px; padding: 40px 24px;
   cursor: pointer; text-align: center;
   border: 2px solid rgba(255,255,255,0.08);
   transition: transform .2s ease, box-shadow .2s ease, border-color .2s;
   position: relative; overflow: hidden;
+  min-height: 180px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
 .topic-card::before {
   content: '';
@@ -1337,8 +1335,53 @@ body::before {
 }
 .page-wrapper .sticky-header { flex-shrink: 0; }
 /* 一般頁面（大廳等） */
-.main-content { max-width: 500px; margin: 0 auto; padding: 16px; flex: 1; overflow-y: auto; min-height: 0; }
-.main-content--room { padding-bottom: 16px; }
+.main-content { max-width: 1100px; margin: 0 auto; padding: 16px; flex: 1; overflow-y: auto; min-height: 0; }
+.main-content--room { max-width: 1100px; padding-bottom: 88px; }
+/* 懂我再說 playing 階段：以 page-wrapper--scrollable scope，避免影響默契傳聲筒雙欄 layout */
+.page-wrapper--scrollable .main-content--game { padding: 24px 32px 88px !important; max-width: none !important; margin: 0 auto !important; overflow: visible !important; height: auto !important; }
+.page-wrapper--scrollable .main-content--game .topic-grid,
+.page-wrapper--scrollable .main-content--game .game-section,
+.page-wrapper--scrollable .main-content--game .reveal-layout { max-width: 1400px; margin-left: auto; margin-right: auto; }
+@media (max-width: 640px) {
+  .page-wrapper--scrollable .main-content--game { padding: 16px 12px 88px !important; }
+}
+
+/* 不需要鎖死 100vh 的頁面（如懂我再說 RoomPage）：scrollbar 出現在 viewport 右邊，不夾在內容中間 */
+.page-wrapper--scrollable { height: auto; min-height: 100vh; overflow: visible; }
+.page-wrapper--scrollable .main-content { overflow-y: visible; }
+
+/* ── Reveal 階段：雙欄 layout（左:正解+猜測，右:排名+CTA） ─── */
+.reveal-section { padding-bottom: 0; }
+.reveal-header {
+  display: flex; align-items: center; gap: 12px;
+  justify-content: center; margin-bottom: 12px;
+}
+.reveal-header .section-icon { font-size: 32px; }
+.reveal-title {
+  font-size: 22px; margin: 0;
+  display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.topic-badge--inline { font-size: 12px; padding: 2px 8px; }
+.reveal-layout {
+  display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px;
+  align-items: start;
+}
+.reveal-left, .reveal-scoreboard { padding: 18px !important; }
+.reveal-right { display: flex; flex-direction: column; gap: 12px; }
+.reveal-answer-block { margin-bottom: 16px; }
+.reveal-actions {
+  margin: 12px 0 0 !important;
+  grid-column: 1 / -1;
+  flex-direction: row !important;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.reveal-actions .btn-primary,
+.reveal-actions .btn-ghost { flex: 1 1 0; min-width: 160px; }
+@media (max-width: 768px) {
+  .reveal-layout { grid-template-columns: 1fr; }
+}
 .main-content--lobby { width: 100% !important; max-width: 900px !important; margin: 0 auto !important; }
 /* 遊戲進行中：全寬左右排版 */
 .main-content--game {
@@ -1400,6 +1443,28 @@ body::before {
   border-top: 1px solid var(--border);
   background: var(--bg-card);
 }
+/* 猜題者卡片內的 R1 / R2 答案列 */
+.cs-guess-rows {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cs-guess-row {
+  display: flex; align-items: center; gap: 8px; justify-content: center;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  min-height: 28px;
+}
+.cs-guess-label { font-size: 10px; color: var(--label); font-weight: 600; }
+.cs-guess-answer { font-size: 14px; font-weight: 700; color: var(--heading); }
+.cs-guess-ab { font-weight: 700; font-size: 12px; }
+.cs-guess-ab--a { color: var(--neon-cyan); }
+.cs-guess-ab--b { color: #F59E0B; }
+.cs-guess-pending { font-size: 12px; color: var(--body); }
+.cs-guess-empty { font-size: 12px; color: var(--body); opacity: 0.4; }
+
 /* 玩家卡片 */
 .cs-player-card {
   padding: 10px !important;
@@ -1467,7 +1532,15 @@ body::before {
 .section-hint { font-size: 16px; color: var(--body); margin: 0; }
 
 /* ── Topic grid ── */
-.topic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.topic-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .topic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+}
 
 /* ── Choices ── */
 .choices-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -1512,11 +1585,23 @@ body::before {
 
 /* ── Reaction ── */
 .reaction-container { position: fixed; bottom: 80px; left: 0; right: 0; height: 200px; overflow: hidden; pointer-events: none; z-index: 50; }
-.floating-reaction { position: absolute; bottom: 0; text-align: center; font-size: 36px; animation: float-up 2.5s ease-out forwards; }
+.floating-reaction {
+  position: absolute; bottom: 0; text-align: center; font-size: 36px;
+  animation: float-up 2.5s ease-out forwards;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
 .reaction-name { font-size: 16px; color: var(--neon-purple); font-weight: 500; }
 .reaction-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card-solid); border-top: 1px solid var(--border); display: flex; justify-content: center; gap: 8px; padding: 10px; z-index: 60; }
-.reaction-btn { background: none; border: none; font-size: 24px; cursor: pointer; padding: 4px 8px; border-radius: 8px; transition: transform 0.15s; }
-.reaction-btn:hover { transform: scale(1.3); }
+.reaction-btn {
+  background: none; border: none;
+  font-size: 24px; cursor: pointer;
+  padding: 6px 12px; border-radius: 10px;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.12s;
+  user-select: none;
+}
+.reaction-btn:hover { transform: scale(1.2); background: rgba(255,255,255,0.06); }
+.reaction-btn:active { transform: scale(0.85); background: rgba(255,255,255,0.12); }
 
 /* ── Waiting ── */
 .waiting-container { display: flex; flex-direction: column; align-items: center; padding: 48px 0; }
@@ -1528,6 +1613,21 @@ body::before {
 /* ── Toast transition ── */
 .toast-enter-active, .toast-leave-active { transition: opacity 0.3s, transform 0.3s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(20px); }
+
+/* 結果倒數數字（揭曉前 1.2s 期待感） */
+.result-card-countdown {
+  font-size: 96px;
+  font-weight: 800;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 24px rgba(6, 182, 212, 0.5);
+  animation: count-pop 0.4s ease-out;
+  will-change: transform, opacity;
+}
+@keyframes count-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  50%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
 
 /* ── Float-up animation ── */
 @keyframes float-up {
