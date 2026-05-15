@@ -3,10 +3,10 @@
 //  房間部分由 useRoom() 處理（room:create / room:join / room:join-ack 等）
 //  本檔案只處理：cs:* 遊戲事件 + 遊戲狀態
 // ================================================================
-import { reactive, readonly } from 'vue'
+import { reactive, readonly, computed } from 'vue'
 import { io } from 'socket.io-client'
 import { getOrCreatePlayerId } from '../../../data/identity.js'
-import { useRoom, ROOM_EVENTS } from '../../../composables/useRoom.js'
+import { useRoom } from '../../../composables/useRoom.js'
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 const GAME_TIMER_SECONDS = 90
@@ -56,13 +56,8 @@ const gameState = reactive({
   loadingText: '',
   error: '',
   errorCode: '',
-  // ── 鏡像 roomState（讓 template 的 state.players 等可用）──
-  players:    [],
-  spectators: [],
-  room:       null,
-  roomId:     '',
-  myPlayerId: '',
-  isHost:     false,
+  // 角色資料（房間/玩家清單以 roomState 為準）
+  rolesById: {}, // { [playerId]: { role, quota } }
   // ── 串聊互動（丟火/丟雞蛋）──
   reactions:  {}, // { [playerId]: Array<{ id, emoji, fromPlayerId }> }
 })
@@ -136,10 +131,8 @@ function registerGameHandlers(socket) {
 
   // 進入第一輪
   socket.on('cs:round1-start', ({ currentGuesserIndex, players: updatedPlayers }) => {
-    // 玩家清單更新透過 room:players-updated 來，這裡有後端額外傳送時保留
     if (Array.isArray(updatedPlayers) && updatedPlayers.length) {
-      // 此事件的 players 含 role 等遊戲欄位，不干擾 roomState.players
-      _updateRoomPlayers(updatedPlayers)
+      _applyRoles(updatedPlayers)
     }
     gameState.status              = 'round1'
     gameState.currentWord         = null
@@ -160,7 +153,7 @@ function registerGameHandlers(socket) {
   socket.on('cs:round2-start', ({ players: updatedPlayers }) => {
     if (_revealTimer) { clearInterval(_revealTimer); _revealTimer = null }
     if (Array.isArray(updatedPlayers) && updatedPlayers.length) {
-      _updateRoomPlayers(updatedPlayers)
+      _applyRoles(updatedPlayers)
     }
     gameState.status             = 'round2'
     gameState.submittedPlayerIds = []
@@ -200,25 +193,21 @@ function registerGameHandlers(socket) {
   })
 }
 
-// 輔助：從 cs 遊戲事件更新 roomState 的 players（以 role/quota 等欄位為主）
+// 將遊戲事件帶來的 role/quota 寫進 gameState.rolesById；同步 currentGuesser / my* 欄位
 let _roomStateRef = null
-function _updateRoomPlayers(updatedPlayers) {
-  if (!_roomStateRef) return
-  // 以 ID 為鍵合併，保留 room 模組的 is_online/is_ready 欄位
-  const merged = _roomStateRef.players.map(p => {
-    const up = updatedPlayers.find(u => u.id === p.id)
-    return up ? { ...p, ...up } : p
-  })
-  // 同步角色合併結果到 gameState.players（讓 template 取得 role 等欄位）
-  gameState.players = merged
-  // 同步角色到 gameState
-  const guesser = merged.find(p => p.role === 'guesser')
-  gameState.currentGuesserPlayerId = guesser?.id ?? ''
-  if (_roomStateRef.myPlayerId) {
-    const me = merged.find(p => p.id === _roomStateRef.myPlayerId)
+function _applyRoles(updatedPlayers) {
+  for (const up of updatedPlayers) {
+    if (!up?.id) continue
+    gameState.rolesById[up.id] = { role: up.role ?? null, quota: up.quota ?? null }
+  }
+  const guesser = updatedPlayers.find(p => p.role === 'guesser')
+  if (guesser) gameState.currentGuesserPlayerId = guesser.id
+  const myId = _roomStateRef?.myPlayerId
+  if (myId) {
+    const me = updatedPlayers.find(p => p.id === myId)
     if (me) {
-      gameState.myRole   = me.role   ?? gameState.myRole
-      gameState.myQuota  = me.quota  ?? gameState.myQuota
+      gameState.myRole    = me.role  ?? gameState.myRole
+      gameState.myQuota   = me.quota ?? gameState.myQuota
       gameState.isGuesser = me.role === 'guesser'
     }
   }
@@ -233,27 +222,12 @@ export function useCharacterStorm() {
   const room = useRoom(socket, {
     onJoinAck(data) {
       gameState.loading = false
-      // ── 同步 roomState 鏡像屬性（讓 template state.players 等正常運作）
-      gameState.players    = data.players    ?? []
-      gameState.spectators = data.spectators ?? []
-      gameState.room       = data.room
-      gameState.roomId     = data.room?.id ?? ''
-      gameState.myPlayerId = data.myPlayerId
-      gameState.isHost     = data.room?.host_player_id === data.myPlayerId
-      // 從 gameState 恢復玩家角色（重連時）
-      if (data.gameState?.players) {
-        _updateRoomPlayers(data.gameState.players)
-      }
       const gs = data.gameState
       if (gs) {
-        gameState.status = gs.roundPhase || gs.status || 'waiting'
+        gameState.status          = gs.roundPhase || gs.status || 'waiting'
         gameState.themePreference = gs.themePreference ?? -1
-        if (Array.isArray(gs.players)) _updateRoomPlayers(gs.players)
+        if (Array.isArray(gs.players)) _applyRoles(gs.players)
       }
-    },
-    onPlayersUpdated(players) {
-      gameState.players = players
-      gameState.isHost  = room.roomState.isHost
     },
     onRoomError(code, message) {
       gameState.error     = message
@@ -262,18 +236,12 @@ export function useCharacterStorm() {
     },
   })
 
-  // 保存 roomState 引用供 _updateRoomPlayers 使用
+  // 保存 roomState 引用供 _applyRoles 使用
   _roomStateRef = room.roomState
 
   // socket 重連自動重新加入
   socket.on('connect', () => {
     room.rejoinOnReconnect()
-  })
-
-  // 房主更換時同步鏡像屬性
-  socket.on(ROOM_EVENTS.HOST_CHANGED, ({ newHostId }) => {
-    gameState.isHost = newHostId === gameState.myPlayerId
-    if (gameState.room) gameState.room = { ...gameState.room, host_player_id: newHostId }
   })
 
   // ── 連線進入遊戲 ──────────────────────────────────────────────
@@ -299,13 +267,8 @@ export function useCharacterStorm() {
     gameState.myRole    = role
     gameState.myQuota   = quota
     gameState.isGuesser = role === 'guesser'
-    // 同步更新 roomState players
-    if (_roomStateRef?.myPlayerId) {
-      const idx = _roomStateRef.players.findIndex(p => p.id === _roomStateRef.myPlayerId)
-      if (idx >= 0) {
-        _roomStateRef.players[idx] = { ..._roomStateRef.players[idx], role, quota }
-      }
-    }
+    const myId = _roomStateRef?.myPlayerId
+    if (myId) gameState.rolesById[myId] = { role, quota }
   })
 
   // ── 遊戲操作 ──────────────────────────────────────────────────
@@ -352,11 +315,22 @@ export function useCharacterStorm() {
     socket.emit('cs:react', { roomId: room.roomState.roomId, toPlayerId, emoji })
   }
 
+  // 合併 roomState.players（含 nickname / is_online 等）與 rolesById（role / quota）
+  const playersWithRoles = computed(() =>
+    room.roomState.players.map(p => ({
+      ...p,
+      role:  gameState.rolesById[p.id]?.role  ?? null,
+      quota: gameState.rolesById[p.id]?.quota ?? null,
+    }))
+  )
+
   return {
     // 遊戲狀態（唯讀）
     state: readonly(gameState),
     // 房間狀態（唯讀）
     roomState: room.roomState,
+    // 合併房間玩家 + 角色（template 用此取代舊 state.players）
+    playersWithRoles,
     // 連線 / 遊戲操作
     connect,
     submitHint,

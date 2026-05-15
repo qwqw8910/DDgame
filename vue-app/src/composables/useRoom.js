@@ -39,6 +39,9 @@ export const ROOM_EVENTS = {
   KICKED:              'room:kicked',
   ERROR:               'room:error',
   CLOSED:              'room:closed',
+
+  // ── Error codes（保持與 server/room/events.js 同步） ───────
+  ERR_WRONG_APP: 'ROOM_WRONG_APP',
 }
 
 /**
