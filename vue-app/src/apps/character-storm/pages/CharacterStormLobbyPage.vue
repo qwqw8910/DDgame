@@ -136,15 +136,35 @@
         <Transition name="toast">
             <div v-if="toast.show" :class="['toast', 'show', toast.type]">{{ toast.msg }}</div>
         </Transition>
+
+        <!-- 伺服器冷啟動等待框 -->
+        <Transition name="wakeup">
+            <div v-if="wakeup.active" class="wakeup-overlay" role="dialog" aria-live="polite"
+                aria-label="伺服器啟動中">
+                <div class="wakeup-card">
+                    <div class="wakeup-icon">⚡</div>
+                    <h3 class="wakeup-title">伺服器啟動中…</h3>
+                    <p class="wakeup-desc">後端使用 Render 免費方案，閒置後首次需重新啟動<br>約 30 ～ 60 秒，請稍候</p>
+                    <div class="wakeup-bar"><div class="wakeup-bar__fill"></div></div>
+                    <p class="wakeup-meta">
+                        已等待 <strong>{{ wakeup.elapsed }}</strong> 秒 · 第 <strong>{{ wakeup.attempts }}</strong> 次嘗試
+                    </p>
+                    <button class="btn-secondary wakeup-cancel" type="button" @click="cancelWakeup">取消</button>
+                </div>
+            </div>
+        </Transition>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '../../../data/identity.js'
 
 const router = useRouter()
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
+const HEALTH_TIMEOUT_MS = 5000
+const HEALTH_RETRY_INTERVAL_MS = 3000
 
 // 主題切換
 const isDark = ref(true)
@@ -181,6 +201,83 @@ function focusJoinNickname() {
     joinNicknameRef.value?.focus()
 }
 
+// ── 伺服器冷啟動偵測 ────────────────────────────────────────────
+// Render 免費方案閒置後首次連線需要 cold start（約 30 ~ 60 秒）；
+// 點下「建立/加入」時先 ping /health，未醒則顯示等待框、自動重試到醒為止
+const wakeup = ref({ active: false, elapsed: 0, attempts: 0 })
+let _wakeupRetryTimer = null
+let _wakeupTickTimer = null
+let _wakeupStart = 0
+let _wakeupCancelled = false
+
+async function pingHealth(timeoutMs = HEALTH_TIMEOUT_MS) {
+    const ctrl = new AbortController()
+    const tid = setTimeout(() => ctrl.abort(), timeoutMs)
+    try {
+        // mode:'no-cors' → 不需後端設 CORS 也能判斷「server 是否回應」
+        // 任何非網路錯誤的回傳都代表 server 已活著
+        await fetch(`${SERVER_URL}/health`, {
+            method: 'GET',
+            mode: 'no-cors',
+            cache: 'no-store',
+            signal: ctrl.signal,
+        })
+        return true
+    } catch (_) {
+        return false
+    } finally {
+        clearTimeout(tid)
+    }
+}
+
+function _stopWakeupTimers() {
+    clearTimeout(_wakeupRetryTimer)
+    clearInterval(_wakeupTickTimer)
+    _wakeupRetryTimer = null
+    _wakeupTickTimer = null
+}
+
+function cancelWakeup() {
+    _wakeupCancelled = true
+    _stopWakeupTimers()
+    wakeup.value.active = false
+    createLoading.value = false
+    joinLoading.value = false
+    showToast('已取消等待，可以稍後再試 👌', 'info')
+}
+
+async function ensureServerAlive() {
+    _wakeupCancelled = false
+
+    // Step 1：先試一次短 timeout，活著就直接 return
+    if (await pingHealth(HEALTH_TIMEOUT_MS)) return true
+
+    // Step 2：開等待框，每 N 秒重試一次
+    wakeup.value = { active: true, elapsed: 0, attempts: 1 }
+    _wakeupStart = Date.now()
+
+    _wakeupTickTimer = setInterval(() => {
+        wakeup.value.elapsed = Math.floor((Date.now() - _wakeupStart) / 1000)
+    }, 500)
+
+    return new Promise((resolve) => {
+        const retry = async () => {
+            if (_wakeupCancelled) { resolve(false); return }
+            wakeup.value.attempts++
+            const ok = await pingHealth(HEALTH_TIMEOUT_MS)
+            if (_wakeupCancelled) { resolve(false); return }
+            if (ok) {
+                _stopWakeupTimers()
+                wakeup.value.active = false
+                resolve(true)
+                return
+            }
+            _wakeupRetryTimer = setTimeout(retry, HEALTH_RETRY_INTERVAL_MS)
+        }
+        _wakeupRetryTimer = setTimeout(retry, HEALTH_RETRY_INTERVAL_MS)
+    })
+}
+
 onMounted(() => {
     isDark.value = document.documentElement.getAttribute('data-theme') !== 'light'
 
@@ -209,11 +306,14 @@ onMounted(() => {
     }
 })
 
-function handleCreateRoom() {
+async function handleCreateRoom() {
     const nickname = createNickname.value.trim()
     if (!nickname) { showToast('請輸入你的暱稱！', 'error'); return }
 
     createLoading.value = true
+    const alive = await ensureServerAlive()
+    if (!alive) { createLoading.value = false; return }  // 使用者取消
+
     try {
         getOrCreatePlayerId()
         const roomId = generateRoomId()
@@ -228,13 +328,16 @@ function handleCreateRoom() {
     }
 }
 
-function handleJoinRoom() {
+async function handleJoinRoom() {
     const code = joinCode.value.trim().toUpperCase()
     const nickname = joinNickname.value.trim()
     if (!code || code.length !== 6) { showToast('請輸入6碼房間碼！', 'error'); return }
     if (!nickname) { showToast('請輸入你的暱稱！', 'error'); return }
 
     joinLoading.value = true
+    const alive = await ensureServerAlive()
+    if (!alive) { joinLoading.value = false; return }  // 使用者取消
+
     try {
         saveNickname(nickname)
         router.push({
@@ -246,4 +349,133 @@ function handleJoinRoom() {
         joinLoading.value = false
     }
 }
+
+onUnmounted(() => {
+    _stopWakeupTimers()
+})
 </script>
+
+<style scoped>
+.wakeup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    place-items: center;
+    background: rgba(2, 8, 23, 0.62);
+    backdrop-filter: blur(6px);
+    padding: 20px;
+}
+
+.wakeup-card {
+    width: min(92vw, 380px);
+    padding: 28px 26px 22px;
+    border-radius: 18px;
+    border: 1px solid rgba(6, 182, 212, 0.45);
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.98), rgba(8, 47, 73, 0.92));
+    box-shadow: 0 24px 60px rgba(2, 8, 23, 0.55);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.wakeup-icon {
+    font-size: 44px;
+    line-height: 1;
+    animation: wakeupPulse 1.3s ease-in-out infinite;
+    filter: drop-shadow(0 0 16px rgba(6, 182, 212, 0.6));
+}
+
+@keyframes wakeupPulse {
+    0%, 100% { transform: scale(1); opacity: 0.85; }
+    50%      { transform: scale(1.12); opacity: 1; }
+}
+
+.wakeup-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 800;
+    color: #d7fbff;
+    letter-spacing: 0.02em;
+}
+
+.wakeup-desc {
+    margin: 0;
+    font-size: 13px;
+    color: #a5f3fc;
+    line-height: 1.6;
+}
+
+.wakeup-bar {
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(6, 182, 212, 0.18);
+    overflow: hidden;
+    margin: 6px 0 2px;
+}
+
+.wakeup-bar__fill {
+    height: 100%;
+    width: 35%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #06B6D4, #67E8F9, #06B6D4);
+    background-size: 200% 100%;
+    animation: wakeupSlide 1.6s linear infinite;
+}
+
+@keyframes wakeupSlide {
+    0%   { transform: translateX(-100%); background-position: 0% 50%; }
+    100% { transform: translateX(285%);  background-position: 100% 50%; }
+}
+
+.wakeup-meta {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--label);
+    letter-spacing: 0.02em;
+}
+
+.wakeup-meta strong {
+    color: var(--neon-cyan);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin: 0 2px;
+}
+
+.wakeup-cancel {
+    margin-top: 10px;
+    padding: 8px 22px;
+    font-size: 13px;
+}
+
+.wakeup-enter-active,
+.wakeup-leave-active {
+    transition: opacity 220ms ease;
+}
+
+.wakeup-enter-active .wakeup-card,
+.wakeup-leave-active .wakeup-card {
+    transition: transform 220ms ease, opacity 220ms ease;
+}
+
+.wakeup-enter-from,
+.wakeup-leave-to {
+    opacity: 0;
+}
+
+.wakeup-enter-from .wakeup-card,
+.wakeup-leave-to .wakeup-card {
+    transform: translateY(12px) scale(0.96);
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wakeup-icon,
+    .wakeup-bar__fill {
+        animation: none;
+    }
+}
+</style>

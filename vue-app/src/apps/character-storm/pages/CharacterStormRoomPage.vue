@@ -118,106 +118,84 @@
             <!-- ── 遊戲進行中（統一左右排版）── -->
             <div v-else-if="isGamePhase" class="cs-game-layout">
 
-                <!-- ── 左側面板 ── -->
+                <!-- ── 左側面板：階段+進度 / 玩家列表 / 退出 ── -->
                 <div class="cs-left-panel">
 
-                    <!-- 計時器列 -->
-                    <div class="game-card" style="padding:10px 14px">
-                        <div style="display:flex;align-items:center;justify-content:space-between">
-                            <span class="badge" style="background:rgba(6,182,212,0.15);color:var(--neon-cyan);
-                                  border:1px solid rgba(6,182,212,0.3);font-size:12px">
-                                <template v-if="state.status === 'round1'">第一輪 · 殘章</template>
-                                <template v-else-if="state.status === 'round2'">第二輪 · 長敘</template>
-                                <template v-else-if="state.status === 'round1-result'">第一輪線索</template>
-                                <template v-else-if="state.status === 'round2-result'">第二輪線索</template>
-                                <template v-else>揭曉</template>
-                            </span>
-                            <span style="font-size:20px;font-weight:700;font-family:'Source Code Pro',monospace"
-                                :class="{ 'timer-shake': activeTimer !== '' && activeTimer <= 10 }"
-                                :style="{ color: timerColor }">
-                                {{ activeTimer !== '' ? activeTimer + 's' : '' }}
-                            </span>
+                    <!-- 左上：階段 + 進度 -->
+                    <div class="game-card cs-phase-card" aria-live="polite">
+                        <p class="cs-phase-title">{{ phaseLabel }}</p>
+                        <div v-if="phaseTotal > 0" class="cs-progress-track" role="progressbar"
+                            :aria-valuemin="0" :aria-valuemax="phaseTotal" :aria-valuenow="phaseSubmitted"
+                            :aria-label="`提交進度 ${phaseSubmitted}/${phaseTotal}`">
+                            <div class="cs-progress-fill" :style="{ width: `${phaseProgressPct}%` }"></div>
                         </div>
-                    </div>
-
-                    <div class="game-card" aria-live="polite">
-                        <p class="cs-card-label">目前階段</p>
-                        <p class="cs-word-display" style="font-size:20px">{{ currentPhaseTitle }}</p>
-                        <p class="cs-word-category">{{ phaseHintText }}</p>
-                    </div>
-
-                    <!-- 題目 -->
-                    <div class="game-card">
-                        <div style="display:flex;align-items:baseline;gap:8px">
-                            <p class="cs-card-label" style="margin:0">題目</p>
-                            <span v-if="state.currentWord?.author && !state.isGuesser"
-                                style="font-size:13px;color:var(--label)">✍️ {{ state.currentWord.author }}</span>
-                        </div>
-                        <!-- 猜題者：顯示字數格子 -->
-                        <template v-if="state.isGuesser && state.status !== 'revealing'">
-                            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">
-                                <span v-for="n in (state.wordLength || 0)" :key="n" class="cs-blank">□</span>
-                                <span v-if="!state.wordLength" style="color:var(--body);font-size:24px">?</span>
-                            </div>
-                            <p v-if="state.wordLength" style="font-size:12px;color:var(--body);margin-top:4px">
-                                共 {{ state.wordLength }} 個字
-                            </p>
-                        </template>
-                        <!-- 提示者 / 揭曉：顯示题目 -->
-                        <template v-else>
-                            <p class="cs-word-display">{{ state.currentWord?.word ?? '…' }}</p>
-                            <p class="cs-word-category">{{ state.currentWord?.category }}</p>
-                        </template>
-                    </div>
-
-                    <!-- 猜題者等待提示 -->
-                    <div v-if="state.isGuesser && (state.status === 'round1' || state.status === 'round2')"
-                        class="game-card" style="display:flex;align-items:center;gap:8px;padding:10px 14px">
-                        <span style="font-size:22px;opacity:0.7">🤔</span>
-                        <p style="color:var(--label);font-size:12px;margin:0">
-                            {{ state.status === 'round1' ? '提示者輸入線索中…' : '提示者輸入第二輪線索中…' }}
+                        <p v-if="phaseTotal > 0" class="cs-phase-progress">
+                            已提交 {{ phaseSubmitted }}/{{ phaseTotal }}
                         </p>
+                        <p v-else class="cs-phase-progress">{{ phaseHintText }}</p>
                     </div>
 
-                    <!-- 揭曉：下一位 CTA（僅揭曉階段顯示，答案已移至猜題者卡片內） -->
-                    <div v-if="state.status === 'revealing'" class="game-card" style="padding:10px 14px">
-                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-                            <span style="font-size:22px">{{ state.guessResult?.correct ? '🎉' : '😅' }}</span>
-                            <span class="neon-heading gradient-text" style="font-size:16px;font-weight:800">
-                                {{ state.guessResult?.correct ? '答對了！' : '下次加油！' }}
-                            </span>
-                            <button v-if="roomState.isHost" type="button" class="btn-primary"
-                                style="white-space:nowrap;padding:6px 14px;width:auto;font-size:13px"
-                                @click="handleNextTurn">
-                                下一位 →
-                            </button>
-                            <span v-else style="font-size:11px;color:var(--label);text-align:right">等待房主…</span>
-                        </div>
+                    <!-- 左下：玩家列表 -->
+                    <div class="game-card cs-player-list-card">
+                        <p class="cs-card-label" style="margin-bottom:8px">玩家列表</p>
+                        <ul class="cs-player-list">
+                            <li v-for="p in playersWithRoles" :key="p.id" class="cs-player-list-item"
+                                :class="{ 'cs-player-list-item--self': p.id === roomState.myPlayerId }">
+                                <span class="cs-player-list-dot"
+                                    :class="(p.is_online ?? p.connected) ? 'is-online' : 'is-offline'"></span>
+                                <span class="cs-player-list-name">{{ p.nickname }}</span>
+                                <span v-if="p.id === roomState.myPlayerId" class="cs-player-list-tag">我</span>
+                                <span class="cs-player-list-status" :class="getPlayerStatusClass(p)">
+                                    {{ getPlayerStatus(p) }}
+                                </span>
+                            </li>
+                        </ul>
                     </div>
+
+                    <div style="flex:1"></div>
+
+                    <!-- 退出房間 -->
+                    <button class="btn-secondary cs-exit-btn" type="button" @click="handleExitRoom">
+                        退出房間
+                    </button>
                 </div>
 
-                <!-- ── 右側：玩家卡片 Grid + 底部輸入欄 ── -->
+                <!-- ── 右側：題目+秒數 → 玩家卡片 Grid → 底部輸入欄 ── -->
                 <div class="cs-right-area">
-                    <div class="game-card cs-room-insight" aria-live="polite">
-                        <div class="cs-room-insight__header">
-                            <p class="cs-card-label" style="margin:0">房間進度</p>
-                            <span class="badge" style="font-size:11px">
-                                猜題者：{{ currentGuesserName }}
+
+                    <!-- 中上：題目 + 右上倒數 -->
+                    <div class="cs-question-row">
+                        <div class="game-card cs-question-card">
+                            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+                                <p class="cs-card-label" style="margin:0">題目</p>
+                                <span v-if="state.currentWord?.author && !state.isGuesser"
+                                    style="font-size:13px;color:var(--label)">✍️ {{ state.currentWord.author }}</span>
+                                <span v-if="state.currentWord?.category && !state.isGuesser"
+                                    style="font-size:12px;color:var(--label)">· {{ state.currentWord.category }}</span>
+                            </div>
+                            <!-- 猜題者：始終空格 □□（即使揭曉，下方 result-card 顯示答案） -->
+                            <template v-if="state.isGuesser && state.status !== 'revealing'">
+                                <div class="cs-question-blanks">
+                                    <span v-for="n in (state.wordLength || 0)" :key="n" class="cs-blank">□</span>
+                                    <span v-if="!state.wordLength" style="color:var(--body);font-size:28px">?</span>
+                                </div>
+                                <p v-if="state.wordLength" style="font-size:12px;color:var(--body);margin:2px 0 0">
+                                    共 {{ state.wordLength }} 個字
+                                </p>
+                            </template>
+                            <template v-else>
+                                <p class="cs-word-display">{{ state.currentWord?.word ?? '…' }}</p>
+                            </template>
+                        </div>
+
+                        <!-- 右上：倒數秒數 -->
+                        <div class="cs-timer-badge"
+                            :class="{ 'timer-shake': activeTimer !== '' && activeTimer <= 10 }">
+                            <span class="cs-timer-label">倒數</span>
+                            <span class="cs-timer-num" :style="{ color: timerColor }">
+                                {{ activeTimer !== '' ? activeTimer + 's' : '--' }}
                             </span>
                         </div>
-                        <div class="cs-room-insight__meta">
-                            <span>提示者 {{ cluePlayers.length }} 人</span>
-                            <span v-if="isHintPhase">已送出 {{ submittedHintsCount }}/{{ cluePlayers.length }}</span>
-                            <span v-else>等待下一階段同步</span>
-                        </div>
-                        <div v-if="isHintPhase" class="cs-progress-track" role="progressbar" :aria-valuemin="0"
-                            :aria-valuemax="cluePlayers.length" :aria-valuenow="submittedHintsCount"
-                            :aria-label="`提示進度 ${submittedHintsCount}/${cluePlayers.length}`">
-                            <div class="cs-progress-fill" :style="{ width: `${hintProgressPercent}%` }"></div>
-                        </div>
-                        <p v-if="isHintPhase" class="cs-room-insight__hint">
-                            {{ pendingHintsCount > 0 ? `還有 ${pendingHintsCount} 位提示者未送出` : '所有提示者都已送出，等待進入下一步' }}
-                        </p>
                     </div>
 
                     <div class="cs-players-grid">
@@ -407,6 +385,37 @@
                             <p style="color:var(--success-text);font-size:13px;font-weight:600">✓ 已送出，等待其他提示者…</p>
                         </div>
                     </template>
+
+                    <!-- ── 底部揭曉 CTA（揭曉階段）── -->
+                    <template v-if="state.status === 'revealing'">
+                        <div class="cs-hint-bar cs-reveal-bar">
+                            <span style="font-size:24px">{{ state.guessResult?.correct ? '🎉' : '😅' }}</span>
+                            <span class="neon-heading gradient-text" style="font-size:16px;font-weight:800">
+                                {{ state.guessResult?.correct ? '答對了！' : '下次加油！' }}
+                            </span>
+                            <button v-if="roomState.isHost" type="button" class="btn-primary"
+                                style="white-space:nowrap;padding:8px 20px;width:auto;margin-left:auto"
+                                @click="handleNextTurn">
+                                下一位 →
+                            </button>
+                            <span v-else style="font-size:12px;color:var(--label);margin-left:auto">等待房主…</span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- ── 退出房間確認框 ── -->
+            <div v-if="showExitConfirm" class="overlay" @click.self="showExitConfirm = false">
+                <div class="overlay-card" style="max-width:340px">
+                    <div class="section-header" style="margin-bottom:12px">
+                        <div class="section-icon">🚪</div>
+                        <h2 class="neon-heading" style="font-size:20px">離開房間？</h2>
+                        <p class="section-subtitle">離開後將回到大廳，遊戲進度不會保留。</p>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:8px">
+                        <button class="btn-secondary" style="flex:1" @click="showExitConfirm = false">取消</button>
+                        <button class="btn-primary" style="flex:1" @click="confirmExit">確定離開</button>
+                    </div>
                 </div>
             </div>
 
@@ -524,6 +533,7 @@ const {
     sendReaction,
     kickPlayer,
     transferHost,
+    leaveRoom,
 } = useCharacterStorm()
 
 const {
@@ -698,6 +708,16 @@ const currentPhaseTitle = computed(() => {
     if (state.status === 'finished') return '本局結束'
     return '等待開始'
 })
+// 左上階段標籤（格式：第一輪：作答中 / 提示中）
+const phaseLabel = computed(() => {
+    if (state.status === 'round1') return '第一輪：提示中'
+    if (state.status === 'round1-result') return '第一輪：作答中'
+    if (state.status === 'round2') return '第二輪：提示中'
+    if (state.status === 'round2-result') return '第二輪：作答中'
+    if (state.status === 'revealing') return '答案揭曉'
+    if (state.status === 'finished') return '本局結束'
+    return '等待開始'
+})
 const cluePlayers = computed(() => playersWithRoles.value.filter(p => p.role !== 'guesser'))
 const currentGuesserName = computed(() => {
     const guesser = playersWithRoles.value.find(p => p.id === state.currentGuesserPlayerId) ||
@@ -713,6 +733,22 @@ const pendingHintsCount = computed(() => Math.max(cluePlayers.value.length - sub
 const hintProgressPercent = computed(() => {
     if (!cluePlayers.value.length) return 0
     return Math.min(100, Math.round((submittedHintsCount.value / cluePlayers.value.length) * 100))
+})
+// 左上階段卡的進度（提示階段=提示者送出進度；作答階段=猜題者本地送出進度；其他=不顯示）
+const isAnswerPhase = computed(() => state.status === 'round1-result' || state.status === 'round2-result')
+const phaseSubmitted = computed(() => {
+    if (isHintPhase.value) return submittedHintsCount.value
+    if (isAnswerPhase.value) return guessSubmitted.value ? 1 : 0
+    return 0
+})
+const phaseTotal = computed(() => {
+    if (isHintPhase.value) return cluePlayers.value.length
+    if (isAnswerPhase.value) return 1
+    return 0
+})
+const phaseProgressPct = computed(() => {
+    if (!phaseTotal.value) return 0
+    return Math.min(100, Math.round((phaseSubmitted.value / phaseTotal.value) * 100))
 })
 const phaseHintText = computed(() => {
     if (state.status === 'round1') return state.isGuesser ? '等待提示者完成第一輪線索' : '請輸入第一輪中文提示'
@@ -781,6 +817,39 @@ function isPlayerGuesser(player) {
 function roleBadgeText(player) {
     if (isPlayerGuesser(player)) return '猜題者'
     return '提示者'
+}
+
+// 左下玩家列表：依當前階段顯示該玩家狀態
+function getPlayerStatus(p) {
+    if (isPlayerGuesser(p)) {
+        if (state.status === 'round1-result') {
+            return state.round1GuessResult ? '✓' : '作答中'
+        }
+        if (state.status === 'round2-result') {
+            return state.guessResult ? '✓' : '作答中'
+        }
+        if (state.status === 'round1' || state.status === 'round2') {
+            return '等待提示'
+        }
+        if (state.status === 'revealing') return '已揭曉'
+        return '猜題者'
+    }
+    // 提示者
+    if (state.status === 'round1' || state.status === 'round2') {
+        return state.submittedPlayerIds.includes(p.id) ? '✓' : '作答中'
+    }
+    if (state.status === 'round1-result' || state.status === 'round2-result') {
+        return '等待猜題'
+    }
+    if (state.status === 'revealing') return '—'
+    return '提示者'
+}
+
+function getPlayerStatusClass(p) {
+    const s = getPlayerStatus(p)
+    if (s === '✓') return 'cs-status--done'
+    if (s === '作答中') return 'cs-status--active'
+    return 'cs-status--idle'
 }
 
 function getPlayerCardClass(role, playerId) {
@@ -906,6 +975,20 @@ function handleTransferHost(playerId, nickname) {
     showToast(`房主已移交給 ${nickname}`, 'success')
 }
 
+// ── 退出房間 ─────────────────────────────────────────────────────
+const showExitConfirm = ref(false)
+
+function handleExitRoom() {
+    showExitConfirm.value = true
+}
+
+function confirmExit() {
+    showExitConfirm.value = false
+    try { leaveRoom?.() } catch (_) { /* ignore */ }
+    disconnect()
+    router.push({ name: 'character-storm' })
+}
+
 // ── 暱稱遮罩 ──────────────────────────────────────────────────────
 function joinWithNickname() {
     const nickname = overlayNickname.value.trim()
@@ -999,6 +1082,189 @@ onUnmounted(() => {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+/* ── 左上：階段 + 進度 ───────────────────────────────────── */
+.cs-phase-card {
+    padding: 12px 14px !important;
+}
+
+.cs-phase-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: var(--heading);
+    background: linear-gradient(135deg, #06B6D4, #0891B2);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.cs-phase-progress {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--body);
+}
+
+/* ── 左下：玩家列表 ───────────────────────────────────────── */
+.cs-player-list-card {
+    padding: 10px 12px !important;
+}
+
+.cs-player-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cs-player-list-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: var(--bg-subtle);
+    border: 1px solid transparent;
+    transition: border-color 180ms ease, background 180ms ease;
+}
+
+.cs-player-list-item--self {
+    border-color: rgba(45, 212, 191, 0.45);
+}
+
+.cs-player-list-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.cs-player-list-dot.is-online {
+    background: #22C55E;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.55);
+}
+
+.cs-player-list-dot.is-offline {
+    background: #64748B;
+}
+
+.cs-player-list-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--heading);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cs-player-list-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(45, 212, 191, 0.18);
+    color: #5eead4;
+    font-weight: 600;
+}
+
+.cs-player-list-status {
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.cs-status--done {
+    color: var(--success-text);
+    background: rgba(34, 197, 94, 0.14);
+}
+
+.cs-status--active {
+    color: var(--neon-cyan);
+    background: rgba(6, 182, 212, 0.14);
+}
+
+.cs-status--idle {
+    color: var(--label);
+    background: transparent;
+}
+
+/* ── 退出房間按鈕 ─────────────────────────────────────────── */
+.cs-exit-btn {
+    width: 100%;
+    margin-top: 4px;
+}
+
+/* ── 中上：題目 + 右上倒數 ───────────────────────────────── */
+.cs-question-row {
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    padding: 10px 10px 0 8px;
+}
+
+.cs-question-card {
+    flex: 1;
+    padding: 10px 14px !important;
+}
+
+.cs-question-blanks {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 4px 0 2px;
+}
+
+.cs-timer-badge {
+    flex-shrink: 0;
+    min-width: 96px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(6, 182, 212, 0.35);
+    background: linear-gradient(160deg, rgba(8, 47, 73, 0.88), rgba(15, 23, 42, 0.95));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.cs-timer-label {
+    font-size: 10px;
+    color: var(--label);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.cs-timer-num {
+    font-size: 26px;
+    font-weight: 800;
+    font-family: 'Source Code Pro', monospace;
+    line-height: 1;
+}
+
+/* ── 揭曉階段底部 CTA ──────────────────────────────────── */
+.cs-reveal-bar {
+    align-items: center;
+    gap: 12px;
+}
+
+@media (max-width: 640px) {
+    .cs-question-row {
+        padding: 8px 8px 0;
+    }
+    .cs-timer-badge {
+        min-width: 80px;
+        padding: 8px 10px;
+    }
+    .cs-timer-num { font-size: 22px; }
+    .cs-phase-title { font-size: 16px; }
 }
 
 .cs-room-insight {
