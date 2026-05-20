@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"C:/Users/1901035/.claude/skills/\" 2>&1 || echo \"DIR_NOT_FOUND\")",
+      "Read(//c/Users/1901035/.claude/**)",
+      "PowerShell($target = \"$env:USERPROFILE\\\\.agents\\\\skills\"; $link = \"$env:USERPROFILE\\\\.claude\\\\skills\"; if \\(Test-Path $link\\) { Write-Host \"ALREADY_EXISTS: $link\" } else { try { New-Item -ItemType SymbolicLink -Path $link -Target $target -ErrorAction Stop | Out-Null; Write-Host \"OK: created symlink\"; Get-Item $link | Select-Object Name, LinkType, Target | Format-List } catch { Write-Host \"FAILED: $\\($_.Exception.Message\\)\" } })",
+      "PowerShell($target = \"$env:USERPROFILE\\\\.agents\\\\skills\"; $link = \"$env:USERPROFILE\\\\.claude\\\\skills\"; if \\(Test-Path $link\\) { Write-Host \"ALREADY_EXISTS: $link\" } else { cmd /c mklink /J \"$link\" \"$target\" 2>&1; if \\($LASTEXITCODE -eq 0\\) { Write-Host \"---\"; Get-Item $link | Select-Object Name, LinkType, Target | Format-List; Write-Host \"Files visible through link:\"; \\(Get-ChildItem $link | Measure-Object\\).Count } else { Write-Host \"FAILED with exit code $LASTEXITCODE\" } })",
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(node --test room/RoomCache.test.js)",
+      "Bash(node --test room/room.integration.test.js)",
+      "Bash(node -c character-storm/index.js)",
+      "Bash(node -c server.js)",
+      "Bash(npx vue-tsc *)",
+      "Bash(npx --no-install vite build)"
+    ]
+  }
+}

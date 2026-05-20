@@ -5,19 +5,18 @@
         <!-- Header -->
         <header class="sticky-header app-header--room">
             <div class="header-inner header-inner--room">
+                <button class="header-back-btn" @click="goHome" title="返回首頁" aria-label="返回首頁">
+                    ← 返回
+                </button>
                 <span class="logo-sm">默契傳聲筒 🔡</span>
                 <div class="header-info">
                     <span class="header-room-id">{{ roomState.roomId }}</span>
-                    <span style="font-size:12px;color:var(--body)">{{ playersWithRoles.length }}/{{ roomState.room?.maxPlayers
-                        ?? '?' }} 人</span>
+                    <span style="font-size:12px;color:var(--body)">{{ playersWithRoles.length }}/{{
+                        roomState.room?.maxPlayers ?? '?' }} 人</span>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
-                    <RoomPlayerPanel
-                        :players="roomState.players"
-                        :my-id="roomState.myPlayerId"
-                        :host-id="roomState.room?.host_player_id"
-                        :is-host="roomState.isHost"
-                        @kick="handleKick"
+                    <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
+                        :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost" @kick="handleKick"
                         @transfer-host="handleTransferHost" />
                     <button class="header-icon-btn" title="切換主題" aria-label="切換主題" @click="toggleTheme">{{ isDark ? '🌙'
                         : '☀️' }}</button>
@@ -124,8 +123,8 @@
                     <!-- 左上：階段 + 進度 -->
                     <div class="game-card cs-phase-card" aria-live="polite">
                         <p class="cs-phase-title">{{ phaseLabel }}</p>
-                        <div v-if="phaseTotal > 0" class="cs-progress-track" role="progressbar"
-                            :aria-valuemin="0" :aria-valuemax="phaseTotal" :aria-valuenow="phaseSubmitted"
+                        <div v-if="phaseTotal > 0" class="cs-progress-track" role="progressbar" :aria-valuemin="0"
+                            :aria-valuemax="phaseTotal" :aria-valuenow="phaseSubmitted"
                             :aria-label="`提交進度 ${phaseSubmitted}/${phaseTotal}`">
                             <div class="cs-progress-fill" :style="{ width: `${phaseProgressPct}%` }"></div>
                         </div>
@@ -189,8 +188,7 @@
                         </div>
 
                         <!-- 右上：倒數秒數 -->
-                        <div class="cs-timer-badge"
-                            :class="{ 'timer-shake': activeTimer !== '' && activeTimer <= 10 }">
+                        <div class="cs-timer-badge" :class="{ 'timer-shake': activeTimer !== '' && activeTimer <= 10 }">
                             <span class="cs-timer-label">倒數</span>
                             <span class="cs-timer-num" :style="{ color: timerColor }">
                                 {{ activeTimer !== '' ? activeTimer + 's' : '--' }}
@@ -199,20 +197,20 @@
                     </div>
 
                     <div class="cs-players-grid">
-                        <div v-for="p in playersWithRoles" :key="p.id"
-                            :class="['game-card', 'cs-player-card', getPlayerCardClass(p.role, p.id),
-                                     { 'hint-just-submitted': state.submittedPlayerIds.includes(p.id) && isHintPhase }]"
+                        <div v-for="p in playersWithRoles" :key="p.id" :class="['game-card', 'cs-player-card', getPlayerCardClass(p.role, p.id),
+                            { 'hint-just-submitted': state.submittedPlayerIds.includes(p.id) && isHintPhase }]"
                             style="position:relative;overflow:hidden">
                             <!-- 丟火/丟雞蛋按鈕（只對其他人顯示） -->
                             <div v-if="p.id !== roomState.myPlayerId" class="cs-react-btns">
-                                <button class="cs-react-btn" title="這很屬🔥" @click.stop="sendReaction(p.id, '\uD83D\uDD25')">🔥</button>
-                                <button class="cs-react-btn" title="這很装🥚" @click.stop="sendReaction(p.id, '\uD83E\uDD5A')">🥚</button>
+                                <button class="cs-react-btn" title="這很屬🔥"
+                                    @click.stop="sendReaction(p.id, '\uD83D\uDD25')">🔥</button>
+                                <button class="cs-react-btn" title="這很装🥚"
+                                    @click.stop="sendReaction(p.id, '\uD83E\uDD5A')">🥚</button>
                             </div>
 
                             <!-- 浮動反應 emoji 覆層 -->
                             <TransitionGroup name="cs-react" tag="div" class="cs-react-overlay" aria-hidden="true">
-                                <span v-for="r in (state.reactions[p.id] || [])" :key="r.id"
-                                    class="cs-react-fly"
+                                <span v-for="r in (state.reactions[p.id] || [])" :key="r.id" class="cs-react-fly"
                                     :style="{ '--x': r.x }">
                                     {{ r.emoji }}
                                 </span>
@@ -248,11 +246,15 @@
                                     <div class="cs-guess-row">
                                         <span class="cs-guess-label">R1</span>
                                         <template v-if="state.round1GuessResult">
-                                            <span class="cs-guess-answer">{{ state.round1GuessResult.answer || '（空白）' }}</span>
-                                            <span class="cs-guess-ab cs-guess-ab--a">{{ state.round1GuessResult.a }}A</span>
-                                            <span class="cs-guess-ab cs-guess-ab--b">{{ state.round1GuessResult.b }}B</span>
+                                            <span class="cs-guess-answer">{{ state.round1GuessResult.answer || '（空白）'
+                                            }}</span>
+                                            <span class="cs-guess-ab cs-guess-ab--a">{{ state.round1GuessResult.a
+                                            }}A</span>
+                                            <span class="cs-guess-ab cs-guess-ab--b">{{ state.round1GuessResult.b
+                                            }}B</span>
                                         </template>
-                                        <template v-else-if="state.status === 'round1-result' && p.id === roomState.myPlayerId">
+                                        <template
+                                            v-else-if="state.status === 'round1-result' && p.id === roomState.myPlayerId">
                                             <span class="cs-guess-pending">作答中…</span>
                                         </template>
                                         <template v-else-if="state.status === 'round1-result'">
@@ -269,14 +271,16 @@
                                         <template v-if="state.status === 'revealing' && state.guessResult">
                                             <span class="cs-guess-answer"
                                                 :style="{ color: state.guessResult.correct ? 'var(--success-text)' : 'var(--heading)' }">
-                                                {{ state.guessResult.correct ? '🎉 ' : '' }}{{ state.guessResult.answer || '（空白）' }}
+                                                {{ state.guessResult.correct ? '🎉 ' : '' }}{{ state.guessResult.answer
+                                                    || '（空白）' }}
                                             </span>
                                             <template v-if="state.guessAB">
                                                 <span class="cs-guess-ab cs-guess-ab--a">{{ state.guessAB.a }}A</span>
                                                 <span class="cs-guess-ab cs-guess-ab--b">{{ state.guessAB.b }}B</span>
                                             </template>
                                         </template>
-                                        <template v-else-if="state.status === 'round2-result' && p.id === roomState.myPlayerId">
+                                        <template
+                                            v-else-if="state.status === 'round2-result' && p.id === roomState.myPlayerId">
                                             <span class="cs-guess-pending">作答中…</span>
                                         </template>
                                         <template v-else-if="state.status === 'round2-result'">
@@ -296,16 +300,16 @@
                             <div v-else style="margin-bottom:6px;text-align:center">
                                 <p style="font-size:10px;color:var(--label);margin-bottom:2px">第一輪</p>
                                 <TransitionGroup name="hint-char" tag="span" class="hint-chars-wrap">
-                                    <span v-for="(c, i) in getPlayerR1Hint(p.id)" :key="i"
-                                        :style="{
-                                            '--i': i,
-                                            fontSize: '22px', fontWeight: '700', letterSpacing: '3px', color: c.color,
-                                            textDecoration: c.isConflict ? 'underline wavy' : 'none'
-                                        }">
+                                    <span v-for="(c, i) in getPlayerR1Hint(p.id)" :key="i" :style="{
+                                        '--i': i,
+                                        fontSize: '22px', fontWeight: '700', letterSpacing: '3px', color: c.color,
+                                        textDecoration: c.isConflict ? 'underline wavy' : 'none'
+                                    }">
                                         {{ c.char }}
                                     </span>
                                 </TransitionGroup>
-                                <p v-if="!getPlayerR1Hint(p.id).length" style="font-size:11px;color:var(--body);opacity:0.5">
+                                <p v-if="!getPlayerR1Hint(p.id).length"
+                                    style="font-size:11px;color:var(--body);opacity:0.5">
                                     {{ state.status === 'round1'
                                         ? (state.submittedPlayerIds.includes(p.id) ? '✓' : '…')
                                         : '—' }}
@@ -316,16 +320,16 @@
                                 style="text-align:center">
                                 <p style="font-size:10px;color:var(--label);margin-bottom:2px">第二輪</p>
                                 <TransitionGroup name="hint-char" tag="span" class="hint-chars-wrap">
-                                    <span v-for="(c, i) in getPlayerR2Hint(p.id)" :key="i"
-                                        :style="{
-                                            '--i': i,
-                                            fontSize: '22px', fontWeight: '700', letterSpacing: '3px', color: c.color,
-                                            textDecoration: c.isConflict ? 'underline wavy' : 'none'
-                                        }">
+                                    <span v-for="(c, i) in getPlayerR2Hint(p.id)" :key="i" :style="{
+                                        '--i': i,
+                                        fontSize: '22px', fontWeight: '700', letterSpacing: '3px', color: c.color,
+                                        textDecoration: c.isConflict ? 'underline wavy' : 'none'
+                                    }">
                                         {{ c.char }}
                                     </span>
                                 </TransitionGroup>
-                                <p v-if="!getPlayerR2Hint(p.id).length" style="font-size:11px;color:var(--body);opacity:0.5">
+                                <p v-if="!getPlayerR2Hint(p.id).length"
+                                    style="font-size:11px;color:var(--body);opacity:0.5">
                                     {{ state.status === 'round2'
                                         ? (state.submittedPlayerIds.includes(p.id) ? '✓' : '…')
                                         : '—' }}
@@ -349,8 +353,9 @@
                                     :placeholder="state.status === 'round1-result' ? '根據第一輪線索猜…' : '根據兩輪線索猜…'"
                                     aria-label="猜題答案" autocomplete="off" autocorrect="off" autocapitalize="off"
                                     spellcheck="false" @keydown.enter.prevent="handleSubmitGuess" />
-                                <button type="button" class="btn-primary" style="white-space:nowrap;padding:8px 16px;width:auto"
-                                    :disabled="guessSubmitted" @click="handleSubmitGuess">送出</button>
+                                <button type="button" class="btn-primary"
+                                    style="white-space:nowrap;padding:8px 16px;width:auto" :disabled="guessSubmitted"
+                                    @click="handleSubmitGuess">送出</button>
                             </div>
                         </div>
                         <div v-else class="cs-hint-bar" style="justify-content:center">
@@ -373,7 +378,8 @@
                                         :maxlength="12" aria-label="提示輸入" autocomplete="off" autocorrect="off"
                                         autocapitalize="off" spellcheck="false" @input="onHintInput"
                                         @keydown.enter.prevent="handleSubmitHint" />
-                                    <button type="button" class="btn-primary" style="white-space:nowrap;padding:8px 16px;width:auto"
+                                    <button type="button" class="btn-primary"
+                                        style="white-space:nowrap;padding:8px 16px;width:auto"
                                         :disabled="hintCharCount === 0 || !!hintError || hintSubmitted"
                                         @click="handleSubmitHint">送出</button>
                                 </div>
@@ -493,6 +499,10 @@
 </template>
 
 <script setup>
+// 返回首頁
+function goHome() {
+    router.push({ path: '/' })
+}
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStorm } from '../composables/useCharacterStorm.js'
@@ -1046,6 +1056,28 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 返回首頁按鈕 */
+.header-back-btn {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--neon-cyan);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transition: background 0.15s;
+    z-index: 2;
+}
+
+.header-back-btn:hover {
+    background: rgba(6, 182, 212, 0.08);
+}
+
 .skip-link {
     position: absolute;
     left: 12px;
@@ -1214,6 +1246,17 @@ onUnmounted(() => {
     padding: 10px 14px !important;
 }
 
+/* 題目大字置中 */
+.cs-word-display {
+    font-size: 52px !important;
+    font-weight: 900;
+    text-align: center;
+    letter-spacing: 0.12em;
+    color: var(--heading);
+    margin: 18px 0 8px 0;
+    line-height: 1.2;
+}
+
 .cs-question-blanks {
     display: flex;
     gap: 8px;
@@ -1259,12 +1302,19 @@ onUnmounted(() => {
     .cs-question-row {
         padding: 8px 8px 0;
     }
+
     .cs-timer-badge {
         min-width: 80px;
         padding: 8px 10px;
     }
-    .cs-timer-num { font-size: 22px; }
-    .cs-phase-title { font-size: 16px; }
+
+    .cs-timer-num {
+        font-size: 22px;
+    }
+
+    .cs-phase-title {
+        font-size: 16px;
+    }
 }
 
 .cs-room-insight {
@@ -1342,9 +1392,11 @@ onUnmounted(() => {
     transition: opacity 0.15s;
     z-index: 10;
 }
+
 .cs-player-card:hover .cs-react-btns {
     opacity: 1;
 }
+
 .cs-react-btn {
     font-size: 16px;
     line-height: 1;
@@ -1355,10 +1407,12 @@ onUnmounted(() => {
     cursor: pointer;
     transition: transform 0.1s, background 0.1s;
 }
+
 .cs-react-btn:hover {
     transform: scale(1.3);
     background: var(--bg-subtle);
 }
+
 .cs-react-btn:active {
     transform: scale(0.9);
 }
@@ -1383,15 +1437,32 @@ onUnmounted(() => {
     pointer-events: none;
     will-change: transform, opacity;
 }
+
 @keyframes cs-react-float {
-    0%   { transform: translateY(0)   scale(1);    opacity: 1; }
-    60%  { transform: translateY(-80px) scale(1.3); opacity: 1; }
-    100% { transform: translateY(-120px) scale(0.8); opacity: 0; }
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+
+    60% {
+        transform: translateY(-80px) scale(1.3);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(-120px) scale(0.8);
+        opacity: 0;
+    }
 }
 
 /* TransitionGroup */
-.cs-react-enter-active { animation: cs-react-float 2.4s ease-out forwards; }
-.cs-react-leave-active { display: none; }
+.cs-react-enter-active {
+    animation: cs-react-float 2.4s ease-out forwards;
+}
+
+.cs-react-leave-active {
+    display: none;
+}
 
 .phase-flash {
     position: fixed;
@@ -1534,11 +1605,27 @@ onUnmounted(() => {
 }
 
 @keyframes timerShake {
-    0%, 100% { transform: translateX(0); }
-    20%       { transform: translateX(-2px) rotate(-1deg); }
-    40%       { transform: translateX(2px) rotate(1deg); }
-    60%       { transform: translateX(-2px); }
-    80%       { transform: translateX(2px); }
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-2px) rotate(-1deg);
+    }
+
+    40% {
+        transform: translateX(2px) rotate(1deg);
+    }
+
+    60% {
+        transform: translateX(-2px);
+    }
+
+    80% {
+        transform: translateX(2px);
+    }
 }
 
 /* ── 玩家卡送出後 neon 閃光 ─────────────────────────────────── */
@@ -1547,9 +1634,20 @@ onUnmounted(() => {
 }
 
 @keyframes neonFlash {
-    0%   { box-shadow: 0 0 0 0 rgba(6,182,212,0); border-color: rgba(8,145,178,0.36); }
-    30%  { box-shadow: 0 0 0 4px rgba(6,182,212,0.55), 0 0 18px rgba(6,182,212,0.4); border-color: rgba(6,182,212,0.9); }
-    100% { box-shadow: 0 0 0 0 rgba(6,182,212,0); border-color: rgba(8,145,178,0.36); }
+    0% {
+        box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
+        border-color: rgba(8, 145, 178, 0.36);
+    }
+
+    30% {
+        box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.55), 0 0 18px rgba(6, 182, 212, 0.4);
+        border-color: rgba(6, 182, 212, 0.9);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
+        border-color: rgba(8, 145, 178, 0.36);
+    }
 }
 
 /* ── 提示字 stagger 淡入 ─────────────────────────────────────── */
@@ -1626,7 +1724,9 @@ onUnmounted(() => {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .result-card-label {
@@ -1650,16 +1750,39 @@ onUnmounted(() => {
 }
 
 @keyframes popIn {
-    0%   { transform: scale(0.3); opacity: 0; }
-    100% { transform: scale(1);   opacity: 1; }
+    0% {
+        transform: scale(0.3);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 @keyframes wrongShake {
-    0%, 100% { transform: translateX(0) rotate(0); }
-    20%       { transform: translateX(-6px) rotate(-4deg); }
-    40%       { transform: translateX(6px) rotate(4deg); }
-    60%       { transform: translateX(-4px); }
-    80%       { transform: translateX(4px); }
+
+    0%,
+    100% {
+        transform: translateX(0) rotate(0);
+    }
+
+    20% {
+        transform: translateX(-6px) rotate(-4deg);
+    }
+
+    40% {
+        transform: translateX(6px) rotate(4deg);
+    }
+
+    60% {
+        transform: translateX(-4px);
+    }
+
+    80% {
+        transform: translateX(4px);
+    }
 }
 
 .result-card-verdict {
