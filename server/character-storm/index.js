@@ -373,15 +373,24 @@ function registerNamespace(io, db) {
     async onPlayerJoined(socket, roomId, playerId, isReconnect) {
       let game = getGame(roomId);
       if (!game) {
-        // csCache 尚未建立 → 從 roomCache 同步初始化（建立房間或重連時）
+        // csCache 尚未建立 → 從 roomCache 同步初始化
         const entry = _roomCache?.getEntry(roomId);
         if (!entry) return;
         const pref = entry.room.options?.themePreference ?? -1;
         game = initGame(roomId, entry.room.max_players, pref);
         for (const p of entry.players) {
+          // 優先用當前 socket，其次從 namespace 查找已連線的 socket
+          let socketId = null;
+          if (p.id === playerId) {
+            socketId = socket.id;
+          } else {
+            for (const [sid, s] of ns.sockets) {
+              if (s.data?.playerId === p.id) { socketId = sid; break; }
+            }
+          }
           game.players.push({
             id: p.id, nickname: p.nickname,
-            socketId: p.id === playerId ? socket.id : null,
+            socketId,
             role: null, quota: null,
           });
         }
@@ -629,6 +638,18 @@ function registerNamespace(io, db) {
       clearTimer(game);
       game.status = 'finished'; game.roundPhase = null;
       ns.to(roomId).emit('cs:finished', { players: buildPlayerList(game, _roomCache, roomId) });
+    });
+
+    // ── 更改主題（房主）──────────────────────────────────
+    socket.on('cs:set-theme', ({ roomId, themePreference }) => {
+      const { playerId } = socket.data ?? {};
+      if (!roomId || !playerId) return;
+      const game = getGame(roomId);
+      if (!game || !isHost(_roomCache, roomId, playerId)) return;
+      const pref = Number(themePreference);
+      if (![-1, 0, 1, 2].includes(pref)) return;
+      game.themePreference = pref;
+      ns.to(roomId).emit('cs:theme-changed', { themePreference: pref });
     });
 
     // ── 丟火/丟雞蛋互動（任何玩家都可對其他人發動）────────

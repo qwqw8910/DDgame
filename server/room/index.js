@@ -136,6 +136,12 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
         socket.join(roomId);
 
         socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'player'));
+
+        // 通知遊戲模組：房主加入（初始化 csCache / 遊戲狀態）
+        if (hooks.onPlayerJoined) {
+          await hooks.onPlayerJoined(socket, roomId, playerId, false);
+        }
+
         console.log(`[Room] 建立房間 ${roomId} by ${nickname} (app=${appId})`);
 
       } catch (err) {
