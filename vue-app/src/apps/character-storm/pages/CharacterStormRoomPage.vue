@@ -200,19 +200,16 @@
                         <div v-for="p in playersWithRoles" :key="p.id" :class="['game-card', 'cs-player-card', getPlayerCardClass(p.role, p.id),
                             { 'hint-just-submitted': state.submittedPlayerIds.includes(p.id) && isHintPhase }]"
                             style="position:relative;overflow:hidden">
-                            <!-- 丟火/丟雞蛋按鈕（只對其他人顯示） -->
-                            <div v-if="p.id !== roomState.myPlayerId" class="cs-react-btns">
-                                <button class="cs-react-btn" title="這很屬🔥"
-                                    @click.stop="sendReaction(p.id, '\uD83D\uDD25')">🔥</button>
-                                <button class="cs-react-btn" title="這很装🥚"
-                                    @click.stop="sendReaction(p.id, '\uD83E\uDD5A')">🥚</button>
-                            </div>
-
                             <!-- 浮動反應 emoji 覆層 -->
                             <TransitionGroup name="cs-react" tag="div" class="cs-react-overlay" aria-hidden="true">
-                                <span v-for="r in (state.reactions[p.id] || [])" :key="r.id" class="cs-react-fly"
+                                <span v-for="r in (state.reactions[p.id] || [])" :key="r.id"
+                                    :class="r.emoji === '🥚' ? 'cs-egg-wrapper' : 'cs-react-fly'"
                                     :style="{ '--x': r.x }">
-                                    {{ r.emoji }}
+                                    <template v-if="r.emoji === '🥚'">
+                                        <span class="cs-egg-raw">🥚</span>
+                                        <span class="cs-egg-fried">💩</span>
+                                    </template>
+                                    <template v-else>{{ r.emoji }}</template>
                                 </span>
                             </TransitionGroup>
 
@@ -220,7 +217,7 @@
                             <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;
                                     margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--divider)">
                                 <span style="font-weight:600;font-size:15px;color:var(--heading)">{{ p.nickname
-                                }}</span>
+                                    }}</span>
                                 <span v-if="p.id === roomState.myPlayerId" class="badge" style="font-size:10px">我</span>
                                 <span class="badge" :style="{
                                     fontSize: '10px',
@@ -247,11 +244,11 @@
                                         <span class="cs-guess-label">R1</span>
                                         <template v-if="state.round1GuessResult">
                                             <span class="cs-guess-answer">{{ state.round1GuessResult.answer || '（空白）'
-                                            }}</span>
+                                                }}</span>
                                             <span class="cs-guess-ab cs-guess-ab--a">{{ state.round1GuessResult.a
-                                            }}A</span>
+                                                }}A</span>
                                             <span class="cs-guess-ab cs-guess-ab--b">{{ state.round1GuessResult.b
-                                            }}B</span>
+                                                }}B</span>
                                         </template>
                                         <template
                                             v-else-if="state.status === 'round1-result' && p.id === roomState.myPlayerId">
@@ -335,6 +332,14 @@
                                         : '—' }}
                                 </p>
                             </div>
+                            <!-- 互動按鈕（常駐底部，僅對其他人） -->
+                            <div v-if="p.id !== roomState.myPlayerId" class="cs-react-btns">
+                                <span class="cs-react-label">互動</span>
+                                <button class="cs-react-btn" title="這很屬🔥"
+                                    @click.stop="sendReaction(p.id, '\uD83D\uDD25')">🔥</button>
+                                <button class="cs-react-btn" title="丟蛋！🥚"
+                                    @click.stop="sendReaction(p.id, '\uD83E\uDD5A')">🥚</button>
+                            </div>
                         </div>
                     </div>
 
@@ -384,7 +389,7 @@
                                         @click="handleSubmitHint">送出</button>
                                 </div>
                                 <p v-if="hintError" style="font-size:11px;color:var(--error-fg);margin:0">{{ hintError
-                                    }}</p>
+                                }}</p>
                             </div>
                         </div>
                         <div v-else class="cs-hint-bar" style="justify-content:center">
@@ -394,6 +399,20 @@
 
                     <!-- ── 底部揭曉 CTA（揭曉階段）── -->
                     <template v-if="state.status === 'revealing'">
+                        <!-- 主題切換列（僅房主） -->
+                        <div v-if="roomState.isHost" style="display:flex;align-items:center;gap:8px;
+                                   padding:6px 12px;border-radius:8px;
+                                   background:var(--bg-subtle);border:1px solid var(--border);
+                                   margin-bottom:6px">
+                            <span style="font-size:12px;color:var(--label);white-space:nowrap">🎲 下一題主題</span>
+                            <select v-model="selectedTheme" class="game-input"
+                                style="flex:1;padding:4px 8px;font-size:12px;cursor:pointer" @change="handleSetTheme">
+                                <option :value="-1">隨機主題</option>
+                                <option :value="0">原始題庫</option>
+                                <option :value="1">綜合主題包</option>
+                                <option :value="2">好友精選包</option>
+                            </select>
+                        </div>
                         <div class="cs-hint-bar cs-reveal-bar">
                             <span style="font-size:24px">{{ state.guessResult?.correct ? '🎉' : '😅' }}</span>
                             <span class="neon-heading gradient-text" style="font-size:16px;font-weight:800">
@@ -432,6 +451,19 @@
                 <p style="color:var(--body);font-size:15px;margin-bottom:28px">所有人都猜過一圈了</p>
 
                 <div v-if="roomState.isHost" style="display:flex;flex-direction:column;gap:10px">
+                    <!-- 主題選擇（換局前） -->
+                    <div style="display:flex;align-items:center;gap:10px;
+                               padding:10px 14px;border-radius:10px;
+                               background:var(--bg-subtle);border:1px solid var(--border)">
+                        <span style="font-size:13px;color:var(--label);white-space:nowrap">🎲 下一局主題</span>
+                        <select v-model="selectedTheme" class="game-input"
+                            style="flex:1;padding:6px 10px;font-size:13px;cursor:pointer" @change="handleSetTheme">
+                            <option :value="-1">隨機主題（每局不同）</option>
+                            <option :value="0">原始題庫</option>
+                            <option :value="1">綜合主題包</option>
+                            <option :value="2">好友精選包</option>
+                        </select>
+                    </div>
                     <button class="btn-primary"
                         style="background:linear-gradient(135deg,#0891B2,#06B6D4);border-color:rgba(6,182,212,0.4)"
                         @click="handleContinue">
@@ -541,6 +573,7 @@ const {
     copyInviteLink,
     onGuessResult,
     sendReaction,
+    setTheme,
     kickPlayer,
     transferHost,
     leaveRoom,
@@ -1381,20 +1414,20 @@ onUnmounted(() => {
     transform: translateY(-1px);
 }
 
-/* ── 丟火/丟雞蛋互動 ── */
+/* ── 丟火/丟雞蛋互動（常駐底部）── */
 .cs-react-btns {
-    position: absolute;
-    top: 6px;
-    right: 6px;
     display: flex;
+    align-items: center;
     gap: 4px;
-    opacity: 0;
-    transition: opacity 0.15s;
-    z-index: 10;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(148, 163, 184, 0.1);
 }
 
-.cs-player-card:hover .cs-react-btns {
-    opacity: 1;
+.cs-react-label {
+    font-size: 11px;
+    color: var(--label);
+    margin-right: auto;
 }
 
 .cs-react-btn {
@@ -1462,6 +1495,63 @@ onUnmounted(() => {
 
 .cs-react-leave-active {
     display: none;
+}
+
+/* ── 雞蛋拋投→大便滑落動畫 ──────────────────────────── */
+.cs-egg-wrapper {
+    position: absolute;
+    bottom: 8px;
+    left: var(--x, 40%);
+    pointer-events: none;
+    will-change: transform;
+    animation: cs-egg-journey 1.8s ease-out forwards;
+}
+
+/* 確保 TransitionGroup enter class 不覆蓋蛋的動畫 */
+.cs-egg-wrapper.cs-react-enter-active {
+    animation: cs-egg-journey 1.8s ease-out forwards;
+}
+
+/* 生蛋：飛上去後快速消失 */
+.cs-egg-raw {
+    display: inline-block;
+    font-size: 28px;
+    line-height: 1;
+    animation: cs-egg-raw-anim 1.8s ease-out forwards;
+}
+
+/* 大便：頂部出現後隨外層滑落 */
+.cs-egg-fried {
+    position: absolute;
+    top: 0;
+    left: 0;
+    font-size: 28px;
+    line-height: 1;
+    animation: cs-egg-fried-anim 1.8s ease-out forwards;
+}
+
+@keyframes cs-egg-journey {
+    0%   { transform: translateY(0);     opacity: 1; }
+    25%  { transform: translateY(-110px); opacity: 1; }
+    38%  { transform: translateY(-108px); opacity: 1; }
+    70%  { transform: translateY(-88px);  opacity: 0.8; }
+    100% { transform: translateY(-70px);  opacity: 0; }
+}
+
+@keyframes cs-egg-raw-anim {
+    0%   { opacity: 1; transform: scale(1);   }
+    24%  { opacity: 1; transform: scale(1.1); }
+    35%  { opacity: 0; transform: scale(0.3); }
+    100% { opacity: 0; }
+}
+
+@keyframes cs-egg-fried-anim {
+    0%   { opacity: 0; transform: scale(0); }
+    33%  { opacity: 0; transform: scale(0); }
+    42%  { opacity: 1; transform: scale(1.4); }
+    50%  { opacity: 1; transform: scale(1.0); }
+    92%  { opacity: 1; }
+    100% { opacity: 0; }
 }
 
 .phase-flash {

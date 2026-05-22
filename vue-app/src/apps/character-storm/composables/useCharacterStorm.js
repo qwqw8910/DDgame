@@ -171,6 +171,11 @@ function registerGameHandlers(socket) {
     gameState.status = 'finished'
   })
 
+  // 主題更換（房主操作 → 廣播給全室）
+  socket.on('cs:theme-changed', ({ themePreference }) => {
+    gameState.themePreference = themePreference
+  })
+
   // 互動反應（丟火/丟雞蛋）
   socket.on('cs:react', ({ fromPlayerId, toPlayerId, emoji }) => {
     if (!gameState.reactions[toPlayerId]) gameState.reactions[toPlayerId] = []
@@ -315,6 +320,10 @@ export function useCharacterStorm() {
     socket.emit('cs:react', { roomId: room.roomState.roomId, toPlayerId, emoji })
   }
 
+  function setTheme(themePreference) {
+    socket.emit('cs:set-theme', { roomId: room.roomState.roomId, themePreference })
+  }
+
   // 合併 roomState.players（含 nickname / is_online 等）與 rolesById（role / quota）
   const playersWithRoles = computed(() =>
     room.roomState.players.map(p => ({
@@ -343,6 +352,7 @@ export function useCharacterStorm() {
     copyInviteLink,
     onGuessResult,
     sendReaction,
+    setTheme,
     // 房間操作（轉發 useRoom 的方法）
     kickPlayer:      room.kickPlayer,
     transferHost:    room.transferHost,
