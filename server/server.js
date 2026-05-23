@@ -50,6 +50,21 @@ const io = new Server(server, {
 
 app.get('/health', (_, res) => res.json({ status: 'ok', ts: Date.now() }));
 
+// ── 默契傳聲筒：取得可用主題清單 ─────────────────────────────
+app.get('/api/cs/themes', async (_, res) => {
+  try {
+    const { data, error } = await db
+      .from('character_storm_words')
+      .select('weekday_bank')
+      .eq('is_active', true);
+    if (error) throw error;
+    const ids = [...new Set((data ?? []).map(r => r.weekday_bank))].sort((a, b) => a - b);
+    res.json({ themes: ids });
+  } catch (err) {
+    res.status(500).json({ themes: [], error: err.message });
+  }
+});
+
 // ── 默契傳聲筒 namespace ──────────────────────────────────────
 const { registerNamespace: registerCS } = require('./character-storm');
 registerCS(io, db);

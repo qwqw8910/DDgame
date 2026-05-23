@@ -81,9 +81,7 @@
                             <span class="input-icon">🎲</span>
                             <select v-model="selectedTheme" class="game-input" style="padding-left:44px;cursor:pointer">
                                 <option :value="-1">隨機主題（每局不同）</option>
-                                <option :value="0">原始題庫</option>
-                                <option :value="1">綜合主題包</option>
-                                <option :value="2">好友精選包</option>
+                                <option v-for="t in themeList" :key="t.id" :value="t.id">{{ t.name }}</option>
                             </select>
                         </div>
                         <button class="btn-primary" :disabled="createLoading" @click="handleCreateRoom"
@@ -180,6 +178,15 @@ function toggleTheme() {
 const createNickname = ref('')
 const maxPlayers = ref(6)
 const selectedTheme = ref(-1)
+
+// 主題名稱對照表（新增主題時只需在此加名稱，欄位由後端動態抓）
+const THEME_NAMES = {
+  0: '原始題庫',
+  1: '綜合主題包',
+  2: '好友精選包',
+  3: '深海底撈',
+}
+const themeList = ref([])
 const joinCode = ref('')
 const joinNickname = ref('')
 const createLoading = ref(false)
@@ -278,8 +285,20 @@ async function ensureServerAlive() {
     })
 }
 
+async function loadThemes() {
+    try {
+        const res = await fetch(`${SERVER_URL}/api/cs/themes`)
+        const { themes } = await res.json()
+        themeList.value = themes.map(id => ({ id, name: THEME_NAMES[id] ?? `主題 ${id}` }))
+    } catch {
+        // 載入失敗時回退為靜態清單
+        themeList.value = Object.entries(THEME_NAMES).map(([id, name]) => ({ id: Number(id), name }))
+    }
+}
+
 onMounted(() => {
     isDark.value = document.documentElement.getAttribute('data-theme') !== 'light'
+    loadThemes()
 
     const saved = getSavedNickname()
     if (saved) {
