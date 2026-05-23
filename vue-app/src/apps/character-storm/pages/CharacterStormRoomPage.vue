@@ -408,9 +408,7 @@
                             <select v-model="selectedTheme" class="game-input"
                                 style="flex:1;padding:4px 8px;font-size:12px;cursor:pointer" @change="handleSetTheme">
                                 <option :value="-1">隨機主題</option>
-                                <option :value="0">原始題庫</option>
-                                <option :value="1">綜合主題包</option>
-                                <option :value="2">好友精選包</option>
+                                <option v-for="t in themeList" :key="t.id" :value="t.id">{{ t.name }}</option>
                             </select>
                         </div>
                         <div class="cs-hint-bar cs-reveal-bar">
@@ -459,9 +457,7 @@
                         <select v-model="selectedTheme" class="game-input"
                             style="flex:1;padding:6px 10px;font-size:13px;cursor:pointer" @change="handleSetTheme">
                             <option :value="-1">隨機主題（每局不同）</option>
-                            <option :value="0">原始題庫</option>
-                            <option :value="1">綜合主題包</option>
-                            <option :value="2">好友精選包</option>
+                            <option v-for="t in themeList" :key="t.id" :value="t.id">{{ t.name }}</option>
                         </select>
                     </div>
                     <button class="btn-primary"
@@ -546,6 +542,31 @@ const route = useRoute()
 const router = useRouter()
 const MIN_PLAYERS_REQUIRED = 2
 const GUESS_TIMER_SECONDS = 90
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
+
+// ── 主題清單（動態從後端載入）────────────────────────────────────
+const THEME_NAMES = {
+    0: '原始題庫',
+    1: '綜合主題包',
+    2: '好友精選包',
+    3: '深海底撈',
+}
+const themeList = ref([])
+const selectedTheme = ref(-1)
+
+async function loadThemes() {
+    try {
+        const res = await fetch(`${SERVER_URL}/api/cs/themes`)
+        const { themes } = await res.json()
+        themeList.value = themes.map(id => ({ id, name: THEME_NAMES[id] ?? `主題 ${id}` }))
+    } catch {
+        themeList.value = Object.entries(THEME_NAMES).map(([id, name]) => ({ id: Number(id), name }))
+    }
+}
+
+function handleSetTheme() {
+    setTheme(selectedTheme.value)
+}
 
 // 主題切換
 const isDark = ref(true)
@@ -1048,6 +1069,7 @@ function joinWithNickname() {
 onMounted(() => {
     isDark.value = document.documentElement.getAttribute('data-theme') !== 'light'
     startSfx()
+    loadThemes()
 
     const roomId = (route.query.id || '').toUpperCase()
     const nickname = route.query.nickname?.trim() || getSavedNickname()
