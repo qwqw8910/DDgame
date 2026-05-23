@@ -63,6 +63,15 @@
                 @kick="handleKick" @transfer-host="handleTransferHost" @copy-link="copyLink" />
 
             <template v-else-if="state.room.status === 'playing'">
+                <!-- 伺服器重啟後 gameState 遺失，顯示提示等待房主重新開始 -->
+                <div v-if="!state.currentRound" class="game-section" style="text-align:center;padding:48px 16px">
+                    <div style="font-size:48px;margin-bottom:16px">🔌</div>
+                    <h2 class="section-title" style="margin-bottom:8px">伺服器已重啟</h2>
+                    <p class="text-body" style="font-size:15px;margin-bottom:24px">遊戲狀態已中斷，請房主點「重新開始」繼續玩！</p>
+                    <button v-if="state.isHost" class="btn-primary" @click="restartGame">🔄 重新開始</button>
+                    <p v-else class="section-hint" style="margin-top:8px">等待房主重新開始遊戲…</p>
+                </div>
+
                 <!-- 選主題 -->
                 <TopicSection v-if="state.currentRound?.status === 'selecting_topic'" :topics="state.topics"
                     :is-subject="state.isSubject" :players="state.players"

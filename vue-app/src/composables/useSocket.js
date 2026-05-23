@@ -24,6 +24,21 @@ function getSocket() {
   return _socket
 }
 
+// ── HTTP keepalive：每 8 分鐘 ping /health，防止 Render/Railway free tier sleep ──
+let _keepaliveTimer = null
+
+function _startKeepalive() {
+  if (_keepaliveTimer) return
+  _keepaliveTimer = setInterval(() => {
+    fetch(`${SOCKET_URL}/health`).catch(() => {})
+  }, 8 * 60 * 1000)
+}
+
+function _stopKeepalive() {
+  clearInterval(_keepaliveTimer)
+  _keepaliveTimer = null
+}
+
 // ── 全域遊戲狀態 ──────────────────────────────────────────────────
 const state = reactive({
   // 連線
@@ -70,8 +85,8 @@ let _gameListenersAttached = false
 
 // ── 遊戲事件監聽（房間事件已由 useRoom 接管） ────────────────────
 function setupGameListeners(socket, callbacks) {
-  socket.on('connect',    () => { state.connected = true })
-  socket.on('disconnect', () => { state.connected = false })
+  socket.on('connect',    () => { state.connected = true;  _startKeepalive() })
+  socket.on('disconnect', () => { state.connected = false; _stopKeepalive()  })
 
   socket.on('game_started', ({ room, currentRound, topics }) => {
     state.room             = room
