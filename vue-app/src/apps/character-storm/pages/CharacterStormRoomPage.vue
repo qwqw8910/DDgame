@@ -399,18 +399,6 @@
 
                     <!-- ── 底部揭曉 CTA（揭曉階段）── -->
                     <template v-if="state.status === 'revealing'">
-                        <!-- 主題切換列（僅房主） -->
-                        <div v-if="roomState.isHost" style="display:flex;align-items:center;gap:8px;
-                                   padding:6px 12px;border-radius:8px;
-                                   background:var(--bg-subtle);border:1px solid var(--border);
-                                   margin-bottom:6px">
-                            <span style="font-size:12px;color:var(--label);white-space:nowrap">🎲 下一題主題</span>
-                            <select v-model="selectedTheme" class="game-input"
-                                style="flex:1;padding:4px 8px;font-size:12px;cursor:pointer" @change="handleSetTheme">
-                                <option :value="-1">隨機主題</option>
-                                <option v-for="t in themeList" :key="t.id" :value="t.id">{{ t.name }}</option>
-                            </select>
-                        </div>
                         <div class="cs-hint-bar cs-reveal-bar">
                             <span style="font-size:24px">{{ state.guessResult?.correct ? '🎉' : '😅' }}</span>
                             <span class="neon-heading gradient-text" style="font-size:16px;font-weight:800">
