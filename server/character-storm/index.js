@@ -13,7 +13,7 @@ const { assignRoles }                = require('./roleAssign');
 
 const ROUND2_QUOTA  = 4;
 const TIMER_SECONDS = 90;
-const AVAILABLE_THEMES = [0, 1, 2];
+let AVAILABLE_THEMES = [0, 1, 2, 3]; // 啟動時由 DB 動態覆寫
 
 let hasLoggedThemeColumnMissing = false;
 
@@ -132,13 +132,13 @@ function makeDB(db) {
       async function drawByTheme(id) {
         const { count, error: cE } = await db.from('character_storm_words')
           .select('id', { count: 'exact', head: true })
-          .eq('is_active', true).eq('theme_id', id).not('id', 'in', usedFilter);
+          .eq('is_active', true).eq('weekday_bank', id).not('id', 'in', usedFilter);
         if (cE) throw cE;
         if (!count) return null;
         const offset = Math.floor(Math.random() * count);
         const { data, error } = await db.from('character_storm_words')
           .select('id, word, category, author').eq('is_active', true)
-          .eq('theme_id', id).not('id', 'in', usedFilter).range(offset, offset);
+          .eq('weekday_bank', id).not('id', 'in', usedFilter).range(offset, offset);
         if (error) throw error;
         return data?.[0] ?? null;
       }
@@ -151,11 +151,24 @@ function makeDB(db) {
         if (error?.code === '42703') {
           if (!hasLoggedThemeColumnMissing) {
             hasLoggedThemeColumnMissing = true;
-            console.warn('[CS] theme_id 欄位不存在，已回退為舊題庫模式');
+            console.warn('[CS] weekday_bank 欄位不存在，已回退為舊題庫模式');
           }
           return await drawWithoutThemeFilter();
         }
         throw error;
+      }
+    },
+
+    async getAvailableThemes() {
+      try {
+        const { data, error } = await db.from('character_storm_words')
+          .select('weekday_bank')
+          .eq('is_active', true);
+        if (error) throw error;
+        const ids = [...new Set((data ?? []).map(r => r.weekday_bank))].sort((a, b) => a - b);
+        return ids.length ? ids : null;
+      } catch {
+        return null; // 欄位不存在或查詢失敗，維持預設值
       }
     },
   };
@@ -485,6 +498,16 @@ function registerNamespace(io, db) {
   // 掛載房間模組
   const { roomCache } = registerRoomHandlers(ns, db, hooks);
   _roomCache = roomCache; // 讓 hooks 的函數存取 roomCache
+
+  // ── 動態載入可用 themes（之後新增 weekday_bank 無需重新部署）────
+  DB.getAvailableThemes().then(ids => {
+    if (ids) {
+      AVAILABLE_THEMES = ids;
+      console.log('[CS] 可用題庫主題（weekday_bank）:', ids.join(', '));
+    } else {
+      console.log('[CS] 使用預設題庫主題:', AVAILABLE_THEMES.join(', '));
+    }
+  });
 
   // ── 遊戲 Handlers ───────────────────────────────────────────
   ns.on('connection', (socket) => {
