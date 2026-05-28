@@ -64,6 +64,18 @@ export const tools = [
     status: 'active',
     tags: ['多人', '遊戲', '文字'],
   },
+  {
+    id: 'dinner-invite',
+    name: '晚餐邀請',
+    tagline: '你敢拒絕嗎？惡搞邀請',
+    description: '邀請 · 選食物 · 分享通行證\n強迫同意的晚餐邀請神器！',
+    emoji: '🥺',
+    color: 'rose',
+    route: '/dinner-invite',
+    externalUrl: null,
+    status: 'live',
+    tags: ['雙人', '美食', '惡搞'],
+  },
   // ── 未來新增工具範例 ──────────────────────────────────────────
   // {
   //   id: 'my-new-tool',
