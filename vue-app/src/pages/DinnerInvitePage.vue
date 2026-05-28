@@ -471,6 +471,7 @@ function restart() {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 0 40px var(--shadow-rose);
+  box-sizing: border-box;
 }
 
 /* ── 動畫：滑入 ─────────────────────────────────────────────── */
@@ -620,7 +621,8 @@ function restart() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 220px;
+  width: 100%;
+  max-width: 340px;
   padding: 14px 24px;
   font-size: 17px;
   font-weight: 700;
@@ -631,6 +633,7 @@ function restart() {
   cursor: pointer;
   box-shadow: 0 4px 20px rgba(249,115,22,0.35);
   transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  box-sizing: border-box;
 }
 .btn-slot:hover:not(:disabled) {
   transform: scale(1.04);
@@ -879,5 +882,96 @@ function restart() {
 .btn-restart:hover {
   color: var(--heading);
   border-color: var(--border-rose);
+}
+
+/* ── RWD：手機版 (≤480px) ─────────────────────────────────── */
+@media (max-width: 480px) {
+  /* 卡片縮小內距 */
+  .card {
+    padding: 24px 16px;
+    border-radius: 18px;
+  }
+
+  /* 置中容器上下留白縮小，避免內容被壓縮 */
+  .center-wrap {
+    padding: 72px 12px 48px;
+    justify-content: flex-start;
+    padding-top: 80px;
+  }
+
+  /* 邀請標題縮小 */
+  .invite-heading {
+    font-size: clamp(24px, 8vw, 32px);
+  }
+  .invite-sub {
+    font-size: 16px;
+  }
+
+  /* 類別卡片：手機改 2 列 */
+  .cat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* 盲選按鈕：手機全寬 */
+  .btn-slot {
+    max-width: 100%;
+    font-size: 15px;
+    padding: 13px 16px;
+  }
+
+  /* 同意/拒絕按鈕加寬 */
+  .btn-agree {
+    padding: 14px 48px;
+    font-size: 17px;
+  }
+  .btn-reject {
+    padding: 11px 24px;
+    font-size: 15px;
+  }
+
+  /* 邀請連結產生器：改為上下堆疊 */
+  .invite-gen {
+    flex-direction: column;
+  }
+  .btn-gen {
+    width: 100%;
+    padding: 13px;
+    font-size: 15px;
+  }
+
+  /* 結果標題通行證 */
+  .section-title {
+    font-size: 18px;
+  }
+  .passport-name {
+    font-size: clamp(20px, 7vw, 28px);
+  }
+  .food-choice {
+    font-size: 18px;
+  }
+
+  /* 食物品項標籤 */
+  .food-item {
+    font-size: 14px;
+    padding: 9px 14px;
+  }
+}
+
+/* ── RWD：極小螢幕 (≤360px) ──────────────────────────────── */
+@media (max-width: 360px) {
+  .card {
+    padding: 20px 12px;
+  }
+  .btn-agree {
+    padding: 13px 32px;
+  }
+  .passport-food {
+    flex-direction: column;
+    align-items: center;
+  }
+  .food-arrow {
+    transform: rotate(90deg);
+    display: inline-block;
+  }
 }
 </style>
