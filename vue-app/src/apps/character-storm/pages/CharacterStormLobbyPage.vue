@@ -185,6 +185,7 @@ const THEME_NAMES = {
   1: '綜合主題包',
   2: '好友精選包',
   3: '深海底撈',
+  4: '百鬼夜行',
 }
 const themeList = ref([])
 const joinCode = ref('')
