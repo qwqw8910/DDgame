@@ -7,6 +7,7 @@ import DinnerInvitePage          from '../pages/DinnerInvitePage.vue'
 import TopicGeneratorPage        from '../apps/topic-generator/pages/TopicGeneratorPage.vue'
 import CharacterStormLobbyPage   from '../apps/character-storm/pages/CharacterStormLobbyPage.vue'
 import CharacterStormRoomPage    from '../apps/character-storm/pages/CharacterStormRoomPage.vue'
+import GenderScorePage           from '../apps/gender-score/pages/GenderScorePage.vue'
 
 const routes = [
   { path: '/',                      name: 'portal',               component: PortalPage              },  // 工具入口首頁
@@ -17,6 +18,7 @@ const routes = [
   { path: '/topic-generator',       name: 'topic-generator',      component: TopicGeneratorPage      },  // 話題產生器
   { path: '/character-storm',       name: 'character-storm',      component: CharacterStormLobbyPage },  // 默契傳聲筒 入口
   { path: '/character-storm/room',  name: 'character-storm-room', component: CharacterStormRoomPage  },  // 默契傳聲筒 房間
+  { path: '/gender-score',          name: 'gender-score',         component: GenderScorePage         },  // 十分男女
 ]
 
 export default createRouter({
