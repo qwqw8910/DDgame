@@ -76,6 +76,18 @@ export const tools = [
     status: 'live',
     tags: ['雙人', '美食', '惡搞'],
   },
+  {
+    id: 'gender-score',
+    name: '十分男女',
+    tagline: '他幾分男？幾分女？',
+    description: '抽題 · 評分 · 互評\n給他打個 1–10 分！',
+    emoji: '⚤',
+    color: 'rose',
+    route: '/gender-score',
+    externalUrl: null,
+    status: 'live',
+    tags: ['多人', '遊戲', '評分'],
+  },
   // ── 未來新增工具範例 ──────────────────────────────────────────
   // {
   //   id: 'my-new-tool',
