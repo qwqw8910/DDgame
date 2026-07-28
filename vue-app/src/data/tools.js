@@ -88,6 +88,18 @@ export const tools = [
     status: 'live',
     tags: ['多人', '遊戲', '評分'],
   },
+  {
+    id: 'story-canvas',
+    name: '故事關係圖',
+    tagline: '拖拉節點，畫出你的故事',
+    description: '關係 · 情節 · 展示\n視覺化說故事的白板工具！',
+    emoji: '🗺️',
+    color: 'purple',
+    route: '/story-canvas',
+    externalUrl: null,
+    status: 'live',
+    tags: ['個人', '創作', '視覺化'],
+  },
   // ── 未來新增工具範例 ──────────────────────────────────────────
   // {
   //   id: 'my-new-tool',
