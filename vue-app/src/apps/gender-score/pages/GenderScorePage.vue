@@ -21,20 +21,7 @@
         <div class="gs-title-row">
           <span class="gs-title-score gradient-text neon-heading">十分男女</span>
         </div>
-        <div class="gs-gender-toggle" role="group" aria-label="選擇性別">
-          <button
-            class="gs-gender-btn"
-            :class="{ 'gs-gender-btn--active--male': gender === 'male' }"
-            @click="gender = 'male'"
-            :aria-pressed="gender === 'male'"
-          >♂ 他</button>
-          <button
-            class="gs-gender-btn"
-            :class="{ 'gs-gender-btn--active--female': gender === 'female' }"
-            @click="gender = 'female'"
-            :aria-pressed="gender === 'female'"
-          >♀ 她</button>
-        </div>
+
         <p class="gs-subtitle">你能接受嗎？給 1–10 分</p>
       </header>
 
@@ -84,20 +71,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+// gender toggle removed — questions use neutral pronouns (對方/對象)
 import { RouterLink } from 'vue-router'
 import questionsData from '../data/questions.json'
-
-// ── 性別 ─────────────────────────────────────────────────────
-const gender = ref('male')   // 'male' | 'female'
-
-// 替換題目中的 {他}、{男/女} token
-function applyGender(str) {
-  const pronoun  = gender.value === 'male' ? '他' : '她'
-  const genderWord = gender.value === 'male' ? '男' : '女'
-  return str
-    .replace(/\{他\}/g, pronoun)
-    .replace(/\{男\/女\}/g, genderWord)
-}
 
 // ── 題目清單 ─────────────────────────────────────────────────
 const questions = ref([])
@@ -124,8 +100,8 @@ const currentQuestion = computed(() =>
   questions.value[currentIndex.value] ?? { id: 0, setup: '', flaw: '載入中…', category: '' }
 )
 
-const renderedSetup = computed(() => applyGender(currentQuestion.value.setup))
-const renderedFlaw  = computed(() => applyGender(currentQuestion.value.flaw))
+const renderedSetup = computed(() => currentQuestion.value.setup)
+const renderedFlaw  = computed(() => currentQuestion.value.flaw)
 
 const isLast = computed(() => currentIndex.value === questions.value.length - 1)
 
@@ -219,44 +195,6 @@ function nextQuestion() {
   font-size: clamp(28px, 7vw, 42px);
   font-weight: 800;
   line-height: 1;
-}
-
-/* 性別切換 */
-.gs-gender-toggle {
-  display: inline-flex;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 3px;
-  gap: 3px;
-  margin-bottom: 10px;
-}
-
-.gs-gender-btn {
-  padding: 7px 22px;
-  border-radius: 7px;
-  border: none;
-  background: transparent;
-  color: var(--body);
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
-  line-height: 1;
-}
-
-/* 男：藍紫漸層 */
-.gs-gender-btn--active--male {
-  background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
-  color: #fff;
-  box-shadow: 0 2px 10px rgba(59,130,246,0.4);
-}
-
-/* 女：玫瑰漸層 */
-.gs-gender-btn--active--female {
-  background: linear-gradient(135deg, var(--neon-rose) 0%, #F472B6 100%);
-  color: #fff;
-  box-shadow: 0 2px 10px rgba(225,29,72,0.4);
 }
 
 .gs-subtitle {
