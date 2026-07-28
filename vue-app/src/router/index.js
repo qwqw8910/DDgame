@@ -8,6 +8,7 @@ import TopicGeneratorPage        from '../apps/topic-generator/pages/TopicGenera
 import CharacterStormLobbyPage   from '../apps/character-storm/pages/CharacterStormLobbyPage.vue'
 import CharacterStormRoomPage    from '../apps/character-storm/pages/CharacterStormRoomPage.vue'
 import GenderScorePage           from '../apps/gender-score/pages/GenderScorePage.vue'
+import StoryCanvasPage           from '../apps/story-canvas/pages/StoryCanvasPage.vue'
 
 const routes = [
   { path: '/',                      name: 'portal',               component: PortalPage              },  // 工具入口首頁
@@ -19,6 +20,7 @@ const routes = [
   { path: '/character-storm',       name: 'character-storm',      component: CharacterStormLobbyPage },  // 默契傳聲筒 入口
   { path: '/character-storm/room',  name: 'character-storm-room', component: CharacterStormRoomPage  },  // 默契傳聲筒 房間
   { path: '/gender-score',          name: 'gender-score',         component: GenderScorePage         },  // 十分男女
+  { path: '/story-canvas',          name: 'story-canvas',         component: StoryCanvasPage         },  // 故事關係圖
 ]
 
 export default createRouter({
