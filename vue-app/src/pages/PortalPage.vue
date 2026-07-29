@@ -1,5 +1,5 @@
 <template>
-    <div style="min-height:100vh; overflow-x:hidden">
+    <div style="height:100vh; overflow-y:auto; overflow-x:hidden">
 
         <!-- 浮動背景 emoji -->
         <div style="position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0" aria-hidden="true">
