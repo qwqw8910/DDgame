@@ -1,5 +1,5 @@
 <template>
-    <div class="page-wrapper">
+    <div class="page-wrapper page-wrapper--scrollable cs-room-page">
         <a href="#cs-main-content" class="skip-link">跳到主要內容</a>
 
         <!-- Header -->
@@ -1100,6 +1100,29 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.cs-room-page {
+    height: 100dvh;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.cs-room-page .main-content {
+    flex: none !important;
+    min-height: 0;
+}
+
+.cs-room-page .cs-game-layout,
+.cs-room-page .cs-left-panel,
+.cs-room-page .cs-right-area,
+.cs-room-page .cs-players-grid {
+    height: auto;
+    overflow: visible;
+}
+
+.cs-room-page .cs-players-grid {
+    flex: none;
+}
+
 /* 返回首頁按鈕 */
 .header-back-btn {
     position: absolute;
