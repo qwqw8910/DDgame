@@ -4,7 +4,7 @@
 // ================================================================
 import { reactive, readonly } from 'vue'
 import { io } from 'socket.io-client'
-import { useRoom } from './useRoom.js'
+import { useRoom } from '@/shared/composables/useRoom.js'
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 

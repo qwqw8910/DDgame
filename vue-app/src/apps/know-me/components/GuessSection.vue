@@ -8,12 +8,12 @@
         <!-- 被猜者等待畫面 -->
         <div v-if="isSubject" class="waiting-container">
             <div class="loading-dots"><span></span><span></span><span></span></div>
-            <p class="text-body" style="font-size:15px;margin-top:16px">其他人猜測中…</p>
+            <p class="text-body text-[15px] mt-4">其他人猜測中…</p>
         </div>
 
         <!-- 其他人猜測 -->
         <template v-else>
-            <p class="section-hint" style="text-align:center">
+            <p class="section-hint text-center">
                 {{ hasSubmittedGuess ? '✓ 已提交，可在揭曉前改選' : '點選你的答案（揭曉前可改選）' }}
             </p>
 

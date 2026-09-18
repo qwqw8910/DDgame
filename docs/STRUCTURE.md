@@ -12,7 +12,6 @@ testdemo/                          ← 專案根目錄
 ├── vue-app/                       ← Vue 3 前端（唯一前端入口）
 ├── server/                        ← Node.js + Socket.io 後端
 ├── docs/                          ← 設計文件、構想筆記
-├── admin.html                     ← 題庫管理（待遷移至 Vue）
 ├── logo.svg                       ← 品牌 Logo
 ├── README.md                      ← 專案說明
 └── STRUCTURE.md                   ← 本規範文件（你在這裡）
@@ -27,22 +26,32 @@ testdemo/                          ← 專案根目錄
 
 ## Vue 前端結構（`vue-app/src/`）
 
-### 目標結構（需遷移完成）
+### 現行結構（2026-09 完成遷移）
+
+Portal 也是一個 app（`apps/portal/`），與其他工具一致，不再另外獨立於 `apps/` 之外——單一模式比「apps/ 用一種規則、portal/ 用另一種」更好維護。
 
 ```
 vue-app/src/
 │
 ├── apps/                          ← 各 App 自包含目錄（核心規則）
 │   │
-│   ├── know-me/                   ← App: 懂我再說
+│   ├── portal/                    ← 平台入口（甜甜的小秘密首頁）
+│   │   ├── pages/PortalPage.vue
+│   │   ├── components/ToolCard.vue
+│   │   └── data/tools.js          ← 所有工具清單（入口資料源）
+│   │
+│   ├── know-me/                   ← App: 懂我再說（含 AdminPage.vue 題庫管理，路由 /admin，不登記進 tools.js）
 │   │   ├── pages/                 ← 該 App 的頁面元件
 │   │   ├── components/            ← 該 App 專屬 UI 元件
 │   │   ├── composables/           ← 該 App 專屬 composable（如 useSocket.js）
 │   │   └── data/                  ← 該 App 專屬靜態資料
 │   │
 │   ├── dinner-picker/             ← App: 今晚吃什麼
-│   │   └── pages/
-│   │       └── DinnerPickerPage.vue
+│   ├── dinner-invite/             ← App: 晚餐邀請選擇器
+│   ├── topic-generator/           ← App: 話題產生器
+│   ├── character-storm/           ← App: 默契傳聲筒：字元風暴
+│   ├── gender-score/              ← App: 十分男女
+│   ├── story-canvas/              ← App: 故事關係圖
 │   │
 │   └── [未來新 App slug]/          ← 遵循相同結構
 │       ├── pages/
@@ -50,25 +59,33 @@ vue-app/src/
 │       ├── composables/
 │       └── data/
 │
-├── portal/                        ← 平台入口（甜甜的小秘密首頁）
-│   ├── pages/
-│   │   └── PortalPage.vue
-│   └── components/
-│       └── ToolCard.vue
-│
-├── shared/                        ← 跨 App 共用邏輯
-│   └── data/
-│       ├── identity.js            ← localStorage UUID / 暱稱管理
-│       ├── db.js                  ← Supabase client
-│       └── tools.js               ← 所有工具清單（入口資料源）
+├── shared/                        ← 跨 App 共用邏輯（目前被 2 個以上 App 使用才放這裡）
+│   ├── data/identity.js           ← localStorage UUID / 暱稱管理
+│   ├── composables/useRoom.js     ← Socket.io 房間狀態 composable 基底
+│   └── components/RoomPlayerPanel.vue ← 房間玩家清單側欄
 │
 ├── router/
-│   └── index.js                   ← 路由設定（import 指向 apps/ 或 portal/）
+│   └── index.js                   ← 路由設定（import 指向 apps/；AdminPage 用動態 import 獨立打包）
 ├── assets/
-│   └── style.css                  ← 全域樣式
+│   └── main.css                   ← Tailwind 4 入口：@theme token + @layer components（見下一節）
 ├── App.vue                        ← 根元件（只放 <RouterView />）
 └── main.js                        ← app 初始化
 ```
+
+---
+
+## 樣式規範（Tailwind CSS 4）
+
+專案全面採用 Tailwind CSS 4（`@tailwindcss/vite` 插件），唯一樣式入口是 `vue-app/src/assets/main.css`。
+
+- **禁止使用 `<style scoped>`**：所有樣式一律用 Tailwind utility class 直接寫在 template 上。
+- **設計 token**：顏色、字體家族定義在 `main.css` 的 `@theme` 區塊（如 `--color-neon-rose`、`--color-heading`、`--font-sans`），Tailwind 會自動產生對應的 `bg-*`／`text-*`／`border-*` utility class。新增顏色 token 時，避免把顏色用途的字重複塞進 token 名稱裡（例如不要命名成 `--color-bg-card`，因為那會產生 `bg-bg-card` 這種多餘前綴的 class；改用 `--color-card`，對應 `bg-card`）。
+- **明暗主題**：沿用既有的 `<html data-theme="light">` / 預設（暗色）機制，`[data-theme="light"]` 選擇器覆寫 `@theme` 的同名 `--color-*` 變數即可讓所有已產生的 utility class 自動跟著換色，不需要另外寫 `dark:` variant。
+- **共用元件樣式**：跨檔案重複使用的視覺樣式（按鈕、卡片、徽章等，例如 `.btn-primary`、`.game-card`、`.badge-host`）用 Tailwind 的 `@layer components` + `@apply` 定義在 `main.css`，template 上仍然用語意化 class 名稱引用，不要把同一組 utility 字串複製貼上到每個用到的地方。
+- **單一元件才用到的樣式**：直接把 Tailwind utility class 寫在該元件的 template 上（可用 arbitrary value，如 `text-[15px]`、`bg-[rgba(...)]`），不要為了單一元件另外建立 class。
+- **Vue `<Transition>` / `<TransitionGroup>` 的 class**：Vue 是依 `name` prop 自動注入 `xxx-enter-active`／`xxx-leave-to` 等 class，這些名稱必須存在於 `main.css` 的 `@layer components` 才會生效（不能只寫在 template 上），可參考 `.toast-enter-active`、`.wakeup-enter-active`、`.phase-flash-enter-active` 等既有寫法。
+- **開源元件庫**：互動元件（對話框、下拉選單等）優先用 [Reka UI](https://reka-ui.com/)（headless，無預設樣式），樣式一樣用 Tailwind 表達，可參考 `apps/story-canvas/pages/StoryCanvasPage.vue` 和 `apps/know-me/pages/AdminPage.vue` 的 `DialogRoot`/`DialogContent` 用法。
+- **RWD**：用 Tailwind 預設斷點（`sm` 640px 起），手機版（未加前綴的 class）優先設計，再用 `sm:`／`md:` 疊加桌機版樣式。
 
 ---
 
@@ -91,7 +108,7 @@ vue-app/src/
 ┌─────────────────────────────────┐
 │           apps/know-me/         │──→ shared/    ✅
 │           apps/dinner-picker/   │──→ shared/    ✅
-│           portal/               │──→ shared/    ✅
+│           apps/portal/          │──→ shared/    ✅
 │                                 │
 │  apps/know-me → apps/dinner-    │              ❌ 禁止跨 App import
 │  picker                         │
@@ -102,11 +119,11 @@ vue-app/src/
 - App 專屬邏輯放在 `apps/[slug]/` 內，不外洩
 - 跨 App 共用邏輯放在 `shared/`
 - `router/index.js` 是唯一可以 import 所有 App pages 的地方
-- 每個 App 必須在 `shared/data/tools.js` 登記一筆資料
+- 每個 App 必須在 `apps/portal/data/tools.js` 登記一筆資料（管理用的 AdminPage 例外，不登記）
 
 ### Ask First（需先討論）
-- 新增一個被多個 App 依賴的 `shared/` composable
-- 修改 `shared/data/db.js` 或 `shared/data/identity.js`
+- 新增一個被多個 App 依賴的 `shared/` composable 或 component
+- 修改 `shared/data/identity.js`（多個 App 共用）
 - 調整路由結構
 
 ### Never（禁止）
@@ -200,8 +217,13 @@ VITE_SOCKET_URL=http://localhost:3000
 |------|------|------|------|
 | `know-me` | 懂我再說 | 🟢 live | `/game`, `/room` |
 | `dinner-picker` | 今晚吃什麼 | 🟢 live | `/dinner-picker` |
+| `dinner-invite` | 晚餐邀請選擇器 | 🟢 live | `/dinner-invite` |
 | `topic-generator` | 話題產生器 | 🟢 live | `/topic-generator` |
-| `character-storm` | 默契傳聲筒：字元風暴 | � live | `/character-storm`, `/character-storm/room` |
+| `character-storm` | 默契傳聲筒：字元風暴 | 🟢 live | `/character-storm`, `/character-storm/room` |
+| `gender-score` | 十分男女 | 🟢 live | `/gender-score` |
+| `story-canvas` | 故事關係圖 | 🟢 live | `/story-canvas` |
+
+另有 `apps/know-me/pages/AdminPage.vue`（題庫管理後台，路由 `/admin`）：不登記進 `tools.js`／Portal 首頁，知道網址才能到。
 
 ---
 
@@ -255,11 +277,6 @@ server/character-storm/
 
 ---
 
-## 待辦（尚未完成的遷移）
-
-- [ ] `vue-app/src/` 內部按本規範完成目錄重構（將 pages/components/composables/data 移入對應 `apps/` 目錄）
-- [ ] `admin.html`（題庫管理）遷移至 Vue，放入 `apps/know-me/pages/AdminPage.vue`
-
 ---
 
-*最後更新：2026-05-11*
+*最後更新：2026-09-18 — 完成 Tailwind CSS 4 + Reka UI 全面遷移、`apps/` 目錄重構、`admin.html` 遷入 Vue（詳見上方「樣式規範」與「目前 App 清單」）。*

@@ -1,62 +1,65 @@
 <template>
-  <div class="story-canvas-app" :class="{ 'present-mode': isPresentMode }">
+  <div class="flex h-screen w-screen overflow-hidden relative bg-[#0d0d1a] font-sans">
 
     <!-- ===== 左側形狀面板（編輯模式才顯示） ===== -->
-    <aside v-if="!isPresentMode" class="shape-panel" @dragstart.stop>
-      <div class="panel-title">📐 形狀</div>
+    <aside v-if="!isPresentMode" @dragstart.stop
+      class="w-28 bg-[#13131f] border-r border-[#2a2a3e] flex flex-col items-center p-2 py-3 gap-1.5 overflow-y-auto z-10 shrink-0">
+      <div class="text-[11px] text-[#6b6b8a] tracking-wide text-center w-full mt-1">📐 形狀</div>
       <div
         v-for="shape in shapeOptions"
         :key="shape.type"
-        class="shape-item"
         draggable="true"
         @dragstart="onShapeDragStart($event, shape)"
         :title="shape.label"
+        class="flex flex-col items-center gap-1 cursor-grab p-1.5 rounded-lg border border-transparent transition-all duration-150 w-[76px] hover:bg-[#1e1e32] hover:border-[#a78bfa44]"
       >
-        <svg :viewBox="shape.viewBox" class="shape-icon">
-          <component :is="shape.svgTag" v-bind="shape.svgAttrs" class="shape-svg-el" />
+        <svg :viewBox="shape.viewBox" class="w-9 h-9">
+          <component :is="shape.svgTag" v-bind="shape.svgAttrs" class="fill-[#a78bfa44] stroke-[#a78bfa] stroke-2" />
         </svg>
-        <span>{{ shape.label }}</span>
+        <span class="text-[10px] text-[#9090b0]">{{ shape.label }}</span>
       </div>
 
-      <div class="panel-divider" />
-      <div class="panel-title-row">
-        <span class="panel-title">💾 存檔</span>
-        <button class="add-slot-btn" @click="addSlot" title="新增存檔">＋</button>
+      <div class="w-3/5 h-px bg-[#2a2a3e] my-2" />
+      <div class="flex items-center justify-between w-full px-0.5">
+        <span class="text-[11px] text-[#6b6b8a] tracking-wide text-center mt-1">💾 存檔</span>
+        <button @click="addSlot" title="新增存檔"
+          class="bg-transparent border border-[#2a2a3e] text-[#a78bfa] text-sm leading-none w-5 h-5 rounded flex items-center justify-center transition-all duration-150 shrink-0 cursor-pointer hover:bg-[#a78bfa22] hover:border-[#a78bfa]">＋</button>
       </div>
-      <div class="slot-list">
+      <div class="w-full flex flex-col gap-1">
         <div
           v-for="slot in slots"
           :key="slot.id"
-          class="slot-item"
-          :class="{ active: slot.id === currentSlotId }"
           @click="switchSlot(slot.id)"
+          class="group w-full rounded-lg border cursor-pointer transition-all duration-150 box-border py-1.5 px-1.5 pb-1"
+          :class="slot.id === currentSlotId ? 'border-[#a78bfa] bg-[#a78bfa15]' : 'border-[#2a2a3e] bg-[#0d0d1a] hover:border-[#a78bfa44] hover:bg-[#1a1a2e]'"
         >
-          <div v-if="renamingSlotId === slot.id" class="slot-rename-row" @click.stop>
+          <div v-if="renamingSlotId === slot.id" class="w-full" @click.stop>
             <input
               v-model="renamingName"
-              class="slot-rename-input"
               @keydown.enter="confirmRename"
               @keydown.escape="renamingSlotId = null"
               @blur="confirmRename"
               ref="renameInputRef"
+              class="w-full bg-[#0d0d1a] border border-[#a78bfa] rounded px-1 py-0.5 text-[#e2e8f0] text-[11px] outline-none box-border"
             />
           </div>
-          <div v-else class="slot-name-row" @dblclick.stop="startRename(slot)">
-            <span class="slot-name">{{ slot.name }}</span>
+          <div v-else class="flex items-center justify-between gap-0.5" @dblclick.stop="startRename(slot)">
+            <span class="text-[11px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis flex-1"
+              :class="slot.id === currentSlotId ? 'text-[#a78bfa]' : 'text-[#c0c0d8]'">{{ slot.name }}</span>
             <button
               v-if="slots.length > 1"
-              class="slot-delete-btn"
               @click.stop="deleteSlot(slot.id)"
               title="刪除此存檔"
+              class="bg-transparent border-0 text-[#4a4a6a] text-[13px] cursor-pointer px-0.5 leading-none shrink-0 opacity-0 transition-[opacity,color] duration-150 group-hover:opacity-100 hover:text-[#f87171]"
             >×</button>
           </div>
-          <div class="slot-time">{{ formatTime(slot.updatedAt) }}</div>
+          <div class="text-[9px] text-[#4a4a6a] mt-0.5">{{ formatTime(slot.updatedAt) }}</div>
         </div>
       </div>
     </aside>
 
     <!-- ===== 主畫布 ===== -->
-    <div class="canvas-area" ref="canvasArea" @dragover.prevent @drop="onDrop">
+    <div class="relative" :class="isPresentMode ? 'flex-none w-screen' : 'flex-1'" ref="canvasArea" @dragover.prevent @drop="onDrop">
       <VueFlow
         v-model:nodes="nodes"
         v-model:edges="edges"
@@ -82,93 +85,113 @@
     </div>
 
     <!-- ===== 右上角控制列 ===== -->
-    <div class="top-bar">
-      <span class="top-title">{{ canvasTitle }}</span>
-      <button class="mode-btn" @click="toggleMode">
+    <div class="fixed top-3 right-4 flex items-center gap-3 z-20">
+      <span class="text-sm text-[#6b6b8a] tracking-wide">{{ canvasTitle }}</span>
+      <button @click="toggleMode"
+        class="py-1.5 px-4 rounded-full border border-[#a78bfa66] bg-[#13131f] text-[#a78bfa] text-[13px] cursor-pointer transition-all duration-200 hover:bg-[#a78bfa22] hover:border-[#a78bfa]">
         {{ isPresentMode ? '✏️ 編輯' : '🎬 展示' }}
       </button>
     </div>
 
     <!-- ===== 節點文字編輯 Modal ===== -->
-    <div v-if="editingNode" class="modal-overlay" @click.self="closeNodeEdit">
-      <div class="modal-box">
-        <div class="modal-title">編輯節點</div>
-        <input
-          v-model="editingNode.label"
-          class="modal-input"
-          placeholder="節點名稱…"
-          @keydown.enter="closeNodeEdit"
-          ref="nodeInputRef"
-        />
-        <textarea
-          v-model="editingNode.note"
-          class="modal-textarea"
-          placeholder="備注（展示模式點擊可查看）…"
-          rows="3"
-        />
-        <div class="modal-color-row">
-          <span>顏色：</span>
-          <button
-            v-for="c in nodeColors"
-            :key="c"
-            class="color-dot"
-            :style="{ background: c }"
-            :class="{ active: editingNode.color === c }"
-            @click="editingNode.color = c"
-          />
-        </div>
-        <div class="modal-actions">
-          <button class="modal-btn danger" @click="deleteNode(editingNode.id)">刪除</button>
-          <button class="modal-btn primary" @click="closeNodeEdit">完成</button>
-        </div>
-      </div>
-    </div>
+    <DialogRoot :open="!!editingNode" @update:open="v => !v && closeNodeEdit()">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 bg-black/60 z-[100]" />
+        <DialogContent
+          class="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] bg-[#1a1a2e] border border-[#2a2a4e] rounded-2xl py-6 px-7 w-[340px] flex flex-col gap-3 outline-none">
+          <DialogTitle class="text-base font-bold text-[#e2e8f0]">編輯節點</DialogTitle>
+          <DialogDescription class="sr-only">編輯節點名稱、備注與顏色</DialogDescription>
+          <template v-if="editingNode">
+            <input
+              v-model="editingNode.label"
+              placeholder="節點名稱…"
+              @keydown.enter="closeNodeEdit"
+              ref="nodeInputRef"
+              class="bg-[#0d0d1a] border border-[#2a2a4e] rounded-lg py-2 px-3 text-[#e2e8f0] text-sm outline-none focus:border-[#a78bfa]"
+            />
+            <textarea
+              v-model="editingNode.note"
+              placeholder="備注（展示模式點擊可查看）…"
+              rows="3"
+              class="bg-[#0d0d1a] border border-[#2a2a4e] rounded-lg py-2 px-3 text-[#c0c0d8] text-[13px] outline-none resize-y focus:border-[#a78bfa44]"
+            />
+            <div class="flex items-center gap-2 flex-wrap text-[13px] text-[#9090b0]">
+              <span>顏色：</span>
+              <button
+                v-for="c in nodeColors"
+                :key="c"
+                :style="{ background: c }"
+                @click="editingNode.color = c"
+                class="w-5 h-5 rounded-full border-2 cursor-pointer transition-transform duration-150 hover:scale-[1.2] hover:border-white"
+                :class="editingNode.color === c ? 'scale-[1.2] border-white' : 'border-transparent'"
+              />
+            </div>
+            <div class="flex justify-end gap-2 mt-1">
+              <button @click="deleteNode(editingNode.id)"
+                class="py-[7px] px-5 rounded-lg border border-[#f87171] bg-transparent text-[#f87171] text-[13px] cursor-pointer transition-colors duration-150 hover:bg-[#f8717122]">刪除</button>
+              <button @click="closeNodeEdit"
+                class="py-[7px] px-5 rounded-lg border border-[#a78bfa] bg-transparent text-[#a78bfa] text-[13px] cursor-pointer transition-colors duration-150 hover:bg-[#a78bfa22]">完成</button>
+            </div>
+          </template>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
 
     <!-- ===== 線段標籤編輯 Modal ===== -->
-    <div v-if="editingEdge" class="modal-overlay" @click.self="closeEdgeEdit">
-      <div class="modal-box">
-        <div class="modal-title">編輯關係線</div>
-        <input
-          v-model="editingEdge.label"
-          class="modal-input"
-          placeholder="關係標籤（如：愛人、敵人、不知道）…"
-          @keydown.enter="closeEdgeEdit"
-          ref="edgeInputRef"
-        />
-        <div class="edge-type-row">
-          <span>線型：</span>
-          <button
-            v-for="t in edgeTypes"
-            :key="t.value"
-            class="edge-type-btn"
-            :class="{ active: editingEdge.type === t.value }"
-            @click="editingEdge.type = t.value"
-          >{{ t.label }}</button>
-        </div>
-        <div class="edge-type-row">
-          <span>顏色：</span>
-          <button
-            v-for="c in edgeColors"
-            :key="c"
-            class="color-dot"
-            :style="{ background: c }"
-            :class="{ active: editingEdge.color === c }"
-            @click="editingEdge.color = c"
-          />
-        </div>
-        <div class="modal-actions">
-          <button class="modal-btn danger" @click="deleteEdge(editingEdge.id)">刪除</button>
-          <button class="modal-btn primary" @click="closeEdgeEdit">完成</button>
-        </div>
-      </div>
-    </div>
+    <DialogRoot :open="!!editingEdge" @update:open="v => !v && closeEdgeEdit()">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 bg-black/60 z-[100]" />
+        <DialogContent
+          class="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] bg-[#1a1a2e] border border-[#2a2a4e] rounded-2xl py-6 px-7 w-[340px] flex flex-col gap-3 outline-none">
+          <DialogTitle class="text-base font-bold text-[#e2e8f0]">編輯關係線</DialogTitle>
+          <DialogDescription class="sr-only">編輯關係線標籤、線型與顏色</DialogDescription>
+          <template v-if="editingEdge">
+            <input
+              v-model="editingEdge.label"
+              placeholder="關係標籤（如：愛人、敵人、不知道）…"
+              @keydown.enter="closeEdgeEdit"
+              ref="edgeInputRef"
+              class="bg-[#0d0d1a] border border-[#2a2a4e] rounded-lg py-2 px-3 text-[#e2e8f0] text-sm outline-none focus:border-[#a78bfa]"
+            />
+            <div class="flex items-center gap-2 flex-wrap text-[13px] text-[#9090b0]">
+              <span>線型：</span>
+              <button
+                v-for="t in edgeTypes"
+                :key="t.value"
+                @click="editingEdge.type = t.value"
+                class="py-[3px] px-2.5 rounded-full border bg-transparent text-xs cursor-pointer"
+                :class="editingEdge.type === t.value ? 'border-[#a78bfa] text-[#a78bfa] bg-[#a78bfa15]' : 'border-[#2a2a4e] text-[#9090b0]'"
+              >{{ t.label }}</button>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap text-[13px] text-[#9090b0]">
+              <span>顏色：</span>
+              <button
+                v-for="c in edgeColors"
+                :key="c"
+                :style="{ background: c }"
+                @click="editingEdge.color = c"
+                class="w-5 h-5 rounded-full border-2 cursor-pointer transition-transform duration-150 hover:scale-[1.2] hover:border-white"
+                :class="editingEdge.color === c ? 'scale-[1.2] border-white' : 'border-transparent'"
+              />
+            </div>
+            <div class="flex justify-end gap-2 mt-1">
+              <button @click="deleteEdge(editingEdge.id)"
+                class="py-[7px] px-5 rounded-lg border border-[#f87171] bg-transparent text-[#f87171] text-[13px] cursor-pointer transition-colors duration-150 hover:bg-[#f8717122]">刪除</button>
+              <button @click="closeEdgeEdit"
+                class="py-[7px] px-5 rounded-lg border border-[#a78bfa] bg-transparent text-[#a78bfa] text-[13px] cursor-pointer transition-colors duration-150 hover:bg-[#a78bfa22]">完成</button>
+            </div>
+          </template>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
 
     <!-- ===== 展示模式：節點備注浮層 ===== -->
-    <div v-if="presentNote" class="present-note-overlay" @click="presentNote = null">
-      <div class="present-note-box">
-        <div class="present-note-name">{{ presentNote.label }}</div>
-        <div class="present-note-text">{{ presentNote.note || '（無備注）' }}</div>
-        <div class="present-note-hint">點擊任意處關閉</div>
+    <div v-if="presentNote" @click="presentNote = null"
+      class="fixed inset-0 bg-black/70 flex items-center justify-center z-[200] cursor-pointer">
+      <div class="bg-[#1a1a2e] border border-[#a78bfa66] rounded-2xl py-8 px-9 max-w-[420px] text-center">
+        <div class="text-xl font-extrabold text-[#a78bfa] mb-3">{{ presentNote.label }}</div>
+        <div class="text-base text-[#c0c0d8] leading-[1.7] whitespace-pre-wrap">{{ presentNote.note || '（無備注）' }}</div>
+        <div class="mt-5 text-xs text-[#4a4a6a]">點擊任意處關閉</div>
       </div>
     </div>
 
@@ -181,6 +204,7 @@ import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
+import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui'
 import StoryNode from '../components/StoryNode.vue'
 
 import '@vue-flow/core/dist/style.css'
@@ -505,396 +529,3 @@ function clearCanvas() {
   edges.value = []
 }
 </script>
-
-<style scoped>
-/* ─── 整體佈局 ─────────────────────────────── */
-.story-canvas-app {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
-  background: #0d0d1a;
-  font-family: system-ui, sans-serif;
-  overflow: hidden;
-  position: relative;
-}
-
-/* ─── 左側面板 ─────────────────────────────── */
-.shape-panel {
-  width: 112px;
-  background: #13131f;
-  border-right: 1px solid #2a2a3e;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 8px;
-  gap: 6px;
-  overflow-y: auto;
-  z-index: 10;
-  flex-shrink: 0;
-}
-
-.panel-title {
-  font-size: 11px;
-  color: #6b6b8a;
-  letter-spacing: 0.5px;
-  text-align: center;
-  width: 100%;
-  margin-top: 4px;
-}
-
-.shape-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  cursor: grab;
-  padding: 6px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  transition: all 0.15s;
-  width: 76px;
-}
-
-.shape-item:hover {
-  background: #1e1e32;
-  border-color: #a78bfa44;
-}
-
-.shape-icon {
-  width: 36px;
-  height: 36px;
-}
-
-.shape-svg-el {
-  fill: #a78bfa44;
-  stroke: #a78bfa;
-  stroke-width: 2;
-}
-
-.shape-item span {
-  font-size: 10px;
-  color: #9090b0;
-}
-
-.panel-divider {
-  width: 60%;
-  height: 1px;
-  background: #2a2a3e;
-  margin: 8px 0;
-}
-
-.panel-btn {
-  width: 76px;
-  padding: 6px 4px;
-  border-radius: 6px;
-  border: 1px solid #2a2a3e;
-  background: #1e1e32;
-  color: #c0c0d8;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.panel-btn:hover { border-color: #a78bfa; color: #a78bfa; }
-.panel-btn.danger:hover { border-color: #f87171; color: #f87171; }
-
-/* ─── 存檔渾項 ──────────────────────────────────────── */
-.panel-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0 2px;
-}
-
-.add-slot-btn {
-  background: transparent;
-  border: 1px solid #2a2a3e;
-  color: #a78bfa;
-  font-size: 14px;
-  line-height: 1;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-  flex-shrink: 0;
-}
-
-.add-slot-btn:hover { background: #a78bfa22; border-color: #a78bfa; }
-
-.slot-list {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.slot-item {
-  width: 100%;
-  padding: 6px 6px 4px;
-  border-radius: 8px;
-  border: 1px solid #2a2a3e;
-  background: #0d0d1a;
-  cursor: pointer;
-  transition: all 0.15s;
-  box-sizing: border-box;
-}
-
-.slot-item:hover { border-color: #a78bfa44; background: #1a1a2e; }
-.slot-item.active { border-color: #a78bfa; background: #a78bfa15; }
-
-.slot-name-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2px;
-}
-
-.slot-name {
-  font-size: 11px;
-  font-weight: 600;
-  color: #c0c0d8;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.slot-item.active .slot-name { color: #a78bfa; }
-
-.slot-delete-btn {
-  background: transparent;
-  border: none;
-  color: #4a4a6a;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 0 2px;
-  line-height: 1;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
-}
-
-.slot-item:hover .slot-delete-btn { opacity: 1; }
-.slot-delete-btn:hover { color: #f87171; }
-
-.slot-time {
-  font-size: 9px;
-  color: #4a4a6a;
-  margin-top: 2px;
-}
-
-.slot-rename-row { width: 100%; }
-
-.slot-rename-input {
-  width: 100%;
-  background: #0d0d1a;
-  border: 1px solid #a78bfa;
-  border-radius: 4px;
-  padding: 2px 4px;
-  color: #e2e8f0;
-  font-size: 11px;
-  outline: none;
-  box-sizing: border-box;
-}
-
-/* ─── 畫布區域 ─────────────────────────────── */
-.canvas-area {
-  flex: 1;
-  position: relative;
-}
-
-/* ─── 頂部工具列 ───────────────────────────── */
-.top-bar {
-  position: fixed;
-  top: 12px;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  z-index: 20;
-}
-
-.top-title {
-  font-size: 14px;
-  color: #6b6b8a;
-  letter-spacing: 0.5px;
-}
-
-.mode-btn {
-  padding: 6px 16px;
-  border-radius: 20px;
-  border: 1px solid #a78bfa66;
-  background: #13131f;
-  color: #a78bfa;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.mode-btn:hover {
-  background: #a78bfa22;
-  border-color: #a78bfa;
-}
-
-/* ─── 展示模式 ─────────────────────────────── */
-.present-mode .canvas-area { flex: none; width: 100vw; }
-
-/* ─── Modal ────────────────────────────────── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal-box {
-  background: #1a1a2e;
-  border: 1px solid #2a2a4e;
-  border-radius: 14px;
-  padding: 24px 28px;
-  width: 340px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.modal-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #e2e8f0;
-}
-
-.modal-input {
-  background: #0d0d1a;
-  border: 1px solid #2a2a4e;
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: #e2e8f0;
-  font-size: 14px;
-  outline: none;
-}
-
-.modal-input:focus { border-color: #a78bfa; }
-
-.modal-textarea {
-  background: #0d0d1a;
-  border: 1px solid #2a2a4e;
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: #c0c0d8;
-  font-size: 13px;
-  outline: none;
-  resize: vertical;
-}
-
-.modal-textarea:focus { border-color: #a78bfa44; }
-
-.modal-color-row,
-.edge-type-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  color: #9090b0;
-}
-
-.color-dot {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: transform 0.15s;
-}
-
-.color-dot.active, .color-dot:hover { border-color: #fff; transform: scale(1.2); }
-
-.edge-type-btn {
-  padding: 3px 10px;
-  border-radius: 12px;
-  border: 1px solid #2a2a4e;
-  background: transparent;
-  color: #9090b0;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.edge-type-btn.active {
-  border-color: #a78bfa;
-  color: #a78bfa;
-  background: #a78bfa15;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.modal-btn {
-  padding: 7px 20px;
-  border-radius: 8px;
-  border: 1px solid #2a2a4e;
-  background: transparent;
-  color: #c0c0d8;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.modal-btn.primary { border-color: #a78bfa; color: #a78bfa; }
-.modal-btn.primary:hover { background: #a78bfa22; }
-.modal-btn.danger  { border-color: #f87171; color: #f87171; }
-.modal-btn.danger:hover  { background: #f8717122; }
-
-/* ─── 展示模式備注浮層 ─────────────────────── */
-.present-note-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  cursor: pointer;
-}
-
-.present-note-box {
-  background: #1a1a2e;
-  border: 1px solid #a78bfa66;
-  border-radius: 16px;
-  padding: 32px 36px;
-  max-width: 420px;
-  text-align: center;
-}
-
-.present-note-name {
-  font-size: 22px;
-  font-weight: 800;
-  color: #a78bfa;
-  margin-bottom: 12px;
-}
-
-.present-note-text {
-  font-size: 16px;
-  color: #c0c0d8;
-  line-height: 1.7;
-  white-space: pre-wrap;
-}
-
-.present-note-hint {
-  margin-top: 20px;
-  font-size: 12px;
-  color: #4a4a6a;
-}
-</style>

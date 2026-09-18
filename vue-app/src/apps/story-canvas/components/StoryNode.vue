@@ -1,11 +1,11 @@
 <template>
   <div
-    class="story-node"
+    class="group relative w-20 h-20 flex items-center justify-center cursor-pointer select-none"
     :class="[`shape-${data.shape}`, { 'is-present': isPresent }]"
     :style="{ '--node-color': data.color || '#a78bfa' }"
   >
     <!-- 形狀 SVG 背景 -->
-    <svg class="node-shape-svg" viewBox="0 0 80 80" preserveAspectRatio="none">
+    <svg class="absolute inset-0 w-full h-full" viewBox="0 0 80 80" preserveAspectRatio="none">
       <!-- 方塊 -->
       <rect v-if="data.shape === 'rect'"
         x="2" y="2" width="76" height="76" rx="10"
@@ -37,12 +37,16 @@
     </svg>
 
     <!-- 文字 -->
-    <div class="node-label" :style="{ color: data.color || '#a78bfa' }">
+    <div class="relative z-[1] text-xs font-bold text-center max-w-[68px] break-all leading-[1.3] [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]"
+      :class="{ 'mt-4': data.shape === 'triangle' }"
+      :style="{ color: data.color || '#a78bfa' }">
       {{ data.label || '…' }}
     </div>
 
     <!-- 有備注時顯示小點 -->
-    <div v-if="data.note" class="note-dot" title="有備注" />
+    <div v-if="data.note" title="有備注"
+      class="absolute top-1 right-1 w-[7px] h-[7px] rounded-full z-[2]"
+      :style="{ background: 'var(--node-color, #a78bfa)', boxShadow: '0 0 6px var(--node-color, #a78bfa)' }" />
 
     <!-- vue-flow 連接點 -->
     <Handle type="target" :position="Position.Top"    class="node-handle" />
@@ -61,66 +65,3 @@ defineProps({
   isPresent: { type: Boolean, default: false },
 })
 </script>
-
-<style scoped>
-.story-node {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  user-select: none;
-}
-
-.node-shape-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.node-label {
-  position: relative;
-  z-index: 1;
-  font-size: 12px;
-  font-weight: 700;
-  text-align: center;
-  max-width: 68px;
-  word-break: break-all;
-  line-height: 1.3;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
-}
-
-/* 三角形文字往下移一點 */
-.shape-triangle .node-label { margin-top: 16px; }
-
-.note-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--node-color, #a78bfa);
-  box-shadow: 0 0 6px var(--node-color, #a78bfa);
-  z-index: 2;
-}
-
-/* 展示模式：光暈效果 */
-.is-present .story-node:hover .node-shape-svg { filter: drop-shadow(0 0 12px var(--node-color, #a78bfa)); }
-
-/* 連接點 */
-.node-handle {
-  width: 8px !important;
-  height: 8px !important;
-  background: var(--node-color, #a78bfa) !important;
-  border: 2px solid #0d0d1a !important;
-  border-radius: 50% !important;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.story-node:hover .node-handle { opacity: 1; }
-</style>

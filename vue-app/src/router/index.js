@@ -1,9 +1,9 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import PortalPage                from '../pages/PortalPage.vue'
-import IndexPage                 from '../pages/IndexPage.vue'
-import RoomPage                  from '../pages/RoomPage.vue'
-import DinnerPickerPage          from '../pages/DinnerPickerPage.vue'
-import DinnerInvitePage          from '../pages/DinnerInvitePage.vue'
+import PortalPage                from '../apps/portal/pages/PortalPage.vue'
+import IndexPage                 from '../apps/know-me/pages/IndexPage.vue'
+import RoomPage                  from '../apps/know-me/pages/RoomPage.vue'
+import DinnerPickerPage          from '../apps/dinner-picker/pages/DinnerPickerPage.vue'
+import DinnerInvitePage          from '../apps/dinner-invite/pages/DinnerInvitePage.vue'
 import TopicGeneratorPage        from '../apps/topic-generator/pages/TopicGeneratorPage.vue'
 import CharacterStormLobbyPage   from '../apps/character-storm/pages/CharacterStormLobbyPage.vue'
 import CharacterStormRoomPage    from '../apps/character-storm/pages/CharacterStormRoomPage.vue'
@@ -11,6 +11,8 @@ import GenderScorePage           from '../apps/gender-score/pages/GenderScorePag
 import StoryCanvasPage           from '../apps/story-canvas/pages/StoryCanvasPage.vue'
 
 const routes = [
+  // 知道網址才能到，不登記進 tools.js／Portal 首頁；獨立打包避免拖累主要頁面的下載大小
+  { path: '/admin', name: 'admin', component: () => import('../apps/know-me/pages/AdminPage.vue') },
   { path: '/',                      name: 'portal',               component: PortalPage              },  // 工具入口首頁
   { path: '/game',                  name: 'home',                 component: IndexPage               },  // 懂我再說
   { path: '/room',                  name: 'room',                 component: RoomPage                },  // 遊戲房間

@@ -1,8 +1,8 @@
 <template>
     <section class="game-section">
         <div class="finished-header">
-            <div style="font-size:64px;text-align:center">🎉</div>
-            <h2 class="section-title" style="text-align:center">遊戲結束！</h2>
+            <div class="text-6xl text-center">🎉</div>
+            <h2 class="section-title text-center">遊戲結束！</h2>
         </div>
 
         <!-- 排行榜 -->
@@ -14,7 +14,7 @@
                 <div class="player-avatar" :style="{ background: getPlayerColor(p.join_order) }">
                     {{ getPlayerEmoji(p.join_order) }}
                 </div>
-                <div class="player-name player-name--lg" style="flex:1">{{ p.nickname }}</div>
+                <div class="player-name player-name--lg flex-1">{{ p.nickname }}</div>
                 <div class="player-score">{{ p.score }} 分</div>
             </div>
         </div>
@@ -28,7 +28,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { getPlayerEmoji, getPlayerColor } from '../data/identity.js'
+import { getPlayerEmoji, getPlayerColor } from '@/shared/data/identity.js'
 
 const props = defineProps({
     players: { type: Array, default: () => [] },
