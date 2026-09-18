@@ -17,7 +17,7 @@
         <!-- 非被猜者：等待動畫 -->
         <div v-else class="waiting-container">
             <div class="loading-dots"><span></span><span></span><span></span></div>
-            <p class="text-body" style="font-size:15px;margin-top:16px">等待選擇主題中…</p>
+            <p class="text-body text-[15px] mt-4">等待選擇主題中…</p>
         </div>
     </section>
 </template>

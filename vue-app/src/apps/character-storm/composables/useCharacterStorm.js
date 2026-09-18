@@ -5,8 +5,8 @@
 // ================================================================
 import { reactive, readonly, computed } from 'vue'
 import { io } from 'socket.io-client'
-import { getOrCreatePlayerId } from '../../../data/identity.js'
-import { useRoom } from '../../../composables/useRoom.js'
+import { getOrCreatePlayerId } from '@/shared/data/identity.js'
+import { useRoom } from '@/shared/composables/useRoom.js'
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 const GAME_TIMER_SECONDS = 90

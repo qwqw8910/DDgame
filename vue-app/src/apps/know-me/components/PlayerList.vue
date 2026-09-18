@@ -32,7 +32,7 @@
 </template>
 
 <script setup>
-import { getPlayerEmoji, getPlayerColor } from '../data/identity.js'
+import { getPlayerEmoji, getPlayerColor } from '@/shared/data/identity.js'
 
 defineProps({
     players: { type: Array, default: () => [] },

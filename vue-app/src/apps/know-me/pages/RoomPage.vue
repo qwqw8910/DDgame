@@ -6,13 +6,13 @@
                 <span class="logo-sm">懂我再說 👀</span>
                 <div class="header-info">
                     <span class="header-room-id">{{ state.roomId }}</span>
-                    <span style="font-size:12px;color:var(--body)">{{ state.players.length }}/{{ state.room?.max_players
+                    <span class="text-xs text-body">{{ state.players.length }}/{{ state.room?.max_players
                         ?? '?' }} 人</span>
                     <span v-if="state.currentRound && state.room?.status === 'playing'" class="header-round">
                         第 {{ state.currentRound.round_number }} 回合
                     </span>
                 </div>
-                <div style="display:flex;gap:6px;align-items:center">
+                <div class="flex gap-1.5 items-center">
                     <RoomPlayerPanel
                         :players="state.players"
                         :my-id="state.myPlayerId"
@@ -29,20 +29,20 @@
         <!-- Loading -->
         <div v-if="state.loading" class="fullscreen-overlay fullscreen-overlay--blur">
             <div class="loading-icon">🎭</div>
-            <span class="loading loading-spinner loading-lg text-primary mb-14"></span>
-            <p class="text-body" style="font-size:15px">{{ state.loadingText || '連線中…' }}</p>
+            <span class="spinner mb-3.5"></span>
+            <p class="text-body text-base">{{ state.loadingText || '連線中…' }}</p>
         </div>
 
         <!-- Nickname Overlay（沒有暱稱時顯示） -->
         <div v-else-if="showNicknameOverlay" class="overlay">
             <div class="overlay-card">
-                <div class="section-header" style="margin-bottom:16px">
+                <div class="section-header mb-4">
                     <div class="section-icon">👤</div>
-                    <h2 class="neon-heading" style="font-size:20px">輸入你的暱稱</h2>
+                    <h2 class="neon-heading text-xl">輸入你的暱稱</h2>
                     <p class="section-subtitle">讓朋友知道你是誰！</p>
                 </div>
                 <div v-if="nicknameError" class="error-alert">{{ nicknameError }}</div>
-                <div class="input-wrapper" style="margin-bottom:12px">
+                <div class="input-wrapper mb-3">
                     <span class="input-icon">✏️</span>
                     <input v-model="overlayNickname" ref="overlayInputRef" class="game-input" type="text"
                         placeholder="你的暱稱…" maxlength="12" @keydown.enter="joinWithNickname" />
@@ -64,12 +64,12 @@
 
             <template v-else-if="state.room.status === 'playing'">
                 <!-- 伺服器重啟後 gameState 遺失，顯示提示等待房主重新開始 -->
-                <div v-if="!state.currentRound" class="game-section" style="text-align:center;padding:48px 16px">
-                    <div style="font-size:48px;margin-bottom:16px">🔌</div>
-                    <h2 class="section-title" style="margin-bottom:8px">伺服器已重啟</h2>
-                    <p class="text-body" style="font-size:15px;margin-bottom:24px">遊戲狀態已中斷，請房主點「重新開始」繼續玩！</p>
+                <div v-if="!state.currentRound" class="game-section text-center py-12 px-4">
+                    <div class="text-5xl mb-4">🔌</div>
+                    <h2 class="section-title mb-2">伺服器已重啟</h2>
+                    <p class="text-body text-[15px] mb-6">遊戲狀態已中斷，請房主點「重新開始」繼續玩！</p>
                     <button v-if="state.isHost" class="btn-primary" @click="restartGame">🔄 重新開始</button>
-                    <p v-else class="section-hint" style="margin-top:8px">等待房主重新開始遊戲…</p>
+                    <p v-else class="section-hint mt-2">等待房主重新開始遊戲…</p>
                 </div>
 
                 <!-- 選主題 -->
@@ -141,7 +141,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSocket } from '../composables/useSocket.js'
-import { getOrCreatePlayerId, getSavedNickname, saveNickname } from '../data/identity.js'
+import { getOrCreatePlayerId, getSavedNickname, saveNickname } from '@/shared/data/identity.js'
 import LobbySection from '../components/LobbySection.vue'
 import TopicSection from '../components/TopicSection.vue'
 import AnswerSection from '../components/AnswerSection.vue'
@@ -149,7 +149,7 @@ import GuessSection from '../components/GuessSection.vue'
 import RevealSection from '../components/RevealSection.vue'
 import FinishedSection from '../components/FinishedSection.vue'
 import PreviewSection from '../components/PreviewSection.vue'
-import RoomPlayerPanel from '../components/RoomPlayerPanel.vue'
+import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
 
 const router = useRouter()
 const route = useRoute()

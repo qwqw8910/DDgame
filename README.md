@@ -25,6 +25,7 @@ npm run dev
 
 ## 近期更新
 
+- 前端全面改用 Tailwind CSS 4 + Reka UI 重構，`vue-app/src/` 目錄依 `docs/STRUCTURE.md` 完成 `apps/` 重構，題庫管理後台（原 `admin.html`）遷入 Vue（`/admin`）。
 - Character Storm 房間頁 UX 強化：階段轉場、操作提示與更清楚的回合資訊。
 - 角色辨識修正：玩家卡片明確區分「猜題者」與「提示者」。
 - 提示提交流程修正：輸入超過字數上限時會即時提示，不再卡在已送出狀態。

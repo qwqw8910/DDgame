@@ -1,71 +1,50 @@
 <template>
-    <div style="height:100dvh;overflow-x:hidden;overflow-y:auto">
+    <div class="h-[100dvh] overflow-x-hidden overflow-y-auto">
         <!-- 浮動背景 emoji -->
-        <div style="position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0" aria-hidden="true">
-            <span class="float-emoji" style="font-size:52px;top:4%;left:4%;animation-delay:0s">🔡</span>
-            <span class="float-emoji" style="font-size:40px;top:8%;right:7%;animation-delay:1.4s">✨</span>
-            <span class="float-emoji" style="font-size:36px;top:22%;left:10%;animation-delay:0.7s">📝</span>
-            <span class="float-emoji" style="font-size:44px;top:18%;right:18%;animation-delay:2.1s">💫</span>
-            <span class="float-emoji" style="font-size:48px;top:45%;left:2%;animation-delay:1.1s">●</span>
-            <span class="float-emoji" style="font-size:36px;top:55%;right:4%;animation-delay:0.4s">▲</span>
-            <span class="float-emoji" style="font-size:44px;bottom:22%;left:7%;animation-delay:1.7s">■</span>
-            <span class="float-emoji" style="font-size:50px;bottom:8%;right:11%;animation-delay:0.2s">✏️</span>
+        <div class="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
+            <span class="float-emoji text-[52px] top-[4%] left-[4%] [animation-delay:0s]">🔡</span>
+            <span class="float-emoji text-[40px] top-[8%] right-[7%] [animation-delay:1.4s]">✨</span>
+            <span class="float-emoji text-4xl top-[22%] left-[10%] [animation-delay:0.7s]">📝</span>
+            <span class="float-emoji text-[44px] top-[18%] right-[18%] [animation-delay:2.1s]">💫</span>
+            <span class="float-emoji text-[48px] top-[45%] left-[2%] [animation-delay:1.1s]">●</span>
+            <span class="float-emoji text-4xl top-[55%] right-[4%] [animation-delay:0.4s]">▲</span>
+            <span class="float-emoji text-[44px] bottom-[22%] left-[7%] [animation-delay:1.7s]">■</span>
+            <span class="float-emoji text-[50px] bottom-[8%] right-[11%] [animation-delay:0.2s]">✏️</span>
         </div>
 
         <!-- Theme toggle -->
-        <button @click="toggleTheme" title="切換主題" class="theme-toggle"
-            style="position:fixed;top:16px;right:16px;z-index:50">
+        <button @click="toggleTheme" title="切換主題" class="theme-toggle fixed top-4 right-4 z-50">
             {{ isDark ? '🌙' : '☀️' }}
         </button>
 
         <!-- 返回入口 -->
-        <RouterLink to="/" style="position:fixed;top:16px;left:16px;z-index:50;
-                   display:flex;align-items:center;gap:6px;
-                   font-size:13px;font-weight:500;color:var(--body);
-                   text-decoration:none;padding:6px 12px;
-                   border-radius:8px;border:1px solid var(--border);
-                   background:var(--bg-card);backdrop-filter:blur(8px);
-                   transition:color 0.15s,border-color 0.15s"
-            @mouseenter="e => { e.currentTarget.style.color = 'var(--heading)'; e.currentTarget.style.borderColor = 'var(--border-glow)' }"
-            @mouseleave="e => { e.currentTarget.style.color = 'var(--body)'; e.currentTarget.style.borderColor = 'var(--border)' }">
+        <RouterLink to="/"
+            class="fixed top-4 left-4 z-50 flex items-center gap-1.5 text-[13px] font-medium no-underline px-3 py-1.5 rounded-lg border backdrop-blur-sm transition-colors duration-150 text-body border-border bg-card hover:text-heading hover:border-border-glow">
             ← 甜甜的小秘密
         </RouterLink>
 
         <!-- 主要內容 -->
-        <div style="position:relative;z-index:10;min-height:100vh;
-                display:flex;flex-direction:column;align-items:center;justify-content:center;
-                padding:40px 16px">
+        <div class="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-10">
 
             <!-- Hero -->
-            <div class="animate-slide-up" style="text-align:center;margin-bottom:40px">
-                <div style="font-size:64px;margin-bottom:12px;filter:drop-shadow(0 0 20px rgba(6,182,212,0.4))">🔡</div>
-                <h1 class="neon-heading gradient-text"
-                    style="font-size:clamp(32px,7vw,48px);margin:0 0 8px;line-height:1.1">
+            <div class="animate-slide-up text-center mb-10">
+                <div class="text-6xl mb-3 [filter:drop-shadow(0_0_20px_rgba(6,182,212,0.4))]">🔡</div>
+                <h1 class="neon-heading gradient-text text-[clamp(32px,7vw,48px)] m-0 mb-2 leading-[1.1]">
                     默契傳聲筒
                 </h1>
-                <p style="font-size:16px;color:var(--label);font-weight:500;margin-bottom:4px;letter-spacing:1px">
-                    字元風暴
-                </p>
-                <p style="font-size:15px;color:var(--body);font-weight:400">
-                    提示 · 代換 · 解謎 · 看符號，猜出隱藏的答案！
-                </p>
+                <p class="text-base font-medium mb-1 [letter-spacing:1px] text-label">字元風暴</p>
+                <p class="text-[15px] text-body">提示 · 代換 · 解謎 · 看符號，猜出隱藏的答案！</p>
             </div>
 
             <!-- 操作卡片 -->
-            <div style="width:100%;max-width:720px;display:grid;
-                  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px">
+            <div class="w-full max-w-[720px] grid gap-5 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
 
                 <!-- 建立房間（透過 URL 分享進入時隱藏） -->
-                <div v-if="!hasRoomFromUrl" class="game-card" style="display:flex;flex-direction:column">
-                    <div style="width:50px;height:50px;border-radius:10px;
-                      background:rgba(6,182,212,0.12);border:1px solid rgba(6,182,212,0.25);
-                      display:flex;align-items:center;justify-content:center;
-                      font-size:24px;margin-bottom:16px">🏠</div>
-                    <h2 class="neon-heading" style="font-size:20px;color:var(--heading);margin-bottom:6px">建立新房間</h2>
-                    <p style="font-size:15px;color:var(--body);font-weight:400;margin-bottom:22px">
-                        邀請 4 ～ 10 人加入，開始字元風暴
-                    </p>
-                    <div style="display:flex;flex-direction:column;gap:12px;flex:1;justify-content:flex-end">
+                <div v-if="!hasRoomFromUrl" class="game-card flex flex-col">
+                    <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl mb-4 [background:rgba(6,182,212,0.12)] [border:1px_solid_rgba(6,182,212,0.25)]">🏠</div>
+                    <h2 class="neon-heading text-xl mb-1.5 text-heading">建立新房間</h2>
+                    <p class="text-[15px] mb-[22px] text-body">邀請 4 ～ 10 人加入，開始字元風暴</p>
+                    <div class="flex flex-col gap-3 flex-1 justify-end">
                         <div class="input-wrapper">
                             <span class="input-icon">😊</span>
                             <input v-model="createNickname" ref="createNicknameRef" type="text" placeholder="你的暱稱"
@@ -73,19 +52,19 @@
                         </div>
                         <div class="input-wrapper">
                             <span class="input-icon">👥</span>
-                            <select v-model="maxPlayers" class="game-input" style="padding-left:44px;cursor:pointer">
+                            <select v-model="maxPlayers" class="game-input pl-11 cursor-pointer">
                                 <option v-for="n in [4, 5, 6, 7, 8, 9, 10]" :key="n" :value="n">最多 {{ n }} 人</option>
                             </select>
                         </div>
                         <div class="input-wrapper">
                             <span class="input-icon">🎲</span>
-                            <select v-model="selectedTheme" class="game-input" style="padding-left:44px;cursor:pointer">
+                            <select v-model="selectedTheme" class="game-input pl-11 cursor-pointer">
                                 <option :value="-1">隨機主題（每局不同）</option>
                                 <option v-for="t in themeList" :key="t.id" :value="t.id">{{ t.name }}</option>
                             </select>
                         </div>
-                        <button class="btn-primary" :disabled="createLoading" @click="handleCreateRoom"
-                            style="background:linear-gradient(135deg,#0891B2,#06B6D4);border-color:rgba(6,182,212,0.4)">
+                        <button class="btn-primary [background:linear-gradient(135deg,#0891B2,#06B6D4)] [border-color:rgba(6,182,212,0.4)]"
+                            :disabled="createLoading" @click="handleCreateRoom">
                             <span v-if="createLoading" class="spinner spinner-sm"></span>
                             {{ createLoading ? '建立中…' : '建立房間' }}
                         </button>
@@ -93,19 +72,16 @@
                 </div>
 
                 <!-- 加入房間 -->
-                <div class="game-card" style="display:flex;flex-direction:column">
-                    <div style="width:50px;height:50px;border-radius:10px;
-                      background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.25);
-                      display:flex;align-items:center;justify-content:center;
-                      font-size:24px;margin-bottom:16px">🔑</div>
-                    <h2 class="neon-heading" style="font-size:20px;color:var(--heading);margin-bottom:6px">加入房間</h2>
-                    <p style="font-size:15px;color:var(--body);font-weight:400;margin-bottom:22px">
+                <div class="game-card flex flex-col">
+                    <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl mb-4 [background:rgba(139,92,246,0.12)] [border:1px_solid_rgba(139,92,246,0.25)]">🔑</div>
+                    <h2 class="neon-heading text-xl mb-1.5 text-heading">加入房間</h2>
+                    <p class="text-[15px] mb-[22px] text-body">
                         {{ hasRoomFromUrl ? `房間碼：${joinCode}` : '輸入朋友分享的房間碼' }}
                     </p>
-                    <div style="display:flex;flex-direction:column;gap:12px;flex:1;justify-content:flex-end">
+                    <div class="flex flex-col gap-3 flex-1 justify-end">
                         <div v-if="!hasRoomFromUrl" class="input-wrapper">
-                            <input v-model="joinCode" type="text" placeholder="房間碼（6碼）" maxlength="6" class="game-input"
-                                style="text-align:center;letter-spacing:6px;font-size:16px;font-weight:600;padding-left:0;padding-right:0"
+                            <input v-model="joinCode" type="text" placeholder="房間碼（6碼）" maxlength="6"
+                                class="game-input text-center [letter-spacing:6px] text-base font-semibold px-0"
                                 @input="joinCode = joinCode.toUpperCase()" @keydown.enter="focusJoinNickname" />
                         </div>
                         <div class="input-wrapper">
@@ -122,8 +98,8 @@
             </div>
 
             <!-- 說明文字 -->
-            <div style="margin-top:32px;text-align:center;max-width:480px">
-                <p style="font-size:13px;color:var(--body);opacity:0.7;line-height:1.8">
+            <div class="mt-8 text-center max-w-[480px]">
+                <p class="text-[13px] opacity-70 leading-[1.8] text-body">
                     提示者輸入線索，重複字元會被神秘符號（●▲■）遮蓋<br>
                     猜題者要從殘缺的線索中，推理出隱藏的答案！
                 </p>
@@ -137,17 +113,19 @@
 
         <!-- 伺服器冷啟動等待框 -->
         <Transition name="wakeup">
-            <div v-if="wakeup.active" class="wakeup-overlay" role="dialog" aria-live="polite"
-                aria-label="伺服器啟動中">
-                <div class="wakeup-card">
-                    <div class="wakeup-icon">⚡</div>
-                    <h3 class="wakeup-title">伺服器啟動中…</h3>
-                    <p class="wakeup-desc">後端使用 Render 免費方案，閒置後首次需重新啟動<br>約 30 ～ 60 秒，請稍候</p>
-                    <div class="wakeup-bar"><div class="wakeup-bar__fill"></div></div>
-                    <p class="wakeup-meta">
-                        已等待 <strong>{{ wakeup.elapsed }}</strong> 秒 · 第 <strong>{{ wakeup.attempts }}</strong> 次嘗試
+            <div v-if="wakeup.active" role="dialog" aria-live="polite" aria-label="伺服器啟動中"
+                class="fixed inset-0 z-[200] grid place-items-center backdrop-blur-[6px] p-5 [background:rgba(2,8,23,0.62)]">
+                <div class="wakeup-card w-[min(92vw,380px)] pt-7 px-[26px] pb-[22px] rounded-[18px] text-center flex flex-col items-center gap-2.5 [border:1px_solid_rgba(6,182,212,0.45)] [background:linear-gradient(160deg,rgba(15,23,42,0.98),rgba(8,47,73,0.92))] [box-shadow:0_24px_60px_rgba(2,8,23,0.55)]">
+                    <div class="text-[44px] leading-none [filter:drop-shadow(0_0_16px_rgba(6,182,212,0.6))] [animation:wakeup-pulse_1.3s_ease-in-out_infinite] motion-reduce:[animation:none]">⚡</div>
+                    <h3 class="m-0 text-[22px] font-extrabold [letter-spacing:0.02em] [color:#d7fbff]">伺服器啟動中…</h3>
+                    <p class="m-0 text-[13px] leading-relaxed [color:#a5f3fc]">後端使用 Render 免費方案，閒置後首次需重新啟動<br>約 30 ～ 60 秒，請稍候</p>
+                    <div class="w-full h-1.5 rounded-full overflow-hidden my-1.5 [background:rgba(6,182,212,0.18)]">
+                        <div class="h-full w-[35%] rounded-full [background:linear-gradient(90deg,#06B6D4,#67E8F9,#06B6D4)] [background-size:200%_100%] [animation:wakeup-slide_1.6s_linear_infinite] motion-reduce:[animation:none]"></div>
+                    </div>
+                    <p class="mt-1 mb-0 text-xs [letter-spacing:0.02em] text-label">
+                        已等待 <strong class="[color:var(--color-neon-cyan)] font-bold [font-variant-numeric:tabular-nums] mx-0.5">{{ wakeup.elapsed }}</strong> 秒 · 第 <strong class="[color:var(--color-neon-cyan)] font-bold [font-variant-numeric:tabular-nums] mx-0.5">{{ wakeup.attempts }}</strong> 次嘗試
                     </p>
-                    <button class="btn-secondary wakeup-cancel" type="button" @click="cancelWakeup">取消</button>
+                    <button class="btn-secondary mt-2.5 py-2 px-[22px] text-[13px]" type="button" @click="cancelWakeup">取消</button>
                 </div>
             </div>
         </Transition>
@@ -157,7 +135,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '../../../data/identity.js'
+import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '@/shared/data/identity.js'
 
 const router = useRouter()
 const SERVER_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
@@ -374,128 +352,3 @@ onUnmounted(() => {
     _stopWakeupTimers()
 })
 </script>
-
-<style scoped>
-.wakeup-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: grid;
-    place-items: center;
-    background: rgba(2, 8, 23, 0.62);
-    backdrop-filter: blur(6px);
-    padding: 20px;
-}
-
-.wakeup-card {
-    width: min(92vw, 380px);
-    padding: 28px 26px 22px;
-    border-radius: 18px;
-    border: 1px solid rgba(6, 182, 212, 0.45);
-    background: linear-gradient(160deg, rgba(15, 23, 42, 0.98), rgba(8, 47, 73, 0.92));
-    box-shadow: 0 24px 60px rgba(2, 8, 23, 0.55);
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-}
-
-.wakeup-icon {
-    font-size: 44px;
-    line-height: 1;
-    animation: wakeupPulse 1.3s ease-in-out infinite;
-    filter: drop-shadow(0 0 16px rgba(6, 182, 212, 0.6));
-}
-
-@keyframes wakeupPulse {
-    0%, 100% { transform: scale(1); opacity: 0.85; }
-    50%      { transform: scale(1.12); opacity: 1; }
-}
-
-.wakeup-title {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 800;
-    color: #d7fbff;
-    letter-spacing: 0.02em;
-}
-
-.wakeup-desc {
-    margin: 0;
-    font-size: 13px;
-    color: #a5f3fc;
-    line-height: 1.6;
-}
-
-.wakeup-bar {
-    width: 100%;
-    height: 6px;
-    border-radius: 999px;
-    background: rgba(6, 182, 212, 0.18);
-    overflow: hidden;
-    margin: 6px 0 2px;
-}
-
-.wakeup-bar__fill {
-    height: 100%;
-    width: 35%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #06B6D4, #67E8F9, #06B6D4);
-    background-size: 200% 100%;
-    animation: wakeupSlide 1.6s linear infinite;
-}
-
-@keyframes wakeupSlide {
-    0%   { transform: translateX(-100%); background-position: 0% 50%; }
-    100% { transform: translateX(285%);  background-position: 100% 50%; }
-}
-
-.wakeup-meta {
-    margin: 4px 0 0;
-    font-size: 12px;
-    color: var(--label);
-    letter-spacing: 0.02em;
-}
-
-.wakeup-meta strong {
-    color: var(--neon-cyan);
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    margin: 0 2px;
-}
-
-.wakeup-cancel {
-    margin-top: 10px;
-    padding: 8px 22px;
-    font-size: 13px;
-}
-
-.wakeup-enter-active,
-.wakeup-leave-active {
-    transition: opacity 220ms ease;
-}
-
-.wakeup-enter-active .wakeup-card,
-.wakeup-leave-active .wakeup-card {
-    transition: transform 220ms ease, opacity 220ms ease;
-}
-
-.wakeup-enter-from,
-.wakeup-leave-to {
-    opacity: 0;
-}
-
-.wakeup-enter-from .wakeup-card,
-.wakeup-leave-to .wakeup-card {
-    transform: translateY(12px) scale(0.96);
-    opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .wakeup-icon,
-    .wakeup-bar__fill {
-        animation: none;
-    }
-}
-</style>

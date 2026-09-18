@@ -1,19 +1,19 @@
 <template>
     <section class="game-section">
         <!-- 房間資訊 + 玩家列表卡片 -->
-        <div class="neon-card mb-16">
-            <div class="section-header" style="margin-bottom:18px">
+        <div class="neon-card mb-4">
+            <div class="section-header mb-[18px]">
                 <div class="section-icon">🏠</div>
-                <h2 class="neon-heading" style="font-size:22px">等待玩家加入</h2>
+                <h2 class="neon-heading text-2xl">等待玩家加入</h2>
                 <p class="section-subtitle">分享房間碼或連結邀請朋友！</p>
             </div>
 
             <!-- 分享連結列 -->
             <div class="share-row">
-                <div style="font-size:18px;flex-shrink:0">🔗</div>
-                <div style="flex:1;min-width:0">
-                    <div class="header-stat-label" style="margin-bottom:2px">
-                        邀請連結 · 房間碼 <strong style="color:var(--neon-purple-light)">{{ roomId }}</strong>
+                <div class="text-lg shrink-0">🔗</div>
+                <div class="flex-1 min-w-0">
+                    <div class="header-stat-label mb-0.5">
+                        邀請連結 · 房間碼 <strong class="text-neon-purple-light">{{ roomId }}</strong>
                     </div>
                     <div class="share-row__url">{{ shareUrl }}</div>
                 </div>

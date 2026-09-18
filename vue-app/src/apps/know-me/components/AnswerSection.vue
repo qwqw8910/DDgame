@@ -10,7 +10,7 @@
 
         <!-- 題目已載入 -->
         <template v-if="question">
-            <p v-if="!isSubject" class="section-hint" style="text-align:center;margin-bottom:12px">
+            <p v-if="!isSubject" class="section-hint text-center mb-3">
                 等待 {{ subjectName }} 悄悄作答，先看看題目吧！
             </p>
             <ChoiceCards :question="question" :clickable="isSubject && !hasSubmittedAnswer" :selected="submittedAnswer"
@@ -21,7 +21,7 @@
         <!-- 等待被猜者選題中 -->
         <div v-else class="waiting-container">
             <div class="loading-dots"><span></span><span></span><span></span></div>
-            <p class="text-body" style="font-size:15px;margin-top:16px">等待 {{ subjectName }} 作答…</p>
+            <p class="text-body text-[15px] mt-4">等待 {{ subjectName }} 作答…</p>
         </div>
     </section>
 </template>
