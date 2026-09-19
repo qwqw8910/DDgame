@@ -818,7 +818,7 @@
   .main-content--room { max-width: 1100px; padding-bottom: 88px; }
   .main-content--lobby { width: 100% !important; max-width: 900px !important; margin: 0 auto !important; }
   .main-content--game { max-width: none !important; margin: 0 !important; padding: 0 !important; flex: 1 !important; min-height: 0 !important; overflow: hidden !important; height: auto !important; }
-  .page-wrapper--scrollable .main-content--game { padding: 24px 32px 88px !important; max-width: none !important; margin: 0 auto !important; overflow: visible !important; height: auto !important; }
+  .page-wrapper--scrollable .main-content--game { width: 100%; padding: 24px 32px 88px !important; max-width: none !important; margin: 0 auto !important; overflow: visible !important; height: auto !important; }
   .page-wrapper--scrollable .main-content--game .topic-grid,
   .page-wrapper--scrollable .main-content--game .game-section,
   .page-wrapper--scrollable .main-content--game .reveal-layout { max-width: 1400px; margin-left: auto; margin-right: auto; }
@@ -913,13 +913,28 @@
   .topic-text-spin { animation: topic-flicker 0.06s infinite; }
 
   /* ── Character Storm: room page ── */
-  .cs-room-page { height: 100dvh; min-height: 0; overflow-y: auto; }
-  .cs-room-page .main-content { flex: none !important; min-height: 0; }
-  .cs-room-page .cs-game-layout,
-  .cs-room-page .cs-left-panel,
-  .cs-room-page .cs-right-area,
-  .cs-room-page .cs-players-grid { height: auto; overflow: visible; }
-  .cs-room-page .cs-players-grid { flex: none; }
+  /* 桌面：整頁固定 100dvh，左右滿版；玩家格內部捲動，底部輸入欄常駐 */
+  .cs-room-page { height: 100dvh; min-height: 0; overflow: hidden; }
+  .cs-room-page .main-content { width: 100%; }
+  .cs-room-page .main-content--lobby { overflow-y: auto; }
+  .cs-room-page .main-content--game {
+    flex: 1 !important; min-height: 0 !important; width: 100% !important;
+    max-width: none !important; margin: 0 !important; padding: 0 !important;
+    overflow: hidden !important; height: auto !important;
+  }
+  .cs-room-page .cs-game-layout { height: 100%; }
+
+  /* 手機：整頁垂直捲動，輸入欄 sticky 貼底 */
+  @media (max-width: 640px) {
+    .cs-room-page { overflow-y: auto; overflow-x: hidden; }
+    .cs-room-page .main-content { flex: none !important; }
+    .cs-room-page .main-content--game { flex: none !important; overflow: visible !important; }
+    .cs-room-page .cs-game-layout,
+    .cs-room-page .cs-left-panel,
+    .cs-room-page .cs-right-area,
+    .cs-room-page .cs-players-grid { height: auto; overflow: visible; }
+    .cs-room-page .cs-players-grid { flex: none; }
+  }
 
   .header-back-btn {
     @apply absolute left-0 top-1/2 -translate-y-1/2 text-base font-semibold bg-transparent border-0 cursor-pointer rounded-md transition-colors duration-150 z-[2];
