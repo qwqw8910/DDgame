@@ -83,6 +83,8 @@ export function useRoom(socket, callbacks = {}) {
   })
 
   let _handlersRegistered = false
+  // 收到 join-ack 後才算真正在房間內；首次連線時不可 rejoin（否則會搶在 create 之前送出 join → 找不到房間）
+  let _hasJoined = false
 
   function _registerHandlers() {
     if (_handlersRegistered) return
@@ -102,6 +104,8 @@ export function useRoom(socket, callbacks = {}) {
       roomState.isHost     = data.room?.host_player_id === data.myPlayerId
       roomState.isSpectator = data.type === 'spectator'
       roomState.error      = ''
+      roomState.errorCode  = ''
+      _hasJoined           = true
       callbacks.onJoinAck?.(data)
     })
 
@@ -175,6 +179,9 @@ export function useRoom(socket, callbacks = {}) {
    */
   function createRoom({ roomId, nickname, playerId, maxPlayers = 6, appId = '', options = {} }) {
     _registerHandlers()
+    _hasJoined           = false
+    roomState.error      = ''
+    roomState.errorCode  = ''
     roomState.roomId     = roomId
     roomState.myPlayerId = playerId
     roomState.myNickname = nickname
@@ -196,6 +203,9 @@ export function useRoom(socket, callbacks = {}) {
    */
   function joinRoom({ roomId, nickname, playerId }) {
     _registerHandlers()
+    _hasJoined           = false
+    roomState.error      = ''
+    roomState.errorCode  = ''
     roomState.roomId     = roomId
     roomState.myPlayerId = playerId
     roomState.myNickname = nickname
@@ -213,7 +223,7 @@ export function useRoom(socket, callbacks = {}) {
 
   /** socket 重連後自動重送 join（由遊戲 composable 的 connect 事件呼叫） */
   function rejoinOnReconnect() {
-    if (roomState.myNickname && roomState.roomId && roomState.myPlayerId) {
+    if (_hasJoined && roomState.myNickname && roomState.roomId && roomState.myPlayerId) {
       socket.emit(ROOM_EVENTS.JOIN, {
         roomId:   roomState.roomId,
         nickname: roomState.myNickname,

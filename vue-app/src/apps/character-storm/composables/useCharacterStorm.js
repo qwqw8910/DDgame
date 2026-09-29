@@ -65,6 +65,9 @@ const gameState = reactive({
 let _revealTimer = null
 let _onGuessResultCb = null
 let _gameHandlersRegistered = false
+// 目前頁面使用中的 room 實例；重連時只 rejoin 這一個（避免舊頁面殘留的實例 rejoin 舊房號）
+let _currentRoom = null
+let _reconnectListenerAttached = false
 
 // ── CS 遊戲事件處理 ───────────────────────────────────────────────
 function registerGameHandlers(socket) {
@@ -226,7 +229,9 @@ export function useCharacterStorm() {
   // 建立 room composable（共用房間邏輯）
   const room = useRoom(socket, {
     onJoinAck(data) {
-      gameState.loading = false
+      gameState.loading   = false
+      gameState.error     = ''
+      gameState.errorCode = ''
       const gs = data.gameState
       if (gs) {
         gameState.status          = gs.roundPhase || gs.status || 'waiting'
@@ -244,15 +249,21 @@ export function useCharacterStorm() {
   // 保存 roomState 引用供 _applyRoles 使用
   _roomStateRef = room.roomState
 
-  // socket 重連自動重新加入
-  socket.on('connect', () => {
-    room.rejoinOnReconnect()
-  })
+  // socket 重連自動重新加入（listener 只掛一次，每次都找目前的 room 實例）
+  _currentRoom = room
+  if (!_reconnectListenerAttached) {
+    _reconnectListenerAttached = true
+    socket.on('connect', () => {
+      _currentRoom?.rejoinOnReconnect()
+    })
+  }
 
   // ── 連線進入遊戲 ──────────────────────────────────────────────
   function connect(roomId, nickname, isCreating = false, maxPlayers = 6, themePreference = -1) {
     const playerId = getOrCreatePlayerId()
     gameState.loading     = true
+    gameState.error       = ''
+    gameState.errorCode   = ''
     gameState.loadingText = isCreating ? '建立房間中…' : '加入房間中…'
     gameState.themePreference = themePreference
 
@@ -306,6 +317,8 @@ export function useCharacterStorm() {
     socket.disconnect()
     _socket = null
     _gameHandlersRegistered = false
+    _reconnectListenerAttached = false
+    _currentRoom = null
   }
 
   function copyInviteLink() {
