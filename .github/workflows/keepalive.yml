@@ -1,0 +1,35 @@
+# =====================================================
+#  Keep-alive — 定時查詢 Supabase，避免免費方案 7 天無活動被暫停
+#
+#  後端（Render）睡眠後收到請求會自動喚醒，不需要 keep-alive；
+#  Supabase 被暫停則需手動 Restore，所以只需要讓 DB 保持活動。
+#
+#  使用既有的 Repository Secrets：VITE_SUPABASE_URL、VITE_SUPABASE_ANON_KEY
+#  注意：公開 repo 60 天沒有 commit 會自動停用排程
+# =====================================================
+
+name: Keep-alive
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 每天一次（UTC 03:00 = 台灣 11:00）
+  workflow_dispatch:      # 允許手動觸發測試
+
+jobs:
+  ping-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 🔔 Ping Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::缺少 VITE_SUPABASE_URL 或 VITE_SUPABASE_ANON_KEY secret"
+            exit 1
+          fi
+          curl -fsS --max-time 30 --retry 3 --retry-delay 10 --retry-all-errors \
+            "${SUPABASE_URL%/}/rest/v1/rooms?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY"
