@@ -82,6 +82,8 @@ const state = reactive({
 
 let _reactionId = 0
 let _gameListenersAttached = false
+// 目前頁面使用中的 room 實例；重連時只 rejoin 這一個（避免第一次進房的舊實例 rejoin 舊房號）
+let _currentRoom = null
 
 // ── 遊戲事件監聽（房間事件已由 useRoom 接管） ────────────────────
 function setupGameListeners(socket, callbacks) {
@@ -240,13 +242,14 @@ export function useSocket(callbacks = {}) {
     },
   })
 
+  _currentRoom = room
   if (!_gameListenersAttached) {
     _gameListenersAttached = true
     setupGameListeners(socket, callbacks)
     // 重連後自動 rejoin（useRoom 內部記住了 roomId/playerId/nickname）
     socket.on('connect', () => {
       callbacks.onReconnect?.()
-      room.rejoinOnReconnect()
+      _currentRoom?.rejoinOnReconnect()
     })
   }
 

@@ -5,16 +5,18 @@
         <!-- Header -->
         <header class="sticky-header app-header--room">
             <div class="header-inner header-inner--room">
-                <button class="header-back-btn" @click="goHome" title="返回首頁" aria-label="返回首頁">
-                    ← 返回
-                </button>
-                <span class="logo-sm">默契傳聲筒 🔡</span>
-                <div class="header-info">
+                <div class="flex items-center gap-1 min-w-0 flex-1 sm:flex-none">
+                    <button class="header-back-btn" @click="goHome" title="返回首頁" aria-label="返回首頁">
+                        ←<span class="hidden sm:inline"> 返回</span>
+                    </button>
+                    <span class="logo-sm">默契傳聲筒 🔡</span>
+                </div>
+                <div class="header-info order-last w-full justify-center sm:order-none sm:w-auto">
                     <span class="header-room-id">{{ roomState.roomId }}</span>
                     <span style="font-size:12px;color:var(--body)">{{ playersWithRoles.length }}/{{
                         roomState.room?.maxPlayers ?? '?' }} 人</span>
                 </div>
-                <div style="display:flex;gap:6px;align-items:center">
+                <div class="flex gap-1 sm:gap-1.5 items-center shrink-0">
                     <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
                         :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost" @kick="handleKick"
                         @transfer-host="handleTransferHost" />
