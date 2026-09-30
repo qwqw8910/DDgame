@@ -7,8 +7,8 @@ import { reactive, readonly, computed } from 'vue'
 import { io } from 'socket.io-client'
 import { getOrCreatePlayerId } from '@/shared/data/identity.js'
 import { useRoom } from '@/shared/composables/useRoom.js'
+import { SERVER_URL } from '@/shared/api/config.js'
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 const GAME_TIMER_SECONDS = 90
 
 // 單一 socket 實例（/character-storm namespace）
@@ -16,7 +16,7 @@ let _socket = null
 
 function getSocket() {
   if (!_socket) {
-    _socket = io(`${SOCKET_URL}/character-storm`, {
+    _socket = io(`${SERVER_URL}/character-storm`, {
       reconnectionDelay:    1000,
       reconnectionDelayMax: 10000,
       timeout:              10000,

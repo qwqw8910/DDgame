@@ -5,15 +5,15 @@
 import { reactive, readonly } from 'vue'
 import { io } from 'socket.io-client'
 import { useRoom } from '@/shared/composables/useRoom.js'
+import { SERVER_URL } from '@/shared/api/config.js'
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 
 // 單一 socket 實例（全域，只建一次）
 let _socket = null
 
 function getSocket() {
   if (!_socket) {
-    _socket = io(SOCKET_URL, {
+    _socket = io(SERVER_URL, {
       reconnectionDelay:    1000,
       reconnectionDelayMax: 10000,
       timeout:              10000,
@@ -30,7 +30,7 @@ let _keepaliveTimer = null
 function _startKeepalive() {
   if (_keepaliveTimer) return
   _keepaliveTimer = setInterval(() => {
-    fetch(`${SOCKET_URL}/health`).catch(() => {})
+    fetch(`${SERVER_URL}/health`).catch(() => {})
   }, 8 * 60 * 1000)
 }
 

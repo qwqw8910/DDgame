@@ -136,9 +136,10 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '@/shared/data/identity.js'
+import { SERVER_URL } from '@/shared/api/config.js'
+import { fetchThemes } from '../data/themes.js'
 
 const router = useRouter()
-const SERVER_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 const HEALTH_TIMEOUT_MS = 5000
 const HEALTH_RETRY_INTERVAL_MS = 3000
 
@@ -157,14 +158,6 @@ const createNickname = ref('')
 const maxPlayers = ref(6)
 const selectedTheme = ref(-1)
 
-// 主題名稱對照表（新增主題時只需在此加名稱，欄位由後端動態抓）
-const THEME_NAMES = {
-  0: '原始題庫',
-  1: '綜合主題包',
-  2: '好友精選包',
-  3: '深海底撈',
-  4: '百鬼夜行',
-}
 const themeList = ref([])
 const joinCode = ref('')
 const joinNickname = ref('')
@@ -265,14 +258,7 @@ async function ensureServerAlive() {
 }
 
 async function loadThemes() {
-    try {
-        const res = await fetch(`${SERVER_URL}/api/cs/themes`)
-        const { themes } = await res.json()
-        themeList.value = themes.map(id => ({ id, name: THEME_NAMES[id] ?? `主題 ${id}` }))
-    } catch {
-        // 載入失敗時回退為靜態清單
-        themeList.value = Object.entries(THEME_NAMES).map(([id, name]) => ({ id: Number(id), name }))
-    }
+    themeList.value = await fetchThemes()
 }
 
 onMounted(() => {
