@@ -532,32 +532,19 @@ import { getSavedNickname, saveNickname } from '@/shared/data/identity.js'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
 import CharacterStormGuideModal from '../components/CharacterStormGuideModal.vue'
 import { useGameGuide } from '@/shared/composables/useGameGuide.js'
+import { fetchThemes } from '../data/themes.js'
 
 const route = useRoute()
 const router = useRouter()
 const MIN_PLAYERS_REQUIRED = 2
 const GUESS_TIMER_SECONDS = 90
-const SERVER_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
 
 // ── 主題清單（動態從後端載入）────────────────────────────────────
-const THEME_NAMES = {
-    0: '原始題庫',
-    1: '綜合主題包',
-    2: '好友精選包',
-    3: '深海底撈',
-    4: '百鬼夜行',
-}
 const themeList = ref([])
 const selectedTheme = ref(-1)
 
 async function loadThemes() {
-    try {
-        const res = await fetch(`${SERVER_URL}/api/cs/themes`)
-        const { themes } = await res.json()
-        themeList.value = themes.map(id => ({ id, name: THEME_NAMES[id] ?? `主題 ${id}` }))
-    } catch {
-        themeList.value = Object.entries(THEME_NAMES).map(([id, name]) => ({ id: Number(id), name }))
-    }
+    themeList.value = await fetchThemes()
 }
 
 function handleSetTheme() {
