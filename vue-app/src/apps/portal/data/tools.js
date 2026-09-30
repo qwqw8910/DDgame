@@ -54,7 +54,7 @@ export const tools = [
   },
   {
     id: 'character-storm',
-    name: '默契傳聲筒',
+    name: '默契字囊團',
     tagline: '看穿符號，才能讀懂默契',
     description: '多人提示 · 字元代換 · 協力猜題',
     emoji: '🔡',

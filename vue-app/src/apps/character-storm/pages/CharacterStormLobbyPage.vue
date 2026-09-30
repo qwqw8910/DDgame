@@ -30,7 +30,7 @@
             <div class="animate-slide-up text-center mb-10">
                 <div class="text-6xl mb-3 [filter:drop-shadow(0_0_20px_rgba(6,182,212,0.4))]">🔡</div>
                 <h1 class="neon-heading gradient-text text-[clamp(32px,7vw,48px)] m-0 mb-2 leading-[1.1]">
-                    默契傳聲筒
+                    默契字囊團
                 </h1>
                 <p class="text-base font-medium mb-1 [letter-spacing:1px] text-label">字元風暴</p>
                 <p class="text-[15px] text-body">提示 · 代換 · 解謎 · 看符號，猜出隱藏的答案！</p>
