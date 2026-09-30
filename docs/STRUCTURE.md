@@ -49,7 +49,7 @@ vue-app/src/
 │   ├── dinner-picker/             ← App: 今晚吃什麼
 │   ├── dinner-invite/             ← App: 晚餐邀請選擇器
 │   ├── topic-generator/           ← App: 話題產生器
-│   ├── character-storm/           ← App: 默契傳聲筒：字元風暴
+│   ├── character-storm/           ← App: 默契字囊團：字元風暴
 │   ├── gender-score/              ← App: 十分男女
 │   ├── story-canvas/              ← App: 故事關係圖
 │   │
@@ -219,7 +219,7 @@ VITE_SOCKET_URL=http://localhost:3000
 | `dinner-picker` | 今晚吃什麼 | 🟢 live | `/dinner-picker` |
 | `dinner-invite` | 晚餐邀請選擇器 | 🟢 live | `/dinner-invite` |
 | `topic-generator` | 話題產生器 | 🟢 live | `/topic-generator` |
-| `character-storm` | 默契傳聲筒：字元風暴 | 🟢 live | `/character-storm`, `/character-storm/room` |
+| `character-storm` | 默契字囊團：字元風暴 | 🟢 live | `/character-storm`, `/character-storm/room` |
 | `gender-score` | 十分男女 | 🟢 live | `/gender-score` |
 | `story-canvas` | 故事關係圖 | 🟢 live | `/story-canvas` |
 

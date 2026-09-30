@@ -19,8 +19,8 @@ const routes = [
   { path: '/dinner-picker',         name: 'dinner-picker',        component: DinnerPickerPage        },  // 今晚吃什麼
   { path: '/dinner-invite',         name: 'dinner-invite',        component: DinnerInvitePage        },  // 晚餐邀請選擇器
   { path: '/topic-generator',       name: 'topic-generator',      component: TopicGeneratorPage      },  // 話題產生器
-  { path: '/character-storm',       name: 'character-storm',      component: CharacterStormLobbyPage },  // 默契傳聲筒 入口
-  { path: '/character-storm/room',  name: 'character-storm-room', component: CharacterStormRoomPage  },  // 默契傳聲筒 房間
+  { path: '/character-storm',       name: 'character-storm',      component: CharacterStormLobbyPage },  // 默契字囊團 入口
+  { path: '/character-storm/room',  name: 'character-storm-room', component: CharacterStormRoomPage  },  // 默契字囊團 房間
   { path: '/gender-score',          name: 'gender-score',         component: GenderScorePage         },  // 十分男女
   { path: '/story-canvas',          name: 'story-canvas',         component: StoryCanvasPage         },  // 故事關係圖
 ]

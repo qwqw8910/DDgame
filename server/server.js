@@ -50,7 +50,7 @@ const io = new Server(server, {
 
 app.get('/health', (_, res) => res.json({ status: 'ok', ts: Date.now() }));
 
-// ── 默契傳聲筒：取得可用主題清單 ─────────────────────────────
+// ── 默契字囊團：取得可用主題清單 ─────────────────────────────
 app.get('/api/cs/themes', async (_, res) => {
   try {
     const { data, error } = await db
@@ -65,7 +65,7 @@ app.get('/api/cs/themes', async (_, res) => {
   }
 });
 
-// ── 默契傳聲筒 namespace ──────────────────────────────────────
+// ── 默契字囊團 namespace ──────────────────────────────────────
 const { registerNamespace: registerCS } = require('./character-storm');
 registerCS(io, db);
 

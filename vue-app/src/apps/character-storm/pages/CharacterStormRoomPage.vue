@@ -9,7 +9,7 @@
                     <button class="header-back-btn" @click="goHome" title="返回首頁" aria-label="返回首頁">
                         ←<span class="hidden sm:inline"> 返回</span>
                     </button>
-                    <span class="logo-sm">默契傳聲筒 🔡</span>
+                    <span class="logo-sm">默契字囊團 🔡</span>
                 </div>
                 <div class="header-info order-last w-full justify-center sm:order-none sm:w-auto">
                     <span class="header-room-id">{{ roomState.roomId }}</span>
@@ -20,6 +20,7 @@
                     <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
                         :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost" @kick="handleKick"
                         @transfer-host="handleTransferHost" />
+                    <button class="header-icon-btn" title="玩法說明" aria-label="玩法說明" @click="showGuide = true">❓</button>
                     <button class="header-icon-btn" title="切換主題" aria-label="切換主題" @click="toggleTheme">{{ isDark ? '🌙'
                         : '☀️' }}</button>
                     <button class="header-icon-btn" :title="isSfxMuted ? '開啟音效' : '關閉音效'"
@@ -359,7 +360,7 @@
                                     ref="guessInputRef"
                                     :placeholder="state.status === 'round1-result' ? '根據第一輪線索猜…' : '根據兩輪線索猜…'"
                                     aria-label="猜題答案" autocomplete="off" autocorrect="off" autocapitalize="off"
-                                    spellcheck="false" @keydown.enter.prevent="handleSubmitGuess" />
+                                    spellcheck="false" @keydown.enter="onEnterSubmit($event, handleSubmitGuess)" />
                                 <button type="button" class="btn-primary"
                                     style="white-space:nowrap;padding:8px 16px;width:auto" :disabled="guessSubmitted"
                                     @click="handleSubmitGuess">送出</button>
@@ -384,7 +385,7 @@
                                         ref="hintInputRef" :placeholder="`輸入中文提示（1 ～ ${maxHintChars} 字）`"
                                         :maxlength="12" aria-label="提示輸入" autocomplete="off" autocorrect="off"
                                         autocapitalize="off" spellcheck="false" @input="onHintInput"
-                                        @keydown.enter.prevent="handleSubmitHint" />
+                                        @keydown.enter="onEnterSubmit($event, handleSubmitHint)" />
                                     <button type="button" class="btn-primary"
                                         style="white-space:nowrap;padding:8px 16px;width:auto"
                                         :disabled="hintCharCount === 0 || !!hintError || hintSubmitted"
@@ -512,6 +513,8 @@
             </div>
         </Transition>
 
+        <CharacterStormGuideModal v-model="showGuide" />
+
         <p class="sr-live" aria-live="polite">{{ liveStatusText }}</p>
     </div>
 </template>
@@ -527,6 +530,8 @@ import { useCharacterStorm } from '../composables/useCharacterStorm.js'
 import { useCharacterStormSfx } from '../composables/useCharacterStormSfx.js'
 import { getSavedNickname, saveNickname } from '@/shared/data/identity.js'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
+import CharacterStormGuideModal from '../components/CharacterStormGuideModal.vue'
+import { useGameGuide } from '@/shared/composables/useGameGuide.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -597,6 +602,9 @@ const {
     stopSfx,
     toggleSfxMute,
 } = useCharacterStormSfx()
+
+// ── 玩法說明（第一次進房自動彈出）────────────────────────────────
+const { show: showGuide, autoOpen: autoOpenGuide } = useGameGuide('cs-guide-seen')
 
 // ── 暱稱遮罩 ──────────────────────────────────────────────────────
 const showNicknameOverlay = ref(false)
@@ -968,6 +976,13 @@ function triggerPhaseCue(status) {
 // ── 操作 ──────────────────────────────────────────────────────────
 function handleStartGame() { startGame() }
 
+// 注音／拼音等輸入法選字時的 Enter 只是確認組字，不可當成送出（Mac Safari 的 keyCode 為 229）
+function onEnterSubmit(e, submit) {
+    if (e.isComposing || e.keyCode === 229) return
+    e.preventDefault()
+    submit()
+}
+
 function handleSubmitHint() {
     if (hintSubmitted.value) return
     if (hintCharCount.value === 0 || hintError.value) return
@@ -994,6 +1009,8 @@ function handleSubmitHint() {
 
 function handleSubmitGuess() {
     if (guessSubmitted.value) return
+    // 以 input 實際內容為準，避免輸入法組字期間 v-model 尚未同步
+    if (guessInputRef.value) guessInput.value = guessInputRef.value.value
     const ans = guessInput.value.trim()
     submitGuess(ans)   // 允許空白（時間到自動交卷）
     guessSubmitted.value = true
@@ -1061,6 +1078,7 @@ onMounted(() => {
     isDark.value = document.documentElement.getAttribute('data-theme') !== 'light'
     startSfx()
     loadThemes()
+    autoOpenGuide()
 
     const roomId = (route.query.id || '').toUpperCase()
     const nickname = route.query.nickname?.trim() || getSavedNickname()
