@@ -182,7 +182,7 @@ function keepCard(game, playerId, keepCardId, passTo) {
 
   game.actorId = passTo;
   game.hand = [
-    { card: otherEntry.card, from: 'passed' },
+    { card: otherEntry.card, from: 'passed', fromPlayerId: playerId },
     { card: game.deck.shift(), from: 'deck' },
   ];
   return { done: false };
@@ -330,7 +330,7 @@ function buildView(game, viewerId = null) {
     const me = { isPlayer: true, card: null, hand: [], passTargets: [], myVote: null, canReveal: false };
     if (game.kept[viewerId]) me.card = cardView(game.kept[viewerId]);
     if (game.phase === 'passing' && game.actorId === viewerId) {
-      me.hand = game.hand.map(h => ({ ...cardView(h.card), from: h.from }));
+      me.hand = game.hand.map(h => ({ ...cardView(h.card), from: h.from, fromPlayerId: h.fromPlayerId ?? null }));
       if (game.remaining.length > 1) me.passTargets = game.remaining.filter(id => id !== viewerId);
     }
     if (game.phase === 'voting') me.myVote = game.votes[viewerId] ?? null;
