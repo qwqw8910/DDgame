@@ -5,10 +5,10 @@
         :type="selectable ? 'button' : undefined"
         :class="[
             'relative w-full rounded-xl border p-1.5 sm:p-3 flex flex-col items-center gap-1 sm:gap-1.5 text-center transition-all duration-150',
-            selected ? 'border-neon-purple bg-accent-tint [box-shadow:0_0_0_2px_var(--color-neon-purple)]' : 'border-border bg-subtle',
+            selected ? 'scale-[1.03] border-neon-purple bg-accent-tint [box-shadow:0_0_0_2px_var(--color-neon-purple)]' : 'border-border bg-subtle',
             isActor ? '[box-shadow:0_0_0_2px_var(--color-lemon)] border-lemon' : '',
             selectable ? 'cursor-pointer hover:border-neon-purple hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-neon-purple' : '',
-            boiler ? 'border-neon-rose bg-[rgba(225,29,72,0.12)]' : '',
+            boiler ? 'animate-boiler-glow border-neon-rose bg-[rgba(225,29,72,0.12)]' : '',
         ]"
         :aria-pressed="selectable ? selected : undefined"
         :aria-label="ariaLabel"
@@ -22,7 +22,7 @@
 
         <!-- 牌（蓋著 / 揭曉 / 空位） -->
         <LodgeCard v-if="revealedCard" :card="revealedCard" revealed compact />
-        <LodgeCard v-else-if="hasCard" compact />
+        <LodgeCard v-else-if="hasCard" compact class="animate-card-deal" />
         <LodgeCard v-else compact empty class="opacity-30" />
 
         <!-- 玩家 -->
@@ -35,7 +35,7 @@
         <!-- 狀態徽章 -->
         <span v-if="isActor" class="text-xs font-semibold text-lemon">操作中…</span>
         <span v-else-if="voted" class="text-xs font-semibold text-success-text">已投票 ✓</span>
-        <span v-if="voteCount !== null" class="text-sm font-bold text-heading">{{ voteCount }} 票</span>
+        <span v-if="voteCount !== null" :key="voteCount" class="animate-pop-in text-sm font-bold text-heading">{{ voteCount }} 票</span>
         <span v-if="boiler" class="absolute -top-2 -right-2 text-xl" title="被送進鍋爐室" aria-hidden="true">🔥</span>
     </component>
 </template>
