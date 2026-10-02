@@ -69,6 +69,10 @@ app.get('/api/cs/themes', async (_, res) => {
 const { registerNamespace: registerCS } = require('./character-storm');
 registerCS(io, db);
 
+// ── 山中別館殺人事件 namespace ────────────────────────────────
+const { registerNamespace: registerLodge } = require('./mountain-lodge');
+registerLodge(io, db);
+
 // ── 遊戲狀態快取（房間/玩家改由統一房間模組管理）────────────
 // gameCache[roomId] = { currentRound, currentQuestion, guesses, topics, round_pool, _previewUsedIds, _previewTopicId }
 const gameCache = {};

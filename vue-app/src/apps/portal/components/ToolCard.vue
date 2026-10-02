@@ -5,9 +5,6 @@
         <div v-if="tool.status !== 'live'" class="tool-card__badge" :class="`tool-card__badge--${tool.status}`">
             {{ statusLabel }}
         </div>
-        <div v-if="tool.status === 'beta'" class="tool-card__badge tool-card__badge--beta">
-            Beta
-        </div>
 
         <!-- Icon -->
         <div class="tool-card__icon">{{ tool.emoji }}</div>

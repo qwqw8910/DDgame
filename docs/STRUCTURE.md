@@ -52,6 +52,7 @@ vue-app/src/
 │   ├── character-storm/           ← App: 默契字囊團：字元風暴
 │   ├── gender-score/              ← App: 十分男女
 │   ├── story-canvas/              ← App: 故事關係圖
+│   ├── mountain-lodge/            ← App: 山中別館殺人事件（後端：server/mountain-lodge/）
 │   │
 │   └── [未來新 App slug]/          ← 遵循相同結構
 │       ├── pages/
