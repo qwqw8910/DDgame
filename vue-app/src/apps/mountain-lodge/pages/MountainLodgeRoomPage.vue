@@ -16,6 +16,10 @@
                 <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
                     :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost"
                     @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
+                <button class="header-icon-btn" :title="sfxOn ? '音效：開' : '音效：關'" :aria-label="sfxOn ? '關閉音效' : '開啟音效'"
+                    :aria-pressed="sfxOn" @click="toggleSfx">{{ sfxOn ? '🔊' : '🔇' }}</button>
+                <button class="header-icon-btn" :title="ambientOn ? '雨聲：開' : '雨聲：關'" :aria-label="ambientOn ? '關閉雨聲' : '開啟雨聲'"
+                    :aria-pressed="ambientOn" :class="ambientOn ? '' : 'opacity-50'" @click="toggleAmbient">🌧️</button>
                 <button class="header-icon-btn" title="故事背景" aria-label="故事背景" @click="showStory = true">📜</button>
                 <button class="header-icon-btn" title="角色介紹" aria-label="角色介紹" @click="showRoles = true">🎭</button>
                 <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink">🔗</button>
@@ -407,6 +411,7 @@ import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
 import GameGuideModal from '@/shared/components/GameGuideModal.vue'
 import LodgeCard from '../components/LodgeCard.vue'
 import { useLodgeDarkTheme } from '../composables/useLodgeDarkTheme.js'
+import { useSound } from '../composables/useSound.js'
 import LodgeSeat from '../components/LodgeSeat.vue'
 import LodgeReplay from '../components/LodgeReplay.vue'
 import LodgeRoleGuide from '../components/LodgeRoleGuide.vue'
@@ -548,6 +553,19 @@ const remaining = computed(() => {
     return end ? Math.max(0, (end - (now.value + skew)) / 1000) : 0
 })
 
+// ── 音效 ──────────────────────────────────────────────────────────
+const { sfxOn, ambientOn, play, setLoop, stopAll, toggleSfx, toggleAmbient } = useSound()
+// 雨聲：進房間後常駐（是否出聲由「雨聲」開關決定）
+setLoop('rain', true)
+// 收到新牌（開局 / 輪到我傳牌）、結算翻牌
+watch(() => myHand.value.map(h => h.id).join(), (ids, old) => { if (ids && ids !== old) play('flip') })
+watch(result, (r) => { if (r) play('flip') })
+// 有人傳牌（公開紀錄新增一筆）
+watch(() => view.value?.publicLog?.length ?? 0, (n, old) => { if (n > old) play('pass') })
+// 討論最後 30 秒：老鐘滴答
+watch(() => phase.value === 'discussion' && remaining.value > 0 && remaining.value <= 30,
+    (on) => setLoop('tick', on))
+
 // ── 傳牌互動 ──────────────────────────────────────────────────────
 const keepChoice = ref(null)
 const passChoice = ref(null)
@@ -651,6 +669,7 @@ onMounted(() => {
 onUnmounted(() => {
     clearInterval(_tick)
     clearTimeout(_toastTimer)
+    stopAll()
     disconnect() // 瀏覽器返回鍵離開頁面時也要斷線，避免留下幽靈在線玩家
 })
 </script>
