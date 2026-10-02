@@ -295,7 +295,7 @@
                         <div class="flex flex-wrap justify-center gap-4">
                             <div v-for="h in myHand" :key="h.id" class="flex flex-col items-center gap-2">
                                 <LodgeCard :card="h" peekable toggle />
-                                <span class="text-xs text-body">{{ h.from === 'passed' ? '別人傳給你的' : '從牌堆抽的' }}</span>
+                                <span class="text-xs text-body">{{ h.from === 'passed' ? `來自 ${nameOf(h.fromPlayerId)}` : '剛抽到' }}</span>
                                 <button type="button" :class="keepChoice === h.id ? 'btn-primary' : 'btn-secondary'"
                                     :aria-pressed="keepChoice === h.id" @click="keepChoice = h.id">
                                     {{ keepChoice === h.id ? '✓ 留下這張' : '留下這張' }}

@@ -96,6 +96,9 @@ test('第二位起手上 = 收到的牌 + 抽 1 張', () => {
   L.keepCard(g, actor, g.hand[0].card.id, target);
   assert.equal(g.actorId, target);
   assert.deepEqual(g.hand.map(h => h.from), ['passed', 'deck']);
+  const me = L.buildView(g, target).me;
+  assert.equal(me.hand[0].fromPlayerId, actor);
+  assert.equal(me.hand[1].fromPlayerId, null);
 });
 
 test('投票：只能投玩家地點；結算取最高票；平票全進鍋爐室', () => {
