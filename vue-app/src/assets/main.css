@@ -28,6 +28,7 @@
   --color-label: #CBD5E1;
   --color-body: #94A3B8;
   --color-dark: #0a0a1a;
+  --color-lodge: #0a1211;
   --color-card: rgba(15, 15, 35, 0.8);
   --color-card-solid: #0f0f23;
   --color-subtle: rgba(20, 20, 45, 0.6);
@@ -1299,4 +1300,14 @@
   .tool-card__body { @apply flex-1; }
   .tool-card__arrow { @apply text-lg self-end transition-[transform,color] duration-200; color: var(--color-label); }
   .tool-card:hover .tool-card__arrow { @apply translate-x-1; color: var(--color-heading); }
+
+  /* 山中別館：固定深色背景（底色 + 暈影 + 平鋪花紋）。
+     容器本身就是捲動區（h-[100dvh] overflow-y-auto），背景不會隨內容捲動，不需要 background-attachment: fixed（iOS Safari 不穩） */
+  .lodge-bg {
+    background-color: var(--color-lodge);
+    background-image:
+      radial-gradient(ellipse at 50% 35%, transparent 30%, rgba(0, 0, 0, 0.65) 100%),
+      var(--lodge-pattern);
+    background-size: 100% 100%, 320px 320px;
+  }
 }
