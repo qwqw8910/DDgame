@@ -155,12 +155,14 @@
             <template v-else>
                 <!-- 狀態列 -->
                 <div class="game-card flex flex-wrap items-center justify-between gap-2 py-3" aria-live="polite">
-                    <div class="flex flex-col">
-                        <span class="text-lg font-bold text-heading">{{ phaseLabel }}</span>
-                        <span class="text-sm text-body">{{ phaseHint }}</span>
-                    </div>
+                    <Transition name="phase-fade" mode="out-in">
+                        <div :key="phase + (view.actorId ?? '')" class="flex flex-col">
+                            <span class="text-lg font-bold text-heading">{{ phaseLabel }}</span>
+                            <span class="text-sm text-body">{{ phaseHint }}</span>
+                        </div>
+                    </Transition>
                     <div v-if="phase === 'discussion'" class="font-mono text-3xl font-bold tabular-nums"
-                        :class="remaining <= 30 ? 'text-ruby' : 'text-neon-cyan'" role="timer">
+                        :class="remaining <= 30 ? 'text-ruby animate-timer-pulse' : 'text-neon-cyan'" role="timer">
                         {{ formatSeconds(remaining) }}
                     </div>
                     <div v-else-if="phase === 'voting'" class="text-sm text-label">
@@ -231,10 +233,11 @@
                 </section>
 
                 <!-- 開票階段：票全部公開，律師 / 富商的公開動作即時顯示 -->
-                <section v-if="phase === 'reveal'" class="game-card py-3" aria-label="開票結果">
+                <section v-if="phase === 'reveal'" class="game-card animate-slide-up py-3" aria-label="開票結果">
                     <h3 class="m-0 mb-2 text-sm font-semibold text-label">🗳️ 投票明細</h3>
                     <ul class="m-0 p-0 list-none flex flex-col gap-1 text-sm text-body">
-                        <li v-for="id in view.order" :key="id" class="flex flex-wrap items-center gap-1.5">
+                        <li v-for="(id, i) in view.order" :key="id" class="animate-slide-up flex flex-wrap items-center gap-1.5"
+                            :style="{ animationDelay: `${i * 150}ms` }">
                             <strong class="text-heading">{{ nameOf(id) }}</strong>
                             <template v-if="view.votes[id]">
                                 → {{ locationOf(view.votes[id]).name }}
@@ -279,19 +282,19 @@
                                 @select="selectSeat(myId)" />
                         </div>
                         <div v-if="view.me.card && !result" class="flex flex-col items-center gap-1.5">
-                            <LodgeCard :card="view.me.card" peekable />
+                            <LodgeCard :card="view.me.card" peekable toggle />
                             <span class="text-xs text-body">我的角色牌</span>
                         </div>
                     </div>
 
                     <!-- 傳牌：輪到我 -->
-                    <div v-if="phase === 'passing' && isMyTurn" class="flex flex-col gap-3 border-t border-divider pt-4">
+                    <div v-if="phase === 'passing' && isMyTurn" class="animate-slide-up flex flex-col gap-3 border-t border-divider pt-4">
                         <p class="m-0 font-semibold text-heading">
                             {{ myHand.length ? '輪到你了！看看這兩張牌，選一張留下' : '' }}
                         </p>
                         <div class="flex flex-wrap justify-center gap-4">
                             <div v-for="h in myHand" :key="h.id" class="flex flex-col items-center gap-2">
-                                <LodgeCard :card="h" peekable />
+                                <LodgeCard :card="h" peekable toggle />
                                 <span class="text-xs text-body">{{ h.from === 'passed' ? '別人傳給你的' : '從牌堆抽的' }}</span>
                                 <button type="button" :class="keepChoice === h.id ? 'btn-primary' : 'btn-secondary'"
                                     :aria-pressed="keepChoice === h.id" @click="keepChoice = h.id">
@@ -314,14 +317,14 @@
                     </p>
 
                     <!-- 討論 -->
-                    <div v-if="phase === 'discussion'" class="flex flex-col gap-2 border-t border-divider pt-4">
+                    <div v-if="phase === 'discussion'" class="animate-slide-up flex flex-col gap-2 border-t border-divider pt-4">
                         <label for="lodge-notes" class="text-sm font-semibold text-label">📝 我的備忘（只有你看得到）</label>
                         <textarea id="lodge-notes" v-model="notes" rows="4" class="game-input resize-y"
                             placeholder="記下誰說他看到什麼、誰傳給誰…"></textarea>
                     </div>
 
                     <!-- 開票階段：律師 / 富商能力（自願公開，沒有操作就沒有能力） -->
-                    <div v-if="phase === 'reveal' && abilityRole" class="flex flex-col gap-2 border-t border-divider pt-4">
+                    <div v-if="phase === 'reveal' && abilityRole" class="animate-slide-up flex flex-col gap-2 border-t border-divider pt-4">
                         <p class="m-0 font-semibold text-heading">{{ ROLES[abilityRole].emoji }} 你是{{ ROLES[abilityRole].name }}</p>
                         <p v-if="!view.me.canReveal" class="m-0 text-success-text text-sm">已公開身份。</p>
                         <template v-else-if="abilityRole === 'lawyer'">
@@ -344,7 +347,7 @@
                     </div>
 
                     <!-- 投票 -->
-                    <div v-if="phase === 'voting'" class="flex flex-col gap-2 border-t border-divider pt-4">
+                    <div v-if="phase === 'voting'" class="animate-slide-up flex flex-col gap-2 border-t border-divider pt-4">
                         <template v-if="view.me.myVote">
                             <p class="m-0 text-center text-success-text font-semibold">
                                 已投給「{{ locationOf(view.me.myVote).name }}」，等待其他人…
