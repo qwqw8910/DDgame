@@ -30,9 +30,9 @@ test('Level 2 加入 1 位共犯', () => {
   assert.equal(deck.filter(c => c.kind === 'guest').length, 3);
 });
 
-test('4 人局客人顏色為 黃×2、藍×1、紅×1', () => {
+test('4 人局客人顏色為 黃、藍、紅、綠 各 1', () => {
   const colors = L.buildDeck(1, 4).filter(c => c.kind === 'guest').map(c => c.color).sort();
-  assert.deepEqual(colors, ['blue', 'red', 'yellow', 'yellow']);
+  assert.deepEqual(colors, ['blue', 'green', 'red', 'yellow']);
 });
 
 test('開局：地點不重複且不含客房/鍋爐室；首位抽 2 張', () => {
@@ -101,7 +101,7 @@ test('第二位起手上 = 收到的牌 + 抽 1 張', () => {
   assert.equal(me.hand[1].fromPlayerId, null);
 });
 
-test('投票：只能投玩家地點；結算取最高票；平票全進鍋爐室', () => {
+test('投票：只能投玩家地點或客房；結算取最高票；平票全進鍋爐室', () => {
   const g = L.createLobby();
   L.startGame(g, ids(4));
   playPassing(g);
@@ -114,6 +114,17 @@ test('投票：只能投玩家地點；結算取最高票；平票全進鍋爐�
   const r = L.resolveGame(g);
   assert.deepEqual(r.boilerIds.sort(), ['p2', 'p3']);
   assert.equal(g.phase, 'result');
+});
+
+test('客房也可以被投票；得票最高時客房的牌進鍋爐室', () => {
+  const g = L.createLobby();
+  L.startGame(g, ids(4));
+  playPassing(g);
+  for (const v of g.order) L.castVote(g, v, L.LODGE_ROOM_ID);
+  const r = L.resolveGame(g);
+  assert.deepEqual(r.boilerIds, [L.LODGE_ROOM_ID]);
+  assert.equal(r.voteCounts[L.LODGE_ROOM_ID], 4);
+  assert.equal(r.winner, g.lodgeRoomCard.kind === 'killer' ? 'good' : 'killer');
 });
 
 test('勝負：殺人魔進鍋爐室 → 好人贏；否則殺人魔陣營贏', () => {

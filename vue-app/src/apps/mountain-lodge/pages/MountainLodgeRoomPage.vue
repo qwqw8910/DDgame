@@ -76,7 +76,7 @@
             </div>
         </div>
 
-        <main v-else-if="roomState.room && view" class="mx-auto w-full max-w-3xl lg:max-w-6xl px-3 sm:px-4 py-4 flex flex-col gap-4">
+        <main v-else-if="roomState.room && view" class="mx-auto w-full max-w-3xl lg:max-w-[1800px] px-3 sm:px-4 lg:px-8 py-4 flex flex-col gap-4">
 
             <!-- 觀戰提示 -->
             <div v-if="roomState.isSpectator" class="game-card flex flex-wrap items-center justify-between gap-2 py-3" role="status">
@@ -145,7 +145,7 @@
                         <li>每人拿到一個地點，角色牌蓋在自己的地點上；多出的一張會放進「客房」。</li>
                         <li>傳牌：抽 2 張、留 1 張，另一張傳給任一尚無角色的人，並用語音說出「目擊情報」（可以說謊）。</li>
                         <li>討論：{{ view.discussionSeconds / 60 }} 分鐘內互相指控、找矛盾（語音自行處理）。</li>
-                        <li>投票：每人投 1 個地點。得票最高的地點，其角色牌送進鍋爐室；殺人魔被關進去 → 好人贏。</li>
+                        <li>投票：每人投 1 個地點，客房也可以投。得票最高的地點，其角色牌送進鍋爐室；殺人魔被關進去 → 好人贏。</li>
                         <li v-if="view.level >= 3">開票：票公開後有 {{ REVEAL_SECONDS }} 秒，律師 / 富商可自願公開身份發動能力；炸彈客被關進鍋爐室則單獨獲勝。</li>
                     </ol>
                 </details>
@@ -154,21 +154,21 @@
             <!-- ═════════════ 牌局進行中 / 結算 ═════════════ -->
             <template v-else>
                 <!-- 狀態列 -->
-                <div class="game-card flex flex-wrap items-center justify-between gap-2 py-3" aria-live="polite">
+                <div class="game-card flex flex-wrap items-center justify-between gap-2 py-2" aria-live="polite">
                     <Transition name="phase-fade" mode="out-in">
-                        <div :key="phase + (view.actorId ?? '')" class="flex flex-col">
-                            <span class="text-lg font-bold text-heading">{{ phaseLabel }}</span>
-                            <span class="text-sm text-body">{{ phaseHint }}</span>
+                        <div :key="phase + (view.actorId ?? '')" class="flex items-baseline gap-2 min-w-0">
+                            <span class="text-base font-bold text-heading whitespace-nowrap">{{ phaseLabel }}</span>
+                            <span class="text-sm text-body truncate">{{ phaseHint }}</span>
                         </div>
                     </Transition>
-                    <div v-if="phase === 'discussion'" class="font-mono text-3xl font-bold tabular-nums"
+                    <div v-if="phase === 'discussion'" class="font-mono text-2xl font-bold tabular-nums"
                         :class="remaining <= 30 ? 'text-ruby animate-timer-pulse' : 'text-neon-cyan'" role="timer">
                         {{ formatSeconds(remaining) }}
                     </div>
                     <div v-else-if="phase === 'voting'" class="text-sm text-label">
                         已投 {{ view.votedIds.length }}/{{ view.order.length }}
                     </div>
-                    <div v-else-if="phase === 'reveal'" class="font-mono text-3xl font-bold tabular-nums text-neon-cyan" role="timer">
+                    <div v-else-if="phase === 'reveal'" class="font-mono text-2xl font-bold tabular-nums text-neon-cyan" role="timer">
                         {{ formatSeconds(remaining) }}
                     </div>
                     <div class="basis-full flex flex-wrap items-center gap-1.5 text-xs text-body" aria-label="本局角色板塊">
@@ -216,7 +216,11 @@
                 <!-- 中央：客房、鍋爐室 -->
                 <section aria-label="客房與鍋爐室" class="grid grid-cols-2 gap-3 max-w-md w-full mx-auto">
                     <LodgeSeat :location="LODGE_ROOM" :has-card="view.lodgeRoomFilled"
-                        :revealed-card="result?.lodgeRoomCard ?? null" />
+                        :revealed-card="result?.lodgeRoomCard ?? null"
+                        :selectable="isSeatSelectable(LODGE_ROOM_ID)" :selected="isSeatSelected(LODGE_ROOM_ID)"
+                        :vote-count="result ? result.voteCounts[LODGE_ROOM_ID] : null"
+                        :boiler="!!result && result.boilerIds.includes(LODGE_ROOM_ID)"
+                        @select="selectSeat(LODGE_ROOM_ID)" />
                     <div class="rounded-xl border border-neon-rose/40 bg-[rgba(225,29,72,0.08)] p-3 flex flex-col items-center gap-1.5 text-center">
                         <div class="w-full aspect-[3/2] rounded-lg overflow-hidden bg-card-solid">
                             <img :src="BOILER.img" alt="" draggable="false" loading="lazy" class="w-full h-full object-cover" />
@@ -224,7 +228,7 @@
                         <span class="font-bold text-heading text-base">{{ BOILER.name }}</span>
                         <div class="flex flex-wrap justify-center gap-1.5 min-h-[96px] items-center">
                             <template v-if="result && result.boilerIds.length">
-                                <LodgeCard v-for="id in result.boilerIds" :key="id" :card="result.cards[id]" revealed compact />
+                                <LodgeCard v-for="id in result.boilerIds" :key="id" :card="cardOf(id)" revealed compact />
                             </template>
                             <LodgeCard v-else compact empty class="opacity-30" />
                         </div>
@@ -294,7 +298,8 @@
                         </p>
                         <div class="flex flex-wrap justify-center gap-4">
                             <div v-for="h in myHand" :key="h.id" class="flex flex-col items-center gap-2">
-                                <LodgeCard :card="h" peekable toggle />
+                                <!-- 別人傳來的牌直接開著（他傳牌時一定會口頭講傳了什麼，開牌才能直接比對有沒有說謊）；自己剛抽到的牌維持蓋著，點一下翻面 -->
+                                <LodgeCard :card="h" :revealed="h.from === 'passed'" :peekable="h.from !== 'passed'" :toggle="h.from !== 'passed'" />
                                 <span class="text-xs text-body">{{ h.from === 'passed' ? `來自 ${nameOf(h.fromPlayerId)}` : '剛抽到' }}</span>
                                 <button type="button" :class="keepChoice === h.id ? 'btn-primary' : 'btn-secondary'"
                                     :aria-pressed="keepChoice === h.id" @click="keepChoice = h.id">
@@ -308,8 +313,11 @@
                         <p v-else class="m-0 text-sm text-body text-center">
                             {{ keepChoice ? '接著點上方「還沒有角色」的地點，把另一張牌傳過去（可以口頭說謊 😈）' : '先選要留下的牌' }}
                         </p>
+                        <p v-if="passCountdown > 0" class="m-0 text-sm text-neon-cyan text-center">
+                            ⏳ 先想想你的說法：{{ passCountdown }} 秒後才能傳牌
+                        </p>
                         <button class="btn-primary btn-full" :disabled="!canConfirmPass" @click="confirmPass">
-                            {{ isLastPlayer ? '留下這張，另一張放進客房' : '確認傳牌' }}
+                            {{ passCountdown > 0 ? `再等 ${passCountdown} 秒…` : (isLastPlayer ? '留下這張，另一張放進客房' : '確認傳牌') }}
                         </button>
                     </div>
                     <p v-else-if="phase === 'passing'" class="m-0 text-center text-body border-t border-divider pt-4">
@@ -354,7 +362,7 @@
                             </p>
                         </template>
                         <template v-else>
-                            <p class="m-0 text-center text-label">點選上方的地點（也可以投自己的），確認後無法更改。</p>
+                            <p class="m-0 text-center text-label">點選上方的地點（也可以投自己的，或投客房），確認後無法更改。</p>
                             <button class="btn-primary btn-full" :disabled="!voteChoice" @click="confirmVote">
                                 {{ voteChoice ? `投給「${locationOf(voteChoice).name}」` : '請先選擇地點' }}
                             </button>
@@ -419,8 +427,8 @@ import LodgeSeat from '../components/LodgeSeat.vue'
 import LodgeReplay from '../components/LodgeReplay.vue'
 import LodgeRoleGuide from '../components/LodgeRoleGuide.vue'
 import {
-    MIN_PLAYERS, minPlayersForLevel, PATTERN_BG_IMG, ROLES, LOCATIONS, LODGE_ROOM, BOILER, TEAM_NAMES,
-    LEVEL_CHOICES, DISCUSSION_CHOICES, cardLabel, formatSeconds,
+    MIN_PLAYERS, minPlayersForLevel, PATTERN_BG_IMG, ROLES, LOCATIONS, LODGE_ROOM, LODGE_ROOM_ID, BOILER, TEAM_NAMES,
+    LEVEL_CHOICES, DISCUSSION_CHOICES, MIN_PASS_SECONDS, cardLabel, formatSeconds,
 } from '../data/constants.js'
 
 const route = useRoute()
@@ -471,7 +479,11 @@ const REVEAL_SECONDS = 20 // 與 server REVEAL_SECONDS 對應（僅用於說明�
 
 const playersById = computed(() => Object.fromEntries(roomState.players.map(p => [p.id, p])))
 const nameOf = id => playersById.value[id]?.nickname ?? '（已離開）'
-const locationOf = id => LOCATIONS[view.value?.locations?.[id]] ?? { name: '？', emoji: '❔' }
+const locationOf = id => id === LODGE_ROOM_ID
+    ? LODGE_ROOM
+    : LOCATIONS[view.value?.locations?.[id]] ?? { name: '？', emoji: '❔' }
+// 客房沒有玩家持有，牌要從 result.lodgeRoomCard 另外取
+const cardOf = id => (id === LODGE_ROOM_ID ? result.value?.lodgeRoomCard : result.value?.cards?.[id])
 
 // 座位：以「我」為起點旋轉，我的地點固定在畫面下方；觀戰者看全部
 const inGamePlayers = computed(() =>
@@ -519,7 +531,7 @@ const phaseHint = computed(() => {
             ? `輪到 ${nameOf(view.value.actorId)}（${locationOf(view.value.actorId).name}）`
             : '傳牌完成'
         case 'discussion': return '用語音自由討論：可以說謊，也可以說「我剛才騙你們」'
-        case 'voting': return '投票給你認為殺人魔所在的地點'
+        case 'voting': return '投票給你認為殺人魔所在的地點（客房也可以投）'
         case 'reveal': return '票已公開：律師 / 富商可在倒數內自願公開身份'
         case 'result': return `第 ${view.value.gameNo} 局結束`
         default: return ''
@@ -541,7 +553,7 @@ const resultReason = computed(() => {
         return `炸彈客被送進了鍋爐室，單獨獲勝！好人與殺人魔陣營皆落敗。${where}${acc}。`
     }
     const boiler = r.boilerIds.length
-        ? `鍋爐室裡關了：${r.boilerIds.map(id => `${locationOf(id).name}的${cardLabel(r.cards[id])}`).join('、')}`
+        ? `鍋爐室裡關了：${r.boilerIds.map(id => `${locationOf(id).name}的${cardLabel(id === LODGE_ROOM_ID ? r.lodgeRoomCard : r.cards[id])}`).join('、')}`
         : '沒有人投票，鍋爐室是空的'
     return `${boiler}。${where}${acc}。`
 })
@@ -572,12 +584,16 @@ watch(() => phase.value === 'discussion' && remaining.value > 0 && remaining.val
 // ── 傳牌互動 ──────────────────────────────────────────────────────
 const keepChoice = ref(null)
 const passChoice = ref(null)
+// 輪到我傳牌時，固定鎖住 MIN_PASS_SECONDS 秒才能送出，讓壞人也有時間想說法
+const passUnlockAt = ref(0)
 watch(() => `${view.value?.actorId}|${myHand.value.map(h => h.id).join()}`, () => {
     keepChoice.value = null
     passChoice.value = null
+    passUnlockAt.value = myHand.value.length ? Date.now() + MIN_PASS_SECONDS * 1000 : 0
 })
+const passCountdown = computed(() => Math.max(0, Math.ceil((passUnlockAt.value - now.value) / 1000)))
 const canConfirmPass = computed(() =>
-    !!keepChoice.value && (isLastPlayer.value || !!passChoice.value))
+    !!keepChoice.value && (isLastPlayer.value || !!passChoice.value) && passCountdown.value <= 0)
 function confirmPass() {
     if (!canConfirmPass.value) return
     keepCard(keepChoice.value, isLastPlayer.value ? null : passChoice.value)

@@ -6,8 +6,8 @@
 //  規則來源：docs/design/game-background.md
 //  Open Questions 的暫定值（改規則只需改這裡的常數）：
 //    - 殺人魔 / 共犯開局互不相識
-//    - 每人 1 票，可投自己的地點；客房、鍋爐室不可投
-//    - 平票：所有同票最高的地點，其角色牌一併進鍋爐室
+//    - 每人 1 票，可投自己的地點，也可以投客房；鍋爐室不可投
+//    - 平票：所有同票最高的地點（含客房），其角色牌一併進鍋爐室
 //    - Level 配置見 LEVEL_ROLES（必備角色以外全是客人）
 //    - Level 3 / 5 至少 4 人（見 LEVEL_MIN_PLAYERS）
 //    - 開票階段（Level 3+）：律師公開 → 作廢指定玩家的票；富商公開 → 自己的票算 2 票。
@@ -39,8 +39,11 @@ const DEFAULT_DISCUSSION_SECONDS = 180;
 // 玩家可分配的地點（客房、鍋爐室固定在中央，不在此列）
 const PLAYER_LOCATIONS = ['lounge', 'gallery', 'billiards', 'study', 'entrance', 'dining'];
 
-// 客人顏色：黃×2、藍×1、紅×1（原規則），人數 5、6 時補綠、紫
-const GUEST_COLORS = ['yellow', 'yellow', 'blue', 'red', 'green', 'purple'];
+// 客房的投票目標 id（最後一位玩家多出的牌放在這裡；可被投票，但不是玩家）
+const LODGE_ROOM_ID = 'lodge-room';
+
+// 客人顏色：黃、藍、紅、綠、紫各 1（最多 5 色不重複）；僅 6 人局的第 6 位客人會重複用黃（沒有第 6 種顏色素材）
+const GUEST_COLORS = ['yellow', 'blue', 'red', 'green', 'purple', 'yellow'];
 
 const PHASES = ['lobby', 'passing', 'discussion', 'voting', 'reveal', 'result'];
 
@@ -168,7 +171,7 @@ function keepCard(game, playerId, keepCardId, passTo) {
     hand: game.hand.map(h => ({ card: h.card, from: h.from })),
     kept: keptEntry.card,
     passed: otherEntry.card,
-    passedTo: isLast ? 'lodge-room' : passTo,
+    passedTo: isLast ? LODGE_ROOM_ID : passTo,
   };
   game.history.push(record);
   game.publicLog.push({ step, from: playerId, to: record.passedTo });
@@ -209,11 +212,13 @@ function beginVoting(game) {
   game.votes = {};
 }
 
-// targetId = 被投地點的主人（地點由玩家持有，投票對象仍是「地點」）
+// targetId = 被投地點的主人（地點由玩家持有，投票對象仍是「地點」），也可以是客房（LODGE_ROOM_ID）
 function castVote(game, voterId, targetId) {
   if (game.phase !== 'voting') throw new GameError('BAD_PHASE', '現在不是投票階段');
   if (!game.order.includes(voterId)) throw new GameError('FORBIDDEN', '觀戰者不能投票');
-  if (!game.order.includes(targetId)) throw new GameError('BAD_TARGET', '只能投給玩家所在的地點');
+  if (targetId !== LODGE_ROOM_ID && !game.order.includes(targetId)) {
+    throw new GameError('BAD_TARGET', '只能投給玩家所在的地點或客房');
+  }
   game.votes[voterId] = targetId;
 }
 
@@ -250,16 +255,18 @@ function resolveGame(game) {
   const weights = {};
   for (const r of game.reveals) if (r.kind === 'merchant') weights[r.playerId] = 2;
 
+  const targets = [...game.order, LODGE_ROOM_ID];
   const voteCounts = {};
-  for (const id of game.order) voteCounts[id] = 0;
+  for (const id of targets) voteCounts[id] = 0;
   for (const [voter, target] of Object.entries(game.votes)) {
     if (voidedVoterIds.includes(voter)) continue;
     voteCounts[target] += weights[voter] ?? 1;
   }
 
   const max = Math.max(0, ...Object.values(voteCounts));
-  const boilerIds = max === 0 ? [] : game.order.filter(id => voteCounts[id] === max);
-  const boilerCards = boilerIds.map(id => game.kept[id]);
+  const boilerIds = max === 0 ? [] : targets.filter(id => voteCounts[id] === max);
+  const cardOf = id => (id === LODGE_ROOM_ID ? game.lodgeRoomCard : game.kept[id]);
+  const boilerCards = boilerIds.map(cardOf);
   const bomberInBoiler = boilerCards.some(c => c.kind === 'bomber');
   const killerInBoiler = boilerCards.some(c => c.kind === 'killer');
   const winner = bomberInBoiler ? 'bomber' : killerInBoiler ? 'good' : 'killer';
@@ -373,7 +380,7 @@ class GameError extends Error {
 module.exports = {
   SOLO_TEST, MIN_PLAYERS, MAX_PLAYERS, LEVELS, LEVEL_ROLES, LEVEL_MIN_PLAYERS, REVEAL_SECONDS, minPlayersForLevel,
   DISCUSSION_CHOICES, DEFAULT_DISCUSSION_SECONDS,
-  PLAYER_LOCATIONS, GUEST_COLORS, PHASES,
+  PLAYER_LOCATIONS, GUEST_COLORS, PHASES, LODGE_ROOM_ID,
   GameError, shuffle, normalizeSettings,
   createLobby, buildDeck, startGame, keepCard, autoPlay,
   beginDiscussion, beginVoting, castVote, beginReveal, revealAbility, resolveGame, resetToLobby, buildView,
