@@ -24,6 +24,7 @@ export const LOCATIONS = {
 }
 
 // 固定在畫面中央的兩個地點
+export const LODGE_ROOM_ID = 'lodge-room'
 export const LODGE_ROOM = { name: '客房',   emoji: '🛏️', img: `${IMG}locations/lodge-room.webp` }
 export const BOILER     = { name: '鍋爐室', emoji: '🔥', img: `${IMG}locations/boiler.webp` }
 
@@ -57,6 +58,8 @@ export const ROLE_GUIDE = [
 export const TEAM_NAMES ={ good: '好人陣營', killer: '殺人魔陣營', bomber: '炸彈客' }
 
 export const DISCUSSION_CHOICES = [60, 120, 180, 240, 300]
+// 輪到自己傳牌時，固定要等這麼久才能按下「確認傳牌」（10~15 秒內，給壞人想策略/說法的時間）
+export const MIN_PASS_SECONDS = 12
 export const LEVEL_CHOICES = [
   { value: 1, label: 'Level 1：殺人魔 + 客人', desc: '新手建議' },
   { value: 2, label: 'Level 2：加入共犯',      desc: '共犯會幫殺人魔說謊' },
