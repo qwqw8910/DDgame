@@ -238,18 +238,9 @@
 
                 <!-- 我的區域 -->
                 <section v-if="view.me" class="game-card flex shrink-0 flex-col gap-4" aria-label="我的區域">
-                    <div class="flex flex-wrap items-center gap-4">
-                        <div class="h-32 w-28 shrink-0">
-                            <LodgeSeat :location="locationOf(myId)" :player="mySeatPlayer" is-me
-                                :has-card="!!view.me.card" :revealed-card="result?.cards[myId] ?? null"
-                                :is-actor="view.actorId === myId"
-                                :vote-count="result ? result.voteCounts[myId] : null"
-                                :boiler="!!result && result.boilerIds.includes(myId)" />
-                        </div>
-                        <div v-if="view.me.card && !result" class="flex flex-col items-center gap-1.5">
-                            <LodgeCard :card="view.me.card" peekable toggle />
-                            <span class="text-xs text-body">我的角色牌</span>
-                        </div>
+                    <div v-if="view.me.card && !result" class="flex flex-col items-center gap-1.5">
+                        <LodgeCard :card="view.me.card" peekable toggle />
+                        <span class="text-xs text-body">我的角色牌</span>
                     </div>
 
                     <!-- 傳牌：輪到我 -->
@@ -503,7 +494,6 @@ const cardOf = id => (id === LODGE_ROOM_ID ? result.value?.lodgeRoomCard : resul
 // 座位：進入牌局的玩家（觀戰者看全部）
 const inGamePlayers = computed(() =>
     roomState.players.filter(p => view.value?.locations?.[p.id]))
-const mySeatPlayer = computed(() => playersById.value[myId.value] ?? null)
 const myPassLog = computed(() => (view.value?.publicLog ?? []).filter(l => l.from === myId.value))
 
 // 場地盤面第 1–6 格：依座位順序由左至右、由上而下，所有客戶端相同（不旋轉）；沒人的格子留空
