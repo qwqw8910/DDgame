@@ -345,3 +345,16 @@ test('單人試玩：1 人可完整跑完傳牌 → 投票 → 結算', { skip: 
     assert.equal(r.boilerIds[0], 'p1');
   }
 });
+
+test('閱牌倒數：發牌時設定解鎖時間，時間未到不能傳牌，傳牌後下一位重新倒數', () => {
+  const g = L.createLobby({ level: 1 });
+  const t0 = 1_000_000;
+  L.startGame(g, ['p1', 'p2', 'p3'], Math.random, t0);
+  assert.equal(g.endsAt, t0 + L.config.passLockSeconds * 1000);
+  assert.throws(() => L.assertPassUnlocked(g, t0 + 3000), { code: 'TOO_EARLY' });
+  assert.doesNotThrow(() => L.assertPassUnlocked(g, g.endsAt));
+  const actor = g.actorId;
+  const target = g.remaining.find(id => id !== actor);
+  L.keepCard(g, actor, g.hand[0].card.id, target, t0 + 20_000);
+  assert.equal(g.endsAt, t0 + 20_000 + L.config.passLockSeconds * 1000);
+});

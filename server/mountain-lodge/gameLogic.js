@@ -32,6 +32,10 @@ const LEVEL_ROLES = {
 const LEVEL_MIN_PLAYERS = SOLO_TEST ? {} : { 3: 4, 5: 4 };
 const REVEAL_SECONDS = 20; // 開票階段固定時長（不提前結束，避免從時間差推測誰有能力）
 const REVEAL_ROLES = ['lawyer', 'merchant'];
+// 傳牌閱牌時間：牌一發到手就開始倒數，期間不能確認傳牌（endsAt 在 passing 階段即為解鎖時間，全員可見）
+// 以可變物件匯出，讓整合測試可以調成 0
+const config = { passLockSeconds: 10 };
+const PASS_LOCK_TOLERANCE_MS = 500; // 容許網路 / 時鐘微小誤差
 const KILLER_TEAM = ['killer', 'accomplice'];
 const DISCUSSION_CHOICES = [60, 120, 180, 240, 300];
 const DEFAULT_DISCUSSION_SECONDS = 180;
@@ -98,13 +102,14 @@ function buildDeck(level, playerCount, rng = Math.random) {
   const cards = (LEVEL_ROLES[level] ?? LEVEL_ROLES[1]).map(kind => ({ kind }));
   const guestCount = total - cards.length;
   for (let i = 0; i < guestCount; i++) {
-    cards.push({ kind: 'guest', color: GUEST_COLORS[i % GUEST_COLORS.length] });
+    // Level 2 以上客人不分顏色（共用同一張客人牌）
+    cards.push(level >= 2 ? { kind: 'guest' } : { kind: 'guest', color: GUEST_COLORS[i % GUEST_COLORS.length] });
   }
   return shuffle(cards, rng).map((c, i) => ({ id: `c${i}`, ...c }));
 }
 
 // ── 開局 ────────────────────────────────────────────────────────
-function startGame(game, playerIds, rng = Math.random) {
+function startGame(game, playerIds, rng = Math.random, now = Date.now()) {
   if (game.phase !== 'lobby') throw new GameError('GAME_IN_PROGRESS', '遊戲已經開始');
   const n = playerIds.length;
   if (n < MIN_PLAYERS) throw new GameError('NOT_ENOUGH', `至少需要 ${MIN_PLAYERS} 位玩家！`);
@@ -131,7 +136,7 @@ function startGame(game, playerIds, rng = Math.random) {
   game.votes = {};
   game.reveals = [];
   game.result = null;
-  game.endsAt = null;
+  game.endsAt = now + config.passLockSeconds * 1000;
   game.remaining = [...order];
 
   // 第一位玩家：從牌堆抽 2 張
@@ -145,7 +150,7 @@ function startGame(game, playerIds, rng = Math.random) {
 
 // ── 傳牌 ────────────────────────────────────────────────────────
 // actor 留下 keepCardId；另一張傳給 passTo（尚無角色者），最後一位則放進客房。
-function keepCard(game, playerId, keepCardId, passTo) {
+function keepCard(game, playerId, keepCardId, passTo, now = Date.now()) {
   if (game.phase !== 'passing') throw new GameError('BAD_PHASE', '現在不是傳牌階段');
   if (playerId !== game.actorId) throw new GameError('NOT_YOUR_TURN', '還沒輪到你！');
 
@@ -179,16 +184,25 @@ function keepCard(game, playerId, keepCardId, passTo) {
   if (isLast) {
     game.lodgeRoomCard = otherEntry.card;
     game.actorId = null;
+    game.endsAt = null;
     game.hand = [];
     return { done: true };
   }
 
   game.actorId = passTo;
+  game.endsAt = now + config.passLockSeconds * 1000;
   game.hand = [
     { card: otherEntry.card, from: 'passed', fromPlayerId: playerId },
     { card: game.deck.shift(), from: 'deck' },
   ];
   return { done: false };
+}
+
+// 閱牌時間未到不能傳牌（由 socket 層呼叫；純規則函式 keepCard 不檢查，方便單元測試）
+function assertPassUnlocked(game, now = Date.now()) {
+  if (game.phase === 'passing' && game.endsAt && now < game.endsAt - PASS_LOCK_TOLERANCE_MS) {
+    throw new GameError('TOO_EARLY', '請先閱牌，倒數結束才能傳牌');
+  }
 }
 
 // 玩家離線時由房主代為決定：隨機留一張、隨機傳給候選人
@@ -378,6 +392,7 @@ class GameError extends Error {
 }
 
 module.exports = {
+  config, assertPassUnlocked,
   SOLO_TEST, MIN_PLAYERS, MAX_PLAYERS, LEVELS, LEVEL_ROLES, LEVEL_MIN_PLAYERS, REVEAL_SECONDS, minPlayersForLevel,
   DISCUSSION_CHOICES, DEFAULT_DISCUSSION_SECONDS,
   PLAYER_LOCATIONS, GUEST_COLORS, PHASES, LODGE_ROOM_ID,

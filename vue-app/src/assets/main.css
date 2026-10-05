@@ -241,6 +241,10 @@
   0%,100% { transform: scale(1); }
   50%     { transform: scale(1.12); }
 }
+@keyframes ability-glow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,0.6); transform: scale(1); }
+  50%     { box-shadow: 0 0 22px 6px rgba(251,191,36,0.6); transform: scale(1.015); }
+}
 @keyframes boiler-glow {
   0%,100% { box-shadow: 0 0 0 0 rgba(225,29,72,0.55); }
   50%     { box-shadow: 0 0 18px 4px rgba(225,29,72,0.55); }
@@ -364,13 +368,14 @@
   .animate-card-deal   { animation: card-deal 0.3s ease both; }
   .animate-timer-pulse { animation: timer-pulse 1s ease-in-out infinite; }
   .animate-boiler-glow { animation: boiler-glow 1.6s ease-in-out infinite; }
+  .animate-ability-glow { animation: ability-glow 1.2s ease-in-out infinite; }
   /* 階段切換：狀態列文字淡入 */
   .phase-fade-enter-active, .phase-fade-leave-active { transition: opacity 0.2s, transform 0.2s; }
   .phase-fade-enter-from { opacity: 0; transform: translateY(6px); }
   .phase-fade-leave-to   { opacity: 0; transform: translateY(-6px); }
   @media (prefers-reduced-motion: reduce) {
     .float-emoji, .animate-bounce-in, .animate-slide-up, .animate-shake, .animate-pop-in,
-    .animate-card-flip, .animate-card-deal, .animate-timer-pulse, .animate-boiler-glow { animation: none !important; }
+    .animate-card-flip, .animate-card-deal, .animate-timer-pulse, .animate-boiler-glow, .animate-ability-glow { animation: none !important; }
     .phase-fade-enter-active, .phase-fade-leave-active { transition: none; }
   }
 
@@ -1337,3 +1342,5 @@
     background-size: 100% 100%, 320px 320px;
   }
 }
+
+@custom-variant side (@media (min-width: 640px) and (orientation: landscape));

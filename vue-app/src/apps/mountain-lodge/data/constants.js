@@ -52,14 +52,12 @@ export const ROLE_GUIDE = [
   { kind: 'lawyer',     level: 'Level 3', ability: '開票階段可公開身份並指定一位玩家，該玩家原本投出的 1 票無效（不能選自己）。', win: '殺人魔被送進鍋爐室。' },
   { kind: 'bomber',     level: 'Level 4、5', ability: '裝成殺人魔，想辦法讓大家把自己關進鍋爐室。', win: '自己被送進鍋爐室，單獨獲勝，其他人的勝利條件全部失效。' },
   { kind: 'merchant',   level: 'Level 5', ability: '開票階段可公開身份，自己投的票算 2 票。', win: '殺人魔被送進鍋爐室。' },
-  { kind: 'guest',      level: '所有 Level', ability: '沒有特殊能力，只能靠目擊情報與推理。客人有黃、藍、紅、綠、紫色，僅用於討論時辨識。', win: '殺人魔被送進鍋爐室。' },
+  { kind: 'guest',      level: '所有 Level', ability: '沒有特殊能力，只能靠目擊情報與推理。Level 1 的客人有黃、藍、紅、綠、紫色，僅用於討論時辨識；Level 2 以上客人不分顏色。', win: '殺人魔被送進鍋爐室。' },
 ]
 
 export const TEAM_NAMES ={ good: '好人陣營', killer: '殺人魔陣營', bomber: '炸彈客' }
 
 export const DISCUSSION_CHOICES = [60, 120, 180, 240, 300]
-// 輪到自己傳牌時，固定要等這麼久才能按下「確認傳牌」（10~15 秒內，給壞人想策略/說法的時間）
-export const MIN_PASS_SECONDS = 12
 export const LEVEL_CHOICES = [
   { value: 1, label: 'Level 1：殺人魔 + 客人', desc: '新手建議' },
   { value: 2, label: 'Level 2：加入共犯',      desc: '共犯會幫殺人魔說謊' },
@@ -72,20 +70,34 @@ export const LEVEL_CHOICES = [
 export const LEVEL_MIN_PLAYERS = SOLO_TEST ? {} : { 3: 4, 5: 4 }
 export const minPlayersForLevel = level => LEVEL_MIN_PLAYERS[level] ?? MIN_PLAYERS
 
-// 牌面圖：客人依顏色、其他依角色
+// Level 2 以上客人不分顏色，共用這張牌
+export const GUEST_GENERIC_IMG = `${IMG}roles/guest-generic.jpg`
+
+// 牌面圖：Level 1 客人依顏色，Level 2+ 客人（無顏色）用共用圖，其他依角色
 export function cardImage(card) {
   if (!card) return null
-  return card.kind === 'guest' ? GUEST_COLORS[card.color]?.img ?? null : ROLES[card.kind]?.img ?? null
+  if (card.kind === 'guest') return GUEST_COLORS[card.color]?.img ?? GUEST_GENERIC_IMG
+  return ROLES[card.kind]?.img ?? null
 }
 
 export function cardLabel(card) {
   if (!card) return ''
   const role = ROLES[card.kind]
-  if (card.kind === 'guest') return `${GUEST_COLORS[card.color]?.name ?? ''}色${role.name}`
+  if (card.kind === 'guest') return GUEST_COLORS[card.color] ? `${GUEST_COLORS[card.color].name}色${role.name}` : role.name
   return role.name
 }
 
 export function formatSeconds(total) {
   const s = Math.max(0, Math.ceil(total))
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+
+// 傳牌閱牌倒數（與 server config.passLockSeconds 對應；實際倒數以伺服器 endsAt 為準，這裡只用於說明文字）
+export const PASS_LOCK_SECONDS = 10
+
+// 能力公開彈窗：所有「公開身份」類卡片共用，新卡片只要在這裡補一筆
+export const REVEAL_POPUP_SECONDS = 4
+export const REVEAL_EVENTS = {
+  lawyer:   (actor, target) => ({ title: '律師公開身份', text: `${actor} 公開了律師身份，作廢 ${target} 的 1 票`, tone: 'text-neon-cyan' }),
+  merchant: (actor)         => ({ title: '富商公開身份', text: `${actor} 公開了富商身份，這一票算 2 票`, tone: 'text-amber-300' }),
 }

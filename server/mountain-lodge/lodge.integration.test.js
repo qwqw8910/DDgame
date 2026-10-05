@@ -10,6 +10,9 @@ const http = require('node:http');
 const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
 const { registerNamespace } = require('./index');
+const L = require('./gameLogic');
+
+L.config.passLockSeconds = 0; // 整合測試不等閱牌倒數
 
 // ── Mock DB（rooms / players 兩張表）────────────────────────────
 function makeMockDb() {

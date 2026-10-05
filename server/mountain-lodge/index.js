@@ -245,6 +245,7 @@ function registerNamespace(io, db) {
     socket.on('lodge:keep', ({ roomId, cardId, passTo } = {}) => {
       try {
         const c = ctx(roomId); if (!c) return;
+        if (c.game.phase === 'passing' && c.game.actorId === c.playerId) L.assertPassUnlocked(c.game);
         const { done } = L.keepCard(c.game, c.playerId, cardId, passTo);
         if (done) enterDiscussion(roomId, c.game);
         else pushState(roomId);

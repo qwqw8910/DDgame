@@ -25,9 +25,9 @@
             <img v-if="faceImg" :src="faceImg" :alt="label" draggable="false"
                 class="absolute inset-0 w-full h-full object-cover pointer-events-none" />
             <span v-else :class="compact ? 'text-2xl' : 'text-4xl'" aria-hidden="true">{{ role.emoji }}</span>
-            <div :class="['absolute inset-x-0 bottom-0 flex flex-col items-center px-1 pt-5 pb-1 [background:linear-gradient(to_top,rgba(0,0,0,0.85),transparent)]', card.kind === 'guest' ? 'border-b-[5px]' : '']"
-                :style="card.kind === 'guest' ? { borderBottomColor: colorHex } : undefined">
-                <span :class="['font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]', compact ? 'text-xs' : 'text-lg']">{{ label }}</span>
+            <div :class="['absolute inset-x-0 bottom-0 flex flex-col items-center px-1 pt-5 pb-1 [background:linear-gradient(to_top,rgba(0,0,0,0.85),transparent)]', card.kind === 'guest' && card.color ? 'border-b-[5px]' : '']"
+                :style="card.kind === 'guest' && card.color ? { borderBottomColor: colorHex } : undefined">
+                <span :class="['font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]', fluid ? 'text-[10px] leading-tight' : compact ? 'text-xs' : 'text-lg']">{{ label }}</span>
                 <span v-if="!compact" class="text-xs text-white/80 px-2 mt-0.5 leading-snug">{{ role.hint }}</span>
             </div>
         </template>
@@ -51,6 +51,7 @@ const props = defineProps({
     compact:  { type: Boolean, default: false },
     empty:    { type: Boolean, default: false }, // 尚無牌（空位）
     toggle:   { type: Boolean, default: false }, // 點一下翻面（傳牌時要看清兩張牌）；預設為按住偷看
+    fluid:    { type: Boolean, default: false }, // 尺寸由父層決定（h-full + 3:4），用於場地盤面的格子
 })
 
 const holding = ref(false)
@@ -63,7 +64,7 @@ const role = computed(() => ROLES[props.card?.kind] ?? ROLES.guest)
 const label = computed(() => cardLabel(props.card))
 const faceImg = computed(() => cardImage(props.card))
 const colorHex = computed(() => GUEST_COLORS[props.card?.color]?.hex ?? 'transparent')
-const sizeClass = computed(() => props.compact ? 'w-[72px] h-[96px]' : 'w-[132px] h-[176px]')
+const sizeClass = computed(() => props.fluid ? 'h-full aspect-[3/4] max-w-full' : props.compact ? 'w-[72px] h-[96px]' : 'w-[132px] h-[176px]')
 const ariaLabel = computed(() => {
     if (props.revealed && props.card) return `角色牌：${label.value}`
     return props.peekable ? (props.toggle ? '角色牌（點一下翻面）' : '角色牌（按住偷看）') : '蓋著的角色牌'
