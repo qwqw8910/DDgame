@@ -53,6 +53,7 @@ vue-app/src/
 │   ├── gender-score/              ← App: 十分男女
 │   ├── story-canvas/              ← App: 故事關係圖
 │   ├── mountain-lodge/            ← App: 山中別館殺人事件（後端：server/mountain-lodge/）
+│   ├── clocktower/                ← App: 血染鐘樓（後端：server/clocktower/；規格 docs/clocktower-spec.md）
 │   │
 │   └── [未來新 App slug]/          ← 遵循相同結構
 │       ├── pages/
@@ -223,6 +224,7 @@ VITE_SOCKET_URL=http://localhost:3000
 | `character-storm` | 默契字囊團：字元風暴 | 🟢 live | `/character-storm`, `/character-storm/room` |
 | `gender-score` | 十分男女 | 🟢 live | `/gender-score` |
 | `story-canvas` | 故事關係圖 | 🟢 live | `/story-canvas` |
+| `clocktower` | 血染鐘樓 | 🟡 beta（Phase 1 驗收中） | `/clocktower`, `/clocktower/room` |
 
 另有 `apps/know-me/pages/AdminPage.vue`（題庫管理後台，路由 `/admin`）：不登記進 `tools.js`／Portal 首頁，知道網址才能到。
 

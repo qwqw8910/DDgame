@@ -9,6 +9,8 @@ import CharacterStormLobbyPage   from '../apps/character-storm/pages/CharacterSt
 import CharacterStormRoomPage    from '../apps/character-storm/pages/CharacterStormRoomPage.vue'
 import MountainLodgeLobbyPage     from '../apps/mountain-lodge/pages/MountainLodgeLobbyPage.vue'
 import MountainLodgeRoomPage      from '../apps/mountain-lodge/pages/MountainLodgeRoomPage.vue'
+import ClocktowerLobbyPage         from '../apps/clocktower/pages/ClocktowerLobbyPage.vue'
+import ClocktowerRoomPage          from '../apps/clocktower/pages/ClocktowerRoomPage.vue'
 import GenderScorePage           from '../apps/gender-score/pages/GenderScorePage.vue'
 import StoryCanvasPage           from '../apps/story-canvas/pages/StoryCanvasPage.vue'
 
@@ -25,6 +27,8 @@ const routes = [
   { path: '/character-storm/room',  name: 'character-storm-room', component: CharacterStormRoomPage  },  // 默契字囊團 房間
   { path: '/mountain-lodge',       name: 'mountain-lodge',      component: MountainLodgeLobbyPage  },  // 山中別館殺人事件 入口
   { path: '/mountain-lodge/room',  name: 'mountain-lodge-room', component: MountainLodgeRoomPage   },  // 山中別館殺人事件 房間
+  { path: '/clocktower',           name: 'clocktower',          component: ClocktowerLobbyPage     },  // 血染鐘樓 入口
+  { path: '/clocktower/room',      name: 'clocktower-room',     component: ClocktowerRoomPage      },  // 血染鐘樓 房間
   { path: '/gender-score',          name: 'gender-score',         component: GenderScorePage         },  // 十分男女
   { path: '/story-canvas',          name: 'story-canvas',         component: StoryCanvasPage         },  // 故事關係圖
 ]

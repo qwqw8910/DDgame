@@ -1,0 +1,166 @@
+[
+  {
+    "id": "washerwoman", "name": "洗衣婦", "team": "townsfolk",
+    "ability": "在你的首個夜晚，你會得知兩名玩家和一個鎮民角色：這兩名玩家之一是該角色。",
+    "firstNight": 33, "firstNightReminder": "指出兩名玩家，並展示其中一人的鎮民角色。",
+    "otherNight": 0, "otherNightReminder": "",
+    "reminders": ["washerwoman:townsfolk", "washerwoman:wrong"], "setup": false,
+    "prompt": { "type": "info-players-role" }
+  },
+  {
+    "id": "librarian", "name": "圖書管理員", "team": "townsfolk",
+    "ability": "在你的首個夜晚，你會得知兩名玩家和一個外來者角色：這兩名玩家之一是該角色（或者你會得知沒有外來者在場）。",
+    "firstNight": 34, "firstNightReminder": "指出兩名玩家，並展示其中一人的外來者角色；若沒有外來者，給 0。",
+    "otherNight": 0, "otherNightReminder": "",
+    "reminders": ["librarian:outsider", "librarian:wrong"], "setup": false,
+    "prompt": { "type": "info-players-role" }
+  },
+  {
+    "id": "investigator", "name": "調查員", "team": "townsfolk",
+    "ability": "在你的首個夜晚，你會得知兩名玩家和一個爪牙角色：這兩名玩家之一是該角色。",
+    "firstNight": 35, "firstNightReminder": "指出兩名玩家，並展示其中一人的爪牙角色。",
+    "otherNight": 0, "otherNightReminder": "",
+    "reminders": ["investigator:minion", "investigator:wrong"], "setup": false,
+    "prompt": { "type": "info-players-role" }
+  },
+  {
+    "id": "chef", "name": "廚師", "team": "townsfolk",
+    "ability": "在你的首個夜晚，你會得知場上鄰座的邪惡玩家有多少對。",
+    "firstNight": 36, "firstNightReminder": "給出鄰座邪惡玩家的對數。",
+    "otherNight": 0, "otherNightReminder": "",
+    "reminders": [], "setup": false,
+    "prompt": { "type": "info-number" }
+  },
+  {
+    "id": "empath", "name": "共情者", "team": "townsfolk",
+    "ability": "每個夜晚，你會得知與你鄰近的兩名存活玩家中，邪惡玩家的數量。",
+    "firstNight": 37, "firstNightReminder": "給出鄰近存活邪惡玩家的數量。",
+    "otherNight": 53, "otherNightReminder": "給出鄰近存活邪惡玩家的數量。",
+    "reminders": [], "setup": false,
+    "prompt": { "type": "info-number" }
+  },
+  {
+    "id": "fortuneteller", "name": "占卜師", "team": "townsfolk",
+    "ability": "每個夜晚，你要選擇兩名玩家：你會得知他們之中是否有惡魔。會有一名善良玩家始終被你的能力當作惡魔。",
+    "firstNight": 38, "firstNightReminder": "占卜師選擇兩名玩家；告訴他其中是否有惡魔（紅鯡魚視為惡魔）。",
+    "otherNight": 54, "otherNightReminder": "占卜師選擇兩名玩家；告訴他其中是否有惡魔（紅鯡魚視為惡魔）。",
+    "reminders": ["fortuneteller:redherring"], "setup": false,
+    "prompt": { "type": "choose-player", "count": 2, "then": "info-yes-no" }
+  },
+  {
+    "id": "undertaker", "name": "送葬者", "team": "townsfolk",
+    "ability": "每個夜晚*，你會得知今天白天死於處決的玩家的角色。",
+    "firstNight": 0, "firstNightReminder": "",
+    "otherNight": 55, "otherNightReminder": "若今天有人被處決，展示該玩家的角色。",
+    "reminders": ["undertaker:executed"], "setup": false,
+    "prompt": { "type": "info-role" }
+  },
+  {
+    "id": "monk", "name": "僧侶", "team": "townsfolk",
+    "ability": "每個夜晚*，你要選擇除你以外的一名玩家：當晚惡魔的負面能力對他無效。",
+    "firstNight": 0, "firstNightReminder": "",
+    "otherNight": 12, "otherNightReminder": "僧侶選擇一名玩家（不能選自己），該玩家今晚受保護。",
+    "reminders": ["monk:protected"], "setup": false,
+    "prompt": { "type": "choose-player", "count": 1, "notSelf": true },
+    "autoReminder": { "on": "choose", "reminder": "monk:protected", "clear": "dawn" }
+  },
+  {
+    "id": "ravenkeeper", "name": "守鴉人", "team": "townsfolk",
+    "ability": "如果你在夜晚死亡，你會被喚醒，然後你要選擇一名玩家：你會得知他的角色。",
+    "firstNight": 0, "firstNightReminder": "",
+    "otherNight": 41, "otherNightReminder": "若守鴉人今晚死亡：喚醒他，他選擇一名玩家，展示該玩家的角色。",
+    "reminders": [], "setup": false,
+    "prompt": { "type": "choose-player", "count": 1, "then": "info-role" }
+  },
+  {
+    "id": "virgin", "name": "貞潔者", "team": "townsfolk",
+    "ability": "當你首次被提名時，如果提名你的玩家是鎮民，他立刻被處決。",
+    "firstNight": 0, "firstNightReminder": "", "otherNight": 0, "otherNightReminder": "",
+    "reminders": ["virgin:used"], "setup": false, "prompt": null
+  },
+  {
+    "id": "slayer", "name": "獵手", "team": "townsfolk",
+    "ability": "每局遊戲限一次，你可以在白天時公開選擇一名玩家：如果他是惡魔，他死亡。",
+    "firstNight": 0, "firstNightReminder": "", "otherNight": 0, "otherNightReminder": "",
+    "reminders": ["slayer:used"], "setup": false, "prompt": null
+  },
+  {
+    "id": "soldier", "name": "士兵", "team": "townsfolk",
+    "ability": "惡魔的負面能力對你無效。",
+    "firstNight": 0, "firstNightReminder": "", "otherNight": 0, "otherNightReminder": "",
+    "reminders": [], "setup": false, "prompt": null
+  },
+  {
+    "id": "mayor", "name": "鎮長", "team": "townsfolk",
+    "ability": "如果只有三名玩家存活且白天沒有人被處決，你的陣營獲勝。如果你在夜晚即將死亡，可能會有一名其他玩家代替你死亡。",
+    "firstNight": 0, "firstNightReminder": "", "otherNight": 0, "otherNightReminder": "",
+    "reminders": [], "setup": false, "prompt": null
+  },
+  {
+    "id": "butler", "name": "管家", "team": "outsider",
+    "ability": "每個夜晚，你要選擇除你以外的一名玩家：明天白天，只有他投票時你才能投票。",
+    "firstNight": 39, "firstNightReminder": "管家選擇一名玩家（不能選自己）作為主人。",
+    "otherNight": 60, "otherNightReminder": "管家選擇一名玩家（不能選自己）作為主人。",
+    "reminders": ["butler:master"], "setup": false,
+    "prompt": { "type": "choose-player", "count": 1, "notSelf": true },
+    "autoReminder": { "on": "choose", "reminder": "butler:master", "clear": "nextOwnAction" }
+  },
+  {
+    "id": "drunk", "name": "酒鬼", "team": "outsider",
+    "ability": "你不知道你是酒鬼。你以為你是一個鎮民角色，但其實你不是。",
+    "firstNight": 0, "firstNightReminder": "", "otherNight": 0, "otherNightReminder": "",
+    "reminders": ["drunk:drunk"], "setup": true, "prompt": null
+  },
+  {
+    "id": "recluse", "name": "隱士", "team": "outsider",
+    "ability": "你可能會被當作邪惡陣營、爪牙角色或惡魔角色，即使你已死亡。",
+    "firstNight": 0, "firstNightReminder": "", "otherNight": 0, "otherNightReminder": "",
+    "reminders": [], "setup": false, "prompt": null
+  },
+  {
+    "id": "saint", "name": "聖徒", "team": "outsider",
+    "ability": "如果你死於處決，你的陣營落敗。",
+    "firstNight": 0, "firstNightReminder": "", "otherNight": 0, "otherNightReminder": "",
+    "reminders": [], "setup": false, "prompt": null
+  },
+  {
+    "id": "poisoner", "name": "投毒者", "team": "minion",
+    "ability": "每個夜晚，你要選擇一名玩家：他在當晚和明天白天中毒。",
+    "firstNight": 17, "firstNightReminder": "投毒者選擇一名玩家，該玩家中毒。",
+    "otherNight": 7, "otherNightReminder": "投毒者選擇一名玩家，該玩家中毒。",
+    "reminders": ["poisoner:poisoned"], "setup": false,
+    "prompt": { "type": "choose-player", "count": 1 },
+    "autoReminder": { "on": "choose", "reminder": "poisoner:poisoned", "clear": "nextOwnAction" }
+  },
+  {
+    "id": "spy", "name": "間諜", "team": "minion",
+    "ability": "每個夜晚，你能查看魔典。你可能會被當作善良陣營、鎮民角色或外來者角色，即使你已死亡。",
+    "firstNight": 49, "firstNightReminder": "讓間諜查看魔典。",
+    "otherNight": 68, "otherNightReminder": "讓間諜查看魔典。",
+    "reminders": [], "setup": false,
+    "prompt": { "type": "info-grimoire" }
+  },
+  {
+    "id": "scarletwoman", "name": "紅唇女郎", "team": "minion",
+    "ability": "如果大於等於五名玩家存活時惡魔死亡，你變成那個惡魔。",
+    "firstNight": 0, "firstNightReminder": "",
+    "otherNight": 19, "otherNightReminder": "若紅唇女郎今天變成了惡魔：喚醒她，告訴她現在是小惡魔。",
+    "reminders": ["scarletwoman:demon"], "setup": false,
+    "prompt": { "type": "custom" }
+  },
+  {
+    "id": "baron", "name": "男爵", "team": "minion",
+    "ability": "會有額外的外來者在場。[+2 外來者]",
+    "firstNight": 0, "firstNightReminder": "", "otherNight": 0, "otherNightReminder": "",
+    "reminders": [], "setup": true, "prompt": null
+  },
+  {
+    "id": "imp", "name": "小惡魔", "team": "demon",
+    "ability": "每個夜晚*，你要選擇一名玩家：他死亡。如果你以這種方式殺死自己，一名爪牙會變成小惡魔。",
+    "firstNight": 0, "firstNightReminder": "",
+    "otherNight": 24, "otherNightReminder": "小惡魔選擇一名玩家（放「攻擊目標」標記，由說書人確認死亡）。",
+    "reminders": ["imp:target", "imp:dead"], "setup": false,
+    "prompt": { "type": "choose-player", "count": 1 },
+    "autoReminder": { "on": "choose", "reminder": "imp:target", "clear": "dawn" }
+  }
+]

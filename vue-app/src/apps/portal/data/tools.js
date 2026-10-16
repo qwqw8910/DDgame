@@ -77,6 +77,18 @@ export const tools = [
     tags: ['多人', '遊戲', '推理'],
   },
   {
+    id: 'clocktower',
+    name: '血染鐘樓',
+    tagline: '真人說書人的線上魔典',
+    description: '暗流湧動 · 私聊 · 提名投票\n公開討論請進 Discord',
+    emoji: '🕰️',
+    color: 'rose',
+    route: '/clocktower',
+    externalUrl: null,
+    status: 'beta',
+    tags: ['多人', '遊戲', '推理'],
+  },
+  {
     id: 'dinner-invite',
     name: '晚餐邀請',
     tagline: '你敢拒絕嗎？惡搞邀請',
