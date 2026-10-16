@@ -41,8 +41,13 @@ export const ROOM_EVENTS = {
   CLOSED:              'room:closed',
 
   // ── Error codes（保持與 server/room/events.js 同步） ───────
-  ERR_WRONG_APP: 'ROOM_WRONG_APP',
+  ERR_WRONG_APP:   'ROOM_WRONG_APP',
+  ERR_ROOM_EXISTS: 'ROOM_EXISTS',
 }
+
+// 每條 socket 只建一個實例：頁面每次掛載都會再呼叫 useRoom()，
+// 若每次都重新 socket.on，listener 會一直疊加（事件被處理 N 次）。
+const _instances = new WeakMap()
 
 /**
  * 建立共用房間狀態與 socket 事件綁定。
@@ -57,6 +62,12 @@ export const ROOM_EVENTS = {
  *   callbacks.onRoomError(code, message)
  */
 export function useRoom(socket, callbacks = {}) {
+  const existing = _instances.get(socket)
+  if (existing) {
+    existing.setCallbacks(callbacks) // 以最新呼叫者的 callbacks 為準
+    return existing.api
+  }
+
   const roomState = reactive({
     // 房間
     roomId:    '',
@@ -82,6 +93,7 @@ export function useRoom(socket, callbacks = {}) {
     gameState: null,
   })
 
+  let _callbacks = callbacks
   let _handlersRegistered = false
   // 收到 join-ack 後才算真正在房間內；首次連線時不可 rejoin（否則會搶在 create 之前送出 join → 找不到房間）
   let _hasJoined = false
@@ -106,14 +118,14 @@ export function useRoom(socket, callbacks = {}) {
       roomState.error      = ''
       roomState.errorCode  = ''
       _hasJoined           = true
-      callbacks.onJoinAck?.(data)
+      _callbacks.onJoinAck?.(data)
     })
 
     // ── 玩家清單更新 ────────────────────────────────────────
     socket.on(ROOM_EVENTS.PLAYERS_UPDATED, ({ players }) => {
       roomState.players = players
       roomState.isHost  = roomState.room?.host_player_id === roomState.myPlayerId
-      callbacks.onPlayersUpdated?.(players)
+      _callbacks.onPlayersUpdated?.(players)
     })
 
     // ── 新玩家加入 ──────────────────────────────────────────
@@ -148,30 +160,43 @@ export function useRoom(socket, callbacks = {}) {
     // ── 觀戰者現在可升為玩家 ────────────────────────────────
     socket.on(ROOM_EVENTS.SPECTATOR_CAN_JOIN, () => {
       roomState.spectatorCanJoin = true
-      callbacks.onSpectatorCanJoin?.()
+      _callbacks.onSpectatorCanJoin?.()
     })
 
     // ── 房主更換 ────────────────────────────────────────────
     socket.on(ROOM_EVENTS.HOST_CHANGED, ({ newHostId }) => {
       if (roomState.room) roomState.room = { ...roomState.room, host_player_id: newHostId }
       roomState.isHost = newHostId === roomState.myPlayerId
-      callbacks.onHostChanged?.(newHostId)
+      _callbacks.onHostChanged?.(newHostId)
     })
 
     // ── 被踢出 ──────────────────────────────────────────────
     socket.on(ROOM_EVENTS.KICKED, ({ reason } = {}) => {
-      callbacks.onKicked?.(reason)
+      _callbacks.onKicked?.(reason)
     })
 
     // ── 房間錯誤 ────────────────────────────────────────────
     socket.on(ROOM_EVENTS.ERROR, ({ code, message }) => {
       roomState.error     = message
       roomState.errorCode = code
-      callbacks.onRoomError?.(code, message)
+      _callbacks.onRoomError?.(code, message)
     })
   }
 
   // ── 房間操作 ─────────────────────────────────────────────────
+
+  // 換到另一間房時清掉上一間的殘留（否則 join-ack 前會短暫顯示舊房的玩家）
+  function _resetIfSwitching(roomId) {
+    if (roomState.roomId === roomId) return
+    roomState.room             = null
+    roomState.players          = []
+    roomState.spectators       = []
+    roomState.isHost           = false
+    roomState.isSpectator      = false
+    roomState.joinType         = null
+    roomState.spectatorCanJoin = false
+    roomState.gameState        = null
+  }
 
   /**
    * 建立新房間並加入（房主）。
@@ -180,6 +205,7 @@ export function useRoom(socket, callbacks = {}) {
   function createRoom({ roomId, nickname, playerId, maxPlayers = 6, appId = '', options = {} }) {
     _registerHandlers()
     _hasJoined           = false
+    _resetIfSwitching(roomId)
     roomState.error      = ''
     roomState.errorCode  = ''
     roomState.roomId     = roomId
@@ -204,6 +230,7 @@ export function useRoom(socket, callbacks = {}) {
   function joinRoom({ roomId, nickname, playerId }) {
     _registerHandlers()
     _hasJoined           = false
+    _resetIfSwitching(roomId)
     roomState.error      = ''
     roomState.errorCode  = ''
     roomState.roomId     = roomId
@@ -266,7 +293,7 @@ export function useRoom(socket, callbacks = {}) {
     return link
   }
 
-  return {
+  const api = {
     roomState: readonly(roomState),
     createRoom,
     joinRoom,
@@ -279,4 +306,6 @@ export function useRoom(socket, callbacks = {}) {
     copyInviteLink,
     ROOM_EVENTS,
   }
+  _instances.set(socket, { api, setCallbacks: (cb) => { _callbacks = cb } })
+  return api
 }

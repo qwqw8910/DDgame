@@ -74,6 +74,15 @@ function registerGameHandlers(socket) {
   if (_gameHandlersRegistered) return
   _gameHandlersRegistered = true
 
+  // 角色分配（與 room:join-ack 分開，可能在遊戲開始後送出）
+  socket.on('cs:role-assigned', ({ role, quota }) => {
+    gameState.myRole    = role
+    gameState.myQuota   = quota
+    gameState.isGuesser = role === 'guesser'
+    const myId = _roomStateRef?.myPlayerId
+    if (myId) gameState.rolesById[myId] = { role, quota }
+  })
+
   // 題目（提示者才收到）
   socket.on('cs:word-revealed', ({ word, category, author }) => {
     gameState.currentWord = { word, category, author }
@@ -277,15 +286,6 @@ export function useCharacterStorm() {
       room.joinRoom({ roomId, nickname, playerId })
     }
   }
-
-  // ── 角色分配事件（與 room:join-ack 分開，可能在遊戲開始後送出）
-  socket.on('cs:role-assigned', ({ role, quota }) => {
-    gameState.myRole    = role
-    gameState.myQuota   = quota
-    gameState.isGuesser = role === 'guesser'
-    const myId = _roomStateRef?.myPlayerId
-    if (myId) gameState.rolesById[myId] = { role, quota }
-  })
 
   // ── 遊戲操作 ──────────────────────────────────────────────────
   function submitHint(text) {

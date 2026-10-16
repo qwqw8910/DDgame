@@ -41,7 +41,7 @@ function makeMockDb() {
           return { select: () => ({ single: async () => ({ data: players[data.id], error: null }) }) };
         },
         update: (u) => ({ eq: (_c, id) => { if (players[id]) Object.assign(players[id], u); return Promise.resolve({}); } }),
-        delete: () => ({ eq: (_c, id) => { delete players[id]; return Promise.resolve({ error: null }); } }),
+        delete: () => { const f = {}; const q = { eq: (c, v) => { f[c] = v; return q; }, then: (res, rej) => { const p = players[f.id]; if (p && (f.room_id === undefined || p.room_id === f.room_id)) delete players[f.id]; return Promise.resolve({ error: null }).then(res, rej); } }; return q; },
       };
     },
   };

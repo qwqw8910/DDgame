@@ -91,8 +91,12 @@ function makeMockDb() {
             }),
           }),
           insert: (data) => {
+            if (rooms[data.id]) {
+              const error = { code: '23505', message: 'duplicate key value violates unique constraint' };
+              return { error, select: () => ({ single: async () => ({ data: null, error }) }) };
+            }
             rooms[data.id] = data;
-            return { select: () => ({ single: async () => ({ data, error: null }) }) };
+            return { error: null, select: () => ({ single: async () => ({ data, error: null }) }) };
           },
           update: (updates) => ({
             eq: (_col, id) => {
@@ -128,12 +132,19 @@ function makeMockDb() {
               };
             },
           }),
-          delete: () => ({
-            eq: (_col, id) => {
-              delete players[id];
-              return Promise.resolve({ error: null });
-            },
-          }),
+          // 支援 .eq('id', x).eq('room_id', r) 串接；await 時才真正刪除
+          delete: () => {
+            const f = {};
+            const q = {
+              eq: (c, v) => { f[c] = v; return q; },
+              then: (res, rej) => {
+                const p = players[f.id];
+                if (p && (f.room_id === undefined || p.room_id === f.room_id)) delete players[f.id];
+                return Promise.resolve({ error: null }).then(res, rej);
+              },
+            };
+            return q;
+          },
         };
       }
 
@@ -686,6 +697,92 @@ describe('spectator upgrade (room:spectator-join)', () => {
       spec.disconnect();
       specIo.close();
       specHttp.close();
+    }
+  });
+});
+
+// ================================================================
+describe('換房（同一條 socket 沒斷線就去別的房間）', () => {
+  // 建立 A 房：host + guest，回傳兩條 socket 與 id
+  async function setupRoomA() {
+    const roomA = uuid().slice(0, 6).toUpperCase();
+    const hostId = uuid(), guestId = uuid();
+    const host = await connectClient();
+    const guest = await connectClient();
+    host.emit('room:create', { roomId: roomA, nickname: 'Host', playerId: hostId });
+    await waitFor(host, 'room:join-ack');
+    guest.emit('room:join', { roomId: roomA, nickname: 'Guest', playerId: guestId });
+    await waitFor(guest, 'room:join-ack');
+    return { roomA, host, hostId, guest, guestId };
+  }
+
+  for (const via of ['room:create', 'room:join']) {
+    test(`房主從 A 直接 ${via} 到 B → 自 A 移除、房主轉移、不再收到 A 的廣播`, async () => {
+      const { roomA, host, hostId, guest, guestId } = await setupRoomA();
+      const roomB = uuid().slice(0, 6).toUpperCase();
+      let other = null;
+      try {
+        if (via === 'room:join') {
+          other = await connectClient();
+          other.emit('room:create', { roomId: roomB, nickname: 'Other', playerId: uuid() });
+          await waitFor(other, 'room:join-ack');
+        }
+
+        const hostChanged = waitFor(guest, 'room:host-changed');
+        host.emit(via, { roomId: roomB, nickname: 'Host', playerId: hostId });
+        const ack = await waitFor(host, 'room:join-ack');
+        assert.equal(ack.room.id, roomB);
+
+        assert.equal((await hostChanged).newHostId, guestId);
+        const a = roomCache.getEntry(roomA);
+        assert.ok(!a.players.some(p => p.id === hostId), 'A 的 cache 不應再有 host');
+        assert.equal(db._players[hostId].room_id, roomB, 'DB 的 player 列應屬於 B');
+
+        // 之後 A 有人加入，已經在 B 的 host 不應收到 A 的廣播
+        let leaked = false;
+        host.on('room:players-updated', ({ players }) => {
+          if (players.some(p => p.id === guestId)) leaked = true;
+        });
+        const late = await connectClient();
+        late.emit('room:join', { roomId: roomA, nickname: 'Late', playerId: uuid() });
+        await waitFor(late, 'room:join-ack');
+        await new Promise(r => setTimeout(r, 100));
+        late.disconnect();
+        assert.equal(leaked, false, 'host 仍收到 A 房的廣播');
+      } finally {
+        host.disconnect(); guest.disconnect(); other?.disconnect();
+      }
+    });
+  }
+
+  test('別人用已存在的房號建房 → room:error (ROOM_EXISTS)，不會卡住', async () => {
+    const roomId = uuid().slice(0, 6).toUpperCase();
+    const c1 = await connectClient();
+    const c2 = await connectClient();
+    try {
+      c1.emit('room:create', { roomId, nickname: 'A', playerId: uuid() });
+      await waitFor(c1, 'room:join-ack');
+      c2.emit('room:create', { roomId, nickname: 'B', playerId: uuid() });
+      const err = await waitFor(c2, 'room:error');
+      assert.equal(err.code, 'ROOM_EXISTS');
+    } finally {
+      c1.disconnect(); c2.disconnect();
+    }
+  });
+
+  test('房主重試建房（房間列已存在、player 未寫入）→ 降級為加入', async () => {
+    const roomId = uuid().slice(0, 6).toUpperCase();
+    const hostId = uuid();
+    seedRoom(roomId, hostId);
+    const c = await connectClient();
+    try {
+      c.emit('room:create', { roomId, nickname: 'Host', playerId: hostId });
+      const ack = await waitFor(c, 'room:join-ack');
+      assert.equal(ack.room.id, roomId);
+      assert.equal(ack.room.host_player_id, hostId);
+      assert.ok(ack.players.some(p => p.id === hostId));
+    } finally {
+      c.disconnect();
     }
   });
 });

@@ -112,6 +112,9 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
         });
         if (roomErr) throw roomErr;
 
+        // 同一條 socket 還掛在別的房間 → 先離開（否則會殘留幽靈並繼續收到舊房廣播）
+        await leaveCurrentRoom(socket, roomId);
+
         const now = new Date().toISOString();
         const { data: playerRow, error: pErr } = await db.from('players').upsert({
           id:         playerId,
@@ -146,136 +149,21 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
 
       } catch (err) {
         console.error('[Room:create]', err.message);
-        // duplicate key → 降級為加入
+        // duplicate key：房主自己重試（例如上次 player 寫入失敗）→ 降級為加入；否則回報房號已存在
         if (err.message?.includes('duplicate key') || err.code === '23505') {
-          socket.emit(EV.ROOM_CREATE, { roomId, nickname, playerId });
-          return;
+          const { data: existing } = await db.from('rooms')
+            .select('host_player_id, status').eq('id', roomId).maybeSingle();
+          if (existing && existing.status !== 'archived' && existing.host_player_id === playerId) {
+            return handleJoin(socket, { roomId, nickname, playerId });
+          }
+          return sendError(socket, EV.ERR_ROOM_EXISTS, '此房號已被使用，請重新建立房間。');
         }
         sendError(socket, EV.ERR_CREATE_FAILED, '建立房間失敗：' + err.message);
       }
     });
 
     // ── 加入房間（含重連、觀戰）─────────────────────────────
-    socket.on(EV.ROOM_JOIN, async ({ roomId, nickname, playerId }) => {
-      if (!roomId || !nickname || !playerId) return;
-      try {
-        // 從 cache（或 DB 重建）取得房間
-        const entry = await roomCache.get(roomId);
-
-        if (!entry) {
-          // 嘗試讀 archived
-          const { data: archivedRoom } = await db.from('rooms')
-            .select('status').eq('id', roomId).maybeSingle();
-          const code = archivedRoom?.status === 'archived'
-            ? EV.ERR_ROOM_ARCHIVED : EV.ERR_ROOM_NOT_FOUND;
-          return sendError(socket, code, code === EV.ERR_ROOM_ARCHIVED
-            ? '此房間已結束（逾 30 分鐘），請重新建立。'
-            : '找不到這個房間！');
-        }
-
-        const { room, players, spectators } = entry;
-
-        // 跨 app 房間隔離：若 register 時帶 appId，拒絕加入屬於其他 app 的房間
-        if (hooks.appId !== undefined) {
-          if ((room.app_id || '') !== (hooks.appId || '')) {
-            return sendError(socket, EV.ERR_WRONG_APP,
-              '此房號屬於其他遊戲，無法加入。');
-          }
-        }
-
-        // 判斷重連 or 新玩家 or 觀戰
-        const existingPlayer = players.find(p => p.id === playerId);
-
-        if (existingPlayer) {
-          // ── 重連 ──────────────────────────────────────────
-          // is_online 為 transient 狀態，只更新記憶體，不寫 DB
-          roomCache.setPlayerOnline(roomId, playerId, true);
-
-          socket.data = { roomId, playerId };
-          socket.join(roomId);
-
-          socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'reconnect'));
-          broadcast(roomId, EV.ROOM_PLAYER_RECONNECTED, { playerId, nickname });
-          broadcast(roomId, EV.ROOM_PLAYERS_UPDATED, { players: roomCache.getPlayers(roomId) });
-
-          // 補發遊戲狀態
-          if (hooks.onPlayerJoined) {
-            await hooks.onPlayerJoined(socket, roomId, playerId, true);
-          }
-
-          console.log(`[Room] 重連 ${roomId}: ${nickname}`);
-
-        } else {
-          // 暱稱重複檢查
-          const nickTaken = players.some(p => p.nickname === nickname);
-          if (nickTaken) {
-            return sendError(socket, EV.ERR_NICKNAME_TAKEN, '此暱稱已被使用，請換一個！');
-          }
-
-          // 判斷能否加入為玩家
-          const canJoin = hooks.canJoinAsPlayer
-            ? hooks.canJoinAsPlayer(roomId)
-            : (room.status === 'waiting');
-
-          if (!canJoin) {
-            // ── 觀戰 ────────────────────────────────────────
-            roomCache.addSpectator(roomId, { id: playerId, nickname });
-            socket.data = { roomId, playerId, isSpectator: true };
-            socket.join(roomId);
-
-            socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'spectator'));
-            broadcast(roomId, EV.ROOM_SPECTATOR_JOINED, { spectator: { id: playerId, nickname } });
-            broadcast(roomId, EV.ROOM_SPECTATORS_UPDATED, { spectators: roomCache.getSpectators(roomId) });
-
-            // 檢查是否已可立即升為玩家
-            if (hooks.spectatorCanUpgrade && hooks.spectatorCanUpgrade(roomId)) {
-              socket.emit(EV.ROOM_SPECTATOR_CAN_JOIN);
-            }
-
-            console.log(`[Room] 觀戰 ${roomId}: ${nickname}`);
-            return;
-          }
-
-          // ── 新玩家加入 ───────────────────────────────────
-          if (players.length >= room.max_players) {
-            return sendError(socket, EV.ERR_ROOM_FULL, `房間已滿（最多 ${room.max_players} 人）！`);
-          }
-
-          const joinOrder = players.length;
-          const now = new Date().toISOString();
-          const { data: playerRow, error: pErr } = await db.from('players').upsert({
-            id:         playerId,
-            room_id:    roomId,
-            nickname,
-            is_online:  true,
-            is_ready:   false,
-            join_order: joinOrder,
-            score:      0,
-            created_at: now,
-            updated_at: now,
-          }, { onConflict: 'id' }).select().single();
-          if (pErr) throw pErr;
-
-          roomCache.addPlayer(roomId, playerRow);
-          socket.data = { roomId, playerId };
-          socket.join(roomId);
-
-          socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'player'));
-          socket.to(roomId).emit(EV.ROOM_PLAYER_JOINED, { player: playerRow });
-          broadcast(roomId, EV.ROOM_PLAYERS_UPDATED, { players: roomCache.getPlayers(roomId) });
-
-          if (hooks.onPlayerJoined) {
-            await hooks.onPlayerJoined(socket, roomId, playerId, false);
-          }
-
-          console.log(`[Room] 加入 ${roomId}: ${nickname}`);
-        }
-
-      } catch (err) {
-        console.error('[Room:join]', err.message);
-        sendError(socket, EV.ERR_JOIN_FAILED, '加入房間失敗：' + err.message);
-      }
-    });
+    socket.on(EV.ROOM_JOIN, (payload) => handleJoin(socket, payload));
 
     // ── 觀戰者升為玩家 ──────────────────────────────────────
     socket.on(EV.ROOM_SPECTATOR_JOIN, async () => {
@@ -371,7 +259,7 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
 
         roomCache.removePlayer(roomId, targetPlayerId);
         try {
-          await db.from('players').delete().eq('id', targetPlayerId);
+          await db.from('players').delete().eq('id', targetPlayerId).eq('room_id', roomId);
         } catch {}
 
         broadcast(roomId, EV.ROOM_PLAYER_LEFT, { playerId: targetPlayerId, reason: 'kick' });
@@ -478,6 +366,146 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
     });
   });
 
+  // ── 加入房間（含重連、觀戰）：ROOM_JOIN 與 create 的 duplicate 降級共用 ──
+  async function handleJoin(socket, { roomId, nickname, playerId } = {}) {
+    if (!roomId || !nickname || !playerId) return;
+    try {
+      // 從 cache（或 DB 重建）取得房間
+      const entry = await roomCache.get(roomId);
+
+      if (!entry) {
+        // 嘗試讀 archived
+        const { data: archivedRoom } = await db.from('rooms')
+          .select('status').eq('id', roomId).maybeSingle();
+        const code = archivedRoom?.status === 'archived'
+          ? EV.ERR_ROOM_ARCHIVED : EV.ERR_ROOM_NOT_FOUND;
+        return sendError(socket, code, code === EV.ERR_ROOM_ARCHIVED
+          ? '此房間已結束（逾 30 分鐘），請重新建立。'
+          : '找不到這個房間！');
+      }
+
+      const { room, players, spectators } = entry;
+
+      // 跨 app 房間隔離：若 register 時帶 appId，拒絕加入屬於其他 app 的房間
+      if (hooks.appId !== undefined) {
+        if ((room.app_id || '') !== (hooks.appId || '')) {
+          return sendError(socket, EV.ERR_WRONG_APP,
+            '此房號屬於其他遊戲，無法加入。');
+        }
+      }
+
+      // 判斷重連 or 新玩家 or 觀戰
+      const existingPlayer = players.find(p => p.id === playerId);
+
+      if (existingPlayer) {
+        // ── 重連 ──────────────────────────────────────────
+        await leaveCurrentRoom(socket, roomId);
+
+        // is_online 為 transient 狀態，只更新記憶體，不寫 DB
+        roomCache.setPlayerOnline(roomId, playerId, true);
+
+        socket.data = { roomId, playerId };
+        socket.join(roomId);
+
+        socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'reconnect'));
+        broadcast(roomId, EV.ROOM_PLAYER_RECONNECTED, { playerId, nickname });
+        broadcast(roomId, EV.ROOM_PLAYERS_UPDATED, { players: roomCache.getPlayers(roomId) });
+
+        // 補發遊戲狀態
+        if (hooks.onPlayerJoined) {
+          await hooks.onPlayerJoined(socket, roomId, playerId, true);
+        }
+
+        console.log(`[Room] 重連 ${roomId}: ${nickname}`);
+
+      } else {
+        // 暱稱重複檢查
+        const nickTaken = players.some(p => p.nickname === nickname);
+        if (nickTaken) {
+          return sendError(socket, EV.ERR_NICKNAME_TAKEN, '此暱稱已被使用，請換一個！');
+        }
+
+        // 判斷能否加入為玩家
+        const canJoin = hooks.canJoinAsPlayer
+          ? hooks.canJoinAsPlayer(roomId)
+          : (room.status === 'waiting');
+
+        if (!canJoin) {
+          // ── 觀戰 ────────────────────────────────────────
+          await leaveCurrentRoom(socket, roomId);
+          roomCache.addSpectator(roomId, { id: playerId, nickname });
+          socket.data = { roomId, playerId, isSpectator: true };
+          socket.join(roomId);
+
+          socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'spectator'));
+          broadcast(roomId, EV.ROOM_SPECTATOR_JOINED, { spectator: { id: playerId, nickname } });
+          broadcast(roomId, EV.ROOM_SPECTATORS_UPDATED, { spectators: roomCache.getSpectators(roomId) });
+
+          // 檢查是否已可立即升為玩家
+          if (hooks.spectatorCanUpgrade && hooks.spectatorCanUpgrade(roomId)) {
+            socket.emit(EV.ROOM_SPECTATOR_CAN_JOIN);
+          }
+
+          console.log(`[Room] 觀戰 ${roomId}: ${nickname}`);
+          return;
+        }
+
+        // ── 新玩家加入 ───────────────────────────────────
+        if (players.length >= room.max_players) {
+          return sendError(socket, EV.ERR_ROOM_FULL, `房間已滿（最多 ${room.max_players} 人）！`);
+        }
+
+        // 先離開舊房（必須在 upsert 之前：離開時會刪掉舊房的 players 列）
+        await leaveCurrentRoom(socket, roomId);
+
+        const joinOrder = players.length;
+        const now = new Date().toISOString();
+        const { data: playerRow, error: pErr } = await db.from('players').upsert({
+          id:         playerId,
+          room_id:    roomId,
+          nickname,
+          is_online:  true,
+          is_ready:   false,
+          join_order: joinOrder,
+          score:      0,
+          created_at: now,
+          updated_at: now,
+        }, { onConflict: 'id' }).select().single();
+        if (pErr) throw pErr;
+
+        roomCache.addPlayer(roomId, playerRow);
+        socket.data = { roomId, playerId };
+        socket.join(roomId);
+
+        socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'player'));
+        socket.to(roomId).emit(EV.ROOM_PLAYER_JOINED, { player: playerRow });
+        broadcast(roomId, EV.ROOM_PLAYERS_UPDATED, { players: roomCache.getPlayers(roomId) });
+
+        if (hooks.onPlayerJoined) {
+          await hooks.onPlayerJoined(socket, roomId, playerId, false);
+        }
+
+        console.log(`[Room] 加入 ${roomId}: ${nickname}`);
+      }
+
+    } catch (err) {
+      console.error('[Room:join]', err.message);
+      sendError(socket, EV.ERR_JOIN_FAILED, '加入房間失敗：' + err.message);
+    }
+  }
+
+  // ── 內部輔助：socket 換房前先離開目前所在的房間 ───────────────
+  // playerId 全站共用、同一條 socket 可能沒斷線就去建／加入另一間；
+  // 不先離開的話，舊房會留下「在線」的幽靈（房主不轉移、永不封存），
+  // 而且這條 socket 仍在舊房頻道，會收到舊房的廣播。
+  async function leaveCurrentRoom(socket, nextRoomId) {
+    const { roomId, playerId, isSpectator } = socket.data ?? {};
+    if (!roomId || roomId === nextRoomId) return;
+    await handlePlayerLeave(socket, roomId, playerId, isSpectator, 'leave');
+    socket.leave(roomId); // 舊房 cache 已不存在時 handlePlayerLeave 會提早 return
+    socket.data = {};
+  }
+
   // ── 內部輔助：處理玩家主動離開 ─────────────────────────────
   async function handlePlayerLeave(socket, roomId, playerId, isSpectator, reason) {
     try {
@@ -496,7 +524,7 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
 
       roomCache.removePlayer(roomId, playerId);
       try {
-        await db.from('players').delete().eq('id', playerId);
+        await db.from('players').delete().eq('id', playerId).eq('room_id', roomId);
       } catch {}
 
       socket.leave(roomId);
