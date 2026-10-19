@@ -83,6 +83,40 @@ npm run build           # 產生 dist/
 
 > 後端（`../server/`）維持部署於 Railway / Render，不受影響。
 
+## PWA（可安裝成 App）
+
+使用 `vite-plugin-pwa`（設定在 `vite.config.js`），可「加入主畫面」並以獨立視窗開啟，部分靜態資源可離線載入。
+
+| 項目 | 說明 |
+|------|------|
+| 更新方式 | `registerType: 'prompt'`：有新版本時顯示提示，由使用者按「更新」才重新載入，不會中斷進行中的遊戲 |
+| 快取 | 建置產物 precache；頁面導覽 NetworkFirst；Google Fonts、`mountain-lodge/` 大型資源於使用時才快取 |
+| 不快取 | Socket.io、Supabase 與所有 API 請求（遊戲狀態需即時，離線時仍無法進房） |
+| 提示元件 | `src/shared/components/PwaPrompt.vue`（更新提示、Android 安裝按鈕、iOS 加入主畫面說明） |
+| 圖示 | 來源 `assets-src/pwa-icon.svg`（目前為佔位圖），輸出於 `public/` |
+
+### 測試
+
+開發模式 (`npm run dev`) 不啟用 Service Worker，需用建置版本測試：
+
+```bash
+npm run build
+npm run preview         # http://localhost:4173/DDgame/
+```
+
+Chrome DevTools → Application 檢查 Manifest 與 Service Workers；Network 勾選 Offline 驗證離線。
+PWA 實機測試需 HTTPS（`localhost` 除外），建議部署到 GitHub Pages 後測試。
+
+### 更換圖示
+
+替換 `assets-src/pwa-icon.svg`（正方形 512×512，四周留約 10% 安全邊距），再執行：
+
+```bash
+npm run generate-pwa-assets
+```
+
+產生的 PNG 會輸出到 `assets-src/`，需手動移到 `public/`（`pwa-192x192.png`、`pwa-512x512.png`、`maskable-icon-512x512.png`、`apple-touch-icon-180x180.png`）。
+
 ## 架構說明
 
 ```
