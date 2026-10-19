@@ -1,6 +1,8 @@
-# 懂我再說 — 後端伺服器
+# 甜甜的小秘密 — 後端伺服器
 
-Socket.io + Express 即時遊戲伺服器，搭配 Supabase 作為資料庫。
+Socket.io + Express 即時遊戲伺服器，搭配 Supabase 作為資料庫。模組結構見 [`../docs/STRUCTURE.md`](../docs/STRUCTURE.md)；共用房間模組見 [`room/README.md`](room/README.md)。
+
+下方「Socket.io 事件總覽」僅涵蓋「懂我再說」；其他遊戲的事件定義在各自的 `index.js`（`character-storm/`、`mountain-lodge/`、`clocktower/`）。
 
 ---
 
@@ -64,7 +66,7 @@ npm run dev            # 使用 node --watch 自動重啟
 
 1. 前往 [railway.app](https://railway.app) 並登入 GitHub
 2. 點選 **New Project → Deploy from GitHub repo**
-3. 選擇 `testdemo` repo
+3. 選擇 `DDgame` repo
 4. 設定 **Root Directory** 為 `server`
 5. 在 **Variables** 頁面加入環境變數：
    - `SUPABASE_URL`

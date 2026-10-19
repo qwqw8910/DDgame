@@ -8,14 +8,22 @@
 ## Mono-repo 根目錄
 
 ```
-testdemo/                          ← 專案根目錄
-├── vue-app/                       ← Vue 3 前端（唯一前端入口）
-├── server/                        ← Node.js + Socket.io 後端
-├── docs/                          ← 設計文件、構想筆記
+DDgame/                            ← 專案根目錄（GitHub: qwqw8910/DDgame）
+├── vue-app/                       ← Vue 3 前端（唯一前端入口，部署 GitHub Pages）
+├── server/                        ← Node.js + Socket.io 後端（部署 Railway）
+├── docs/                          ← 設計文件、規格、構想筆記（含本文件）
+│   ├── STRUCTURE.md               ← 本規範文件（你在這裡）
+│   ├── *-spec.md                  ← 各遊戲規格（clocktower / witch-hunter / character-storm UI）
+│   ├── design/                    ← 設計文件與 UI 規範
+│   ├── ideas/                     ← 構想筆記（dinner-picker、pwa-support）
+│   └── assets/                    ← 設計用原始素材（如 mountain-lodge-source/）
+├── .github/workflows/             ← deploy.yml（Pages 部署）、keepalive.yml
+├── package.json                   ← 根 workspace：`npm run dev` 同時啟動前後端
 ├── logo.svg                       ← 品牌 Logo
-├── README.md                      ← 專案說明
-└── STRUCTURE.md                   ← 本規範文件（你在這裡）
+└── README.md                      ← 專案說明
 ```
+
+> 其他開發用資料夾（`.vite/` 依賴快取、`node_modules/`、`vue-app/dist/`）是產生物，不要手動編輯。
 
 ### 根目錄規則
 - **禁止** 在根目錄直接放 HTML / CSS / JS 業務邏輯檔案（歷史殘留已清除）
@@ -61,10 +69,16 @@ vue-app/src/
 │       ├── composables/
 │       └── data/
 │
-├── shared/                        ← 跨 App 共用邏輯（目前被 2 個以上 App 使用才放這裡）
+├── shared/                        ← 跨 App 共用邏輯（被 2 個以上 App 使用才放這裡）
+│   ├── api/config.js              ← 後端 URL 等共用設定（讀 VITE_* 環境變數）
 │   ├── data/identity.js           ← localStorage UUID / 暱稱管理
-│   ├── composables/useRoom.js     ← Socket.io 房間狀態 composable 基底
-│   └── components/RoomPlayerPanel.vue ← 房間玩家清單側欄
+│   ├── composables/
+│   │   ├── useRoom.js             ← Socket.io 房間狀態 composable 基底
+│   │   └── useGameGuide.js        ← 遊戲說明彈窗狀態
+│   └── components/
+│       ├── RoomPlayerPanel.vue    ← 房間玩家清單側欄
+│       ├── GameGuideModal.vue / GameGuideSection.vue ← 遊戲說明
+│       └── PwaPrompt.vue          ← PWA 更新提示 / 安裝按鈕
 │
 ├── router/
 │   └── index.js                   ← 路由設定（import 指向 apps/；AdminPage 用動態 import 獨立打包）
@@ -152,7 +166,7 @@ apps/
     └── data/              ← 如有專屬靜態資料
 ```
 
-### Step 2：在 `shared/data/tools.js` 登記
+### Step 2：在 `apps/portal/data/tools.js` 登記
 
 ```js
 {
@@ -164,7 +178,7 @@ apps/
   color: 'blue',              // purple | rose | blue | cyan | orange
   route: '/my-new-app',
   externalUrl: null,
-  status: 'coming-soon',      // 上線前先設 coming-soon
+  status: 'coming-soon',      // coming-soon | beta | live
   tags: ['標籤'],
 }
 ```
@@ -177,7 +191,7 @@ import MyNewAppPage from '../apps/my-new-app/pages/MyNewAppPage.vue'
 { path: '/my-new-app', name: 'my-new-app', component: MyNewAppPage }
 ```
 
-### Step 4：開發完成後將 status 改為 `'live'`
+### Step 4：開發完成後將 status 改為 `'beta'`（測試中）或 `'live'`
 
 ---
 
@@ -185,15 +199,20 @@ import MyNewAppPage from '../apps/my-new-app/pages/MyNewAppPage.vue'
 
 ```
 server/
-├── server.js              ← Express + Socket.io 主程式
+├── server.js              ← Express + Socket.io 主程式；「懂我再說」事件在此；掛載下列各 namespace
+├── room/                  ← 共用房間模組（registerRoomHandlers、RoomCache、events）；細節見 room/README.md
+├── character-storm/       ← namespace /character-storm（index.js、filterLogic.js、roleAssign.js、seed.js、sql/）
+├── mountain-lodge/        ← 山中別館殺人事件（index.js、gameLogic.js）
+├── clocktower/            ← 血染鐘樓（index.js、gameLogic.js）
 ├── package.json
 ├── railway.json           ← Railway 部署設定
-└── README.md
+└── README.md              ← 環境變數、部署、懂我再說事件總覽
 ```
 
-- 目前後端只服務「懂我再說」的 Socket.io 即時通訊
-- 「今晚吃什麼」為純前端，不經過此 server
-- 未來若新 App 需要後端，優先評估能否在同一 `server.js` 加 namespace，避免多 server 管理成本
+- 每個遊戲模組匯出 `registerNamespace(io, db)`，由 `server.js` 掛載；遊戲規則純邏輯放 `gameLogic.js`，並配 `*.test.js`
+- 測試：`*.test.js` 為單元測試，`*.integration.test.js` 為 socket 整合測試
+- 「今晚吃什麼」「話題產生器」等純前端工具不經過此 server
+- 新 App 需要後端時，在同一 server 加 namespace 模組，避免多 server 管理成本
 
 ---
 
@@ -224,13 +243,16 @@ VITE_SOCKET_URL=http://localhost:3000
 | `character-storm` | 默契字囊團：字元風暴 | 🟢 live | `/character-storm`, `/character-storm/room` |
 | `gender-score` | 十分男女 | 🟢 live | `/gender-score` |
 | `story-canvas` | 故事關係圖 | 🟢 live | `/story-canvas` |
-| `clocktower` | 血染鐘樓 | 🟡 beta（Phase 1 驗收中） | `/clocktower`, `/clocktower/room` |
+| `mountain-lodge` | 山中別館殺人事件 | 🟡 beta | `/mountain-lodge`, `/mountain-lodge/room` |
+| `clocktower` | 血染鐘樓 | 🟡 beta | `/clocktower`, `/clocktower/room` |
 
 另有 `apps/know-me/pages/AdminPage.vue`（題庫管理後台，路由 `/admin`）：不登記進 `tools.js`／Portal 首頁，知道網址才能到。
 
 ---
 
 ## 字元風暴 — 房間系統規範
+
+> 其他遊戲的規則與事件請見 `docs/clocktower-spec.md`、`docs/witch-hunter-spec.md` 與 `docs/design/`。
 
 ### 後端架構（`server/character-storm/`）
 
@@ -282,4 +304,4 @@ server/character-storm/
 
 ---
 
-*最後更新：2026-09-18 — 完成 Tailwind CSS 4 + Reka UI 全面遷移、`apps/` 目錄重構、`admin.html` 遷入 Vue（詳見上方「樣式規範」與「目前 App 清單」）。*
+*最後更新：2026-10-19 — 對照實際目錄修正根目錄圖、`shared/`、後端結構與 App 清單（補 mountain-lodge）。*

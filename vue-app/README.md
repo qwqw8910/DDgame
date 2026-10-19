@@ -1,48 +1,38 @@
-# 懂我再說 — Vue 3 前端
+# 甜甜的小秘密 — Vue 3 前端
 
-# Terminal 1：後端
-cd server && node server.js
-
-# Terminal 2：Vue 前端
-cd vue-app && npm run dev
-
-多人互動網頁遊戲「懂我再說」的 Vue 3 版本前端。
+多人互動工具平台的前端，收錄多款小遊戲與生活工具。目錄規範見 [`../docs/STRUCTURE.md`](../docs/STRUCTURE.md)。
 
 ## 技術棧
 
 | 層級 | 技術 |
 |------|------|
 | 框架 | Vue 3 + Vite |
+| 樣式 | Tailwind CSS 4（`@tailwindcss/vite`）+ Reka UI（headless 元件） |
 | 路由 | Vue Router 4（Hash mode） |
 | 即時通訊 | Socket.io-client |
 | 資料庫 | Supabase JS |
+| PWA | vite-plugin-pwa |
 | 部署 | GitHub Pages |
 
 ## 專案結構
 
 ```
 src/
-├── pages/
-│   ├── IndexPage.vue       ← 首頁：建立 / 加入房間
-│   └── RoomPage.vue        ← 房間主控制器
-├── components/
-│   ├── PlayerList.vue      ← 玩家列表
-│   ├── ChoiceCards.vue     ← A/B 選擇卡片
-│   ├── LobbySection.vue    ← 大廳畫面
-│   ├── TopicSection.vue    ← 選主題畫面
-│   ├── PreviewSection.vue  ← 換題預覽畫面
-│   ├── AnswerSection.vue   ← 被猜者選答畫面
-│   ├── GuessSection.vue    ← 猜測畫面
-│   ├── RevealSection.vue   ← 揭曉結果畫面
-│   └── FinishedSection.vue ← 遊戲結束排行
-├── composables/
-│   └── useSocket.js        ← Socket.io 全域狀態與所有遊戲動作
-├── data/
-│   ├── identity.js         ← localStorage UUID / 暱稱管理
-│   ├── questions.js        ← 主題 UI 映射（emoji / 漸層）
-│   └── db.js               ← Supabase client（建立/查詢房間）
-└── router/index.js         ← Vue Router 路由設定
+├── apps/                  ← 各 App 自包含（pages / components / composables / data）
+│   ├── portal/            ← 平台入口，工具清單在 data/tools.js
+│   ├── know-me/           ← 懂我再說（含 /admin 題庫管理）
+│   ├── dinner-picker/  dinner-invite/  topic-generator/  gender-score/  story-canvas/
+│   ├── character-storm/   ← 默契字囊團：字元風暴
+│   ├── mountain-lodge/    ← 山中別館殺人事件
+│   └── clocktower/        ← 血染鐘樓
+├── shared/                ← 跨 App 共用（api/config、identity、useRoom、RoomPlayerPanel、遊戲說明、PwaPrompt）
+├── router/index.js        ← 路由設定（唯一可 import 所有 App pages 的地方）
+├── assets/main.css        ← Tailwind 入口：@theme token + @layer components
+├── App.vue                ← 根元件（只放 <RouterView />）
+└── main.js
 ```
+
+規則：App 之間禁止互相 import；樣式一律 Tailwind utility，不使用 `<style scoped>`（詳見 STRUCTURE.md）。
 
 ## 環境變數
 
@@ -121,10 +111,10 @@ npm run generate-pwa-assets
 
 ```
 Vue 前端 (GitHub Pages)
-  useSocket.js  ←──── Socket.io ────→  Node.js + Express (Railway)
-  db.js         ←──── REST ─────────→  Supabase PostgreSQL
+  shared/composables/useRoom.js 等 ←── Socket.io ──→  Node.js + Express (Railway)
+  apps/know-me/data/db.js       ←── REST ────────→  Supabase PostgreSQL
 ```
 
 - **路由**：Hash mode（`/#/`、`/#/room`），無需 server 端設定即可在 GitHub Pages 運作
-- **Socket 狀態**：`useSocket.js` 維護全域 reactive 狀態，所有元件透過 composable 共享
-- **環境變數**：所有敏感設定透過 `VITE_*` 環境變數注入，不寫死在程式碼
+- **Socket 狀態**：各 App 的 composable 維護 reactive 狀態；房間邏輯共用 `shared/composables/useRoom.js`
+- **環境變數**：所有設定透過 `VITE_*` 注入，不寫死在程式碼
