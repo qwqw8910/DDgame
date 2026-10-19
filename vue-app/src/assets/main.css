@@ -1347,3 +1347,8 @@
 }
 
 @custom-variant side (@media (min-width: 640px) and (orientation: landscape));
+
+/* PWA standalone on iOS (status-bar-style black-translucent) draws under the status bar. */
+body {
+  padding-top: env(safe-area-inset-top);
+}
