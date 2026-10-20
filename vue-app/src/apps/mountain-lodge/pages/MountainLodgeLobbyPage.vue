@@ -23,7 +23,7 @@
             <div class="w-full max-w-[720px] grid gap-5 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
                 <!-- 建立房間（透過連結進來時隱藏） -->
                 <div v-if="!hasRoomFromUrl" class="game-card flex flex-col">
-                    <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl mb-4 [background:rgba(139,92,246,0.12)] [border:1px_solid_rgba(139,92,246,0.25)]">🏠</div>
+                    <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl mb-4 [background:rgba(229,196,139,0.12)] [border:1px_solid_rgba(229,196,139,0.28)]">🏠</div>
                     <h2 class="neon-heading text-xl mb-1.5 text-heading">建立新房間</h2>
                     <p class="text-[15px] mb-[22px] text-body">邀請 {{ MIN_PLAYERS }} ～ {{ MAX_PLAYERS }} 位朋友加入</p>
                     <div class="flex flex-col gap-3 flex-1 justify-end">

@@ -1,5 +1,5 @@
 // 山中別館 — 音效 / 環境音（素材放在 public/mountain-lodge/audio/）
-// 音效開關（sfx）預設開啟；環境音（雨聲）預設關閉，避免干擾玩家的 Discord 語音。
+// 音效（sfx）與環境音（雨聲）預設都開啟、音量 50%；各自有 0~1 音量，偏好存在 localStorage。
 import { ref, watch } from 'vue'
 
 const BASE = `${import.meta.env.BASE_URL}mountain-lodge/audio/`
@@ -13,22 +13,41 @@ const SOUNDS = {
 
 const KEY = 'lodge-sound'
 function loadPrefs() {
-    try { return { sfx: true, ambient: false, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') } }
-    catch { return { sfx: true, ambient: false } }
+    const base = { sfx: true, ambient: true, sfxVol: 0.5, ambientVol: 0.5 }
+    try { return { ...base, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') } }
+    catch { return base }
 }
 
 // 模組層級單例：多個元件共用同一份開關與 Audio 物件
 const prefs = loadPrefs()
 const sfxOn = ref(!!prefs.sfx)
 const ambientOn = ref(!!prefs.ambient)
+const clamp01 = v => (Number.isFinite(+v) ? Math.min(1, Math.max(0, +v)) : 1)
+const sfxVol = ref(clamp01(prefs.sfxVol))
+const ambientVol = ref(clamp01(prefs.ambientVol))
 const audios = {}
 const wantedLoops = new Set()
 let retryBound = false
 
-watch([sfxOn, ambientOn], () => {
-    try { localStorage.setItem(KEY, JSON.stringify({ sfx: sfxOn.value, ambient: ambientOn.value })) } catch { /* 略過 */ }
+watch([sfxOn, ambientOn, sfxVol, ambientVol], () => {
+    try {
+        localStorage.setItem(KEY, JSON.stringify({
+            sfx: sfxOn.value, ambient: ambientOn.value, sfxVol: sfxVol.value, ambientVol: ambientVol.value,
+        }))
+    } catch { /* 略過 */ }
+    applyVolumes()
     syncLoops()
 })
+
+function volumeOf(name) {
+    const def = SOUNDS[name]
+    return def.volume * (def.group === 'ambient' ? ambientVol.value : sfxVol.value)
+}
+
+// 調整音量時，已建立的 Audio 立即生效（雨聲、倒數 tick 正在播放中）
+function applyVolumes() {
+    for (const name of Object.keys(audios)) audios[name].volume = volumeOf(name)
+}
 
 function enabled(name) {
     return SOUNDS[name].group === 'ambient' ? ambientOn.value : sfxOn.value
@@ -38,7 +57,7 @@ function get(name) {
     if (!audios[name]) {
         const def = SOUNDS[name]
         const a = new Audio(BASE + def.src)
-        a.volume = def.volume
+        a.volume = volumeOf(name)
         a.loop = !!def.loop
         a.preload = 'auto'
         audios[name] = a
@@ -84,7 +103,7 @@ function stopAll() {
 
 export function useSound() {
     return {
-        sfxOn, ambientOn, play, setLoop, stopAll,
+        sfxOn, ambientOn, sfxVol, ambientVol, play, setLoop, stopAll,
         toggleSfx: () => { sfxOn.value = !sfxOn.value },
         toggleAmbient: () => { ambientOn.value = !ambientOn.value },
     }
