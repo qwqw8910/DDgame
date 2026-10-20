@@ -5,6 +5,8 @@
         <img :src="BOILER.img" alt="" draggable="false" loading="lazy" class="absolute inset-0 h-full w-full object-cover" />
         <div class="absolute inset-0 [background:linear-gradient(to_top,rgba(0,0,0,0.85)_0%,rgba(80,0,20,0.35)_60%,rgba(80,0,20,0.2)_100%)]" aria-hidden="true"></div>
 
+        <div class="lodge-fire pointer-events-none absolute inset-0" aria-hidden="true"></div>
+
         <div class="absolute inset-x-1 top-[5%] flex h-[62%] items-start justify-center gap-1">
             <template v-if="cards.length">
                 <LodgeCard v-for="(c, i) in cards" :key="i" :card="c" revealed compact fluid />

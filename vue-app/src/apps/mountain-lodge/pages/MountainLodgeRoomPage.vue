@@ -16,10 +16,7 @@
                 <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
                     :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost"
                     @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
-                <button class="header-icon-btn" :title="sfxOn ? '音效：開' : '音效：關'" :aria-label="sfxOn ? '關閉音效' : '開啟音效'"
-                    :aria-pressed="sfxOn" @click="toggleSfx">{{ sfxOn ? '🔊' : '🔇' }}</button>
-                <button class="header-icon-btn" :title="ambientOn ? '雨聲：開' : '雨聲：關'" :aria-label="ambientOn ? '關閉雨聲' : '開啟雨聲'"
-                    :aria-pressed="ambientOn" :class="ambientOn ? '' : 'opacity-50'" @click="toggleAmbient">🌧️</button>
+                <LodgeSoundPanel />
                 <button class="header-icon-btn" title="故事背景" aria-label="故事背景" @click="showStory = true">📜</button>
                 <button class="header-icon-btn" title="角色介紹" aria-label="角色介紹" @click="showRoles = true">🎭</button>
                 <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink">🔗</button>
@@ -390,6 +387,9 @@
             </template>
         </main>
 
+        <!-- 階段切換的眼皮轉場 -->
+        <LodgeEyelids :play-key="blinkKey" />
+
         <!-- 能力公開彈窗（全員同步） -->
         <LodgeRevealModal :event="revealEvent" @close="nextReveal" />
 
@@ -427,6 +427,8 @@ import GameGuideModal from '@/shared/components/GameGuideModal.vue'
 import LodgeCard from '../components/LodgeCard.vue'
 import { useLodgeDarkTheme } from '../composables/useLodgeDarkTheme.js'
 import { useSound } from '../composables/useSound.js'
+import LodgeSoundPanel from '../components/LodgeSoundPanel.vue'
+import LodgeEyelids from '../components/LodgeEyelids.vue'
 import LodgeSeat from '../components/LodgeSeat.vue'
 import LodgeBoiler from '../components/LodgeBoiler.vue'
 import LodgeReplay from '../components/LodgeReplay.vue'
@@ -578,7 +580,7 @@ const remaining = computed(() => {
 })
 
 // ── 音效 ──────────────────────────────────────────────────────────
-const { sfxOn, ambientOn, play, setLoop, stopAll, toggleSfx, toggleAmbient } = useSound()
+const { play, setLoop, stopAll } = useSound()
 // 雨聲：進房間後常駐（是否出聲由「雨聲」開關決定）
 setLoop('rain', true)
 // 收到新牌（開局 / 輪到我傳牌）、結算翻牌
@@ -629,6 +631,10 @@ function nextReveal() { revealQueue.value.shift() }
 watch(canActNow, (on) => {
     if (on) { showToast('⚡ 你可以發動能力！要不要公開身份？', 'info', 5000); play('pass') }
 })
+
+// ── 眼皮轉場：只在第一次進入牌局（開局）時播放 ──────────────────
+const blinkKey = ref(0)
+watch(phase, (p, old) => { if (old === 'lobby' && p === 'passing') blinkKey.value++ })
 
 // ── 投票互動 ──────────────────────────────────────────────────────
 const voteChoice = ref(null)
