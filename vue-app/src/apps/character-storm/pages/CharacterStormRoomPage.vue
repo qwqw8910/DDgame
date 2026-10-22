@@ -182,11 +182,26 @@
                             <!-- 提示者 / 揭曉：字牌依序翻開 -->
                             <div v-else :key="`word-${state.currentWord?.word ?? ''}`" class="cs-question-tiles">
                                 <template v-if="state.currentWord?.word">
-                                    <span v-for="(c, i) in [...state.currentWord.word]" :key="i"
-                                        class="cs-tile cs-tile--lg cs-tile--flip" :style="{ '--i': i }">{{ c }}</span>
+                                    <!-- 猜題者：「？」牌依序翻面揭曉 -->
+                                    <template v-if="state.isGuesser">
+                                        <button v-for="(c, i) in [...state.currentWord.word]" :key="i" type="button"
+                                            class="cs-tile cs-tile--lg cs-flipcard"
+                                            :class="{ 'is-flipped': flippedTiles.includes(i) }"
+                                            :aria-label="flippedTiles.includes(i) ? c : '點擊翻牌'"
+                                            @click="flipTile(i)">
+                                            <span class="cs-flipcard__back">?</span>
+                                            <span class="cs-flipcard__front">{{ c }}</span>
+                                        </button>
+                                    </template>
+                                    <template v-else>
+                                        <span v-for="(c, i) in [...state.currentWord.word]" :key="i"
+                                            class="cs-tile cs-tile--lg cs-tile--flip" :style="{ '--i': i }">{{ c }}</span>
+                                    </template>
                                 </template>
                                 <span v-else class="cs-tile cs-tile--lg cs-tile--back">?</span>
                             </div>
+                            <p v-if="state.isGuesser && state.status === 'revealing' && state.currentWord?.word && flippedTiles.length < [...state.currentWord.word].length"
+                                class="cs-question-sub">👆 點擊字牌翻開答案</p>
                         </div>
 
                         <!-- 右上：倒數計時環 -->
@@ -204,7 +219,9 @@
                         </div>
                     </div>
 
-                    <div class="cs-players-grid">
+                    <div class="cs-players-grid"
+                        :class="{ 'cs-players-grid--dense': playersWithRoles.length > 6 }"
+                        :style="{ '--cs-rows': Math.ceil(playersWithRoles.length / 3) }">
                         <div v-for="p in playersWithRoles" :key="p.id" :class="['game-card', 'cs-player-card', getPlayerCardClass(p.role, p.id),
                             { 'hint-just-submitted': state.submittedPlayerIds.includes(p.id) && isHintPhase }]"
                             style="position:relative;overflow:hidden">
@@ -752,6 +769,13 @@ watch(() => state.status, (val) => {
         nextTick(() => hintInputRef.value?.focus())
     }
 })
+
+// 猜題者揭曉時手動翻牌
+const flippedTiles = ref([])
+function flipTile(i) {
+    if (!flippedTiles.value.includes(i)) flippedTiles.value.push(i)
+}
+watch(() => state.status, (s) => { if (s !== 'revealing') flippedTiles.value = [] })
 
 watch(() => state.status, (nextStatus, prevStatus) => {
     if (!prevStatus || prevStatus === nextStatus) return
