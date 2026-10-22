@@ -10,10 +10,15 @@
 const { registerRoomHandlers } = require('../room');
 const { processHints, validateHint } = require('./filterLogic');
 const { assignRoles }                = require('./roleAssign');
+const { listThemes }                 = require('./themeStore');
 
 const ROUND2_QUOTA  = 4;
 const TIMER_SECONDS = 90;
-let AVAILABLE_THEMES = [0, 1, 2, 3]; // 啟動時由 DB 動態覆寫
+let AVAILABLE_THEMES = [0, 1, 2, 3]; // 啟動時由 DB 動態覆寫，題庫管理異動後刷新
+
+// themePreference 特殊值：-1 = 每局隨機挑一個主題；-2 = 全部主題混成一個題庫
+const THEME_RANDOM = -1;
+const THEME_ALL    = -2;
 
 let hasLoggedThemeColumnMissing = false;
 
@@ -46,7 +51,7 @@ function calculateAB(word, guess) {
 //  csCache[roomId] = {
 //    maxPlayers, status, players (id/nickname/socketId/role/quota),
 //    currentGuesserIndex, roundNumber, guesserHistory,
-//    currentWord, usedWordIds, themePreference, themeId,
+//    currentWord, usedWordIds, usedWords, themePreference, themeId,
 //    roundPhase, round1Hints, round2Hints, symbolMap,
 //    cachedRound1Result, cachedRound2Result,
 //    timerRemaining, _timerHandle
@@ -64,6 +69,7 @@ function initGame(roomId, maxPlayers, themePreference = -1) {
     guesserHistory:      [],
     currentWord:         null,
     usedWordIds:         [],
+    usedWords:           [],
     themePreference,
     themeId:             null,
     roundPhase:          null,
@@ -144,6 +150,7 @@ function makeDB(db) {
       }
 
       try {
+        if (themeId === THEME_ALL) return await drawWithoutThemeFilter();
         const word = await drawByTheme(themeId);
         if (!word) return await drawWithoutThemeFilter();
         return word;
@@ -161,11 +168,7 @@ function makeDB(db) {
 
     async getAvailableThemes() {
       try {
-        const { data, error } = await db.from('character_storm_words')
-          .select('weekday_bank')
-          .eq('is_active', true);
-        if (error) throw error;
-        const ids = [...new Set((data ?? []).map(r => r.weekday_bank))].sort((a, b) => a - b);
+        const ids = (await listThemes(db)).map(t => t.id);
         return ids.length ? ids : null;
       } catch {
         return null; // 欄位不存在或查詢失敗，維持預設值
@@ -287,7 +290,12 @@ async function startNewGuesserRound(ns, DB, roomCache, roomId, game) {
     sock.emit('cs:role-assigned', { role: player.role, quota: player.quota });
   }
 
+  // 不同主題可能有同一個詞（「全部主題」模式），抽到本局用過的詞就排除該筆重抽
   let word = await DB.drawWord(game.usedWordIds, game.themeId ?? 0).catch(() => null);
+  for (let retry = 0; word && game.usedWords.includes(word.word) && retry < 20; retry++) {
+    game.usedWordIds.push(word.id);
+    word = await DB.drawWord(game.usedWordIds, game.themeId ?? 0).catch(() => null);
+  }
   if (!word) {
     clearTimer(game);
     game.status = 'finished'; game.roundPhase = null;
@@ -298,6 +306,7 @@ async function startNewGuesserRound(ns, DB, roomCache, roomId, game) {
 
   game.currentWord = word;
   game.usedWordIds.push(word.id);
+  game.usedWords.push(word.word);
 
   for (const player of game.players.filter(p => p.role !== 'guesser')) {
     const sock = ns.sockets.get(player.socketId);
@@ -499,15 +508,18 @@ function registerNamespace(io, db) {
   const { roomCache } = registerRoomHandlers(ns, db, hooks);
   _roomCache = roomCache; // 讓 hooks 的函數存取 roomCache
 
-  // ── 動態載入可用 themes（之後新增 weekday_bank 無需重新部署）────
-  DB.getAvailableThemes().then(ids => {
-    if (ids) {
-      AVAILABLE_THEMES = ids;
-      console.log('[CS] 可用題庫主題（weekday_bank）:', ids.join(', '));
-    } else {
-      console.log('[CS] 使用預設題庫主題:', AVAILABLE_THEMES.join(', '));
-    }
-  });
+  // ── 動態載入可用 themes（題庫管理新增 / 刪除後會再次呼叫）────
+  function refreshThemes() {
+    return DB.getAvailableThemes().then(ids => {
+      if (ids) {
+        AVAILABLE_THEMES = ids;
+        console.log('[CS] 可用題庫主題（weekday_bank）:', ids.join(', '));
+      } else {
+        console.log('[CS] 使用預設題庫主題:', AVAILABLE_THEMES.join(', '));
+      }
+    });
+  }
+  refreshThemes();
 
   // ── 遊戲 Handlers ───────────────────────────────────────────
   ns.on('connection', (socket) => {
@@ -529,10 +541,11 @@ function registerNamespace(io, db) {
         if (themePreference !== undefined) game.themePreference = Number(themePreference);
         game.status              = 'playing';
         game.currentGuesserIndex = pickRandomConnectedGuesserIndex(game, _roomCache, roomId);
-        game.themeId             = game.themePreference === -1 ? pickRandomTheme() : game.themePreference;
+        game.themeId             = game.themePreference === THEME_RANDOM ? pickRandomTheme() : game.themePreference;
         game.roundNumber         = 1;
         game.guesserHistory      = [];
         game.usedWordIds         = [];
+        game.usedWords           = [];
 
         await startNewGuesserRound(ns, DB, _roomCache, roomId, game);
       } catch (err) {
@@ -643,8 +656,8 @@ function registerNamespace(io, db) {
 
         game.status = 'playing';
         game.currentGuesserIndex = pickRandomConnectedGuesserIndex(game, _roomCache, roomId);
-        game.themeId  = game.themePreference === -1 ? pickRandomTheme() : game.themePreference;
-        game.roundNumber = 1; game.guesserHistory = []; game.usedWordIds = [];
+        game.themeId  = game.themePreference === THEME_RANDOM ? pickRandomTheme() : game.themePreference;
+        game.roundNumber = 1; game.guesserHistory = []; game.usedWordIds = []; game.usedWords = [];
         game.symbolMap = {}; game.round1Hints = {}; game.round2Hints = {};
         game.roundPhase = null; game.cachedRound1Result = null; game.cachedRound2Result = null;
 
@@ -670,7 +683,7 @@ function registerNamespace(io, db) {
       const game = getGame(roomId);
       if (!game || !isHost(_roomCache, roomId, playerId)) return;
       const pref = Number(themePreference);
-      if (![-1, 0, 1, 2].includes(pref)) return;
+      if (!Number.isInteger(pref) || (pref < 0 && pref !== THEME_RANDOM && pref !== THEME_ALL)) return;
       game.themePreference = pref;
       ns.to(roomId).emit('cs:theme-changed', { themePreference: pref });
     });
@@ -688,6 +701,7 @@ function registerNamespace(io, db) {
   });
 
   console.log('[CS] /character-storm namespace registered (RoomModule enabled)');
+  return { refreshThemes };
 }
 
 module.exports = { registerNamespace };

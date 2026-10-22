@@ -8,6 +8,7 @@
 require('dotenv').config();
 
 const express   = require('express');
+const cors      = require('cors');
 const http      = require('http');
 const { Server } = require('socket.io');
 const { createClient } = require('@supabase/supabase-js');
@@ -50,16 +51,14 @@ const io = new Server(server, {
 
 app.get('/health', (_, res) => res.json({ status: 'ok', ts: Date.now() }));
 
-// ── 默契字囊團：取得可用主題清單 ─────────────────────────────
+// ── HTTP API：CORS 與 JSON body（供 GitHub Pages 前端呼叫）──────
+app.use('/api', cors({ origin: allowedOrigins }), express.json({ limit: '100kb' }));
+
+// ── 默契字囊團：取得可用主題清單（僅含有題目的主題）──────────
+const { listThemes } = require('./character-storm/themeStore');
 app.get('/api/cs/themes', async (_, res) => {
   try {
-    const { data, error } = await db
-      .from('character_storm_words')
-      .select('weekday_bank')
-      .eq('is_active', true);
-    if (error) throw error;
-    const ids = [...new Set((data ?? []).map(r => r.weekday_bank))].sort((a, b) => a - b);
-    res.json({ themes: ids });
+    res.json({ themes: await listThemes(db) });
   } catch (err) {
     res.status(500).json({ themes: [], error: err.message });
   }
@@ -67,7 +66,11 @@ app.get('/api/cs/themes', async (_, res) => {
 
 // ── 默契字囊團 namespace ──────────────────────────────────────
 const { registerNamespace: registerCS } = require('./character-storm');
-registerCS(io, db);
+const { refreshThemes: refreshCSThemes } = registerCS(io, db);
+
+// ── 默契字囊團：題庫管理（需 CS_ADMIN_PASSWORD）──────────────
+const { createAdminRouter: createCSAdminRouter } = require('./character-storm/admin');
+app.use('/api/cs/admin', createCSAdminRouter(db, refreshCSThemes));
 
 // ── 山中別館殺人事件 namespace ────────────────────────────────
 const { registerNamespace: registerLodge } = require('./mountain-lodge');
