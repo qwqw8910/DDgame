@@ -193,6 +193,31 @@
   40%  { opacity: 1; }
   100% { transform: perspective(500px) rotateY(0) scale(1); filter: none; opacity: 1; }
 }
+/* 猜題者揭曉：? 牌翻面 */
+.cs-flipcard { position: relative; transform-style: preserve-3d; cursor: pointer; font: inherit; transform: perspective(600px) rotateY(0); transition: transform 0.6s cubic-bezier(0.34, 1.2, 0.64, 1); animation: cs-tile-pop 0.3s backwards; animation-delay: calc(var(--i, 0) * 60ms); }
+.cs-flipcard:not(.is-flipped):hover { transform: perspective(600px) rotateY(0) translateY(-4px) scale(1.05); }
+.cs-flipcard:not(.is-flipped) { animation: cs-tile-pop 0.3s backwards, cs-flipcard-hint 1.6s ease-in-out 0.5s infinite; }
+.cs-flipcard.is-flipped { transform: perspective(600px) rotateY(180deg); cursor: default; animation: none; }
+.cs-flipcard__back, .cs-flipcard__front { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.cs-flipcard__front { position: absolute; inset: 0; display: grid; place-items: center; transform: rotateY(180deg); }
+@keyframes cs-flipcard-hint {
+  0%, 100% { filter: none; }
+  50%      { filter: brightness(1.25); }
+}
+
+/* 9～10 人：卡片鋪滿可視高度，不出現捲軸 */
+@media (min-width: 641px) {
+  .cs-players-grid--dense { overflow: hidden; grid-template-rows: repeat(var(--cs-rows, 3), minmax(0, 1fr)); align-content: stretch; gap: 6px; }
+  .cs-players-grid--dense .cs-player-card { padding: 8px !important; min-height: 0; overflow: hidden; }
+  .cs-players-grid--dense .cs-card-head { margin-bottom: 4px; padding-bottom: 4px; }
+  .cs-players-grid--dense .cs-hint-block { padding: 0 0 4px; }
+  .cs-players-grid--dense .cs-hint-block + .cs-hint-block { padding-top: 4px; }
+  .cs-players-grid--dense .cs-round-label { margin-bottom: 2px; }
+  .cs-players-grid--dense .cs-tile--sm { --size: 24px; }
+  .cs-players-grid--dense .cs-hint-placeholder { min-height: 26px; }
+  .cs-players-grid--dense .cs-react-label { display: none; }
+  .cs-players-grid--dense .cs-guess-row { padding: 3px 8px; }
+}
 @keyframes cs-tile-pop {
   0%   { transform: scale(0.6) translateY(6px); }
   100% { transform: scale(1) translateY(0); }
@@ -424,7 +449,7 @@
 /* ================================================================
    回合轉場橫幅
    ================================================================ */
-.cs-banner { position: fixed; inset: 0; z-index: 130; display: grid; place-items: center; overflow: hidden; pointer-events: none; background: rgba(2, 6, 23, 0.45); backdrop-filter: blur(3px); }
+.cs-banner { position: fixed; inset: 0; z-index: 130; display: grid; place-items: center; overflow: hidden; pointer-events: none; background: rgba(2, 6, 23, 0.58); contain: strict; }
 .cs-banner__stripe {
   position: relative;
   width: 120vw;
@@ -434,21 +459,21 @@
   background: linear-gradient(90deg, rgba(8, 47, 73, 0.0), rgba(8, 47, 73, 0.96) 18%, rgba(30, 27, 75, 0.96) 82%, rgba(30, 27, 75, 0.0));
   border-top: 2px solid var(--banner-color, #22D3EE);
   border-bottom: 2px solid var(--banner-color, #22D3EE);
-  box-shadow: 0 0 60px color-mix(in srgb, var(--banner-color, #22D3EE) 35%, transparent);
+  will-change: transform, opacity;
   animation: cs-banner-in 1.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .cs-banner__stripe > * { transform: skewY(4deg); }
 .cs-banner__kicker { margin: 0; font-family: 'Poppins', sans-serif; font-size: clamp(34px, 9vw, 64px); font-weight: 800; font-style: italic; letter-spacing: 0.06em; line-height: 1; color: transparent; -webkit-text-stroke: 1.5px var(--banner-color, #22D3EE); opacity: 0.85; }
-.cs-banner__title { margin: -6px 0 0; font-size: clamp(26px, 6vw, 40px); font-weight: 900; color: #fff; letter-spacing: 0.12em; text-shadow: 0 0 20px color-mix(in srgb, var(--banner-color, #22D3EE) 70%, transparent); }
+.cs-banner__title { margin: -6px 0 0; font-size: clamp(26px, 6vw, 40px); font-weight: 900; color: #fff; letter-spacing: 0.12em; }
 .cs-banner__desc { margin: 8px 0 0; font-size: 14px; color: #CFFAFE; letter-spacing: 0.04em; }
 .cs-banner__desc b { color: var(--banner-color, #22D3EE); }
 .cs-banner--round2 { --banner-color: #A78BFA; }
 .cs-banner--finished { --banner-color: #FBBF24; }
 @keyframes cs-banner-in {
-  0%   { clip-path: inset(0 100% 0 0); }
-  22%  { clip-path: inset(0 0 0 0); }
-  82%  { clip-path: inset(0 0 0 0); opacity: 1; }
-  100% { clip-path: inset(0 0 0 100%); opacity: 0.6; }
+  0%   { transform: translateX(-100%) skewY(-4deg); opacity: 0; }
+  22%  { transform: translateX(0) skewY(-4deg); opacity: 1; }
+  82%  { transform: translateX(0) skewY(-4deg); opacity: 1; }
+  100% { transform: translateX(100%) skewY(-4deg); opacity: 0; }
 }
 .cs-banner-enter-active, .cs-banner-leave-active { transition: opacity 0.25s ease; }
 .cs-banner-enter-from, .cs-banner-leave-to { opacity: 0; }
