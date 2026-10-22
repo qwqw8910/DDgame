@@ -1,21 +1,21 @@
 <template>
-    <div class="h-[100dvh] overflow-x-hidden overflow-y-auto">
-        <!-- 浮動背景 emoji -->
-        <div class="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
-            <span class="float-emoji text-[52px] top-[4%] left-[4%] [animation-delay:0s]">🔡</span>
-            <span class="float-emoji text-[40px] top-[8%] right-[7%] [animation-delay:1.4s]">✨</span>
-            <span class="float-emoji text-4xl top-[22%] left-[10%] [animation-delay:0.7s]">📝</span>
-            <span class="float-emoji text-[44px] top-[18%] right-[18%] [animation-delay:2.1s]">💫</span>
-            <span class="float-emoji text-[48px] top-[45%] left-[2%] [animation-delay:1.1s]">●</span>
-            <span class="float-emoji text-4xl top-[55%] right-[4%] [animation-delay:0.4s]">▲</span>
-            <span class="float-emoji text-[44px] bottom-[22%] left-[7%] [animation-delay:1.7s]">■</span>
-            <span class="float-emoji text-[50px] bottom-[8%] right-[11%] [animation-delay:0.2s]">✏️</span>
+    <div class="cs-scope cs-bg h-[100dvh] overflow-x-hidden overflow-y-auto">
+        <!-- 浮動背景字牌 -->
+        <div class="cs-lobby-bg-tiles" aria-hidden="true">
+            <span v-for="(t, i) in BG_TILES" :key="i" class="cs-tile cs-tile--float"
+                :class="{ 'cs-tile--symbol': t.tok }" :style="{
+                    '--size': t.size, '--rot': t.rot, '--d': `${i * 0.6}s`, '--t': `${6 + (i % 4)}s`,
+                    '--tok': t.tok, ...t.pos,
+                }">{{ t.c }}</span>
         </div>
 
         <!-- Theme toggle -->
         <button @click="toggleTheme" title="切換主題" class="theme-toggle fixed top-4 right-4 z-50">
             {{ isDark ? '🌙' : '☀️' }}
         </button>
+
+        <!-- 音量 -->
+        <CsVolumePanel class="fixed top-4 right-16 z-50" button-class="theme-toggle" />
 
         <!-- 返回入口 -->
         <RouterLink to="/"
@@ -27,13 +27,16 @@
         <div class="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-10">
 
             <!-- Hero -->
-            <div class="animate-slide-up text-center mb-10">
-                <div class="text-6xl mb-3 [filter:drop-shadow(0_0_20px_rgba(6,182,212,0.4))]">🔡</div>
-                <h1 class="neon-heading gradient-text text-[clamp(32px,7vw,48px)] m-0 mb-2 leading-[1.1]">
-                    默契字囊團
+            <div class="text-center mb-10">
+                <div class="flex justify-center mb-2 [--mascot-size:170px] [filter:drop-shadow(0_0_24px_rgba(34,211,238,0.35))]">
+                    <CsMascot mood="idle" />
+                </div>
+                <p class="cs-hero-kicker">Character Storm</p>
+                <h1 class="cs-hero-title" aria-label="默契字囊團">
+                    <span v-for="(c, i) in '默契字囊團'" :key="i" class="cs-tile cs-tile--xl cs-tile--drop"
+                        :style="{ '--i': i + 2 }" aria-hidden="true">{{ c }}</span>
                 </h1>
-                <p class="text-base font-medium mb-1 [letter-spacing:1px] text-label">字元風暴</p>
-                <p class="text-[15px] text-body">提示 · 代換 · 解謎 · 看符號，猜出隱藏的答案！</p>
+                <p class="cs-hero-tagline">撞字會被<b>符號</b>蓋掉 — 靠默契，讓猜題者看懂你的線索！</p>
             </div>
 
             <!-- 操作卡片 -->
@@ -41,10 +44,16 @@
 
                 <!-- 建立房間（透過 URL 分享進入時隱藏） -->
                 <div v-if="!hasRoomFromUrl" class="game-card flex flex-col">
-                    <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl mb-4 [background:rgba(6,182,212,0.12)] [border:1px_solid_rgba(6,182,212,0.25)]">🏠</div>
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl [background:rgba(6,182,212,0.12)] [border:1px_solid_rgba(6,182,212,0.25)]">🏠</div>
+                        <button type="button" class="text-[13px] px-2 py-1 bg-transparent border-0 cursor-pointer text-label hover:text-heading"
+                            @click="bankManagerOpen = true">
+                            🔒 題庫管理
+                        </button>
+                    </div>
                     <h2 class="neon-heading text-xl mb-1.5 text-heading">建立新房間</h2>
                     <p class="text-[15px] mb-[22px] text-body">邀請 4 ～ 10 人加入，開始字元風暴</p>
-                    <div class="flex flex-col gap-3 flex-1 justify-end">
+                    <div class="flex flex-col gap-3 flex-1">
                         <div class="input-wrapper">
                             <span class="input-icon">😊</span>
                             <input v-model="createNickname" ref="createNicknameRef" type="text" placeholder="你的暱稱"
@@ -59,11 +68,12 @@
                         <div class="input-wrapper">
                             <span class="input-icon">🎲</span>
                             <select v-model="selectedTheme" class="game-input pl-11 cursor-pointer">
-                                <option :value="-1">隨機主題（每局不同）</option>
+                                <option :value="THEME_ALL">全部（所有主題混在一起）</option>
+                                <option :value="THEME_RANDOM">隨機主題（每局不同）</option>
                                 <option v-for="t in themeList" :key="t.id" :value="t.id">{{ t.name }}</option>
                             </select>
                         </div>
-                        <button class="btn-primary [background:linear-gradient(135deg,#0891B2,#06B6D4)] [border-color:rgba(6,182,212,0.4)]"
+                        <button class="btn-primary cs-cta mt-auto"
                             :disabled="createLoading" @click="handleCreateRoom">
                             <span v-if="createLoading" class="spinner spinner-sm"></span>
                             {{ createLoading ? '建立中…' : '建立房間' }}
@@ -78,18 +88,18 @@
                     <p class="text-[15px] mb-[22px] text-body">
                         {{ hasRoomFromUrl ? `房間碼：${joinCode}` : '輸入朋友分享的房間碼' }}
                     </p>
-                    <div class="flex flex-col gap-3 flex-1 justify-end">
-                        <div v-if="!hasRoomFromUrl" class="input-wrapper">
-                            <input v-model="joinCode" type="text" placeholder="房間碼（6碼）" maxlength="6"
-                                class="game-input text-center [letter-spacing:6px] text-base font-semibold px-0"
-                                @input="joinCode = joinCode.toUpperCase()" @keydown.enter="focusJoinNickname" />
-                        </div>
+                    <div class="flex flex-col gap-3 flex-1">
                         <div class="input-wrapper">
                             <span class="input-icon">😊</span>
                             <input v-model="joinNickname" ref="joinNicknameRef" type="text" placeholder="你的暱稱"
-                                maxlength="12" class="game-input" @keydown.enter="handleJoinRoom" />
+                                maxlength="12" class="game-input" @keydown.enter="onJoinNicknameEnter" />
                         </div>
-                        <button class="btn-secondary" :disabled="joinLoading" @click="handleJoinRoom">
+                        <div v-if="!hasRoomFromUrl" class="input-wrapper">
+                            <input v-model="joinCode" ref="joinCodeRef" type="text" placeholder="房間碼（6碼）" maxlength="6"
+                                class="game-input text-center [letter-spacing:6px] text-base font-semibold px-0"
+                                @input="joinCode = joinCode.toUpperCase()" @keydown.enter="handleJoinRoom" />
+                        </div>
+                        <button class="btn-secondary mt-auto" :disabled="joinLoading" @click="handleJoinRoom">
                             <span v-if="joinLoading" class="spinner spinner-sm"></span>
                             {{ joinLoading ? '加入中…' : '加入房間' }}
                         </button>
@@ -105,6 +115,8 @@
                 </p>
             </div>
         </div>
+
+        <CharacterStormBankManager v-model="bankManagerOpen" @changed="loadThemes" />
 
         <!-- Toast -->
         <Transition name="toast">
@@ -137,9 +149,25 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '@/shared/data/identity.js'
 import { SERVER_URL } from '@/shared/api/config.js'
-import { fetchThemes } from '../data/themes.js'
+import { fetchThemes, THEME_ALL, THEME_RANDOM } from '../data/themes.js'
+import CharacterStormBankManager from '../components/CharacterStormBankManager.vue'
+import CsMascot from '../components/CsMascot.vue'
+import CsVolumePanel from '../components/CsVolumePanel.vue'
+import '../styles/character-storm.css'
 
 const router = useRouter()
+
+// 背景漂浮字牌（tok = 符號牌顏色）
+const BG_TILES = [
+    { c: '默', size: '54px', rot: '-10deg', pos: { top: '6%', left: '5%' } },
+    { c: '●', size: '40px', rot: '8deg', tok: '#06B6D4', pos: { top: '10%', right: '8%' } },
+    { c: '契', size: '44px', rot: '12deg', pos: { top: '28%', left: '12%' } },
+    { c: '▲', size: '46px', rot: '-6deg', tok: '#F59E0B', pos: { top: '24%', right: '16%' } },
+    { c: '囊', size: '50px', rot: '6deg', pos: { top: '52%', left: '3%' } },
+    { c: '字', size: '42px', rot: '-12deg', pos: { top: '58%', right: '5%' } },
+    { c: '■', size: '40px', rot: '10deg', tok: '#A855F7', pos: { bottom: '18%', left: '9%' } },
+    { c: '團', size: '52px', rot: '-8deg', pos: { bottom: '7%', right: '12%' } },
+]
 const HEALTH_TIMEOUT_MS = 5000
 const HEALTH_RETRY_INTERVAL_MS = 3000
 
@@ -156,15 +184,17 @@ function toggleTheme() {
 
 const createNickname = ref('')
 const maxPlayers = ref(6)
-const selectedTheme = ref(-1)
+const selectedTheme = ref(THEME_RANDOM)
 
 const themeList = ref([])
+const bankManagerOpen = ref(false)
 const joinCode = ref('')
 const joinNickname = ref('')
 const createLoading = ref(false)
 const joinLoading = ref(false)
 const createNicknameRef = ref(null)
 const joinNicknameRef = ref(null)
+const joinCodeRef = ref(null)
 const hasRoomFromUrl = ref(false)
 
 const toast = ref({ show: false, msg: '', type: '' })
@@ -176,8 +206,10 @@ function showToast(msg, type = '', duration = 3000) {
     _toastTimer = setTimeout(() => { toast.value.show = false }, duration)
 }
 
-function focusJoinNickname() {
-    joinNicknameRef.value?.focus()
+// 暱稱在上、房間碼在下：從 URL 帶入房間碼時暱稱 Enter 直接加入
+function onJoinNicknameEnter() {
+    if (hasRoomFromUrl.value) handleJoinRoom()
+    else joinCodeRef.value?.focus()
 }
 
 // ── 伺服器冷啟動偵測 ────────────────────────────────────────────

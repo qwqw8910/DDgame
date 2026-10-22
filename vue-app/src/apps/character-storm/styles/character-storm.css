@@ -1,0 +1,624 @@
+/* ================================================================
+   默契字囊團 — 視覺主題「字牌」
+   每個中文字都是一張象牙色字牌；重複字是彩色符號牌。
+   本檔未放在 @layer 中，因此會覆蓋 main.css 裡同名的 cs-* 規則。
+   ================================================================ */
+
+.cs-scope {
+  --cs-tile-face-top: #FFFDF5;
+  --cs-tile-face-bottom: #F3E6C8;
+  --cs-tile-edge: #C9A86A;
+  --cs-tile-ink: #1B1F2A;
+  --cs-tile-shadow: rgba(2, 6, 23, 0.45);
+  --cs-accent: #22D3EE;
+  --cs-accent-2: #A78BFA;
+  --cs-hot: #FB7185;
+  --cs-gold: #FBBF24;
+  --cs-panel: rgba(13, 20, 38, 0.78);
+  --cs-panel-border: rgba(148, 163, 184, 0.14);
+  --cs-font-tile: 'Noto Serif TC', 'Noto Sans TC', serif;
+}
+[data-theme="light"] .cs-scope {
+  /* 淺色：暖紙色系，統一為「米白紙張 + 深棕墨字 + 青綠點綴」 */
+  --cs-tile-face-top: #FFFFFF;
+  --cs-tile-face-bottom: #F6EBCF;
+  --cs-tile-edge: #BE9A5C;
+  --cs-tile-ink: #2B2218;
+  --cs-tile-shadow: rgba(110, 80, 30, 0.30);
+  --cs-accent: #0E7490;
+  --cs-accent-2: #7C3AED;
+  --cs-hot: #E11D48;
+  --cs-gold: #B45309;
+  --cs-panel: rgba(255, 255, 255, 0.92);
+  --cs-panel-border: rgba(120, 90, 40, 0.20);
+  /* 覆寫通用 token，讓卡片、輸入框、文字全部落在同一暖色調 */
+  --color-dark: #FAF6EC;
+  --color-heading: #2B2218;
+  --color-label: #7A6A55;
+  --color-body: #5A4C3B;
+  --color-card: rgba(255, 255, 255, 0.92);
+  --color-subtle: rgba(120, 90, 40, 0.06);
+  --color-border: rgba(120, 90, 40, 0.20);
+  --color-divider: rgba(120, 90, 40, 0.18);
+  --color-input: #FFFFFF;
+  --color-neon-cyan: #0E7490;
+}
+
+/* ── 背景：深夜藍 + 兩道光暈 + 淡淡的字牌格線 ──────────────────── */
+.cs-scope.cs-bg {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(34, 211, 238, 0.16), transparent 60%),
+    radial-gradient(900px 600px at 110% 110%, rgba(167, 139, 250, 0.16), transparent 60%),
+    linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px) 0 0 / 44px 50px,
+    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px) 0 0 / 44px 50px,
+    var(--color-dark);
+}
+[data-theme="light"] .cs-scope.cs-bg {
+  background:
+    radial-gradient(1000px 520px at 8% -8%, rgba(251, 191, 36, 0.14), transparent 62%),
+    radial-gradient(900px 560px at 108% 108%, rgba(14, 116, 144, 0.09), transparent 62%),
+    linear-gradient(rgba(120, 90, 40, 0.05) 1px, transparent 1px) 0 0 / 44px 50px,
+    linear-gradient(90deg, rgba(120, 90, 40, 0.05) 1px, transparent 1px) 0 0 / 44px 50px,
+    #FAF6EC;
+}
+
+/* ================================================================
+   字牌
+   ================================================================ */
+.cs-tile {
+  --size: 40px;
+  --edge: calc(var(--size) * 0.1);
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--size);
+  height: calc(var(--size) * 1.14);
+  margin-bottom: var(--edge);
+  border-radius: calc(var(--size) * 0.2);
+  font-family: var(--cs-font-tile);
+  font-weight: 900;
+  font-size: calc(var(--size) * 0.62);
+  line-height: 1;
+  color: var(--cs-tile-ink);
+  background: linear-gradient(180deg, var(--cs-tile-face-top) 0%, var(--cs-tile-face-bottom) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -2px 0 rgba(120, 90, 30, 0.08),
+    0 var(--edge) 0 var(--cs-tile-edge),
+    0 calc(var(--edge) + 5px) 12px var(--cs-tile-shadow);
+  user-select: none;
+  flex-shrink: 0;
+}
+.cs-tile--xs { --size: 22px; }
+.cs-tile--sm { --size: 30px; }
+.cs-tile--md { --size: clamp(28px, 7.4vw, 36px); }
+.cs-tile--lg { --size: clamp(46px, 11vw, 64px); }
+.cs-tile--xl { --size: clamp(52px, 13vw, 78px); }
+
+/* 符號牌：被遮住的重複字 */
+.cs-tile--symbol {
+  color: #fff;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tok) 82%, #fff) 0%, var(--tok) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 var(--edge) 0 color-mix(in srgb, var(--tok) 60%, #000),
+    0 calc(var(--edge) + 5px) 14px color-mix(in srgb, var(--tok) 45%, transparent);
+  font-family: system-ui, sans-serif;
+  font-size: calc(var(--size) * 0.5);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* 提示者看到的「撞字」：原字 + 角落符號色點 */
+.cs-tile--conflict {
+  box-shadow:
+    inset 0 0 0 2px var(--tok),
+    0 var(--edge) 0 var(--cs-tile-edge),
+    0 calc(var(--edge) + 5px) 12px var(--cs-tile-shadow);
+}
+.cs-tile--conflict::after {
+  content: attr(data-symbol);
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-family: system-ui, sans-serif;
+  font-size: 9px;
+  color: #fff;
+  background: var(--tok);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* 空格牌（猜題者看到的題目格子 / 輸入預覽的空位） */
+.cs-tile--blank {
+  color: color-mix(in srgb, var(--cs-accent) 80%, transparent);
+  background: rgba(34, 211, 238, 0.06);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--cs-accent) 45%, transparent);
+  border-radius: calc(var(--size) * 0.2);
+  font-family: system-ui, sans-serif;
+  font-size: calc(var(--size) * 0.42);
+}
+.cs-tile--slot {
+  color: transparent;
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--cs-panel-border);
+  background-image: repeating-linear-gradient(45deg, transparent 0 6px, rgba(148, 163, 184, 0.06) 6px 12px);
+}
+.cs-tile--bad {
+  color: #fff;
+  background: linear-gradient(180deg, #FDA4AF 0%, #F43F5E 100%);
+  box-shadow: 0 var(--edge) 0 #9F1239, 0 calc(var(--edge) + 5px) 12px rgba(244, 63, 94, 0.4);
+  animation: cs-tile-nope 0.35s ease;
+}
+
+/* 牌背：已出牌但尚未公開 */
+.cs-tile--back {
+  color: rgba(255, 255, 255, 0.85);
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0 4px, transparent 4px 8px),
+    linear-gradient(180deg, #22D3EE 0%, #0E7490 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 var(--edge) 0 #155E75,
+    0 calc(var(--edge) + 5px) 12px rgba(8, 145, 178, 0.35);
+  font-family: system-ui, sans-serif;
+  font-size: calc(var(--size) * 0.4);
+}
+
+.cs-tile-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 6px;
+}
+.cs-tile-row--tight { gap: 4px; }
+
+/* 字牌動畫 */
+.cs-tile--drop { animation: cs-tile-drop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.cs-tile--flip { animation: cs-tile-flip 0.6s cubic-bezier(0.34, 1.4, 0.64, 1) both; animation-delay: calc(var(--i, 0) * 140ms); }
+.cs-tile--pop  { animation: cs-tile-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.cs-tile--float { animation: cs-tile-float var(--t, 7s) ease-in-out infinite; animation-delay: var(--d, 0s); }
+
+@keyframes cs-tile-drop {
+  0%   { transform: translateY(-40px) rotate(-8deg) scale(0.8); opacity: 0; }
+  60%  { transform: translateY(4px) rotate(2deg) scale(1.04); opacity: 1; }
+  100% { transform: translateY(0) rotate(0) scale(1); opacity: 1; }
+}
+@keyframes cs-tile-flip {
+  0%   { transform: perspective(500px) rotateY(180deg) scale(0.9); filter: brightness(0.5); opacity: 0; }
+  40%  { opacity: 1; }
+  100% { transform: perspective(500px) rotateY(0) scale(1); filter: none; opacity: 1; }
+}
+@keyframes cs-tile-pop {
+  0%   { transform: scale(0.6) translateY(6px); }
+  100% { transform: scale(1) translateY(0); }
+}
+@keyframes cs-tile-nope {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px) rotate(-4deg); }
+  75% { transform: translateX(4px) rotate(4deg); }
+}
+@keyframes cs-tile-float {
+  0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
+  50%      { transform: translateY(-16px) rotate(calc(var(--rot, 0deg) * -1)); }
+}
+
+/* 提示字牌進場（沿用 hint-char TransitionGroup） */
+.cs-scope .hint-chars-wrap { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 5px; }
+.cs-scope .hint-char-enter-active { transition: none; animation: cs-tile-flip 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) both; animation-delay: calc(var(--i, 0) * 110ms); }
+.cs-scope .hint-char-enter-from { opacity: 1; transform: none; }
+
+/* ================================================================
+   吉祥物
+   ================================================================ */
+.cs-mascot { display: block; width: var(--mascot-size, 120px); height: auto; object-fit: contain; user-select: none; }
+.cs-mascot--emoji { width: auto; font-size: calc(var(--mascot-size, 120px) * 0.55); line-height: 1; text-align: center; }
+.cs-mascot--idle { animation: cs-bob 3.2s ease-in-out infinite; }
+.cs-mascot--happy, .cs-mascot--trophy { animation: cs-jump 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.cs-mascot--sad { animation: cs-wobble 0.7s ease both; }
+@keyframes cs-bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
+@keyframes cs-jump { 0% { transform: scale(0.3) translateY(30px); opacity: 0; } 60% { transform: scale(1.1) translateY(-10px); opacity: 1; } 100% { transform: scale(1) translateY(0); } }
+@keyframes cs-wobble { 0% { transform: scale(0.6); opacity: 0; } 40% { transform: scale(1.05) rotate(-6deg); opacity: 1; } 70% { transform: rotate(5deg); } 100% { transform: rotate(0); } }
+
+/* ================================================================
+   大廳（入口頁）
+   ================================================================ */
+.cs-lobby-bg-tiles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+.cs-lobby-bg-tiles .cs-tile { position: absolute; opacity: 0.22; filter: blur(0.3px); }
+[data-theme="light"] .cs-lobby-bg-tiles .cs-tile { opacity: 0.35; }
+@media (max-width: 640px) {
+  .cs-lobby-bg-tiles .cs-tile { opacity: 0.1; }
+  [data-theme="light"] .cs-lobby-bg-tiles .cs-tile { opacity: 0.18; }
+}
+
+.cs-hero-title { display: flex; justify-content: center; gap: clamp(6px, 1.6vw, 12px); margin: 6px 0 14px; }
+.cs-hero-kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  color: var(--cs-accent);
+  text-transform: uppercase;
+}
+.cs-hero-tagline { margin: 0; font-size: 15px; color: var(--color-body); }
+.cs-hero-tagline b { color: var(--color-heading); font-weight: 700; }
+
+.cs-cta {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0891B2, #22D3EE) !important;
+  border-color: rgba(34, 211, 238, 0.5) !important;
+  box-shadow: 0 6px 0 #0E7490, 0 12px 24px rgba(8, 145, 178, 0.35) !important;
+  transform: translateY(0);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.2s ease !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em;
+}
+.cs-cta:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.cs-cta:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 #0E7490, 0 6px 12px rgba(8, 145, 178, 0.3) !important; }
+.cs-cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: cs-shine 3.2s ease-in-out infinite;
+}
+.cs-cta:disabled::after { display: none; }
+@keyframes cs-shine { 0%, 60% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+/* ================================================================
+   等待室
+   ================================================================ */
+.cs-waiting { max-width: 560px; margin: 0 auto; }
+.cs-room-code { display: flex; justify-content: center; align-items: flex-end; gap: 6px; margin: 14px 0 6px; cursor: pointer; }
+.cs-room-code-hint { text-align: center; font-size: 12px; color: var(--color-label); margin: 0 0 20px; }
+
+.cs-seat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.cs-seat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 6px 10px;
+  border-radius: 14px;
+  background: var(--color-subtle);
+  border: 1px solid var(--cs-panel-border);
+  text-align: center;
+}
+.cs-seat--me { border-color: color-mix(in srgb, var(--cs-accent) 60%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--cs-accent) 35%, transparent); }
+.cs-seat--offline { opacity: 0.45; filter: grayscale(0.7); }
+.cs-seat--empty { border-style: dashed; background: transparent; color: var(--color-label); justify-content: center; min-height: 104px; }
+.cs-seat__name { font-size: 13px; font-weight: 700; color: var(--color-heading); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-seat__crown { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); font-size: 18px; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4)); }
+.cs-seat__me { position: absolute; top: 6px; right: 6px; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 99px; color: #042f2e; background: var(--cs-accent); }
+.cs-seat-enter-active { animation: cs-tile-drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.cs-seat-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.cs-seat-leave-to { opacity: 0; transform: scale(0.8); }
+.cs-seat__dots { display: inline-flex; gap: 3px; }
+.cs-seat__dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: dot-bounce 1.2s ease-in-out infinite; }
+.cs-seat__dots i:nth-child(2) { animation-delay: 0.15s; }
+.cs-seat__dots i:nth-child(3) { animation-delay: 0.3s; }
+
+/* 玩家頭像牌：依玩家雜湊上色 */
+.cs-avatar { --size: 46px; }
+.cs-avatar.cs-tile { color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--tok) 75%, #fff) 0%, var(--tok) 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 var(--edge) 0 color-mix(in srgb, var(--tok) 55%, #000), 0 calc(var(--edge) + 5px) 12px rgba(0, 0, 0, 0.3); text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+
+/* ================================================================
+   遊戲中：面板與卡片
+   ================================================================ */
+.cs-scope .game-card { background: var(--cs-panel); border-color: var(--cs-panel-border); backdrop-filter: blur(8px); }
+
+.cs-scope .cs-player-card { border-radius: 16px; padding: 12px !important; display: flex; flex-direction: column; }
+.cs-scope .cs-player-card--clue {
+  background: linear-gradient(165deg, rgba(34, 211, 238, 0.09), var(--cs-panel) 55%);
+  border-color: rgba(34, 211, 238, 0.22);
+}
+.cs-scope .cs-player-card--guesser {
+  background: linear-gradient(165deg, rgba(251, 113, 133, 0.16), var(--cs-panel) 60%);
+  border-color: rgba(251, 113, 133, 0.5);
+  animation: cs-spotlight 2.4s ease-in-out infinite;
+}
+.cs-scope .cs-player-card--self { transform: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--cs-accent) 55%, transparent), 0 12px 26px rgba(8, 145, 178, 0.16); }
+@keyframes cs-spotlight {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0); }
+  50%      { box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.22), 0 0 28px rgba(251, 113, 133, 0.18); }
+}
+
+.cs-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--cs-panel-border); }
+.cs-card-head .cs-avatar { --size: 28px; margin-bottom: 3px; }
+.cs-card-head__name { font-weight: 800; font-size: 15px; color: var(--color-heading); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-card-head__end { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.cs-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 99px; white-space: nowrap; letter-spacing: 0.04em; }
+.cs-chip--me { color: #042f2e; background: var(--cs-accent); }
+.cs-chip--clue { color: var(--cs-accent); background: rgba(34, 211, 238, 0.12); border: 1px solid rgba(34, 211, 238, 0.28); }
+.cs-chip--guesser { color: var(--cs-hot); background: rgba(251, 113, 133, 0.12); border: 1px solid rgba(251, 113, 133, 0.35); }
+.cs-chip--done { color: #052e16; background: #4ADE80; animation: cs-stamp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.cs-chip--wait { color: var(--color-label); background: var(--color-subtle); }
+@keyframes cs-stamp { 0% { transform: scale(2.2) rotate(-12deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+
+.cs-round-label { display: block; margin: 0 0 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.2em; color: var(--color-label); opacity: 0.8; }
+.cs-hint-block { text-align: center; padding: 2px 0 8px; }
+.cs-hint-block + .cs-hint-block { border-top: 1px dashed var(--cs-panel-border); padding-top: 8px; }
+.cs-hint-placeholder { min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--color-label); }
+
+.cs-guesser-hero { text-align: center; padding: 2px 0; }
+.cs-guesser-hero__title { margin: 0; font-size: 16px; font-weight: 900; color: var(--cs-hot); letter-spacing: 0.06em; }
+.cs-scope .cs-guess-row { flex-wrap: wrap; row-gap: 4px; background: rgba(0, 0, 0, 0.18); border: 1px solid var(--cs-panel-border); border-radius: 10px; }
+.cs-scope .cs-guess-label, .cs-scope .cs-guess-ab, .cs-scope .cs-guess-answer { white-space: nowrap; }
+[data-theme="light"] .cs-scope .cs-guess-row { background: rgba(255, 255, 255, 0.6); }
+.cs-scope .cs-guess-label { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; padding: 1px 6px; border-radius: 6px; background: var(--color-subtle); }
+.cs-scope .cs-guess-ab { padding: 1px 6px; border-radius: 6px; font-family: 'Source Code Pro', monospace; }
+.cs-scope .cs-guess-ab--a { background: rgba(34, 211, 238, 0.14); }
+.cs-scope .cs-guess-ab--b { background: rgba(245, 158, 11, 0.14); }
+
+/* 互動按鈕 */
+.cs-scope .cs-react-btns { margin-top: auto; border-top-color: var(--cs-panel-border); }
+.cs-scope .cs-react-btn { border-radius: 10px; padding: 4px 7px; }
+
+/* 左側：階段卡 */
+.cs-scope .cs-phase-title { background-image: linear-gradient(135deg, var(--cs-accent), var(--cs-accent-2)); font-size: 20px; font-weight: 900; }
+.cs-scope .cs-progress-track { height: 10px; border-radius: 99px; background: rgba(0, 0, 0, 0.25); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3); }
+[data-theme="light"] .cs-scope .cs-progress-track { background: rgba(100, 116, 139, 0.15); }
+.cs-scope .cs-progress-fill {
+  border-radius: 99px;
+  background: linear-gradient(90deg, #06B6D4, #22D3EE, #A78BFA);
+  background-size: 200% 100%;
+  animation: cs-flow 2s linear infinite;
+  transition: width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes cs-flow { to { background-position: -200% 0; } }
+
+.cs-scope .cs-player-list-item { padding: 7px 8px; }
+.cs-scope .cs-player-list-item .cs-avatar { --size: 22px; margin-bottom: 2px; font-size: 12px; }
+
+/* ── 題目區 ────────────────────────────────────────────────── */
+.cs-scope .cs-question-card { display: flex; flex-direction: column; justify-content: center; }
+.cs-question-meta { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.cs-question-tiles { display: flex; justify-content: center; align-items: flex-end; flex-wrap: wrap; gap: clamp(6px, 1.4vw, 12px); margin: 10px 0 4px; min-height: 64px; }
+.cs-question-sub { text-align: center; font-size: 12px; color: var(--color-label); margin: 2px 0 0; }
+
+/* ── 計時環 ────────────────────────────────────────────────── */
+.cs-scope .cs-timer-badge { min-width: 104px; padding: 8px; border-color: var(--cs-panel-border); background: var(--cs-panel); backdrop-filter: blur(8px); }
+.cs-timer { position: relative; width: 78px; height: 78px; display: grid; place-items: center; }
+.cs-timer svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.cs-timer__track { fill: none; stroke: rgba(148, 163, 184, 0.16); stroke-width: 6; }
+.cs-timer__bar { fill: none; stroke: var(--timer-color, var(--cs-accent)); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 0.3s ease; filter: drop-shadow(0 0 6px var(--timer-color, var(--cs-accent))); }
+.cs-timer__num { font-family: 'Source Code Pro', monospace; font-weight: 800; font-size: 24px; line-height: 1; color: var(--timer-color, var(--cs-accent)); }
+.cs-timer__unit { font-size: 11px; margin-left: 1px; opacity: 0.7; }
+.cs-timer--warn { --timer-color: var(--cs-gold); }
+.cs-timer--danger { --timer-color: var(--cs-hot); animation: cs-heartbeat 1s ease-in-out infinite; }
+@keyframes cs-heartbeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.1); } 30% { transform: scale(1); } 45% { transform: scale(1.06); } }
+@media (max-width: 640px) {
+  .cs-timer { width: 64px; height: 64px; }
+  .cs-timer__num { font-size: 20px; }
+  .cs-scope .cs-timer-badge { min-width: 80px; }
+}
+
+/* ── 底部輸入列 ─────────────────────────────────────────────── */
+.cs-scope .cs-hint-bar { background: var(--cs-panel); backdrop-filter: blur(12px); border-top-color: var(--cs-panel-border); padding: 12px 14px; }
+.cs-compose { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.cs-compose__slots { display: flex; justify-content: center; align-items: flex-end; gap: 6px; flex-wrap: wrap; min-height: 42px; }
+.cs-compose__row { display: flex; align-items: center; gap: 8px; }
+.cs-compose__error { margin: 0; text-align: center; font-size: 13px; font-weight: 600; color: var(--color-error-fg); }
+.cs-time-pill { font-family: 'Source Code Pro', monospace; font-size: 13px; font-weight: 800; padding: 6px 10px; border-radius: 99px; white-space: nowrap; color: var(--cs-accent); background: rgba(34, 211, 238, 0.12); }
+.cs-time-pill--danger { color: #fff; background: var(--cs-hot); animation: cs-heartbeat 1s ease-in-out infinite; }
+.cs-send-btn { white-space: nowrap; padding: 10px 18px !important; width: auto !important; }
+.cs-sent-msg { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--success-text); }
+
+.cs-reveal-cta { display: flex; align-items: center; gap: 12px; width: 100%; }
+.cs-reveal-cta__verdict { font-size: 18px; font-weight: 900; }
+.cs-reveal-cta__verdict--win { color: #4ADE80; }
+.cs-reveal-cta__verdict--lose { color: var(--cs-hot); }
+
+/* ================================================================
+   回合轉場橫幅
+   ================================================================ */
+.cs-banner { position: fixed; inset: 0; z-index: 130; display: grid; place-items: center; overflow: hidden; pointer-events: none; background: rgba(2, 6, 23, 0.45); backdrop-filter: blur(3px); }
+.cs-banner__stripe {
+  position: relative;
+  width: 120vw;
+  padding: 22px 0 20px;
+  text-align: center;
+  transform: skewY(-4deg);
+  background: linear-gradient(90deg, rgba(8, 47, 73, 0.0), rgba(8, 47, 73, 0.96) 18%, rgba(30, 27, 75, 0.96) 82%, rgba(30, 27, 75, 0.0));
+  border-top: 2px solid var(--banner-color, #22D3EE);
+  border-bottom: 2px solid var(--banner-color, #22D3EE);
+  box-shadow: 0 0 60px color-mix(in srgb, var(--banner-color, #22D3EE) 35%, transparent);
+  animation: cs-banner-in 1.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.cs-banner__stripe > * { transform: skewY(4deg); }
+.cs-banner__kicker { margin: 0; font-family: 'Poppins', sans-serif; font-size: clamp(34px, 9vw, 64px); font-weight: 800; font-style: italic; letter-spacing: 0.06em; line-height: 1; color: transparent; -webkit-text-stroke: 1.5px var(--banner-color, #22D3EE); opacity: 0.85; }
+.cs-banner__title { margin: -6px 0 0; font-size: clamp(26px, 6vw, 40px); font-weight: 900; color: #fff; letter-spacing: 0.12em; text-shadow: 0 0 20px color-mix(in srgb, var(--banner-color, #22D3EE) 70%, transparent); }
+.cs-banner__desc { margin: 8px 0 0; font-size: 14px; color: #CFFAFE; letter-spacing: 0.04em; }
+.cs-banner__desc b { color: var(--banner-color, #22D3EE); }
+.cs-banner--round2 { --banner-color: #A78BFA; }
+.cs-banner--finished { --banner-color: #FBBF24; }
+@keyframes cs-banner-in {
+  0%   { clip-path: inset(0 100% 0 0); }
+  22%  { clip-path: inset(0 0 0 0); }
+  82%  { clip-path: inset(0 0 0 0); opacity: 1; }
+  100% { clip-path: inset(0 0 0 100%); opacity: 0.6; }
+}
+.cs-banner-enter-active, .cs-banner-leave-active { transition: opacity 0.25s ease; }
+.cs-banner-enter-from, .cs-banner-leave-to { opacity: 0; }
+
+/* ================================================================
+   揭曉卡
+   ================================================================ */
+.cs-scope .result-card-overlay { background: rgba(2, 6, 23, 0.6); }
+.cs-scope .result-card-box { position: relative; overflow: visible; min-width: min(86vw, 400px); padding: 30px 28px 26px; border-radius: 22px; }
+.cs-scope .result-card-countdown { font-family: 'Poppins', sans-serif; font-size: 120px; line-height: 1; color: #fff; text-shadow: 0 0 30px rgba(34, 211, 238, 0.8), 0 6px 0 #0E7490; animation: cs-count 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes cs-count { 0% { transform: scale(2.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+.cs-result-rays { position: absolute; inset: -60%; z-index: -1; background: repeating-conic-gradient(from 0deg, rgba(74, 222, 128, 0.16) 0 10deg, transparent 10deg 20deg); border-radius: 50%; mask-image: radial-gradient(circle, #000 20%, transparent 65%); -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 65%); animation: cs-spin 8s linear infinite; }
+@keyframes cs-spin { to { transform: rotate(360deg); } }
+.cs-scope .result-card-verdict { font-size: 32px; font-weight: 900; letter-spacing: 0.08em; }
+.cs-result-guess { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 4px; }
+.cs-result-ab { display: flex; gap: 6px; }
+.cs-result-ab span { font-family: 'Source Code Pro', monospace; font-size: 15px; font-weight: 800; padding: 3px 10px; border-radius: 8px; }
+.cs-result-ab .a { color: #22D3EE; background: rgba(34, 211, 238, 0.14); }
+.cs-result-ab .b { color: #FBBF24; background: rgba(251, 191, 36, 0.14); }
+.cs-scope .result-card-box--wrong { animation: cs-shake-box 0.5s ease 0.05s both; }
+@keyframes cs-shake-box { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-10px); } 40% { transform: translateX(10px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
+
+/* 答錯時畫面邊緣的紅色暈影 */
+.cs-vignette { position: fixed; inset: 0; pointer-events: none; z-index: 139; box-shadow: inset 0 0 140px rgba(244, 63, 94, 0.55); animation: cs-vignette 0.9s ease-out both; }
+@keyframes cs-vignette { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ================================================================
+   彩帶
+   ================================================================ */
+.cs-confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 145; }
+.cs-confetti i {
+  position: absolute;
+  top: -24px;
+  left: var(--x);
+  width: var(--w);
+  height: var(--h);
+  background: var(--c);
+  opacity: 0;
+  animation: cs-confetti var(--t) cubic-bezier(0.25, 0.6, 0.45, 1) var(--d) forwards;
+}
+@keyframes cs-confetti {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), 105vh) rotate(var(--r)); }
+}
+
+/* ================================================================
+   結算
+   ================================================================ */
+.cs-finish { max-width: 560px; margin: 0 auto; text-align: center; }
+.cs-finish__mascot { display: flex; justify-content: center; --mascot-size: 140px; margin-bottom: 8px; }
+.cs-finish__score { display: flex; justify-content: center; align-items: baseline; gap: 6px; margin: 4px 0 18px; color: var(--color-body); }
+.cs-finish__score strong { font-family: 'Poppins', sans-serif; font-size: 44px; font-weight: 800; color: var(--cs-gold); line-height: 1; }
+.cs-recap { list-style: none; margin: 0 0 22px; padding: 0; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.cs-recap li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--color-subtle); border: 1px solid var(--cs-panel-border); animation: cs-tile-drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: calc(var(--i, 0) * 90ms + 0.3s); }
+.cs-recap__name { font-weight: 700; font-size: 14px; color: var(--color-heading); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-recap__word { margin-left: auto; display: flex; gap: 3px; }
+.cs-recap__result { font-size: 11px; font-weight: 900; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.cs-recap__result--r1 { color: #052e16; background: #4ADE80; }
+.cs-recap__result--r2 { color: #422006; background: #FBBF24; }
+.cs-recap__result--miss { color: var(--color-label); background: rgba(148, 163, 184, 0.16); }
+
+/* ================================================================
+   淺色模式細節調整
+   ================================================================ */
+[data-theme="light"] .cs-scope .cs-tile {
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 0 0 1px rgba(150, 110, 50, 0.18),
+    0 var(--edge) 0 var(--cs-tile-edge),
+    0 calc(var(--edge) + 5px) 12px var(--cs-tile-shadow);
+}
+[data-theme="light"] .cs-scope .cs-tile--symbol,
+[data-theme="light"] .cs-scope .cs-avatar.cs-tile {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 var(--edge) 0 color-mix(in srgb, var(--tok) 60%, #000),
+    0 calc(var(--edge) + 5px) 12px color-mix(in srgb, var(--tok) 35%, transparent);
+}
+[data-theme="light"] .cs-scope .cs-tile--conflict {
+  box-shadow:
+    inset 0 0 0 2px var(--tok),
+    0 var(--edge) 0 var(--cs-tile-edge),
+    0 calc(var(--edge) + 5px) 12px var(--cs-tile-shadow);
+}
+[data-theme="light"] .cs-scope .cs-tile--blank {
+  background: rgba(14, 116, 144, 0.07);
+  box-shadow: inset 0 0 0 2px rgba(14, 116, 144, 0.40);
+}
+[data-theme="light"] .cs-scope .cs-tile--slot {
+  box-shadow: inset 0 0 0 2px rgba(120, 90, 40, 0.25);
+  background-image: repeating-linear-gradient(45deg, transparent 0 6px, rgba(120, 90, 40, 0.07) 6px 12px);
+}
+[data-theme="light"] .cs-lobby-bg-tiles .cs-tile { opacity: 0.55; }
+@media (max-width: 640px) {
+  [data-theme="light"] .cs-lobby-bg-tiles .cs-tile { opacity: 0.25; }
+}
+
+/* 卡片：白紙 + 暖色細邊 + 柔和陰影 */
+[data-theme="light"] .cs-scope .game-card {
+  background: var(--cs-panel);
+  border-color: var(--cs-panel-border);
+  box-shadow: 0 1px 2px rgba(110, 80, 30, 0.08), 0 8px 24px rgba(110, 80, 30, 0.08);
+}
+[data-theme="light"] .cs-scope .game-input {
+  background: #fff;
+  color: var(--color-heading);
+  border-color: rgba(120, 90, 40, 0.28);
+}
+[data-theme="light"] .cs-scope .game-input::placeholder { color: #A39580; }
+[data-theme="light"] .cs-scope .cs-seat--empty { background: transparent; }
+[data-theme="light"] .cs-scope .cs-seat { background: rgba(255, 255, 255, 0.7); }
+[data-theme="light"] .cs-scope .cs-recap li { background: rgba(255, 255, 255, 0.75); }
+
+/* 主按鈕：淺色下改為較沉穩的青綠 */
+[data-theme="light"] .cs-cta {
+  background: linear-gradient(135deg, #0E7490, #0891B2) !important;
+  border-color: #0E7490 !important;
+  color: #fff !important;
+  box-shadow: 0 6px 0 #155E75, 0 12px 22px rgba(14, 116, 144, 0.25) !important;
+}
+[data-theme="light"] .cs-cta:active:not(:disabled) { box-shadow: 0 2px 0 #155E75, 0 6px 12px rgba(14, 116, 144, 0.25) !important; }
+
+/* 玩家卡 / 標籤 */
+[data-theme="light"] .cs-scope .cs-player-card--clue {
+  background: linear-gradient(165deg, rgba(14, 116, 144, 0.07), var(--cs-panel) 55%);
+  border-color: rgba(14, 116, 144, 0.28);
+}
+[data-theme="light"] .cs-scope .cs-player-card--guesser {
+  background: linear-gradient(165deg, rgba(225, 29, 72, 0.08), var(--cs-panel) 60%);
+  border-color: rgba(225, 29, 72, 0.45);
+}
+[data-theme="light"] .cs-scope .cs-player-card--self { box-shadow: 0 0 0 2px rgba(14, 116, 144, 0.5), 0 10px 22px rgba(14, 116, 144, 0.12); }
+[data-theme="light"] .cs-chip--me,
+[data-theme="light"] .cs-seat__me { color: #fff; background: var(--cs-accent); }
+[data-theme="light"] .cs-chip--clue { background: rgba(14, 116, 144, 0.10); border-color: rgba(14, 116, 144, 0.30); }
+[data-theme="light"] .cs-chip--guesser { background: rgba(225, 29, 72, 0.08); border-color: rgba(225, 29, 72, 0.32); }
+[data-theme="light"] .cs-chip--done { color: #fff; background: #16A34A; }
+[data-theme="light"] .cs-time-pill { background: rgba(14, 116, 144, 0.10); }
+[data-theme="light"] .cs-time-pill--danger { background: var(--cs-hot); }
+[data-theme="light"] .cs-scope .cs-guess-ab--a { background: rgba(14, 116, 144, 0.12); }
+[data-theme="light"] .cs-scope .cs-guess-ab--b { background: rgba(217, 119, 6, 0.14); }
+[data-theme="light"] .cs-recap__result--r1 { color: #fff; background: #16A34A; }
+[data-theme="light"] .cs-recap__result--r2 { color: #fff; background: #D97706; }
+[data-theme="light"] .cs-recap__result--miss { background: rgba(120, 90, 40, 0.12); }
+[data-theme="light"] .cs-reveal-cta__verdict--win { color: #15803D; }
+[data-theme="light"] .cs-result-ab .a { color: #0E7490; background: rgba(14, 116, 144, 0.12); }
+[data-theme="light"] .cs-result-ab .b { color: #B45309; background: rgba(217, 119, 6, 0.14); }
+[data-theme="light"] .cs-scope .cs-progress-track { background: rgba(120, 90, 40, 0.14); box-shadow: inset 0 1px 2px rgba(110, 80, 30, 0.18); }
+[data-theme="light"] .cs-timer__track { stroke: rgba(120, 90, 40, 0.16); }
+[data-theme="light"] .cs-timer__bar { filter: none; }
+[data-theme="light"] .cs-scope .cs-hint-bar { box-shadow: 0 -4px 16px rgba(110, 80, 30, 0.08); }
+
+/* 揭曉卡 / 轉場：遮罩改為暖色半透明，倒數數字加深 */
+[data-theme="light"] .cs-scope .result-card-overlay { background: rgba(60, 40, 15, 0.38); }
+[data-theme="light"] .cs-banner { background: rgba(60, 40, 15, 0.28); }
+[data-theme="light"] .cs-scope .result-card-countdown { text-shadow: 0 0 24px rgba(14, 116, 144, 0.6), 0 6px 0 #155E75; }
+[data-theme="light"] .cs-vignette { box-shadow: inset 0 0 140px rgba(225, 29, 72, 0.35); }
+
+/* ================================================================
+   減少動態效果
+   ================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .cs-scope *, .cs-scope *::before, .cs-scope *::after,
+  .cs-confetti i, .cs-banner__stripe {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+  }
+  .cs-confetti { display: none; }
+  .cs-scope .cs-banner__stripe { animation: none !important; }
+}
