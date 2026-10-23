@@ -14,7 +14,7 @@
                 <div class="header-info order-last w-full justify-center sm:order-none sm:w-auto">
                     <span class="header-room-id">{{ roomState.roomId }}</span>
                     <span style="font-size:12px;color:var(--body)">{{ playersWithRoles.length }}/{{
-                        roomState.room?.maxPlayers ?? '?' }} 人</span>
+                        maxPlayers || '?' }} 人</span>
                 </div>
                 <div class="flex gap-1 sm:gap-1.5 items-center shrink-0">
                     <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
@@ -63,51 +63,10 @@
             :class="{ 'main-content--game': isGamePhase, 'main-content--lobby': !isGamePhase }">
 
             <!-- ── 大廳 ── -->
-            <div v-if="state.status === 'waiting'" class="game-card cs-waiting animate-slide-up">
-                <div class="section-header" style="margin-bottom:4px">
-                    <h2 class="neon-heading" style="font-size:22px">等待玩家加入</h2>
-                    <p class="section-subtitle">需要 {{ minPlayersRequired }} ～ {{ roomState.room.maxPlayers }} 人才能開始</p>
-                </div>
-
-                <!-- 房間碼（點擊複製邀請連結） -->
-                <div class="cs-room-code" role="button" tabindex="0" title="複製邀請連結" aria-label="複製邀請連結"
-                    @click="handleCopyLink" @keydown.enter="handleCopyLink">
-                    <span v-for="(c, i) in roomState.roomId" :key="i" class="cs-tile cs-tile--md cs-tile--drop"
-                        :style="{ '--i': i }">{{ c }}</span>
-                </div>
-                <p class="cs-room-code-hint">點房間碼即可複製邀請連結 🔗</p>
-
-                <!-- 座位 -->
-                <TransitionGroup name="cs-seat" tag="div" class="cs-seat-grid">
-                    <div v-for="p in playersWithRoles" :key="p.id" class="cs-seat" :class="{
-                        'cs-seat--me': p.id === roomState.myPlayerId,
-                        'cs-seat--offline': !(p.is_online ?? p.connected),
-                    }">
-                        <span v-if="p.id === roomState.room.host_player_id" class="cs-seat__crown" title="房主">👑</span>
-                        <span v-if="p.id === roomState.myPlayerId" class="cs-seat__me">我</span>
-                        <span class="cs-tile cs-avatar" :style="{ '--tok': playerColor(p.id) }">{{ avatarChar(p.nickname)
-                            }}</span>
-                        <span class="cs-seat__name">{{ p.nickname }}</span>
-                    </div>
-                    <div v-for="n in emptySeats" :key="`empty-${n}`" class="cs-seat cs-seat--empty">
-                        <span class="cs-seat__dots"><i></i><i></i><i></i></span>
-                        <span style="font-size:11px">等待加入</span>
-                    </div>
-                </TransitionGroup>
-
-                <!-- 開始按鈕（僅房主） -->
-                <template v-if="roomState.isHost">
-                    <button class="btn-primary cs-cta" style="width:100%"
-                        :disabled="playersWithRoles.length < minPlayersRequired" @click="handleStartGame">
-                        開始遊戲 🚀
-                    </button>
-                    <p v-if="playersWithRoles.length < minPlayersRequired"
-                        style="text-align:center;font-size:12px;color:var(--label);margin-top:10px">
-                        還需要 {{ minPlayersRequired - playersWithRoles.length }} 人才能開始
-                    </p>
-                </template>
-                <p v-else style="text-align:center;font-size:14px;color:var(--body)">等待房主開始遊戲…</p>
-            </div>
+            <CsWaitingPanel v-if="state.status === 'waiting'" :room-id="roomState.roomId" :players="playersWithRoles"
+                :my-player-id="roomState.myPlayerId" :host-id="roomState.room.host_player_id"
+                :is-host="roomState.isHost" :min-players="MIN_PLAYERS_REQUIRED"
+                :max-players="maxPlayers" @copy-link="handleCopyLink" @start="handleStartGame" />
 
             <!-- ── 遊戲進行中（統一左右排版）── -->
             <div v-else-if="isGamePhase" class="cs-game-layout">
@@ -136,7 +95,7 @@
                             <li v-for="p in playersWithRoles" :key="p.id" class="cs-player-list-item"
                                 :class="{ 'cs-player-list-item--self': p.id === roomState.myPlayerId }">
                                 <span class="cs-tile cs-avatar" :style="{
-                                    '--tok': playerColor(p.id),
+                                    '--tok': playerColor(playersWithRoles, p.id),
                                     opacity: (p.is_online ?? p.connected) ? 1 : 0.35,
                                 }">{{ avatarChar(p.nickname) }}</span>
                                 <span class="cs-player-list-name">{{ p.nickname }}</span>
@@ -205,213 +164,25 @@
                     </div>
 
                     <div class="cs-players-grid"
-                        :class="{ 'cs-players-grid--dense': playersWithRoles.length > 6 }"
+                        :class="{ 'cs-players-grid--dense': playersWithRoles.length > 6, 'cs-players-grid--quad': playersWithRoles.length <= 4 }"
                         :style="{ '--cs-rows': Math.ceil(playersWithRoles.length / 3) }">
-                        <div v-for="p in playersWithRoles" :key="p.id" :class="['game-card', 'cs-player-card', getPlayerCardClass(p.role, p.id),
-                            { 'hint-just-submitted': state.submittedPlayerIds.includes(p.id) && isHintPhase }]"
-                            style="position:relative;overflow:hidden">
-                            <!-- 浮動反應 emoji 覆層 -->
-                            <TransitionGroup name="cs-react" tag="div" class="cs-react-overlay" aria-hidden="true">
-                                <span v-for="r in (state.reactions[p.id] || [])" :key="r.id"
-                                    :class="r.emoji === '🥚' ? 'cs-egg-wrapper' : 'cs-react-fly'"
-                                    :style="{ '--x': r.x }">
-                                    <template v-if="r.emoji === '🥚'">
-                                        <span class="cs-egg-raw">🥚</span>
-                                        <span class="cs-egg-fried">💩</span>
-                                    </template>
-                                    <template v-else>{{ r.emoji }}</template>
-                                </span>
-                            </TransitionGroup>
-
-                            <!-- 玩家資訊列 -->
-                            <div class="cs-card-head">
-                                <span class="cs-tile cs-avatar" :style="{ '--tok': playerColor(p.id) }">{{
-                                    avatarChar(p.nickname) }}</span>
-                                <span class="cs-card-head__name">{{ p.nickname }}</span>
-                                <span v-if="p.id === roomState.myPlayerId" class="cs-chip cs-chip--me">我</span>
-                                <span class="cs-card-head__end">
-                                    <span class="cs-chip" :class="isPlayerGuesser(p) ? 'cs-chip--guesser' : 'cs-chip--clue'">
-                                        {{ roleBadgeText(p) }}
-                                    </span>
-                                </span>
-                            </div>
-                            <div v-if="isPlayerGuesser(p)" class="cs-guesser-hero">
-                                <p class="cs-guesser-hero__title">
-                                    🎯 {{ p.id === roomState.myPlayerId ? '你是猜題者' : '猜題者' }}
-                                </p>
-                                <!-- 兩輪答案 -->
-                                <div class="cs-guess-rows">
-                                    <!-- R1 -->
-                                    <div class="cs-guess-row">
-                                        <span class="cs-guess-label">R1</span>
-                                        <template v-if="state.round1GuessResult">
-                                            <span class="cs-guess-answer">{{ state.round1GuessResult.answer || '（空白）'
-                                                }}</span>
-                                            <span class="cs-guess-ab cs-guess-ab--a">{{ state.round1GuessResult.a
-                                                }}A</span>
-                                            <span class="cs-guess-ab cs-guess-ab--b">{{ state.round1GuessResult.b
-                                                }}B</span>
-                                        </template>
-                                        <template
-                                            v-else-if="state.status === 'round1-result' && p.id === roomState.myPlayerId">
-                                            <span class="cs-guess-pending">作答中…</span>
-                                        </template>
-                                        <template v-else-if="state.status === 'round1-result'">
-                                            <span class="cs-guess-pending">等待作答</span>
-                                        </template>
-                                        <template v-else>
-                                            <span class="cs-guess-empty">—</span>
-                                        </template>
-                                    </div>
-                                    <!-- R2 (進入 round2 後才顯示) -->
-                                    <div v-if="['round2', 'round2-result', 'revealing'].includes(state.status)"
-                                        class="cs-guess-row">
-                                        <span class="cs-guess-label">R2</span>
-                                        <template v-if="state.status === 'revealing' && state.guessResult">
-                                            <span class="cs-guess-answer"
-                                                :style="{ color: state.guessResult.correct ? 'var(--success-text)' : 'var(--heading)' }">
-                                                {{ state.guessResult.correct ? '🎉 ' : '' }}{{ state.guessResult.answer
-                                                    || '（空白）' }}
-                                            </span>
-                                            <template v-if="state.guessAB">
-                                                <span class="cs-guess-ab cs-guess-ab--a">{{ state.guessAB.a }}A</span>
-                                                <span class="cs-guess-ab cs-guess-ab--b">{{ state.guessAB.b }}B</span>
-                                            </template>
-                                        </template>
-                                        <template
-                                            v-else-if="state.status === 'round2-result' && p.id === roomState.myPlayerId">
-                                            <span class="cs-guess-pending">作答中…</span>
-                                        </template>
-                                        <template v-else-if="state.status === 'round2-result'">
-                                            <span class="cs-guess-pending">等待作答</span>
-                                        </template>
-                                        <template v-else>
-                                            <span class="cs-guess-empty">—</span>
-                                        </template>
-                                    </div>
-                                </div>
-                                <p v-if="isHintPhase" class="cs-hint-placeholder">
-                                    等待隊友出牌 <span class="cs-seat__dots"><i></i><i></i><i></i></span>
-                                </p>
-                            </div>
-                            <!-- 提示者：兩輪字牌 -->
-                            <template v-else>
-                                <div v-for="r in visibleHintRounds" :key="r.round" class="cs-hint-block">
-                                    <p class="cs-round-label">ROUND {{ r.round }}</p>
-                                    <TransitionGroup v-if="r.get(p.id).length" appear name="hint-char" tag="div"
-                                        class="hint-chars-wrap">
-                                        <span v-for="(c, i) in r.get(p.id)" :key="i"
-                                            :class="[hintTileClass(c), { 'cs-flipcard': canFlipHint(c), 'is-flipped': isHintFlipped(p.id, r.round, i) }]"
-                                            :style="{ '--i': i, '--tok': c.tok }" :data-symbol="c.symbol"
-                                            :title="canFlipHint(c) && !isHintFlipped(p.id, r.round, i) ? '點擊翻開被擋住的字' : undefined"
-                                            @click="canFlipHint(c) && flipHint(p.id, r.round, i)">
-                                            <template v-if="canFlipHint(c)">
-                                                <span class="cs-flipcard__back">{{ c.char }}</span>
-                                                <span class="cs-flipcard__front">{{ c.real }}</span>
-                                            </template>
-                                            <template v-else>{{ c.char }}</template>
-                                        </span>
-                                    </TransitionGroup>
-                                    <div v-else class="cs-hint-placeholder">
-                                        <template v-if="state.status === r.hintStatus">
-                                            <template v-if="state.submittedPlayerIds.includes(p.id)">
-                                                <span class="cs-tile cs-tile--sm cs-tile--back cs-tile--pop">✓</span>
-                                                <span class="cs-chip cs-chip--done">已出牌</span>
-                                            </template>
-                                            <template v-else>
-                                                <span class="cs-seat__dots"><i></i><i></i><i></i></span> 思考中
-                                            </template>
-                                        </template>
-                                        <template v-else>—</template>
-                                    </div>
-                                </div>
-                            </template>
-                            <!-- 互動按鈕（常駐底部，僅對其他人） -->
-                            <div v-if="p.id !== roomState.myPlayerId" class="cs-react-btns">
-                                <span class="cs-react-label">互動</span>
-                                <button class="cs-react-btn" title="這很屬🔥"
-                                    @click.stop="sendReaction(p.id, '\uD83D\uDD25')">🔥</button>
-                                <button class="cs-react-btn" title="丟蛋！🥚"
-                                    @click.stop="sendReaction(p.id, '\uD83E\uDD5A')">🥚</button>
-                            </div>
-                        </div>
+                        <CsPlayerCard v-for="p in playersWithRoles" :key="p.id" :player="p"
+                            :players="playersWithRoles" :state="state" :my-player-id="roomState.myPlayerId"
+                            :is-guesser="isPlayerGuesser(p)" :is-hint-phase="isHintPhase"
+                            :hint-rounds="visibleHintRounds" :flipped="flippedHints" @react="sendReaction"
+                            @flip="flipHint" />
                     </div>
 
-                    <!-- ── 底部猜題輸入欄（猜題者，round1-result / round2-result）──  -->
-                    <template
-                        v-if="state.isGuesser && (state.status === 'round1-result' || state.status === 'round2-result')">
-                        <div v-if="!guessSubmitted" class="cs-hint-bar">
-                            <div class="cs-compose">
-                                <div v-if="state.wordLength" class="cs-compose__slots" aria-hidden="true">
-                                    <span v-for="(t, i) in guessPreviewTiles" :key="`${i}-${t.char}`"
-                                        :class="previewTileClass(t)">{{ t.char }}</span>
-                                </div>
-                                <div class="cs-compose__row">
-                                    <span class="cs-time-pill"
-                                        :class="{ 'cs-time-pill--danger': guessTimerRemaining <= 10 }">
-                                        {{ guessTimerRemaining }}s
-                                    </span>
-                                    <input v-model="guessInput" type="text" class="game-input" style="flex:1"
-                                        ref="guessInputRef"
-                                        :placeholder="state.status === 'round1-result' ? '根據第一輪線索猜…' : '根據兩輪線索猜…'"
-                                        aria-label="猜題答案" autocomplete="off" autocorrect="off" autocapitalize="off"
-                                        spellcheck="false" @keydown.enter="onEnterSubmit($event, handleSubmitGuess)" />
-                                    <button type="button" class="btn-primary cs-cta cs-send-btn" :disabled="guessSubmitted"
-                                        @click="handleSubmitGuess">送出</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else class="cs-hint-bar" style="justify-content:center">
-                            <p class="cs-sent-msg">✓ 已送出「{{ guessInput || '（空白）' }}」，等待揭曉…</p>
-                        </div>
-                    </template>
-                    <!-- ── 底部提示輸入欄（提示者）── -->
-                    <template v-if="!state.isGuesser && (state.status === 'round1' || state.status === 'round2')">
-                        <div v-if="!hintSubmitted" class="cs-hint-bar">
-                            <div class="cs-compose">
-                                <div class="cs-compose__slots" aria-hidden="true">
-                                    <span v-for="(t, i) in hintPreviewTiles" :key="`${i}-${t.char}`"
-                                        :class="previewTileClass(t)">{{ t.char }}</span>
-                                </div>
-                                <div class="cs-compose__row">
-                                    <span class="cs-time-pill"
-                                        :class="{ 'cs-time-pill--danger': state.timerRemaining <= 10 }">
-                                        {{ state.timerRemaining }}s
-                                    </span>
-                                    <input v-model="hintInput" type="text" class="game-input" style="flex:1"
-                                        ref="hintInputRef" :placeholder="`輸入中文提示（1 ～ ${maxHintChars} 字）`"
-                                        :maxlength="12" aria-label="提示輸入" autocomplete="off" autocorrect="off"
-                                        autocapitalize="off" spellcheck="false" @input="onHintInput"
-                                        @keydown.enter="onEnterSubmit($event, handleSubmitHint)" />
-                                    <button type="button" class="btn-primary cs-cta cs-send-btn"
-                                        :disabled="hintCharCount === 0 || !!hintError || hintSubmitted"
-                                        @click="handleSubmitHint">出牌</button>
-                                </div>
-                                <p v-if="hintError" class="cs-compose__error">{{ hintError }}</p>
-                            </div>
-                        </div>
-                        <div v-else class="cs-hint-bar" style="justify-content:center">
-                            <p class="cs-sent-msg">✓ 已出牌，等待其他提示者…</p>
-                        </div>
-                    </template>
-
-                    <!-- ── 底部揭曉 CTA（揭曉階段）── -->
-                    <template v-if="state.status === 'revealing'">
-                        <div class="cs-hint-bar cs-reveal-bar">
-                            <div class="cs-reveal-cta">
-                                <span style="font-size:26px">{{ state.guessResult?.correct ? '🎉' : '😅' }}</span>
-                                <span class="cs-reveal-cta__verdict"
-                                    :class="state.guessResult?.correct ? 'cs-reveal-cta__verdict--win' : 'cs-reveal-cta__verdict--lose'">
-                                    {{ state.guessResult?.correct ? `${currentGuesserName} 答對了！` : '可惜！下次加油' }}
-                                </span>
-                                <button v-if="roomState.isHost" type="button" class="btn-primary cs-cta cs-send-btn"
-                                    style="margin-left:auto" @click="handleNextTurn">
-                                    下一位 →
-                                </button>
-                                <span v-else style="font-size:12px;color:var(--label);margin-left:auto">等待房主…</span>
-                            </div>
-                        </div>
-                    </template>
+                    <!-- ── 底部輸入欄 ── -->
+                    <CsGuessBar v-if="state.isGuesser && isAnswerPhase" ref="guessBarRef" v-model="guessInput"
+                        :word-length="state.wordLength || 0" :is-first-round="state.status === 'round1-result'"
+                        :timer="guessTimerRemaining" :submitted="guessSubmitted" @submit="handleSubmitGuess" />
+                    <CsHintBar v-if="!state.isGuesser && isHintPhase" ref="hintBarRef" v-model="hintInput"
+                        :max-chars="maxHintChars" :word="state.currentWord?.word ?? ''" :timer="state.timerRemaining"
+                        :error="hintError" :submitted="hintSubmitted" :can-submit="canSubmitHint"
+                        @input="onHintInput" @submit="handleSubmitHint" />
+                    <CsRevealBar v-if="state.status === 'revealing'" :correct="!!state.guessResult?.correct"
+                        :guesser-name="currentGuesserName" :is-host="roomState.isHost" @next="handleNextTurn" />
                 </div>
             </div>
 
@@ -431,52 +202,10 @@
             </div>
 
             <!-- ── 結算 ── -->
-            <div v-else-if="state.status === 'finished'" class="game-card cs-finish animate-slide-up">
-                <div class="cs-finish__mascot">
-                    <CsMascot mood="trophy" />
-                </div>
-                <h2 class="neon-heading gradient-text" style="font-size:28px;margin-bottom:4px">一局結束！</h2>
-                <div v-if="turnHistory.length" class="cs-finish__score">
-                    <strong>{{ correctTurnCount }}</strong><span>/ {{ turnHistory.length }} 題答對</span>
-                </div>
-                <p v-else style="color:var(--body);font-size:15px;margin-bottom:24px">所有人都猜過一圈了</p>
-
-                <!-- 本局回顧 -->
-                <ul v-if="turnHistory.length" class="cs-recap">
-                    <li v-for="(t, i) in turnHistory" :key="t.id" :style="{ '--i': i }">
-                        <span class="cs-tile cs-avatar" style="--size:26px;font-size:13px"
-                            :style="{ '--tok': playerColor(t.guesserId) }">{{ avatarChar(t.guesser) }}</span>
-                        <span class="cs-recap__name">{{ t.guesser }}</span>
-                        <span class="cs-recap__word">
-                            <span v-for="(c, j) in [...t.word]" :key="j" class="cs-tile cs-tile--xs">{{ c }}</span>
-                        </span>
-                        <span class="cs-recap__result"
-                            :class="t.correct ? (t.round === 1 ? 'cs-recap__result--r1' : 'cs-recap__result--r2') : 'cs-recap__result--miss'">
-                            {{ t.correct ? (t.round === 1 ? '一輪命中' : '二輪命中') : '未猜中' }}
-                        </span>
-                    </li>
-                </ul>
-
-                <div v-if="roomState.isHost" style="display:flex;flex-direction:column;gap:10px">
-                    <!-- 主題選擇（換局前） -->
-                    <div style="display:flex;align-items:center;gap:10px;
-                               padding:10px 14px;border-radius:10px;
-                               background:var(--bg-subtle);border:1px solid var(--border)">
-                        <span style="font-size:13px;color:var(--label);white-space:nowrap">🎲 下一局主題</span>
-                        <select v-model="selectedTheme" class="game-input"
-                            style="flex:1;padding:6px 10px;font-size:13px;cursor:pointer" @change="handleSetTheme">
-                            <option :value="THEME_ALL">全部（所有主題混在一起）</option>
-                            <option :value="THEME_RANDOM">隨機主題（每局不同）</option>
-                            <option v-for="t in themeList" :key="t.id" :value="t.id">{{ t.name }}</option>
-                        </select>
-                    </div>
-                    <button class="btn-primary cs-cta" @click="handleContinue">
-                        繼續下一局 🔁
-                    </button>
-                    <button class="btn-secondary" @click="handleEndGame">結束遊戲</button>
-                </div>
-                <p v-else style="color:var(--body);font-size:14px">等待房主決定…</p>
-            </div>
+            <CsFinishPanel v-if="state.status === 'finished'" :turn-history="turnHistory"
+                :correct-count="correctTurnCount" :players="playersWithRoles" :is-host="roomState.isHost"
+                :theme="selectedTheme" :theme-list="themeList" @set-theme="handleSetTheme" @continue="handleContinue"
+                @end="handleEndGame" />
 
         </main>
 
@@ -492,53 +221,8 @@
             <div v-if="toast.show" :class="['toast', 'show', toast.type]">{{ toast.msg }}</div>
         </Transition>
 
-        <!-- 回合轉場橫幅 -->
-        <Transition name="cs-banner">
-            <div v-if="phaseFlash.show" class="cs-banner" :class="`cs-banner--${phaseFlash.variant}`"
-                aria-live="assertive">
-                <div class="cs-banner__stripe">
-                    <p class="cs-banner__kicker" aria-hidden="true">{{ phaseFlash.kicker }}</p>
-                    <p class="cs-banner__title">{{ phaseFlash.title }}</p>
-                    <p class="cs-banner__desc">{{ phaseFlash.desc }}</p>
-                </div>
-            </div>
-        </Transition>
-
-        <!-- 結果 overlay：鼓聲倒數 3-2-1 → 揭曉 -->
-        <Transition name="result-card">
-            <div v-if="resultCard.show" class="result-card-overlay" aria-live="assertive">
-                <div class="result-card-box"
-                    :class="resultCard.phase === 'reveal' ? (resultCard.correct ? 'result-card-box--correct' : 'result-card-box--wrong') : ''">
-                    <!-- 倒數 -->
-                    <template v-if="resultCard.phase === 'countdown'">
-                        <div :key="resultCard.countdownNum" class="result-card-countdown">
-                            {{ resultCard.countdownNum }}
-                        </div>
-                        <p style="margin:0;font-size:12px;letter-spacing:0.4em;color:#A5F3FC">判定中</p>
-                    </template>
-                    <!-- 揭曉 -->
-                    <template v-else>
-                        <div v-if="resultCard.correct" class="cs-result-rays" aria-hidden="true"></div>
-                        <CsMascot :mood="resultCard.correct ? 'happy' : 'sad'" style="--mascot-size:104px" />
-                        <p class="result-card-verdict">
-                            {{ resultCard.correct
-                                ? '答對了！'
-                                : (resultCard.isFinal ? '答錯了' : '答錯，進入第二輪') }}
-                        </p>
-                        <div v-if="resultCard.answer" class="cs-result-guess">
-                            <div class="cs-tile-row cs-tile-row--tight">
-                                <span v-for="(c, i) in [...resultCard.answer]" :key="i"
-                                    class="cs-tile cs-tile--sm cs-tile--flip" :style="{ '--i': i }">{{ c }}</span>
-                            </div>
-                            <div v-if="!resultCard.correct && resultCard.a !== null" class="cs-result-ab">
-                                <span class="a">{{ resultCard.a }}A</span>
-                                <span class="b">{{ resultCard.b ?? 0 }}B</span>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-        </Transition>
+        <CsPhaseBanner :flash="phaseFlash" />
+        <CsResultOverlay :card="resultCard" />
 
         <!-- 答錯紅暈 / 答對彩帶 / 結算彩帶 -->
         <div v-if="vignetteKey" :key="vignetteKey" class="cs-vignette" aria-hidden="true"></div>
@@ -552,10 +236,6 @@
 </template>
 
 <script setup>
-// 返回首頁
-function goHome() {
-    router.push({ path: '/' })
-}
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStorm } from '../composables/useCharacterStorm.js'
@@ -564,14 +244,30 @@ import { useCharacterStormSfx } from '../composables/useCharacterStormSfx.js'
 import { getSavedNickname, saveNickname } from '@/shared/data/identity.js'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
 import CharacterStormGuideModal from '../components/CharacterStormGuideModal.vue'
-import CsMascot from '../components/CsMascot.vue'
+import CsWaitingPanel from '../components/CsWaitingPanel.vue'
+import CsPlayerCard from '../components/CsPlayerCard.vue'
+import CsHintBar from '../components/CsHintBar.vue'
+import CsGuessBar from '../components/CsGuessBar.vue'
+import CsRevealBar from '../components/CsRevealBar.vue'
+import CsFinishPanel from '../components/CsFinishPanel.vue'
+import CsPhaseBanner from '../components/CsPhaseBanner.vue'
+import CsResultOverlay from '../components/CsResultOverlay.vue'
 import CsConfetti from '../components/CsConfetti.vue'
 import '../styles/character-storm.css'
 import { useGameGuide } from '@/shared/composables/useGameGuide.js'
-import { fetchThemes, THEME_ALL, THEME_RANDOM } from '../data/themes.js'
+import { fetchThemes, THEME_RANDOM } from '../data/themes.js'
+import { avatarChar, playerColor, SYMBOL_COLORS } from '../data/playerLook.js'
+import {
+    GAME_PHASES, PHASE_KICKER, phaseLabel as phaseLabelOf, phaseHintText as phaseHintTextOf,
+    phaseTitle, phaseDesc, phaseCueKey,
+} from '../data/phases.js'
 
 const route = useRoute()
 const router = useRouter()
+
+function goHome() {
+    router.push({ path: '/' })
+}
 const MIN_PLAYERS_REQUIRED = 2
 const GUESS_TIMER_SECONDS = 90
 
@@ -583,8 +279,9 @@ async function loadThemes() {
     themeList.value = await fetchThemes()
 }
 
-function handleSetTheme() {
-    setTheme(selectedTheme.value)
+function handleSetTheme(id) {
+    selectedTheme.value = id
+    setTheme(id)
 }
 
 // 主題切換
@@ -653,6 +350,8 @@ const hintCharCount = computed(() => {
     return [...stripped].filter(c => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(c)).length
 })
 
+const canSubmitHint = computed(() => hintCharCount.value > 0 && !hintError.value && !hintSubmitted.value)
+
 function onHintInput() {
     hintError.value = ''
     const stripped = hintInput.value.replace(/\s/g, '')
@@ -677,8 +376,8 @@ function onHintInput() {
 // ── 猜題輸入 ──────────────────────────────────────────────────────
 const guessInput = ref('')
 const guessSubmitted = ref(false)
-const guessInputRef = ref(null)
-const hintInputRef = ref(null)
+const guessBarRef = ref(null)
+const hintBarRef = ref(null)
 const phaseFlash = ref({ show: false, title: '', desc: '', kicker: '', variant: '' })
 let _phaseFlashTimer = null
 
@@ -748,7 +447,7 @@ watch(() => state.status, (val) => {
         // 進入新的猜題階段，重置猜題輸入
         guessInput.value = ''
         guessSubmitted.value = false
-        nextTick(() => guessInputRef.value?.focus())
+        nextTick(() => guessBarRef.value?.focus())
     } else {
         clearInterval(_guessTimerInterval)
         guessTimerRemaining.value = GUESS_TIMER_SECONDS
@@ -760,17 +459,14 @@ watch(() => state.status, (val) => {
     }
 
     if ((val === 'round1' || val === 'round2') && !state.isGuesser && !hintSubmitted.value) {
-        nextTick(() => hintInputRef.value?.focus())
+        nextTick(() => hintBarRef.value?.focus())
     }
 })
 
-// 猜題者揭曉時：點擊被符號擋住的提示字牌，翻開原字
+// 猜題者揭曉時翻開的提示字牌（key = playerId:round:index）
 const flippedHints = ref([])
-const hintKey = (pid, round, i) => `${pid}:${round}:${i}`
-const canFlipHint = c => state.isGuesser && state.status === 'revealing' && !!c.isSymbol && !!c.real
-const isHintFlipped = (pid, round, i) => flippedHints.value.includes(hintKey(pid, round, i))
 function flipHint(pid, round, i) {
-    const k = hintKey(pid, round, i)
+    const k = `${pid}:${round}:${i}`
     if (!flippedHints.value.includes(k)) flippedHints.value.push(k)
 }
 watch(() => state.status, (s) => { if (s !== 'revealing') flippedHints.value = [] })
@@ -783,18 +479,34 @@ watch(() => state.status, (nextStatus, prevStatus) => {
     const allowFlash = ['round1', 'round2', 'finished']
     if (!allowFlash.includes(nextStatus)) return
 
+    // 判定卡（鼓聲倒數＋答對/答錯）還在畫面上時，橫幅先排隊，避免兩個動畫疊在一起
+    if (resultCard.value.show) { pendingFlash = nextStatus; return }
+    showPhaseFlash(nextStatus)
+})
+
+let pendingFlash = null
+const FLASH_GAP_MS = 250
+
+function showPhaseFlash(status) {
     phaseFlash.value = {
         show: true,
-        title: phaseTitleByStatus(nextStatus),
-        desc: phaseBannerDesc(nextStatus),
-        kicker: { round1: 'ROUND 1', round2: 'ROUND 2', finished: 'GAME SET' }[nextStatus],
-        variant: nextStatus,
+        title: phaseTitle(status),
+        desc: phaseBannerDesc(status),
+        kicker: PHASE_KICKER[status],
+        variant: status,
     }
-
     clearTimeout(_phaseFlashTimer)
     _phaseFlashTimer = setTimeout(() => {
         phaseFlash.value.show = false
     }, 1700)
+}
+
+// 判定卡收起後，補播排隊中的橫幅（若已不在該階段就略過）
+watch(() => resultCard.value.show, (shown) => {
+    if (shown || !pendingFlash) return
+    const status = pendingFlash
+    pendingFlash = null
+    setTimeout(() => { if (state.status === status) showPhaseFlash(status) }, FLASH_GAP_MS)
 })
 
 // 轉場橫幅的說明依自己的角色客製
@@ -806,8 +518,8 @@ function phaseBannerDesc(status) {
     }
     if (status === 'finished') return turnHistory.value.length
         ? `本局答對 ${correctTurnCount.value} / ${turnHistory.value.length} 題`
-        : phaseDescByStatus(status)
-    return phaseDescByStatus(status)
+        : phaseDesc(status)
+    return phaseDesc(status)
 }
 
 // ── 本局回顧（前端自行記錄，結算畫面顯示）──────────────────────────
@@ -874,32 +586,11 @@ function showToast(msg, type = '', duration = 3000) {
 }
 
 // ── 工具 ──────────────────────────────────────────────────────────
-function playerName(pid) {
-    return playersWithRoles.value.find(p => p.id === pid)?.nickname ?? pid
-}
-
-const GAME_PHASES = ['round1', 'round2', 'round1-result', 'round2-result', 'revealing']
+// 後端房間欄位為 max_players（snake_case）
+const maxPlayers = computed(() => roomState.room?.max_players ?? roomState.room?.maxPlayers ?? 0)
 const isGamePhase = computed(() => GAME_PHASES.includes(state.status))
-const minPlayersRequired = MIN_PLAYERS_REQUIRED
-const currentPhaseTitle = computed(() => {
-    if (state.status === 'round1') return '第一輪提示中'
-    if (state.status === 'round1-result') return '第一輪作答中'
-    if (state.status === 'round2') return '第二輪提示中'
-    if (state.status === 'round2-result') return '第二輪作答中'
-    if (state.status === 'revealing') return '結果揭曉'
-    if (state.status === 'finished') return '本局結束'
-    return '等待開始'
-})
 // 左上階段標籤（格式：第一輪：作答中 / 提示中）
-const phaseLabel = computed(() => {
-    if (state.status === 'round1') return '第一輪：提示中'
-    if (state.status === 'round1-result') return '第一輪：作答中'
-    if (state.status === 'round2') return '第二輪：提示中'
-    if (state.status === 'round2-result') return '第二輪：作答中'
-    if (state.status === 'revealing') return '答案揭曉'
-    if (state.status === 'finished') return '本局結束'
-    return '等待開始'
-})
+const phaseLabel = computed(() => phaseLabelOf(state.status))
 const cluePlayers = computed(() => playersWithRoles.value.filter(p => p.role !== 'guesser'))
 const currentGuesserName = computed(() => {
     const guesser = playersWithRoles.value.find(p => p.id === state.currentGuesserPlayerId) ||
@@ -910,11 +601,6 @@ const isHintPhase = computed(() => state.status === 'round1' || state.status ===
 const submittedHintsCount = computed(() => {
     const clueIds = new Set(cluePlayers.value.map(p => p.id))
     return state.submittedPlayerIds.filter(id => clueIds.has(id)).length
-})
-const pendingHintsCount = computed(() => Math.max(cluePlayers.value.length - submittedHintsCount.value, 0))
-const hintProgressPercent = computed(() => {
-    if (!cluePlayers.value.length) return 0
-    return Math.min(100, Math.round((submittedHintsCount.value / cluePlayers.value.length) * 100))
 })
 // 左上階段卡的進度（提示階段=提示者送出進度；作答階段=猜題者本地送出進度；其他=不顯示）
 const isAnswerPhase = computed(() => state.status === 'round1-result' || state.status === 'round2-result')
@@ -932,15 +618,7 @@ const phaseProgressPct = computed(() => {
     if (!phaseTotal.value) return 0
     return Math.min(100, Math.round((phaseSubmitted.value / phaseTotal.value) * 100))
 })
-const phaseHintText = computed(() => {
-    if (state.status === 'round1') return state.isGuesser ? '等待提示者完成第一輪線索' : '請輸入第一輪中文提示'
-    if (state.status === 'round1-result') return state.isGuesser ? '根據第一輪線索作答' : '等待猜題者作答'
-    if (state.status === 'round2') return state.isGuesser ? '等待提示者完成第二輪線索' : '請輸入第二輪中文提示'
-    if (state.status === 'round2-result') return state.isGuesser ? '根據兩輪線索完成最終作答' : '等待猜題者最終作答'
-    if (state.status === 'revealing') return '查看答案與 A/B 結果'
-    if (state.status === 'finished') return '房主可選擇下一局或結束'
-    return '等待房主開始遊戲'
-})
+const phaseHintText = computed(() => phaseHintTextOf(state.status, state.isGuesser))
 const liveStatusText = computed(() => {
     if (state.loading) return state.loadingText || '連線中'
     if (!roomState.room) return ''
@@ -980,37 +658,6 @@ watch(activeTimer, (v, old) => {
     playSfx(v <= 3 ? 'tickUrgent' : 'tick')
 })
 
-// ── 玩家頭像牌 ────────────────────────────────────────────────────
-// 12 種色相明顯不同的顏色，順序刻意讓相鄰座位色差最大
-const AVATAR_COLORS = [
-    '#EF4444', '#06B6D4', '#EAB308', '#8B5CF6', '#10B981', '#EC4899',
-    '#3B82F6', '#F97316', '#84CC16', '#D946EF', '#92400E', '#6366F1',
-]
-function playerColor(id) {
-    // 依座位順序取色，同房間內不會撞色；找不到座位時退回雜湊
-    const idx = playersWithRoles.value.findIndex(p => p.id === id)
-    if (idx >= 0) return AVATAR_COLORS[idx % AVATAR_COLORS.length]
-    let h = 0
-    for (const ch of String(id ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-    return AVATAR_COLORS[h % AVATAR_COLORS.length]
-}
-function avatarChar(name) {
-    return ([...(name ?? '').trim()][0] ?? '?').toUpperCase()
-}
-
-// 等待室空位
-const emptySeats = computed(() => {
-    const max = roomState.room?.maxPlayers ?? 0
-    return Math.max(0, max - playersWithRoles.value.length)
-})
-
-// 符號 → 顏色對應
-const SYMBOL_COLORS = {
-    '●': '#06B6D4', '▲': '#F59E0B', '■': '#A855F7', '◆': '#EC4899',
-    '★': '#22C55E', '✖': '#EF4444', '✚': '#F97316', '⬢': '#6366F1',
-    '♥': '#E11D48', '♠': '#475569', '☀': '#EAB308', '☾': '#0EA5E9',
-    '✿': '#D946EF', '⬟': '#84CC16', '✦': '#14B8A6', '▼': '#B45309',
-}
 // 取得某玩家提示的 chars 陣列（含符號顏色 tok）
 function getPlayerHintChars(hints, hintsProvider, pid) {
     if (state.isGuesser) {
@@ -1047,46 +694,9 @@ const visibleHintRounds = computed(() => {
     return rounds
 })
 
-function hintTileClass(c) {
-    return ['cs-tile', 'cs-tile--md', { 'cs-tile--symbol': c.isSymbol, 'cs-tile--conflict': c.isConflict }]
-}
-
-// ── 輸入預覽字牌 ──────────────────────────────────────────────────
-const isHanChar = c => /[一-鿿㐀-䶿]/.test(c)
-
-// 提示：依字數上限顯示空位；超量、非中文、含題目字都標紅
-const hintPreviewTiles = computed(() => {
-    const chars = [...hintInput.value.replace(/\s/g, '')]
-    const wordChars = new Set([...(state.currentWord?.word ?? '')])
-    const len = Math.max(maxHintChars.value, chars.length)
-    return Array.from({ length: len }, (_, i) => {
-        const char = chars[i] ?? ''
-        const bad = !!char && (i >= maxHintChars.value || !isHanChar(char) || wordChars.has(char))
-        return { char, bad }
-    })
-})
-
-// 猜題：依題目字數顯示空位
-const guessPreviewTiles = computed(() => {
-    const chars = [...guessInput.value.replace(/\s/g, '')]
-    const total = state.wordLength || 0
-    const len = Math.max(total, chars.length)
-    return Array.from({ length: len }, (_, i) => ({ char: chars[i] ?? '', bad: i >= total }))
-})
-
-function previewTileClass(t) {
-    if (!t.char) return ['cs-tile', 'cs-tile--sm', 'cs-tile--slot']
-    return ['cs-tile', 'cs-tile--sm', t.bad ? 'cs-tile--bad' : 'cs-tile--pop']
-}
-
 function isPlayerGuesser(player) {
     if (state.currentGuesserPlayerId) return player.id === state.currentGuesserPlayerId
     return player.role === 'guesser'
-}
-
-function roleBadgeText(player) {
-    if (isPlayerGuesser(player)) return '猜題者'
-    return player.quota ? `提示 ${player.quota} 字` : '提示者'
 }
 
 // 左下玩家列表：依當前階段顯示該玩家狀態
@@ -1122,61 +732,13 @@ function getPlayerStatusClass(p) {
     return 'cs-status--idle'
 }
 
-function getPlayerCardClass(role, playerId) {
-    const classes = []
-
-    if (state.currentGuesserPlayerId ? playerId === state.currentGuesserPlayerId : role === 'guesser') {
-        classes.push('cs-player-card--guesser')
-    }
-    else classes.push('cs-player-card--clue')
-
-    if (playerId === roomState.myPlayerId) classes.push('cs-player-card--self')
-    return classes
-}
-
-function phaseTitleByStatus(status) {
-    if (status === 'round1') return '第一輪開始'
-    if (status === 'round1-result') return '第一輪作答'
-    if (status === 'round2') return '第二輪開始'
-    if (status === 'round2-result') return '第二輪作答'
-    if (status === 'revealing') return '答案揭曉'
-    if (status === 'finished') return '本局結束'
-    return '階段切換'
-}
-
-function phaseDescByStatus(status) {
-    if (status === 'round1') return '提示者請輸入第一輪線索'
-    if (status === 'round1-result') return '猜題者請根據第一輪線索作答'
-    if (status === 'round2') return '提示者請輸入第二輪線索'
-    if (status === 'round2-result') return '猜題者請根據兩輪線索完成最終作答'
-    if (status === 'revealing') return '檢視答案與 A/B 判定結果'
-    if (status === 'finished') return '房主可選擇繼續或結束遊戲'
-    return ''
-}
-
-function phaseSoundKeyByStatus(status) {
-    if (status === 'round1') return 'phase-round1-start'
-    if (status === 'round1-result') return 'phase-round1-answer'
-    if (status === 'round2') return 'phase-round2-start'
-    if (status === 'round2-result') return 'phase-round2-answer'
-    if (status === 'revealing') return 'phase-reveal'
-    if (status === 'finished') return 'phase-finished'
-    return ''
-}
-
-// Audio hook reserved for future SFX manager.
-// Example usage: window.addEventListener('character-storm:phase-cue', (e) => playSfx(e.detail.cue))
+// 所有階段切換都會發出事件，音效管理器可監聽 character-storm:phase-cue
 function triggerPhaseCue(status) {
-    const cue = phaseSoundKeyByStatus(status)
+    const cue = phaseCueKey(status)
     if (!cue || typeof window === 'undefined') return
 
     window.dispatchEvent(new CustomEvent('character-storm:phase-cue', {
-        detail: {
-            cue,
-            status,
-            roomId: roomState.roomId,
-            at: Date.now(),
-        },
+        detail: { cue, status, roomId: roomState.roomId, at: Date.now() },
     }))
 }
 
@@ -1184,13 +746,6 @@ function triggerPhaseCue(status) {
 function handleStartGame() {
     playSfx('click')
     startGame()
-}
-
-// 注音／拼音等輸入法選字時的 Enter 只是確認組字，不可當成送出（Mac Safari 的 keyCode 為 229）
-function onEnterSubmit(e, submit) {
-    if (e.isComposing || e.keyCode === 229) return
-    e.preventDefault()
-    submit()
 }
 
 function handleSubmitHint() {
@@ -1219,10 +774,10 @@ function handleSubmitHint() {
     hintError.value = ''
 }
 
-function handleSubmitGuess() {
+function handleSubmitGuess(domValue) {
     if (guessSubmitted.value) return
-    // 以 input 實際內容為準，避免輸入法組字期間 v-model 尚未同步
-    if (guessInputRef.value) guessInput.value = guessInputRef.value.value
+    // 子元件傳來 input 實際內容，避免輸入法組字期間 v-model 尚未同步
+    if (typeof domValue === 'string') guessInput.value = domValue
     const ans = guessInput.value.trim()
     submitGuess(ans)   // 允許空白（時間到自動交卷）
     guessSubmitted.value = true
@@ -1330,6 +885,7 @@ onUnmounted(() => {
     clearTimeout(_phaseFlashTimer)
     clearTimeout(_resultCardTimer)
     clearTimeout(_fxTimer)
+    pendingFlash = null
     stopSfx()
     // 不強制斷線（讓重連機制生效），頁面 push 回大廳時才斷
 })
