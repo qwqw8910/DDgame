@@ -224,7 +224,7 @@ function findNextGuesserIndex(game, roomCache, roomId) {
 }
 
 // ── 核心：處理一輪提示 ────────────────────────────────────────────
-async function processRoundHints(ns, roomId, game, isRound2) {
+async function processRoundHints(ns, roomId, game, isRound2, roomCache) {
   clearTimer(game);
   const hintRecord = isRound2 ? game.round2Hints : game.round1Hints;
   const providers  = game.players.filter(p => p.role !== 'guesser');
@@ -258,6 +258,38 @@ async function processRoundHints(ns, roomId, game, isRound2) {
       sock.emit(eventName, { hints: forGuesser, hintsProvider: forProvider, symbolMap, isRound2, wordLength });
     }
   }
+
+  // 作答也有伺服器端倒數（前端 90 秒 + 3 秒寬限）；猜題者斷線或卡住時代交空白，避免全房卡死
+  const expectedPhase = game.roundPhase;
+  game.timerRemaining = TIMER_SECONDS;
+  game._timerHandle = setTimeout(() => {
+    game._timerHandle = null;
+    if (game.roundPhase === expectedPhase) resolveGuess(ns, roomCache, roomId, game, '');
+  }, (TIMER_SECONDS + 3) * 1000);
+}
+
+// ── 核心：結算一次猜題（猜題者送出，或伺服器端逾時代交空白）──────
+function resolveGuess(ns, roomCache, roomId, game, answer) {
+  // 只有作答階段才接受答案，避免提示階段提早猜或重複結算
+  if (!['round1-result', 'round2-result'].includes(game.roundPhase)) return;
+
+  const isRound2 = game.roundPhase === 'round2-result';
+  const trimmed  = (answer ?? '').trim();
+  const correct  = trimmed === game.currentWord?.word;
+  const ab       = calculateAB(game.currentWord?.word ?? '', trimmed);
+
+  game.roundPhase = 'revealing';
+  clearTimer(game);
+
+  const shouldRevealWord = correct || isRound2;
+  ns.to(roomId).emit('cs:guess-result', {
+    correct, answer: trimmed,
+    word:      shouldRevealWord ? game.currentWord?.word  : null,
+    author:    shouldRevealWord ? game.currentWord?.author : null,
+    wasRound2: isRound2, a: ab.a, b: ab.b,
+  });
+
+  if (!correct && !isRound2) setTimeout(() => startRound2(ns, roomCache, roomId, game), 2000);
 }
 
 // ── 核心：開始新一輪（新猜題者）─────────────────────────────────
@@ -314,7 +346,7 @@ async function startNewGuesserRound(ns, DB, roomCache, roomId, game) {
   }
 
   startTimer(ns, roomId, game, async () => {
-    await processRoundHints(ns, roomId, game, false);
+    await processRoundHints(ns, roomId, game, false, roomCache);
   });
 }
 
@@ -345,7 +377,7 @@ async function startRound2(ns, roomCache, roomId, game) {
   }
 
   startTimer(ns, roomId, game, async () => {
-    await processRoundHints(ns, roomId, game, true);
+    await processRoundHints(ns, roomId, game, true, roomCache);
   });
 }
 
@@ -362,7 +394,7 @@ function registerNamespace(io, db) {
 
   const hooks = {
     appId:      'character-storm',
-    minPlayers: 2, // TODO: 正式上線改回 4
+    minPlayers: 2,
 
     canJoinAsPlayer(roomId) {
       const game = getGame(roomId);
@@ -505,7 +537,7 @@ function registerNamespace(io, db) {
         const activeProviders = game.players.filter(pp =>
           pp.role !== 'guesser' && isOnline(_roomCache, roomId, pp.id));
         if (activeProviders.length > 0 && activeProviders.every(pp => hintRecord[pp.id])) {
-          processRoundHints(ns, roomId, game, isRound2).catch(console.error);
+          processRoundHints(ns, roomId, game, isRound2, _roomCache).catch(console.error);
         }
       }
     },
@@ -601,7 +633,7 @@ function registerNamespace(io, db) {
         const providers = game.players.filter(p =>
           p.role !== 'guesser' && isOnline(_roomCache, roomId, p.id));
         if (providers.every(p => hintRecord[p.id])) {
-          await processRoundHints(ns, roomId, game, isRound2);
+          await processRoundHints(ns, roomId, game, isRound2, _roomCache);
         }
       } catch (err) {
         console.error('[CS cs:submit-hint]', err.message);
@@ -618,24 +650,7 @@ function registerNamespace(io, db) {
         if (!game) return;
         const guesser = getCurrentGuesser(game);
         if (!guesser || guesser.id !== playerId) return;
-
-        const isRound2 = game.roundPhase === 'round2-result';
-        const trimmed  = (answer ?? '').trim();
-        const correct  = trimmed === game.currentWord?.word;
-        const ab       = calculateAB(game.currentWord?.word ?? '', trimmed);
-
-        game.roundPhase = 'revealing';
-        clearTimer(game);
-
-        const shouldRevealWord = correct || isRound2;
-        ns.to(roomId).emit('cs:guess-result', {
-          correct, answer: trimmed,
-          word:      shouldRevealWord ? game.currentWord?.word  : null,
-          author:    shouldRevealWord ? game.currentWord?.author : null,
-          wasRound2: isRound2, a: ab.a, b: ab.b,
-        });
-
-        if (!correct && !isRound2) setTimeout(() => startRound2(ns, _roomCache, roomId, game), 2000);
+        resolveGuess(ns, _roomCache, roomId, game, answer);
       } catch (err) {
         console.error('[CS cs:submit-guess]', err.message);
       }

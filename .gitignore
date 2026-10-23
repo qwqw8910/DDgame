@@ -27,3 +27,6 @@ Thumbs.db
 
 # UI/UX Pro Max Skill（本機安裝，不提交）
 .github/prompts/
+
+# 本機匯出資料（不提交）
+local-data/

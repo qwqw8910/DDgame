@@ -12,6 +12,7 @@
 @theme {
   --font-sans: 'Poppins', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'Source Code Pro', 'SF Mono', monospace;
+  --font-serif-tc: 'Noto Serif TC', 'Songti TC', serif;
 
   --color-neon-rose: #E11D48;
   --color-neon-rose-hover: #BE123C;
@@ -181,6 +182,8 @@
 /* ================================================================
    Keyframes
    ================================================================ */
+@keyframes pcard-in { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes candy-in { from { opacity: 0; transform: rotate(-40deg) scale(.5); } to { opacity: 1; transform: rotate(-12deg) scale(1); } }
 @keyframes countdown-pop {
   0% { transform: scale(0.5); opacity: 0; }
   60% { transform: scale(1.2); }
@@ -1290,50 +1293,29 @@
     animation: dot-bounce 0.9s ease-in-out infinite both;
   }
 
-  /* ── Portal: ToolCard ── */
-  .tool-card {
-    @apply relative flex flex-col gap-3 rounded-2xl cursor-pointer no-underline text-inherit overflow-hidden backdrop-blur-md transition-[transform,box-shadow,border-color] duration-200;
-    padding: 28px 24px 24px;
-    background: var(--color-card);
-    border: 1px solid var(--color-border);
+  /* ── Portal（首頁）：糖果口味色 + 莓果夜／糖紙底色。只作用在 .portal，不影響各遊戲 ── */
+  .portal {
+    --p-berry: #ff6b81; --p-grape: #a58bff; --p-blue: #6fa8ff; --p-mint: #4fd8b4; --p-orange: #ffa24d; --p-lemon: #ffd84d;
+    --p-paper: #fff3e8; --p-surface: #2a1830; --p-ink: #fff3e8; --p-ink-soft: #d9c4cf;
+    color: var(--p-ink);
+    background-color: #1c0f22;
+    background-image:
+      radial-gradient(circle at 12% 18%, rgba(255,107,129,.10) 0 3px, transparent 4px),
+      radial-gradient(circle at 78% 32%, rgba(255,216,77,.09) 0 3px, transparent 4px),
+      radial-gradient(circle at 40% 72%, rgba(79,216,180,.08) 0 3px, transparent 4px),
+      radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255,107,129,.16), transparent 70%);
+    background-size: 120px 120px, 160px 160px, 140px 140px, 100% 100%;
   }
-  .tool-card:not(.tool-card--disabled):hover { @apply -translate-y-1; }
-  .tool-card--disabled { @apply cursor-default opacity-65; }
-
-  .tool-card--purple { border-color: rgba(139,92,246,0.2); }
-  .tool-card--purple:hover { border-color: rgba(139,92,246,0.5); box-shadow: 0 8px 32px rgba(139,92,246,0.2); }
-  .tool-card--purple .tool-card__icon { background: rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.25); }
-
-  .tool-card--rose { border-color: rgba(225,29,72,0.2); }
-  .tool-card--rose:hover { border-color: rgba(225,29,72,0.5); box-shadow: 0 8px 32px rgba(225,29,72,0.2); }
-  .tool-card--rose .tool-card__icon { background: rgba(225,29,72,0.12); border-color: rgba(225,29,72,0.25); }
-
-  .tool-card--blue { border-color: rgba(59,130,246,0.2); }
-  .tool-card--blue:hover { border-color: rgba(59,130,246,0.5); box-shadow: 0 8px 32px rgba(59,130,246,0.2); }
-  .tool-card--blue .tool-card__icon { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.25); }
-
-  .tool-card--cyan { border-color: rgba(6,182,212,0.2); }
-  .tool-card--cyan:hover { border-color: rgba(6,182,212,0.5); box-shadow: 0 8px 32px rgba(6,182,212,0.2); }
-  .tool-card--cyan .tool-card__icon { background: rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.25); }
-
-  .tool-card--orange { border-color: rgba(251,191,36,0.2); }
-  .tool-card--orange:hover { border-color: rgba(251,191,36,0.5); box-shadow: 0 8px 32px rgba(251,191,36,0.2); }
-  .tool-card--orange .tool-card__icon { background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.25); }
-
-  .tool-card__badge {
-    @apply absolute text-[11px] font-semibold [letter-spacing:0.5px] rounded-[20px];
-    top: 16px; right: 16px; padding: 3px 10px;
+  .portal--light {
+    --p-berry: #e8405c; --p-grape: #7c5cf0; --p-blue: #3b82f6; --p-mint: #14a98a; --p-orange: #f2750f; --p-lemon: #ffd23f;
+    --p-paper: #fff7f0; --p-surface: #fffaf5; --p-ink: #3a1d2c; --p-ink-soft: #6b4a5a;
+    background-color: #fff1ea;
+    background-image:
+      radial-gradient(circle at 12% 18%, rgba(232,64,92,.10) 0 3px, transparent 4px),
+      radial-gradient(circle at 78% 32%, rgba(242,117,15,.10) 0 3px, transparent 4px),
+      radial-gradient(circle at 40% 72%, rgba(20,169,138,.09) 0 3px, transparent 4px),
+      radial-gradient(ellipse 70% 40% at 50% 0%, rgba(232,64,92,.12), transparent 70%);
   }
-  .tool-card__badge--coming-soon { background: rgba(100,116,139,0.18); color: var(--color-body); border: 1px solid rgba(100,116,139,0.2); }
-  .tool-card__badge--beta { background: rgba(251,191,36,0.15); color: var(--color-lemon); border: 1px solid rgba(251,191,36,0.25); }
-
-  .tool-card__icon { @apply w-14 h-14 rounded-xl border flex items-center justify-center text-[28px] shrink-0; }
-  .tool-card__name { @apply text-xl m-0 mb-1 leading-tight; color: var(--color-heading); }
-  .tool-card__tagline { @apply text-[13px] m-0 mb-2 font-medium [letter-spacing:0.3px]; color: var(--color-neon-purple-light); }
-  .tool-card__desc { @apply text-sm m-0 leading-relaxed [white-space:pre-line]; color: var(--color-body); }
-  .tool-card__body { @apply flex-1; }
-  .tool-card__arrow { @apply text-lg self-end transition-[transform,color] duration-200; color: var(--color-label); }
-  .tool-card:hover .tool-card__arrow { @apply translate-x-1; color: var(--color-heading); }
 
   /* 山中別館：固定深色背景（底色 + 暈影 + 平鋪花紋）。
      容器本身就是捲動區（h-[100dvh] overflow-y-auto），背景不會隨內容捲動，不需要 background-attachment: fixed（iOS Safari 不穩） */

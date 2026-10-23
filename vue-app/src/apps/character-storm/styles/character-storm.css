@@ -647,3 +647,29 @@
   .cs-confetti { display: none; }
   .cs-scope .cs-banner__stripe { animation: none !important; }
 }
+
+/* ================================================================
+   版面細修：遊戲畫面
+   ================================================================ */
+
+/* 4 人以下只有 3 張提示者卡 + 1 張猜題者卡，用 2 欄排成 2×2，避免第二列孤零零一張 */
+@media (min-width: 641px) {
+  .cs-scope .cs-players-grid--quad { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* 手機：題目與玩家卡片必須第一眼就在畫面內。
+   玩家列表與卡片內容重複（卡片已顯示出牌/作答狀態），隱藏；階段卡與退出鈕併成一列 */
+@media (max-width: 640px) {
+  .cs-scope .cs-player-list-card { display: none; }
+  .cs-scope .cs-left-panel {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .cs-scope .cs-left-panel > div[style*="flex:1"] { display: none; }
+  .cs-scope .cs-phase-card { flex: 1; min-width: 0; padding: 8px 12px !important; }
+  .cs-scope .cs-phase-card .cs-phase-title { font-size: 16px; margin: 0; white-space: nowrap; }
+  .cs-scope .cs-phase-card .cs-phase-progress { font-size: 13px; margin: 2px 0 0; }
+  .cs-scope .cs-exit-btn { width: auto; flex: none; margin: 0; padding: 8px 14px; min-height: 0; font-size: 14px; white-space: nowrap; box-shadow: none; }
+}
