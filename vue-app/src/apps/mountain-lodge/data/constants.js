@@ -12,6 +12,8 @@ const IMG = `${import.meta.env.BASE_URL}mountain-lodge/`
 export const CARD_BACK_IMG = `${IMG}cards/card-back.webp`
 export const BANNER_IMG = `${IMG}bg/banner.webp`
 export const PATTERN_BG_IMG = `${IMG}bg/pattern.webp`
+export const LOBBY_BANNER_IMG = `${IMG}bg/lobby-banner.webp`
+export const LOBBY_TEXTURE_IMGS = [1, 2, 3].map(n => `${IMG}bg/lobby-texture-${n}.webp`)
 
 // 玩家可分配的 6 個地點
 export const LOCATIONS = {
