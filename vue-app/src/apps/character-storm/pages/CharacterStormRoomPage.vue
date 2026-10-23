@@ -182,26 +182,11 @@
                             <!-- 提示者 / 揭曉：字牌依序翻開 -->
                             <div v-else :key="`word-${state.currentWord?.word ?? ''}`" class="cs-question-tiles">
                                 <template v-if="state.currentWord?.word">
-                                    <!-- 猜題者：「？」牌依序翻面揭曉 -->
-                                    <template v-if="state.isGuesser">
-                                        <button v-for="(c, i) in [...state.currentWord.word]" :key="i" type="button"
-                                            class="cs-tile cs-tile--lg cs-flipcard"
-                                            :class="{ 'is-flipped': flippedTiles.includes(i) }"
-                                            :aria-label="flippedTiles.includes(i) ? c : '點擊翻牌'"
-                                            @click="flipTile(i)">
-                                            <span class="cs-flipcard__back">?</span>
-                                            <span class="cs-flipcard__front">{{ c }}</span>
-                                        </button>
-                                    </template>
-                                    <template v-else>
-                                        <span v-for="(c, i) in [...state.currentWord.word]" :key="i"
-                                            class="cs-tile cs-tile--lg cs-tile--flip" :style="{ '--i': i }">{{ c }}</span>
-                                    </template>
+                                    <span v-for="(c, i) in [...state.currentWord.word]" :key="i"
+                                        class="cs-tile cs-tile--lg cs-tile--flip" :style="{ '--i': i }">{{ c }}</span>
                                 </template>
                                 <span v-else class="cs-tile cs-tile--lg cs-tile--back">?</span>
                             </div>
-                            <p v-if="state.isGuesser && state.status === 'revealing' && state.currentWord?.word && flippedTiles.length < [...state.currentWord.word].length"
-                                class="cs-question-sub">👆 點擊字牌翻開答案</p>
                         </div>
 
                         <!-- 右上：倒數計時環 -->
@@ -315,8 +300,17 @@
                                     <p class="cs-round-label">ROUND {{ r.round }}</p>
                                     <TransitionGroup v-if="r.get(p.id).length" appear name="hint-char" tag="div"
                                         class="hint-chars-wrap">
-                                        <span v-for="(c, i) in r.get(p.id)" :key="i" :class="hintTileClass(c)"
-                                            :style="{ '--i': i, '--tok': c.tok }" :data-symbol="c.symbol">{{ c.char }}</span>
+                                        <span v-for="(c, i) in r.get(p.id)" :key="i"
+                                            :class="[hintTileClass(c), { 'cs-flipcard': canFlipHint(c), 'is-flipped': isHintFlipped(p.id, r.round, i) }]"
+                                            :style="{ '--i': i, '--tok': c.tok }" :data-symbol="c.symbol"
+                                            :title="canFlipHint(c) && !isHintFlipped(p.id, r.round, i) ? '點擊翻開被擋住的字' : undefined"
+                                            @click="canFlipHint(c) && flipHint(p.id, r.round, i)">
+                                            <template v-if="canFlipHint(c)">
+                                                <span class="cs-flipcard__back">{{ c.char }}</span>
+                                                <span class="cs-flipcard__front">{{ c.real }}</span>
+                                            </template>
+                                            <template v-else>{{ c.char }}</template>
+                                        </span>
                                     </TransitionGroup>
                                     <div v-else class="cs-hint-placeholder">
                                         <template v-if="state.status === r.hintStatus">
@@ -770,12 +764,16 @@ watch(() => state.status, (val) => {
     }
 })
 
-// 猜題者揭曉時手動翻牌
-const flippedTiles = ref([])
-function flipTile(i) {
-    if (!flippedTiles.value.includes(i)) flippedTiles.value.push(i)
+// 猜題者揭曉時：點擊被符號擋住的提示字牌，翻開原字
+const flippedHints = ref([])
+const hintKey = (pid, round, i) => `${pid}:${round}:${i}`
+const canFlipHint = c => state.isGuesser && state.status === 'revealing' && !!c.isSymbol && !!c.real
+const isHintFlipped = (pid, round, i) => flippedHints.value.includes(hintKey(pid, round, i))
+function flipHint(pid, round, i) {
+    const k = hintKey(pid, round, i)
+    if (!flippedHints.value.includes(k)) flippedHints.value.push(k)
 }
-watch(() => state.status, (s) => { if (s !== 'revealing') flippedTiles.value = [] })
+watch(() => state.status, (s) => { if (s !== 'revealing') flippedHints.value = [] })
 
 watch(() => state.status, (nextStatus, prevStatus) => {
     if (!prevStatus || prevStatus === nextStatus) return
@@ -983,8 +981,15 @@ watch(activeTimer, (v, old) => {
 })
 
 // ── 玩家頭像牌 ────────────────────────────────────────────────────
-const AVATAR_COLORS = ['#06B6D4', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#3B82F6', '#EF4444', '#14B8A6', '#F97316', '#6366F1']
+// 12 種色相明顯不同的顏色，順序刻意讓相鄰座位色差最大
+const AVATAR_COLORS = [
+    '#EF4444', '#06B6D4', '#EAB308', '#8B5CF6', '#10B981', '#EC4899',
+    '#3B82F6', '#F97316', '#84CC16', '#D946EF', '#92400E', '#6366F1',
+]
 function playerColor(id) {
+    // 依座位順序取色，同房間內不會撞色；找不到座位時退回雜湊
+    const idx = playersWithRoles.value.findIndex(p => p.id === id)
+    if (idx >= 0) return AVATAR_COLORS[idx % AVATAR_COLORS.length]
     let h = 0
     for (const ch of String(id ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0
     return AVATAR_COLORS[h % AVATAR_COLORS.length]
@@ -1003,13 +1008,17 @@ const emptySeats = computed(() => {
 const SYMBOL_COLORS = {
     '●': '#06B6D4', '▲': '#F59E0B', '■': '#A855F7', '◆': '#EC4899',
     '★': '#22C55E', '✖': '#EF4444', '✚': '#F97316', '⬢': '#6366F1',
+    '♥': '#E11D48', '♠': '#475569', '☀': '#EAB308', '☾': '#0EA5E9',
+    '✿': '#D946EF', '⬟': '#84CC16', '✦': '#14B8A6', '▼': '#B45309',
 }
 // 取得某玩家提示的 chars 陣列（含符號顏色 tok）
 function getPlayerHintChars(hints, hintsProvider, pid) {
     if (state.isGuesser) {
         const text = hints.find(h => h.playerId === pid)?.maskedText ?? ''
+        const realBySymbol = Object.fromEntries(Object.entries(state.symbolMap ?? {}).map(([ch, s]) => [s, ch]))
         return [...text].map(c => ({
             char: c,
+            real: realBySymbol[c],
             tok: SYMBOL_COLORS[c],
             isSymbol: !!SYMBOL_COLORS[c],
         }))

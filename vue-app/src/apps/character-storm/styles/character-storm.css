@@ -199,7 +199,7 @@
 .cs-flipcard:not(.is-flipped) { animation: cs-tile-pop 0.3s backwards, cs-flipcard-hint 1.6s ease-in-out 0.5s infinite; }
 .cs-flipcard.is-flipped { transform: perspective(600px) rotateY(180deg); cursor: default; animation: none; }
 .cs-flipcard__back, .cs-flipcard__front { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.cs-flipcard__front { position: absolute; inset: 0; display: grid; place-items: center; transform: rotateY(180deg); }
+.cs-flipcard__front { position: absolute; inset: 0; display: grid; place-items: center; transform: rotateY(180deg); font-size: calc(var(--size) * 0.6); }
 @keyframes cs-flipcard-hint {
   0%, 100% { filter: none; }
   50%      { filter: brightness(1.25); }
