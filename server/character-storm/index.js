@@ -475,7 +475,25 @@ function registerNamespace(io, db) {
       if (reason === 'disconnect') {
         p.socketId = null;
       } else {
+        const leftIndex = game.players.findIndex(pp => pp.id === playerId);
         game.players = game.players.filter(p => p.id !== playerId);
+        // players 陣列縮短後，currentGuesserIndex 必須跟著位移，否則猜題者會變成別人
+        if (leftIndex !== -1 && leftIndex <= game.currentGuesserIndex) {
+          game.currentGuesserIndex -= 1;
+        }
+        if (leftIndex !== -1 && leftIndex === game.currentGuesserIndex + 1
+            && ['round1', 'round1-result', 'round2', 'round2-result'].includes(game.roundPhase)
+            && p.role === 'guesser') {
+          // 猜題者本人離開 → 本題作廢，交給房主按「下一位」
+          clearTimer(game);
+          game.guesserLeft = true;
+          game.roundPhase  = 'revealing';
+          ns.to(roomId).emit('cs:guess-result', {
+            correct: false, answer: '', word: game.currentWord?.word ?? null,
+            author: game.currentWord?.author ?? null, wasRound2: true, a: 0, b: 0,
+          });
+          return;
+        }
       }
 
       // 房主轉移由統一房間模組處理
@@ -579,7 +597,9 @@ function registerNamespace(io, db) {
         const submittedIds = Object.keys(hintRecord);
         ns.to(roomId).emit('cs:hint-progress', { submittedIds });
 
-        const providers = game.players.filter(p => p.role !== 'guesser');
+        // 離線（含斷線房主殘影）的提示者不列入等待名單
+        const providers = game.players.filter(p =>
+          p.role !== 'guesser' && isOnline(_roomCache, roomId, p.id));
         if (providers.every(p => hintRecord[p.id])) {
           await processRoundHints(ns, roomId, game, isRound2);
         }
@@ -630,7 +650,8 @@ function registerNamespace(io, db) {
         if (!game || !isHost(_roomCache, roomId, playerId)) return;
         if (game.roundPhase !== 'revealing') return;
 
-        const prevGuesser = getCurrentGuesser(game);
+        const prevGuesser = game.guesserLeft ? null : getCurrentGuesser(game);
+        game.guesserLeft = false;
         if (prevGuesser) game.guesserHistory.push(prevGuesser.id);
 
         const nextIndex = findNextGuesserIndex(game, _roomCache, roomId);
