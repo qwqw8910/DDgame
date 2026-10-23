@@ -1,76 +1,86 @@
 <template>
-    <div class="lodge-bg relative h-[100dvh] overflow-x-hidden overflow-y-auto" :style="{ '--lodge-pattern': `url(${PATTERN_BG_IMG})` }">
-        <!-- 頂部橫幅：月夜木屋，底部淡出到背景色 -->
-        <div class="absolute top-0 inset-x-0 h-[48vh] min-h-[260px] pointer-events-none z-0 [mask-image:linear-gradient(to_bottom,black_55%,transparent)]" aria-hidden="true">
-            <img :src="BANNER_IMG" alt="" draggable="false" class="w-full h-full object-cover object-center" />
+    <div class="lobby-root relative h-[100dvh] overflow-x-hidden overflow-y-auto">
+        <!-- 背景（Figma 01_首頁）：#171717 底 + 山林橫幅（模糊、60%）+ 紙紋（20%） -->
+        <div class="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
+            <img :src="LOBBY_BANNER_IMG" alt="" draggable="false"
+                class="absolute top-0 left-0 h-[560px] w-full object-cover opacity-60 blur-[2px]" />
+            <!-- 下半部：三張紙紋快速輪流切換，營造顆粒閃動 -->
+            <div class="absolute inset-x-0 bottom-0 h-1/2 overflow-hidden">
+                <img v-for="(src, i) in LOBBY_TEXTURE_IMGS" :key="src" :src="src" alt="" draggable="false"
+                    class="texture-frame absolute inset-0 h-full w-full object-cover object-bottom"
+                    :style="{ animationDelay: `${i * 0.25}s` }" />
+            </div>
         </div>
 
-        <RouterLink to="/"
-            class="fixed top-4 left-4 z-50 flex items-center gap-1.5 text-[13px] font-medium no-underline px-3 py-1.5 rounded-lg border backdrop-blur-sm transition-colors duration-150 text-body border-border bg-card hover:text-heading hover:border-border-glow">
-            ← 甜甜的小秘密
-        </RouterLink>
+        <!-- 撕紙邊緣濾鏡：讓卡片外框呈現不規則的紙張毛邊 -->
+        <svg class="absolute w-0 h-0" aria-hidden="true" focusable="false">
+            <filter id="lodge-torn" x="-5%" y="-5%" width="110%" height="110%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="4" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+        </svg>
 
-        <div class="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-16">
-            <!-- Hero -->
-            <div class="animate-slide-up text-center mb-10">
-                <h1 class="neon-heading gradient-text text-[clamp(30px,7vw,46px)] m-0 mb-2 leading-[1.1]">
-                    山中別館殺人事件
-                </h1>
-                <p class="text-base font-medium mb-1 [letter-spacing:1px] text-label">傳牌 · 說謊 · 找出殺人魔</p>
-                <p class="text-[15px] text-body">{{ MIN_PLAYERS }} ～ {{ MAX_PLAYERS }} 人 · 自備語音（Discord / LINE）討論</p>
-            </div>
+        <!-- 頂欄（Figma 01_首頁）：左返回，右為說明按鈕 -->
+        <header class="lobby-topbar">
+            <RouterLink to="/" class="topbar-btn topbar-back">
+                <img :src="ARROW_LEFT_ICON" alt="" width="24" height="24" draggable="false" />
+                <span>甜甜的小秘密</span>
+            </RouterLink>
+            <nav class="flex items-center gap-1" aria-label="遊戲說明">
+                <button class="topbar-btn" @click="openGuide('roles')">角色介紹</button>
+                <button class="topbar-btn" @click="openGuide('rules')">遊戲規則</button>
+            </nav>
+        </header>
 
-            <div class="w-full max-w-[720px] grid gap-5 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
-                <!-- 建立房間（透過連結進來時隱藏） -->
-                <div v-if="!hasRoomFromUrl" class="game-card flex flex-col">
-                    <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl mb-4 [background:rgba(229,196,139,0.12)] [border:1px_solid_rgba(229,196,139,0.28)]">🏠</div>
-                    <h2 class="neon-heading text-xl mb-1.5 text-heading">建立新房間</h2>
-                    <p class="text-[15px] mb-[22px] text-body">邀請 {{ MIN_PLAYERS }} ～ {{ MAX_PLAYERS }} 位朋友加入</p>
-                    <div class="flex flex-col gap-3 flex-1 justify-end">
-                        <div class="input-wrapper">
-                            <span class="input-icon">😊</span>
-                            <input v-model="createNickname" ref="createNicknameRef" type="text" placeholder="你的暱稱"
-                                maxlength="12" class="game-input" @keydown.enter="handleCreateRoom" />
-                        </div>
-                        <div class="input-wrapper">
-                            <span class="input-icon">👥</span>
-                            <select v-model="maxPlayers" class="game-input pl-11 cursor-pointer" aria-label="房間人數上限">
-                                <option v-for="n in playerCounts" :key="n" :value="n">{{ n === 1 ? '1 人（單人試玩）' : `最多 ${n} 人` }}</option>
-                            </select>
-                        </div>
-                        <button class="btn-primary" @click="handleCreateRoom">建立房間</button>
+        <LodgeGuideModal v-model="showGuide" :initial-tab="guideTab" />
+
+        <div class="relative z-10 min-h-full flex flex-col items-center justify-center px-5 pb-16 pt-24 sm:px-20">
+            <div class="flex w-full max-w-[800px] flex-col items-center gap-12">
+                <!-- Hero -->
+                <div class="animate-slide-up flex w-full flex-col items-center gap-4 text-center">
+                    <h1 class="lobby-title m-0">山中別館殺人事件</h1>
+                    <div class="lobby-lead">
+                        <p><b class="text-[#ee5353]">殺人魔</b>就在賓客之中！</p>
+                        <p><b class="text-white">說謊</b>是規則的一部分 ——</p>
+                        <p>看牌、傳牌、目擊情報，殺人魔究竟在哪個「<b class="text-white">地點</b>」？</p>
+                        <p>把最<b class="text-white underline">可疑的人</b>關進鍋爐室，努力活下去吧。</p>
                     </div>
                 </div>
 
-                <!-- 加入房間 -->
-                <div class="game-card flex flex-col">
-                    <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl mb-4 [background:rgba(6,182,212,0.12)] [border:1px_solid_rgba(6,182,212,0.25)]">🔑</div>
-                    <h2 class="neon-heading text-xl mb-1.5 text-heading">加入房間</h2>
-                    <p class="text-[15px] mb-[22px] text-body">
-                        {{ hasRoomFromUrl ? `房間碼：${joinCode}` : '輸入朋友分享的房間碼' }}
-                    </p>
-                    <div class="flex flex-col gap-3 flex-1 justify-end">
-                        <div v-if="!hasRoomFromUrl" class="input-wrapper">
-                            <input v-model="joinCode" type="text" placeholder="房間碼（6碼）" maxlength="6"
-                                class="game-input text-center [letter-spacing:6px] text-base font-semibold px-0"
-                                @input="joinCode = joinCode.toUpperCase()" @keydown.enter="joinNicknameRef?.focus()" />
+                <div class="grid w-full gap-8 sm:gap-4" :class="hasRoomFromUrl ? 'sm:max-w-[392px]' : 'sm:grid-cols-2'">
+                    <!-- 建立房間（透過連結進來時隱藏） -->
+                    <section v-if="!hasRoomFromUrl" class="paper-card">
+                        <h2 class="paper-tab">建立新房間</h2>
+                        <div class="paper-body">
+                            <p class="paper-text">山莊最多可同時接納 {{ MAX_PLAYERS }} 位房客加入。</p>
+                            <div class="paper-fields">
+                                <input v-model="createNickname" ref="createNicknameRef" type="text" placeholder="您的名稱（限8個字）"
+                                    maxlength="8" class="paper-input" @keydown.enter="handleCreateRoom" />
+                                <select v-model="maxPlayers" class="paper-input paper-select" aria-label="房間人數上限">
+                                    <option v-for="n in playerCounts" :key="n" :value="n">{{ n === 1 ? '1 人（單人試玩）' : `${n}人房` }}</option>
+                                </select>
+                            </div>
+                            <button class="paper-btn" @click="handleCreateRoom">建立房間</button>
                         </div>
-                        <div class="input-wrapper">
-                            <span class="input-icon">😊</span>
-                            <input v-model="joinNickname" ref="joinNicknameRef" type="text" placeholder="你的暱稱"
-                                maxlength="12" class="game-input" @keydown.enter="handleJoinRoom" />
-                        </div>
-                        <button class="btn-secondary" @click="handleJoinRoom">加入房間</button>
-                    </div>
-                </div>
-            </div>
+                    </section>
 
-            <div class="mt-8 text-center max-w-[520px]">
-                <p class="text-[13px] opacity-70 leading-[1.8] text-body">
-                    殺人魔就在賓客之中！看牌、傳牌、聽目擊情報，<br>
-                    大家投給「地點」，把最可疑的人關進鍋爐室。<br>
-                    說謊是規則的一部分 —— 系統只保證牌的真實狀態不外洩。
-                </p>
+                    <!-- 加入房間 -->
+                    <section class="paper-card">
+                        <h2 class="paper-tab">加入房間</h2>
+                        <div class="paper-body">
+                            <p class="paper-text">
+                                {{ hasRoomFromUrl ? `房號：${joinCode}` : '前往朋友的房間。' }}
+                            </p>
+                            <div class="paper-fields">
+                                <input v-model="joinNickname" ref="joinNicknameRef" type="text" placeholder="您的名稱（限8個字）"
+                                    maxlength="8" class="paper-input" @keydown.enter="handleJoinRoom" />
+                                <input v-if="!hasRoomFromUrl" v-model="joinCode" type="text" placeholder="請輸入房號（6碼）" maxlength="6"
+                                    class="paper-input" @input="joinCode = joinCode.toUpperCase()" @keydown.enter="joinNicknameRef?.focus()" />
+                            </div>
+                            <button class="paper-btn" @click="handleJoinRoom">前往房間</button>
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
 
@@ -84,10 +94,20 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '@/shared/data/identity.js'
-import { MIN_PLAYERS, MAX_PLAYERS, BANNER_IMG, PATTERN_BG_IMG } from '../data/constants.js'
+import { MIN_PLAYERS, MAX_PLAYERS, LOBBY_BANNER_IMG, LOBBY_TEXTURE_IMGS } from '../data/constants.js'
 import { useLodgeDarkTheme } from '../composables/useLodgeDarkTheme.js'
+import LodgeGuideModal from '../components/LodgeGuideModal.vue'
+
+const ARROW_LEFT_ICON = `${import.meta.env.BASE_URL}mountain-lodge/icons/arrow-left.svg`
 
 const router = useRouter()
+
+const showGuide = ref(false)
+const guideTab = ref('story')
+function openGuide(tab) {
+    guideTab.value = tab
+    showGuide.value = true
+}
 const playerCounts = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, i) => MIN_PLAYERS + i)
 
 useLodgeDarkTheme()
@@ -110,7 +130,7 @@ function showToast(msg, type = '', duration = 3000) {
 
 onMounted(() => {
     const saved = getSavedNickname()
-    if (saved) { createNickname.value = saved; joinNickname.value = saved }
+    if (saved) { createNickname.value = saved.slice(0, 8); joinNickname.value = saved.slice(0, 8) }
 
     // 分享連結：#/mountain-lodge?room=XXXXXX
     const hash = window.location.hash
@@ -149,3 +169,156 @@ function handleJoinRoom() {
     router.push({ name: 'mountain-lodge-room', query: { id: code, nickname } })
 }
 </script>
+
+<style scoped>
+/* 對應 Figma「01_首頁」(node 28:122)：深黑紙紋底、白字紅暈標題、米白撕紙卡片 */
+.lobby-root { background-color: #171717; }
+
+.lobby-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 72px;
+    padding: 0 24px;
+}
+.topbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 36px;
+    padding: 0 12px;
+    background: #212121;
+    border: 1px solid #676767;
+    color: #fff;
+    font-family: 'Noto Serif TC', 'Songti TC', serif;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+.topbar-btn:hover { background: #2c2c2c; border-color: #9a9a9a; }
+.topbar-back { height: 40px; padding: 0 12px 0 8px; font-weight: 400; }
+@media (max-width: 480px) {
+    .lobby-topbar { padding: 0 12px; }
+}
+
+/* 3 張依序硬切（無淡入淡出），每張亮 0.25s、週期 0.75s，像膠片顆粒閃動；20% 對應 Figma 材質透明度 */
+.texture-frame { opacity: 0; animation: texture-cycle 0.75s step-end infinite; }
+@keyframes texture-cycle {
+    0%        { opacity: 0.2; }
+    33.333%   { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .texture-frame { animation: none; }
+    .texture-frame:first-child { opacity: 0.2; }
+}
+
+.lobby-title {
+    font-family: 'Noto Serif TC', 'Songti TC', serif;
+    font-weight: 600;
+    font-size: clamp(30px, 8vw, 48px);
+    letter-spacing: 0.08em;
+    line-height: normal;
+    color: #fff;
+    text-shadow: 0 0 24px #892f2f;
+}
+
+.lobby-lead {
+    font-family: 'Noto Serif TC', 'Songti TC', serif;
+    font-size: clamp(15px, 4vw, 18px);
+    line-height: 1.4;
+    color: #e2e2e2;
+    text-shadow: 0 0 8px #892f2f;
+}
+.lobby-lead b { font-weight: 600; }
+
+.paper-card {
+    position: relative;
+    isolation: isolate;
+    font-family: 'Noto Serif TC', 'Songti TC', serif;
+    color: #3c3c3c;
+}
+/* 紙張底：套用撕紙濾鏡，文字與輸入框不受影響 */
+.paper-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: #dddad7;
+    filter: url(#lodge-torn);
+}
+
+.paper-tab {
+    position: absolute;
+    top: -15px;
+    left: 16px;
+    z-index: 1;
+    margin: 0;
+    padding: 8px 12px;
+    background: #eee;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: #3c3c3c;
+    white-space: nowrap;
+    line-height: normal;
+}
+
+.paper-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 40px 24px 24px;
+}
+.paper-text { margin: 0; font-size: 14px; line-height: normal; }
+.paper-fields { display: flex; flex-direction: column; gap: 8px; }
+
+.paper-input {
+    box-sizing: border-box;
+    width: 100%;
+    height: 42px;
+    padding: 4px 12px;
+    background: #eee;
+    border: 1px solid #d0cac4;
+    border-radius: 0;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: #3c3c3c;
+    outline: none;
+    box-shadow: none;
+}
+.paper-input::placeholder { color: #a5a5a5; font-weight: 500; }
+.paper-input:focus { border-color: #3c3c3c; box-shadow: none; }
+
+.paper-select {
+    appearance: none;
+    cursor: pointer;
+    padding-right: 36px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z' fill='%233c3c3c'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+
+.paper-btn {
+    padding: 8px 12px;
+    background: #212121;
+    border: 0;
+    border-radius: 0;
+    font-family: inherit;
+    font-size: 16px;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+.paper-btn:hover { background: #333; }
+.paper-btn:active { background: #000; }
+</style>
