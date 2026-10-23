@@ -2,6 +2,9 @@
     <GameGuideModal :model-value="modelValue" title="📖 默契字囊團玩法說明"
         @update:model-value="emit('update:modelValue', $event)">
 
+        <img class="cs-guide-img" :src="guideImg" width="1536" height="1024" loading="lazy"
+            alt="範例：題目「西瓜」，提示者寫下「夏、甜、甜、紅」，兩個重複的「甜」對猜題者變成符號，猜題者只看到「夏、●、●、紅」" />
+
         <GameGuideSection title="🎯 遊戲目標">
             <p>每回合一人擔任<b>猜題者</b>，其他人是<b>提示者</b>。提示者用有限的中文字給線索，猜題者要猜出「題目」是什麼詞。</p>
             <p>提示者看得到題目，猜題者看不到（只知道字數）。全員輪流當一次猜題者，一局結束。</p>
@@ -84,6 +87,8 @@ import GameGuideSection from '@/shared/components/GameGuideSection.vue'
 defineProps({ modelValue: { type: Boolean, default: false } })
 const emit = defineEmits(['update:modelValue'])
 
+const guideImg = `${import.meta.env.BASE_URL}character-storm/guide-example.png`
+
 // 對應 server/character-storm/roleAssign.js 的 ROLE_TABLE
 const roleRows = [
     { total: 4, c2: 2, c4: 1, c6: 0 },
@@ -92,3 +97,12 @@ const roleRows = [
     { total: 7, c2: 2, c4: 2, c6: 2 },
 ]
 </script>
+
+<style scoped>
+.cs-guide-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+}
+</style>
