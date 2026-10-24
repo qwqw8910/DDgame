@@ -13,6 +13,9 @@ import ClocktowerLobbyPage         from '../apps/clocktower/pages/ClocktowerLobb
 import ClocktowerRoomPage          from '../apps/clocktower/pages/ClocktowerRoomPage.vue'
 import GenderScorePage           from '../apps/gender-score/pages/GenderScorePage.vue'
 import StoryCanvasPage           from '../apps/story-canvas/pages/StoryCanvasPage.vue'
+import LadderPage                from '../apps/ladder/pages/LadderPage.vue'
+import LadderResultPage          from '../apps/ladder/pages/LadderResultPage.vue'
+import LadderVerifyPage          from '../apps/ladder/pages/LadderVerifyPage.vue'
 
 const routes = [
   // 知道網址才能到，不登記進 tools.js／Portal 首頁；獨立打包避免拖累主要頁面的下載大小
@@ -31,6 +34,9 @@ const routes = [
   { path: '/clocktower/room',      name: 'clocktower-room',     component: ClocktowerRoomPage      },  // 血染鐘樓 房間
   { path: '/gender-score',          name: 'gender-score',         component: GenderScorePage         },  // 十分男女
   { path: '/story-canvas',          name: 'story-canvas',         component: StoryCanvasPage         },  // 故事關係圖
+  { path: '/ladder',                name: 'ladder',               component: LadderPage              },  // 爬樓梯抽籤
+  { path: '/ladder/result',         name: 'ladder-result',        component: LadderResultPage        },  // 爬樓梯抽籤：私人結果連結
+  { path: '/ladder/verify',         name: 'ladder-verify',        component: LadderVerifyPage        },  // 爬樓梯抽籤：驗證清單
 ]
 
 export default createRouter({

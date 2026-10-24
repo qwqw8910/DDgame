@@ -124,6 +124,18 @@ export const tools = [
     status: 'live',
     tags: ['個人', '創作', '視覺化'],
   },
+  {
+    id: 'ladder',
+    name: '爬樓梯抽籤',
+    tagline: '遇到岔路就轉彎，人人有配對',
+    description: '設定 · 選人 · 爬樓梯\n阿彌陀籤動畫抽籤！',
+    emoji: '🪜',
+    color: 'cyan',
+    route: '/ladder',
+    externalUrl: null,
+    status: 'live',
+    tags: ['個人', '抽籤', '動畫'],
+  },
   // ── 未來新增工具範例 ──────────────────────────────────────────
   // {
   //   id: 'my-new-tool',
