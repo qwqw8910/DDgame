@@ -73,6 +73,13 @@
                                 <option v-for="t in themeList" :key="t.id" :value="t.id">{{ t.name }}</option>
                             </select>
                         </div>
+                        <label class="input-wrapper cursor-pointer select-none" title="每個猜題回合隨機一位提示者當間諜，可遮住一位玩家提示中的一個字">
+                            <span class="input-icon">🕵</span>
+                            <span class="game-input pl-11 flex items-center justify-between">
+                                加入間諜（1 位）
+                                <input v-model="spyEnabled" type="checkbox" class="w-5 h-5" />
+                            </span>
+                        </label>
                         <button class="btn-primary cs-cta mt-auto"
                             :disabled="createLoading" @click="handleCreateRoom">
                             <span v-if="createLoading" class="spinner spinner-sm"></span>
@@ -185,6 +192,7 @@ function toggleTheme() {
 const createNickname = ref('')
 const maxPlayers = ref(12)
 const selectedTheme = ref(THEME_ALL)
+const spyEnabled = ref(false)
 
 const themeList = ref([])
 const bankManagerOpen = ref(false)
@@ -336,7 +344,7 @@ async function handleCreateRoom() {
         saveNickname(nickname)
         router.push({
             name: 'character-storm-room',
-            query: { id: roomId, nickname, create: '1', max: maxPlayers.value, theme: selectedTheme.value }
+            query: { id: roomId, nickname, create: '1', max: maxPlayers.value, theme: selectedTheme.value, spy: spyEnabled.value ? '1' : '0' }
         })
     } catch (err) {
         showToast('建立失敗：' + err.message, 'error')

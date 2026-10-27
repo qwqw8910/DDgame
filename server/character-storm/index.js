@@ -11,6 +11,7 @@ const { registerRoomHandlers } = require('../room');
 const { processHints, validateHint } = require('./filterLogic');
 const { assignRoles }                = require('./roleAssign');
 const { listThemes }                 = require('./themeStore');
+const spyLogic                       = require('./spy');
 
 const ROUND2_QUOTA  = 4;
 const TIMER_SECONDS = 90;
@@ -77,6 +78,8 @@ function initGame(roomId, maxPlayers, themePreference = THEME_ALL) {
     round1Hints:         {},
     round2Hints:         {},
     symbolMap:           {},
+    spyEnabled:          false,   // 開房選項，整個房間固定
+    spy:                 spyLogic.createSpyState(),
     cachedRound1Result:  null,
     cachedRound2Result:  null,
     timerRemaining:      TIMER_SECONDS,
@@ -224,6 +227,27 @@ function findNextGuesserIndex(game, roomCache, roomId) {
   return -1;
 }
 
+// 組出某位玩家看到的輪結果（猜題者無原文；提示者的原文會依間諜遮擋客製）
+function buildResultPayload(cache, player) {
+  const base = {
+    hints: cache.hints, symbolMap: cache.symbolMap, isRound2: cache.isRound2,
+    wordLength: cache.wordLength, spyMask: cache.spyMask,
+  };
+  if (player.role === 'guesser') return base;
+  return { ...base, hintsProvider: spyLogic.maskProviderHints(cache.hintsProvider, cache._rawMask, player.id) };
+}
+
+// 間諜身分只告知本人；非間諜也會收到事件（isSpy:false），避免從事件有無推測身分
+function emitSpyRole(sock, game, playerId) {
+  if (!game.spy.spyId) return;
+  const isSpy = game.spy.spyId === playerId;
+  sock.emit('cs:spy-role', {
+    isSpy,
+    used:     isSpy ? game.spy.used : false,
+    targetId: isSpy ? game.spy.targetId : null,
+  });
+}
+
 // ── 核心：處理一輪提示 ────────────────────────────────────────────
 async function processRoundHints(ns, roomId, game, isRound2, roomCache) {
   clearTimer(game);
@@ -234,15 +258,24 @@ async function processRoundHints(ns, roomId, game, isRound2, roomCache) {
     .map(p => ({ id: p.id, text: hintRecord[p.id] }));
 
   const inheritedMap = isRound2 ? game.symbolMap : {};
-  const { forProvider, forGuesser, symbolMap } = processHints(hints, inheritedMap);
+  const { forProvider, forGuesser: rawForGuesser, symbolMap } = processHints(hints, inheritedMap);
+
+  // 間諜遮擋只作用在第一輪；被指定者沒出牌則技能作廢
+  if (!isRound2 && game.spy.used) {
+    game.spy.mask = spyLogic.rollSpyMask(hints, game.spy.targetId);
+  }
+  const spyMask    = isRound2 ? null : game.spy.mask;
+  const forGuesser = spyLogic.maskGuesserHints(rawForGuesser, spyMask);
 
   game.symbolMap  = symbolMap;
   game.roundPhase = isRound2 ? 'round2-result' : 'round1-result';
 
-  const _wordLen = [...(game.currentWord?.word ?? '')].length;
+  // 快取原始資料；提示者視角依觀看者客製，所以發送／重連時才組 payload
   const _cache = {
-    guesser:  { hints: forGuesser, symbolMap, isRound2, wordLength: _wordLen },
-    provider: { hints: forGuesser, hintsProvider: forProvider, symbolMap, isRound2, wordLength: _wordLen },
+    hints: forGuesser, hintsProvider: forProvider, symbolMap, isRound2,
+    wordLength: [...(game.currentWord?.word ?? '')].length,
+    spyMask: spyLogic.publicMask(spyMask),
+    _rawMask: spyMask,
   };
   if (isRound2) game.cachedRound2Result = _cache;
   else          game.cachedRound1Result = _cache;
@@ -252,12 +285,7 @@ async function processRoundHints(ns, roomId, game, isRound2, roomCache) {
   for (const player of game.players) {
     const sock = ns.sockets.get(player.socketId);
     if (!sock) continue;
-    const wordLength = _wordLen;
-    if (player.role === 'guesser') {
-      sock.emit(eventName, { hints: forGuesser, symbolMap, isRound2, wordLength });
-    } else {
-      sock.emit(eventName, { hints: forGuesser, hintsProvider: forProvider, symbolMap, isRound2, wordLength });
-    }
+    sock.emit(eventName, buildResultPayload(_cache, player));
   }
 
   // 作答也有伺服器端倒數（前端 90 秒 + 3 秒寬限）；猜題者斷線或卡住時代交空白，避免全房卡死
@@ -288,6 +316,8 @@ function resolveGuess(ns, roomCache, roomId, game, answer) {
     word:      shouldRevealWord ? game.currentWord?.word  : null,
     author:    shouldRevealWord ? game.currentWord?.author : null,
     wasRound2: isRound2, a: ab.a, b: ab.b,
+    // 題目揭曉時一併揭曉被間諜遮住的字（不含間諜身分）
+    spyReveal: shouldRevealWord ? (game.spy.mask ?? null) : null,
   });
 
   if (!correct && !isRound2) setTimeout(() => startRound2(ns, roomCache, roomId, game), 2000);
@@ -317,10 +347,16 @@ async function startNewGuesserRound(ns, DB, roomCache, roomId, game) {
     players:             buildPlayerList(game, roomCache, roomId),
   });
 
+  // 間諜：人數達門檻時，從在線提示者中隨機指派（每個猜題回合重抽）
+  const providerIds   = game.players.filter(p => p.role !== 'guesser' && isOnline(roomCache, roomId, p.id)).map(p => p.id);
+  const spyCandidates = game.spyEnabled && spyLogic.canHaveSpy(providerIds.length) ? providerIds : [];
+  game.spy = spyLogic.createSpyState(spyLogic.pickSpyId(spyCandidates));
+
   for (const player of game.players) {
     const sock = ns.sockets.get(player.socketId);
     if (!sock) continue;
     sock.emit('cs:role-assigned', { role: player.role, quota: player.quota });
+    emitSpyRole(sock, game, player.id);
   }
 
   // 不同主題可能有同一個詞（「全部主題」模式），抽到本局用過的詞就排除該筆重抽
@@ -445,6 +481,7 @@ function registerNamespace(io, db) {
         if (!entry) return;
         const pref = entry.room.options?.themePreference ?? THEME_ALL;
         game = initGame(roomId, entry.room.max_players, pref);
+        game.spyEnabled = !!entry.room.options?.spyEnabled;
         for (const p of entry.players) {
           // 優先用當前 socket，其次從 namespace 查找已連線的 socket
           let socketId = null;
@@ -483,6 +520,7 @@ function registerNamespace(io, db) {
 
       // 重連：補發遊戲狀態
       if (p?.role) socket.emit('cs:role-assigned', { role: p.role, quota: p.quota });
+      if (p) emitSpyRole(socket, game, p.id);
 
       const phase = game.roundPhase;
       if (['round1', 'round2'].includes(phase) && p?.role !== 'guesser' && game.currentWord) {
@@ -492,14 +530,11 @@ function registerNamespace(io, db) {
         });
       }
       if (phase === 'round1-result' && game.cachedRound1Result) {
-        socket.emit('cs:round1-result', p?.role === 'guesser'
-          ? game.cachedRound1Result.guesser : game.cachedRound1Result.provider);
+        socket.emit('cs:round1-result', buildResultPayload(game.cachedRound1Result, p ?? {}));
       }
       if (phase === 'round2-result') {
-        if (game.cachedRound1Result) socket.emit('cs:round1-result', p?.role === 'guesser'
-          ? game.cachedRound1Result.guesser : game.cachedRound1Result.provider);
-        if (game.cachedRound2Result) socket.emit('cs:round2-result', p?.role === 'guesser'
-          ? game.cachedRound2Result.guesser : game.cachedRound2Result.provider);
+        if (game.cachedRound1Result) socket.emit('cs:round1-result', buildResultPayload(game.cachedRound1Result, p ?? {}));
+        if (game.cachedRound2Result) socket.emit('cs:round2-result', buildResultPayload(game.cachedRound2Result, p ?? {}));
       }
       if (game.timerRemaining > 0) {
         socket.emit('cs:timer-tick', { remaining: game.timerRemaining });
@@ -657,6 +692,23 @@ function registerNamespace(io, db) {
         console.error('[CS cs:submit-hint]', err.message);
         socket.emit('cs:error', { code: 'HINT_FAILED', message: err.message });
       }
+    });
+
+    // ── 間諜發動技能（第一輪提示階段，每回合一次）──────────
+    socket.on('cs:spy-target', ({ roomId, targetId }) => {
+      const { playerId } = socket.data ?? {};
+      if (!roomId || !playerId || typeof targetId !== 'string') return;
+      const game = getGame(roomId);
+      if (!game) return;
+      const providerIds = game.players.filter(p => p.role !== 'guesser').map(p => p.id);
+      const check = spyLogic.validateSpyUse(game.spy, {
+        playerId, targetId, roundPhase: game.roundPhase, providerIds,
+      });
+      if (!check.ok) return socket.emit('cs:error', { code: 'SPY_INVALID', message: check.reason });
+      game.spy.used     = true;
+      game.spy.targetId = targetId;
+      // 只回覆間諜本人，不廣播
+      socket.emit('cs:spy-role', { isSpy: true, used: true, targetId });
     });
 
     // ── 送出答案（猜題者）────────────────────────────────

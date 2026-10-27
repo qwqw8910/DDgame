@@ -677,3 +677,56 @@
   .cs-scope .cs-phase-card .cs-phase-progress { font-size: 13px; margin: 2px 0 0; }
   .cs-scope .cs-exit-btn { width: auto; flex: none; margin: 0; padding: 8px 14px; min-height: 0; font-size: 14px; white-space: nowrap; box-shadow: none; }
 }
+
+/* ================================================================
+   間諜機制
+   ================================================================ */
+/* 間諜遮擋字：紫色虛線牌 +「？」，揭曉後換回原字仍保留紫框，讓大家知道是間諜造成的 */
+.cs-tile--spy {
+  --tok: #8B5CF6;
+  color: #fff;
+  background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--tok) 88%, #000) 0 6px, var(--tok) 6px 12px);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--tok) 55%, #fff),
+    0 var(--edge) 0 color-mix(in srgb, var(--tok) 55%, #000),
+    0 calc(var(--edge) + 5px) 14px color-mix(in srgb, var(--tok) 45%, transparent);
+  font-family: system-ui, sans-serif;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+.cs-tile--spy::after {
+  content: '🕵';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* 間諜面板（僅間諜本人看得到） */
+.cs-scope .cs-spy-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, #8B5CF6 14%, var(--cs-panel));
+  border: 1px solid color-mix(in srgb, #8B5CF6 55%, transparent);
+}
+.cs-scope .cs-spy-panel__title { margin: 0; font-weight: 800; font-size: 15px; color: var(--heading); }
+.cs-scope .cs-spy-panel__text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--label); }
+.cs-scope .cs-spy-panel__targets { display: flex; flex-wrap: wrap; gap: 6px; }
+.cs-scope .cs-spy-target {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--heading);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, #8B5CF6 45%, transparent);
+  cursor: pointer;
+}
+.cs-scope .cs-spy-target.is-picked {
+  color: #fff;
+  background: #8B5CF6;
+  border-color: #8B5CF6;
+}
