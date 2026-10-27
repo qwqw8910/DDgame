@@ -75,7 +75,7 @@
                     <span v-for="(c, i) in r.get(player.id)" :key="i"
                         :class="[hintTileClass(c), { 'cs-flipcard': canFlip(c), 'is-flipped': isFlipped(r.round, i) }]"
                         :style="{ '--i': i, '--tok': c.tok }" :data-symbol="c.symbol"
-                        :title="canFlip(c) && !isFlipped(r.round, i) ? '點擊翻開被擋住的字' : undefined"
+                        :title="c.isSpyMask ? '🕵 間諜干擾：這個字被遮住了' : canFlip(c) && !isFlipped(r.round, i) ? '點擊翻開被擋住的字' : undefined"
                         @click="canFlip(c) && emit('flip', player.id, r.round, i)">
                         <template v-if="canFlip(c)">
                             <span class="cs-flipcard__back">{{ c.char }}</span>
@@ -137,6 +137,8 @@ const canFlip = c => props.state.isGuesser && props.state.status === 'revealing'
 const isFlipped = (round, i) => props.flipped.includes(`${props.player.id}:${round}:${i}`)
 
 function hintTileClass(c) {
-    return ['cs-tile', 'cs-tile--md', { 'cs-tile--symbol': c.isSymbol, 'cs-tile--conflict': c.isConflict }]
+    return ['cs-tile', 'cs-tile--md', {
+        'cs-tile--symbol': c.isSymbol, 'cs-tile--conflict': c.isConflict, 'cs-tile--spy': c.isSpyMask,
+    }]
 }
 </script>

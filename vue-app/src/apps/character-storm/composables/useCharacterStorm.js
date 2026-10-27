@@ -65,6 +65,10 @@ const gameState = reactive({
   round1HintsProvider: [],
   round2HintsProvider: [],
   symbolMap: {},
+  // 間諜：spy 只有本人會被告知 isSpy；spyMask 是被遮字的位置（公開），spyReveal 是揭曉後的原字
+  spy: { isSpy: false, used: false, targetId: null },
+  spyMask: null,        // { playerId, index }
+  spyReveal: null,      // { playerId, index, char }
   submittedPlayerIds: [],
   timerRemaining: GAME_TIMER_SECONDS,
   // 猜題
@@ -112,6 +116,11 @@ function registerGameHandlers(socket) {
 
   socket.on('cs:word-used', ({ id }) => rememberWordId(id))
 
+  // 間諜身分（只對本人 isSpy:true；其他人收到 isSpy:false）
+  socket.on('cs:spy-role', ({ isSpy, used, targetId }) => {
+    gameState.spy = { isSpy: !!isSpy, used: !!used, targetId: targetId ?? null }
+  })
+
   // 提示進度
   socket.on('cs:hint-progress', ({ submittedIds }) => {
     gameState.submittedPlayerIds = submittedIds
@@ -123,7 +132,8 @@ function registerGameHandlers(socket) {
   })
 
   // 第一輪結果
-  socket.on('cs:round1-result', ({ hints, hintsProvider, symbolMap, wordLength }) => {
+  socket.on('cs:round1-result', ({ hints, hintsProvider, symbolMap, wordLength, spyMask }) => {
+    gameState.spyMask             = spyMask ?? null
     gameState.round1Hints         = hints
     gameState.round1HintsProvider = hintsProvider ?? []
     gameState.symbolMap           = symbolMap
@@ -145,8 +155,9 @@ function registerGameHandlers(socket) {
   })
 
   // 猜題結果
-  socket.on('cs:guess-result', ({ correct, answer, word, author, wasRound2, a, b }) => {
+  socket.on('cs:guess-result', ({ correct, answer, word, author, wasRound2, a, b, spyReveal }) => {
     if (_revealTimer) { clearInterval(_revealTimer); _revealTimer = null }
+    if (spyReveal) gameState.spyReveal = spyReveal
     gameState.guessResult = { correct, answer }
     gameState.guessAB     = (a !== undefined) ? { a, b } : null
     if (word) gameState.currentWord = { word, author: author ?? null }
@@ -181,6 +192,9 @@ function registerGameHandlers(socket) {
     gameState.guessResult         = null
     gameState.guessAB             = null
     gameState.round1GuessResult   = null
+    gameState.spy                 = { isSpy: false, used: false, targetId: null }
+    gameState.spyMask             = null
+    gameState.spyReveal           = null
     gameState.wordLength          = null
     gameState.timerRemaining      = GAME_TIMER_SECONDS
   })
@@ -296,7 +310,7 @@ export function useCharacterStorm() {
   }
 
   // ── 連線進入遊戲 ──────────────────────────────────────────────
-  function connect(roomId, nickname, isCreating = false, maxPlayers = 6, themePreference = THEME_ALL) {
+  function connect(roomId, nickname, isCreating = false, maxPlayers = 6, themePreference = THEME_ALL, spyEnabled = false) {
     const playerId = getOrCreatePlayerId()
     gameState.loading     = true
     gameState.kicked      = ''
@@ -309,7 +323,7 @@ export function useCharacterStorm() {
       room.createRoom({
         roomId, nickname, playerId, maxPlayers,
         appId: 'character-storm',
-        options: { themePreference },
+        options: { themePreference, spyEnabled },
       })
     } else {
       room.joinRoom({ roomId, nickname, playerId })
@@ -319,6 +333,10 @@ export function useCharacterStorm() {
   // ── 遊戲操作 ──────────────────────────────────────────────────
   function submitHint(text) {
     socket.emit('cs:submit-hint', { roomId: room.roomState.roomId, text })
+  }
+
+  function activateSpy(targetId) {
+    socket.emit('cs:spy-target', { roomId: room.roomState.roomId, targetId })
   }
 
   function submitGuess(answer) {
@@ -385,6 +403,7 @@ export function useCharacterStorm() {
     // 連線 / 遊戲操作
     connect,
     submitHint,
+    activateSpy,
     submitGuess,
     startGame,
     nextTurn,

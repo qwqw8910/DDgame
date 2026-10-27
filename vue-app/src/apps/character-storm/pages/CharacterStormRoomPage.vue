@@ -185,6 +185,11 @@
                             @flip="flipHint" />
                     </div>
 
+                    <!-- ── 間諜面板（僅間諜本人看得到）── -->
+                    <CsSpyPanel v-if="state.spy.isSpy && ['round1', 'round1-result', 'round2', 'round2-result'].includes(state.status)"
+                        :spy="state.spy" :can-use="state.status === 'round1'" :players="playersWithRoles"
+                        :my-player-id="roomState.myPlayerId" @use="activateSpy" />
+
                     <!-- ── 底部輸入欄 ── -->
                     <CsGuessBar v-if="state.isGuesser && isAnswerPhase" ref="guessBarRef" v-model="guessInput"
                         :word-length="state.wordLength || 0" :is-first-round="state.status === 'round1-result'"
@@ -259,6 +264,7 @@ import CharacterStormGuideModal from '../components/CharacterStormGuideModal.vue
 import CsWaitingPanel from '../components/CsWaitingPanel.vue'
 import CsPlayerCard from '../components/CsPlayerCard.vue'
 import CsHintBar from '../components/CsHintBar.vue'
+import CsSpyPanel from '../components/CsSpyPanel.vue'
 import CsGuessBar from '../components/CsGuessBar.vue'
 import CsRevealBar from '../components/CsRevealBar.vue'
 import CsFinishPanel from '../components/CsFinishPanel.vue'
@@ -313,6 +319,7 @@ const {
     playersWithRoles,
     connect,
     submitHint,
+    activateSpy,
     submitGuess,
     startGame,
     nextTurn,
@@ -678,20 +685,33 @@ watch(activeTimer, (v, old) => {
 })
 
 // 取得某玩家提示的 chars 陣列（含符號顏色 tok）
-function getPlayerHintChars(hints, hintsProvider, pid) {
+// 間諜遮擋字（只存在於第一輪）：揭曉後換回原字，其餘時間顯示「？」
+function isSpyMaskedAt(round, pid, i) {
+    const m = state.spyMask
+    return round === 1 && !!m && m.playerId === pid && m.index === i
+}
+function spyRevealChar(pid, i) {
+    const r = state.spyReveal
+    return r && r.playerId === pid && r.index === i && state.status === 'revealing' ? r.char : null
+}
+
+function getPlayerHintChars(hints, hintsProvider, pid, round) {
     if (state.isGuesser) {
         const text = hints.find(h => h.playerId === pid)?.maskedText ?? ''
         const realBySymbol = Object.fromEntries(Object.entries(state.symbolMap ?? {}).map(([ch, s]) => [s, ch]))
-        return [...text].map(c => ({
-            char: c,
-            real: realBySymbol[c],
-            tok: SYMBOL_COLORS[c],
-            isSymbol: !!SYMBOL_COLORS[c],
-        }))
+        return [...text].map((c, i) => {
+            if (isSpyMaskedAt(round, pid, i)) {
+                return { char: spyRevealChar(pid, i) ?? c, isSpyMask: true, isSymbol: false }
+            }
+            return { char: c, real: realBySymbol[c], tok: SYMBOL_COLORS[c], isSymbol: !!SYMBOL_COLORS[c] }
+        })
     }
     const h = hintsProvider.find(h => h.playerId === pid)
     if (!h) return []
-    return h.chars.map(c => {
+    return h.chars.map((c, i) => {
+        if (c.isSpyMasked) {
+            return { char: spyRevealChar(pid, i) ?? c.char, isSpyMask: true, isSymbol: false }
+        }
         const symbol = c.isConflict ? state.symbolMap?.[c.char] : undefined
         return {
             char: c.char,
@@ -702,8 +722,8 @@ function getPlayerHintChars(hints, hintsProvider, pid) {
         }
     })
 }
-function getPlayerR1Hint(pid) { return getPlayerHintChars(state.round1Hints, state.round1HintsProvider, pid) }
-function getPlayerR2Hint(pid) { return getPlayerHintChars(state.round2Hints, state.round2HintsProvider, pid) }
+function getPlayerR1Hint(pid) { return getPlayerHintChars(state.round1Hints, state.round1HintsProvider, pid, 1) }
+function getPlayerR2Hint(pid) { return getPlayerHintChars(state.round2Hints, state.round2HintsProvider, pid, 2) }
 
 const visibleHintRounds = computed(() => {
     const rounds = [{ round: 1, hintStatus: 'round1', get: getPlayerR1Hint }]
@@ -863,7 +883,7 @@ function joinWithNickname() {
     const isCreating = route.query.create === '1'
     const maxPlayers = parseInt(route.query.max) || 12
 const themePreference = parseInt(route.query.theme ?? String(THEME_ALL))
-    connect(roomState.roomId || route.query.id, nickname, isCreating, maxPlayers, themePreference)
+    connect(roomState.roomId || route.query.id, nickname, isCreating, maxPlayers, themePreference, route.query.spy === '1')
 }
 
 // ── 初始化 ────────────────────────────────────────────────────────
@@ -878,6 +898,7 @@ onMounted(() => {
     const isCreating = route.query.create === '1'
     const maxPlayers = parseInt(route.query.max) || 12
 const themePreference = parseInt(route.query.theme ?? String(THEME_ALL))
+    const spyEnabled = route.query.spy === '1'
 
     if (!roomId) { router.push({ name: 'character-storm' }); return }
 
@@ -893,7 +914,7 @@ const themePreference = parseInt(route.query.theme ?? String(THEME_ALL))
         router.replace({ name: 'character-storm-room', query: { id: roomId, nickname } })
     }
 
-    connect(roomId, nickname, isCreating, maxPlayers, themePreference)
+    connect(roomId, nickname, isCreating, maxPlayers, themePreference, spyEnabled)
 })
 
 watch(guessTimerRemaining, (val) => {
