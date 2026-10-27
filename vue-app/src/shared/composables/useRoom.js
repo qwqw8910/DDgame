@@ -13,6 +13,7 @@
 // ================================================================
 
 import { reactive, readonly } from 'vue'
+import { resetPlayerId } from '@/shared/data/identity.js'
 
 // ── 事件名稱常數（與 server/room/events.js 保持一致）────────
 export const ROOM_EVENTS = {
@@ -172,6 +173,9 @@ export function useRoom(socket, callbacks = {}) {
 
     // ── 被踢出 ──────────────────────────────────────────────
     socket.on(ROOM_EVENTS.KICKED, ({ reason } = {}) => {
+      // 座位已被伺服器移除：停止自動重連 rejoin，否則會以新玩家身分被拉回。
+      // 不換 playerId、不加黑名單 —— 被踢的人可以直接改名後再進來。
+      _hasJoined = false
       _callbacks.onKicked?.(reason)
     })
 
@@ -259,9 +263,24 @@ export function useRoom(socket, callbacks = {}) {
     }
   }
 
-  /** 主動離開房間 */
+  /**
+   * 主動離開房間：通知伺服器移除座位，並清掉本地的房間記憶與身分。
+   * 不清的話 socket 重連時 rejoinOnReconnect 會把人拉回剛退出的房間；
+   * 換掉 playerId 則確保下次進房是全新的人（不會接回舊座位 / 分數 / 角色）。
+   */
   function leaveRoom() {
-    socket.emit(ROOM_EVENTS.LEAVE)
+    // 回傳 Promise：呼叫端要 await 後才能 disconnect。socket.io 會丟掉斷線後才處理的封包，
+    // leave 與 disconnect 背靠背送出時伺服器收不到 leave，退出會被當成掉線而留下離線幽靈。
+    const acked = new Promise((resolve) => {
+      if (!socket.connected) return resolve()
+      const timer = setTimeout(resolve, 1500)
+      socket.emit(ROOM_EVENTS.LEAVE, () => { clearTimeout(timer); resolve() })
+    })
+    _hasJoined           = false
+    roomState.roomId     = ''
+    roomState.myNickname = ''
+    resetPlayerId()
+    return acked
   }
 
   /** 觀戰者升為玩家 */

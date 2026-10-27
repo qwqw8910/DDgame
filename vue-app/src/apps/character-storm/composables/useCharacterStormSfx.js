@@ -203,6 +203,10 @@ const SOUNDS = {
     noise(t + 0.62, { dur: 0.14, gain: 0.34, type: 'lowpass', freq: 900 })
     tone(t + 0.62, { freq: 150, to: 60, dur: 0.14, gain: 0.26 })
   },
+  // 100 分：叮叮叮↑
+  score(t) {
+    arpeggio(t, [G5, C6, E6], 0.07, { dur: 0.2, gain: 0.07, type: 'triangle' })
+  },
   // 輸入錯誤
   error(t) {
     tone(t, { freq: 155, dur: 0.08, gain: 0.14, type: 'square', lp: 700 })

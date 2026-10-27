@@ -690,10 +690,11 @@ function goLobby() {
     disconnect()
     router.push({ name: 'mountain-lodge' })
 }
-function goHome() {
+async function goHome() {
     const inGame = phase.value !== 'lobby' && !!view.value?.me
-    if (inGame && !confirm('離開房間會中止本局，確定要離開嗎？')) return
-    leaveRoom()
+    const msg = inGame ? '離開房間會中止本局，確定要離開嗎？' : '確定要離開房間嗎？離開後再進來會是全新的人。'
+    if (!confirm(msg)) return
+    await leaveRoom()
     goLobby()
 }
 

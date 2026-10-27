@@ -688,11 +688,13 @@ function goLobby() {
     disconnect()
     router.push({ name: 'clocktower' })
 }
-function goHome() {
+async function goHome() {
     const p = phase.value
-    if (role.value === 'storyteller' && !['lobby', 'result'].includes(p) && !confirm('你是說書人，離開會中止本局。確定要離開嗎？')) return
-    if (role.value === 'player' && ['night', 'day', 'paused'].includes(p) && !confirm('遊戲進行中離開，你的座位會標示「已離開」（視同死亡），之後只能觀戰。確定嗎？')) return
-    leaveRoom()
+    let msg = '確定要離開房間嗎？離開後再進來會是全新的人。'
+    if (role.value === 'storyteller' && !['lobby', 'result'].includes(p)) msg = '你是說書人，離開會中止本局。確定要離開嗎？'
+    else if (role.value === 'player' && ['night', 'day', 'paused'].includes(p)) msg = '遊戲進行中離開，你的座位會標示「已離開」（視同死亡），而且無法接回原本的角色，再進來會是全新的人。確定嗎？'
+    if (!confirm(msg)) return
+    await leaveRoom()
     goLobby()
 }
 

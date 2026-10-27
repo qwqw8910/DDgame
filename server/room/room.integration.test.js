@@ -556,6 +556,95 @@ describe('room:leave', () => {
 });
 
 // ================================================================
+describe('退出 / 被踢 / 舊連線', () => {
+  test('退出（等 ack）後立刻斷線 → 座位移除，不會被當成掉線（不廣播 player-offline）', async () => {
+    const c1 = await connectClient();
+    const c2 = await connectClient();
+    const roomId = uuid().slice(0, 6).toUpperCase();
+    const id1 = uuid(), id2 = uuid();
+
+    try {
+      c1.emit('room:create', { roomId, nickname: 'Stay', playerId: id1, maxPlayers: 4, appId: 'test' });
+      await waitFor(c1, 'room:join-ack');
+      c2.emit('room:join', { roomId, nickname: 'Leaver', playerId: id2 });
+      await waitFor(c2, 'room:join-ack');
+
+      let sawOffline = false;
+      c1.on('room:player-offline', () => { sawOffline = true; });
+      const leftP = waitFor(c1, 'room:player-left');
+      await c2.emitWithAck('room:leave'); // 與前端 leaveRoom() 相同：等 ack 再斷線
+      c2.disconnect();
+      await leftP;
+      await new Promise(r => setTimeout(r, 300));
+      assert.equal(sawOffline, false, '退出者不應被標示為離線');
+    } finally {
+      c1.disconnect();
+      c2.disconnect();
+    }
+  });
+
+  test('重連後舊連線晚到的 disconnect → 不會把玩家標成離線', async () => {
+    const c1 = await connectClient();
+    const oldSock = await connectClient();
+    const newSock = await connectClient();
+    const roomId = uuid().slice(0, 6).toUpperCase();
+    const id1 = uuid(), id2 = uuid();
+
+    try {
+      c1.emit('room:create', { roomId, nickname: 'Host', playerId: id1, maxPlayers: 4, appId: 'test' });
+      await waitFor(c1, 'room:join-ack');
+      oldSock.emit('room:join', { roomId, nickname: 'Dup', playerId: id2 });
+      await waitFor(oldSock, 'room:join-ack');
+
+      // 新連線接手（舊連線尚未被伺服器偵測斷線）
+      newSock.emit('room:join', { roomId, nickname: 'Dup', playerId: id2 });
+      const ack = await waitFor(newSock, 'room:join-ack');
+      assert.equal(ack.type, 'reconnect');
+
+      let sawOffline = false;
+      c1.on('room:player-offline', () => { sawOffline = true; });
+      oldSock.disconnect(); // 舊連線晚到的斷線
+      await new Promise(r => setTimeout(r, 300));
+      assert.equal(sawOffline, false, '已由新連線接手，不應標示離線');
+    } finally {
+      c1.disconnect();
+      oldSock.disconnect();
+      newSock.disconnect();
+    }
+  });
+
+  test('被踢的人可用新暱稱重新加入', async () => {
+    const c1 = await connectClient();
+    const c2 = await connectClient();
+    const c3 = await connectClient();
+    const roomId = uuid().slice(0, 6).toUpperCase();
+    const id1 = uuid(), id2 = uuid(), id3 = uuid();
+
+    try {
+      c1.emit('room:create', { roomId, nickname: 'Host', playerId: id1, maxPlayers: 4, appId: 'test' });
+      await waitFor(c1, 'room:join-ack');
+      c2.emit('room:join', { roomId, nickname: 'OldName', playerId: id2 });
+      await waitFor(c2, 'room:join-ack');
+      c3.emit('room:join', { roomId, nickname: 'Third', playerId: id3 }); // 踢後仍需 ≥ minPlayers(2)
+      await waitFor(c3, 'room:join-ack');
+
+      const kickedP = waitFor(c2, 'room:kicked');
+      c1.emit('room:kick', { targetPlayerId: id2 });
+      await kickedP;
+
+      c2.emit('room:join', { roomId, nickname: 'NewName', playerId: id2 });
+      const ack = await waitFor(c2, 'room:join-ack');
+      assert.equal(ack.type, 'player');
+      assert.ok(ack.players.find(p => p.id === id2 && p.nickname === 'NewName'));
+    } finally {
+      c1.disconnect();
+      c2.disconnect();
+      c3.disconnect();
+    }
+  });
+});
+
+// ================================================================
 describe('disconnect', () => {
   test('玩家斷線 → room:player-offline 廣播（玩家仍在名單）', async () => {
     const c1 = await connectClient();

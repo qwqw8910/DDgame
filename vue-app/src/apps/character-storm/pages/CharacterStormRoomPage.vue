@@ -1,5 +1,5 @@
 <template>
-    <div class="page-wrapper page-wrapper--scrollable cs-room-page cs-scope cs-bg">
+    <div class="page-wrapper page-wrapper--scrollable cs-room-page cs-scope cs-bg" :class="{ 'cs-banner-active': phaseFlash.show }">
         <a href="#cs-main-content" class="skip-link">跳到主要內容</a>
 
         <!-- Header -->
@@ -35,6 +35,18 @@
             <div class="loading-icon">🔡</div>
             <span class="spinner mb-3.5"></span>
             <p class="text-body text-base">{{ state.loadingText || '連線中…' }}</p>
+        </div>
+
+        <!-- 被踢出：可回大廳改暱稱後重新加入 -->
+        <div v-else-if="state.kicked" class="overlay">
+            <div class="overlay-card text-center">
+                <div class="section-header" style="margin-bottom:12px">
+                    <div class="section-icon">🚪</div>
+                    <h2 class="neon-heading" style="font-size:20px">你已離開房間</h2>
+                    <p class="section-subtitle">{{ state.kicked }}</p>
+                </div>
+                <button class="btn-primary" @click="goLobby">回到入口</button>
+            </div>
         </div>
 
         <!-- 暱稱遮罩（無暱稱時顯示） -->
@@ -192,7 +204,7 @@
                     <div class="section-header" style="margin-bottom:12px">
                         <div class="section-icon">🚪</div>
                         <h2 class="neon-heading" style="font-size:20px">離開房間？</h2>
-                        <p class="section-subtitle">離開後將回到大廳，遊戲進度不會保留。</p>
+                        <p class="section-subtitle">離開後將回到入口，你的座位與進度會清除，再進來會是全新的玩家。</p>
                     </div>
                     <div style="display:flex;gap:10px;margin-top:8px">
                         <button class="btn-secondary" style="flex:1" @click="showExitConfirm = false">取消</button>
@@ -255,7 +267,7 @@ import CsResultOverlay from '../components/CsResultOverlay.vue'
 import CsConfetti from '../components/CsConfetti.vue'
 import '../styles/character-storm.css'
 import { useGameGuide } from '@/shared/composables/useGameGuide.js'
-import { fetchThemes, THEME_RANDOM } from '../data/themes.js'
+import { fetchThemes, THEME_ALL } from '../data/themes.js'
 import { avatarChar, playerColor, SYMBOL_COLORS } from '../data/playerLook.js'
 import {
     GAME_PHASES, PHASE_KICKER, phaseLabel as phaseLabelOf, phaseHintText as phaseHintTextOf,
@@ -273,7 +285,7 @@ const GUESS_TIMER_SECONDS = 90
 
 // ── 主題清單（動態從後端載入）────────────────────────────────────
 const themeList = ref([])
-const selectedTheme = ref(THEME_RANDOM)
+const selectedTheme = ref(THEME_ALL)
 
 async function loadThemes() {
     themeList.value = await fetchThemes()
@@ -380,6 +392,7 @@ const guessBarRef = ref(null)
 const hintBarRef = ref(null)
 const phaseFlash = ref({ show: false, title: '', desc: '', kicker: '', variant: '' })
 let _phaseFlashTimer = null
+let _phaseFlashRaf = 0
 
 // ── 結果揭曉卡片 ──────────────────────────────────────────────────
 const resultCard = ref({ show: false, phase: 'countdown', countdownNum: 3, correct: false, answer: '', a: null, b: null, isFinal: false })
@@ -488,17 +501,23 @@ let pendingFlash = null
 const FLASH_GAP_MS = 250
 
 function showPhaseFlash(status) {
-    phaseFlash.value = {
-        show: true,
-        title: phaseTitle(status),
-        desc: phaseBannerDesc(status),
-        kicker: PHASE_KICKER[status],
-        variant: status,
-    }
     clearTimeout(_phaseFlashTimer)
-    _phaseFlashTimer = setTimeout(() => {
-        phaseFlash.value.show = false
-    }, 1700)
+    cancelAnimationFrame(_phaseFlashRaf)
+    // 等階段切換的重新渲染／聚焦先畫完（兩個 frame），橫幅動畫才開始，避免第一幀就卡住
+    _phaseFlashRaf = requestAnimationFrame(() => {
+        _phaseFlashRaf = requestAnimationFrame(() => {
+            phaseFlash.value = {
+                show: true,
+                title: phaseTitle(status),
+                desc: phaseBannerDesc(status),
+                kicker: PHASE_KICKER[status],
+                variant: status,
+            }
+            _phaseFlashTimer = setTimeout(() => {
+                phaseFlash.value.show = false
+            }, 1700)
+        })
+    })
 }
 
 // 判定卡收起後，補播排隊中的橫幅（若已不在該階段就略過）
@@ -563,7 +582,7 @@ let _seenReactionIds = new Set()
 watch(() => Object.values(state.reactions).flat().map(r => r.id).join(','), () => {
     const all = Object.values(state.reactions).flat()
     for (const r of all) {
-        if (!_seenReactionIds.has(r.id)) playSfx(r.emoji === '🥚' ? 'egg' : 'fire')
+        if (!_seenReactionIds.has(r.id)) playSfx(r.emoji === '🥚' ? 'egg' : r.emoji === '💯' ? 'score' : 'fire')
     }
     _seenReactionIds = new Set(all.map(r => r.id))
 })
@@ -824,11 +843,15 @@ function handleExitRoom() {
     showExitConfirm.value = true
 }
 
-function confirmExit() {
-    showExitConfirm.value = false
-    try { leaveRoom?.() } catch (_) { /* ignore */ }
+function goLobby() {
     disconnect()
     router.push({ name: 'character-storm' })
+}
+
+async function confirmExit() {
+    showExitConfirm.value = false
+    try { await leaveRoom?.() } catch (_) { /* ignore */ }
+    goLobby()
 }
 
 // ── 暱稱遮罩 ──────────────────────────────────────────────────────
@@ -838,8 +861,8 @@ function joinWithNickname() {
     saveNickname(nickname)
     showNicknameOverlay.value = false
     const isCreating = route.query.create === '1'
-    const maxPlayers = parseInt(route.query.max) || 6
-    const themePreference = parseInt(route.query.theme ?? '-1')
+    const maxPlayers = parseInt(route.query.max) || 12
+const themePreference = parseInt(route.query.theme ?? String(THEME_ALL))
     connect(roomState.roomId || route.query.id, nickname, isCreating, maxPlayers, themePreference)
 }
 
@@ -853,8 +876,8 @@ onMounted(() => {
     const roomId = (route.query.id || '').toUpperCase()
     const nickname = route.query.nickname?.trim() || getSavedNickname()
     const isCreating = route.query.create === '1'
-    const maxPlayers = parseInt(route.query.max) || 6
-    const themePreference = parseInt(route.query.theme ?? '-1')
+    const maxPlayers = parseInt(route.query.max) || 12
+const themePreference = parseInt(route.query.theme ?? String(THEME_ALL))
 
     if (!roomId) { router.push({ name: 'character-storm' }); return }
 
@@ -881,6 +904,7 @@ watch(guessTimerRemaining, (val) => {
 })
 
 onUnmounted(() => {
+    cancelAnimationFrame(_phaseFlashRaf)
     clearInterval(_guessTimerInterval)
     clearTimeout(_phaseFlashTimer)
     clearTimeout(_resultCardTimer)

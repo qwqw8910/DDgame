@@ -35,6 +35,9 @@ export function getOrCreatePlayerId() {
   return id
 }
 
+// 主動退出房間時呼叫：丟掉舊身分，下次進房就是全新的人
+export function resetPlayerId() { localStorage.removeItem(PLAYER_ID_KEY) }
+
 export function getSavedNickname() { return localStorage.getItem(NICKNAME_KEY) || '' }
 export function saveNickname(n)    { localStorage.setItem(NICKNAME_KEY, n) }
 

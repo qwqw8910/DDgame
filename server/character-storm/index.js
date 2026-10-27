@@ -58,8 +58,9 @@ function calculateAB(word, guess) {
 //  }
 // ────────────────────────────────────────────────────────────────
 const csCache = {};
+const MAX_SEEN_WORD_IDS = 500;  // 避免 drawWord 的 not-in 查詢過長
 
-function initGame(roomId, maxPlayers, themePreference = -1) {
+function initGame(roomId, maxPlayers, themePreference = THEME_ALL) {
   csCache[roomId] = {
     maxPlayers,
     status:              'waiting',
@@ -323,10 +324,20 @@ async function startNewGuesserRound(ns, DB, roomCache, roomId, game) {
   }
 
   // 不同主題可能有同一個詞（「全部主題」模式），抽到本局用過的詞就排除該筆重抽
-  let word = await DB.drawWord(game.usedWordIds, game.themeId ?? 0).catch(() => null);
-  for (let retry = 0; word && game.usedWords.includes(word.word) && retry < 20; retry++) {
-    game.usedWordIds.push(word.id);
-    word = await DB.drawWord(game.usedWordIds, game.themeId ?? 0).catch(() => null);
+  const drawUnused = async () => {
+    let w = await DB.drawWord(game.usedWordIds, game.themeId ?? 0).catch(() => null);
+    for (let retry = 0; w && game.usedWords.includes(w.word) && retry < 20; retry++) {
+      game.usedWordIds.push(w.id);
+      w = await DB.drawWord(game.usedWordIds, game.themeId ?? 0).catch(() => null);
+    }
+    return w;
+  };
+  let word = await drawUnused();
+  // used 清單跨局累積；整個題庫抽完（或只剩重複詞）時重置一次再抽
+  if (!word && game.usedWordIds.length > 0) {
+    game.usedWordIds = [];
+    game.usedWords   = [];
+    word = await drawUnused();
   }
   if (!word) {
     clearTimer(game);
@@ -339,6 +350,8 @@ async function startNewGuesserRound(ns, DB, roomCache, roomId, game) {
   game.currentWord = word;
   game.usedWordIds.push(word.id);
   game.usedWords.push(word.word);
+  // 只送題目 id（不含內容，猜題者不會因此得知答案），讓各端 localStorage 記錄
+  ns.to(roomId).emit('cs:word-used', { id: word.id });
 
   for (const player of game.players.filter(p => p.role !== 'guesser')) {
     const sock = ns.sockets.get(player.socketId);
@@ -430,7 +443,7 @@ function registerNamespace(io, db) {
         // csCache 尚未建立 → 從 roomCache 同步初始化
         const entry = _roomCache?.getEntry(roomId);
         if (!entry) return;
-        const pref = entry.room.options?.themePreference ?? -1;
+        const pref = entry.room.options?.themePreference ?? THEME_ALL;
         game = initGame(roomId, entry.room.max_players, pref);
         for (const p of entry.players) {
           // 優先用當前 socket，其次從 namespace 查找已連線的 socket
@@ -576,7 +589,7 @@ function registerNamespace(io, db) {
     console.log(`[CS] connect: ${socket.id}`);
 
     // ── 開始遊戲（房主）──────────────────────────────────
-    socket.on('cs:start', async ({ roomId, themePreference }) => {
+    socket.on('cs:start', async ({ roomId, themePreference, seenWordIds }) => {
       const { playerId } = socket.data ?? {};
       if (!roomId || !playerId) return;
       try {
@@ -594,8 +607,13 @@ function registerNamespace(io, db) {
         game.themeId             = game.themePreference === THEME_RANDOM ? pickRandomTheme() : game.themePreference;
         game.roundNumber         = 1;
         game.guesserHistory      = [];
-        game.usedWordIds         = [];
-        game.usedWords           = [];
+        // usedWordIds / usedWords 跨局保留（同房間連玩不重複），題庫耗盡時才在 startNewGuesserRound 重置
+        // 房主瀏覽器 localStorage 記錄的歷史題目 id，併入本房已用清單（跨房間不重複）
+        if (Array.isArray(seenWordIds)) {
+          for (const id of seenWordIds.slice(-MAX_SEEN_WORD_IDS)) {
+            if (Number.isInteger(id) && id > 0 && !game.usedWordIds.includes(id)) game.usedWordIds.push(id);
+          }
+        }
 
         await startNewGuesserRound(ns, DB, _roomCache, roomId, game);
       } catch (err) {
@@ -693,7 +711,7 @@ function registerNamespace(io, db) {
         game.status = 'playing';
         game.currentGuesserIndex = pickRandomConnectedGuesserIndex(game, _roomCache, roomId);
         game.themeId  = game.themePreference === THEME_RANDOM ? pickRandomTheme() : game.themePreference;
-        game.roundNumber = 1; game.guesserHistory = []; game.usedWordIds = []; game.usedWords = [];
+        game.roundNumber = 1; game.guesserHistory = [];
         game.symbolMap = {}; game.round1Hints = {}; game.round2Hints = {};
         game.roundPhase = null; game.cachedRound1Result = null; game.cachedRound2Result = null;
 
@@ -730,7 +748,7 @@ function registerNamespace(io, db) {
       if (!roomId || !playerId || !toPlayerId || !emoji) return;
       if (playerId === toPlayerId) return; // 不能對自己
       // 只允許合法 emoji
-      const ALLOWED = ['🔥', '🥚', '👏', '💀'];
+      const ALLOWED = ['🔥', '🥚', '💯', '👏', '💀'];
       if (!ALLOWED.includes(emoji)) return;
       ns.to(roomId).emit('cs:react', { fromPlayerId: playerId, toPlayerId, emoji });
     });

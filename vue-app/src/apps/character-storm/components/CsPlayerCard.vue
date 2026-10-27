@@ -104,6 +104,7 @@
             <span class="cs-react-label">互動</span>
             <button class="cs-react-btn" title="這很屬🔥" @click.stop="emit('react', player.id, '🔥')">🔥</button>
             <button class="cs-react-btn" title="丟蛋！🥚" @click.stop="emit('react', player.id, '🥚')">🥚</button>
+            <button class="cs-react-btn" title="100 分！💯" @click.stop="emit('react', player.id, '💯')">💯</button>
         </div>
     </div>
 </template>
