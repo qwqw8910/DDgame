@@ -58,7 +58,7 @@ defineProps({
     correctCount: { type: Number, default: 0 },
     players: { type: Array, required: true },
     isHost: { type: Boolean, default: false },
-    theme: { type: Number, default: THEME_RANDOM },
+    theme: { type: Number, default: THEME_ALL },
     themeList: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['set-theme', 'continue', 'end'])

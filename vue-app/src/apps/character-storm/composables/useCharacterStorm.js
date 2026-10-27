@@ -6,10 +6,31 @@
 import { reactive, readonly, computed } from 'vue'
 import { io } from 'socket.io-client'
 import { getOrCreatePlayerId } from '@/shared/data/identity.js'
+import { THEME_ALL } from '../data/themes.js'
 import { useRoom } from '@/shared/composables/useRoom.js'
 import { SERVER_URL } from '@/shared/api/config.js'
 
 const GAME_TIMER_SECONDS = 90
+
+// 看過的題目 id（localStorage）：房主開局時送給伺服器，下次不會抽到同一題
+const SEEN_KEY = 'cs:seenWordIds'
+const SEEN_MAX = 500
+
+function loadSeenWordIds() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]')
+    return Array.isArray(arr) ? arr.filter(Number.isInteger) : []
+  } catch { return [] }
+}
+
+function rememberWordId(id) {
+  if (!Number.isInteger(id)) return
+  try {
+    const ids = loadSeenWordIds().filter(x => x !== id)
+    ids.push(id)
+    localStorage.setItem(SEEN_KEY, JSON.stringify(ids.slice(-SEEN_MAX)))
+  } catch { /* 無痕模式等無法寫入時忽略 */ }
+}
 
 // 單一 socket 實例（/character-storm namespace）
 let _socket = null
@@ -34,7 +55,7 @@ const gameState = reactive({
   myQuota: null,
   isGuesser: false,
   currentGuesserPlayerId: '',
-  themePreference: -1,
+  themePreference: THEME_ALL,
   // 遊戲流程
   status: 'waiting',    // waiting | round1 | round1-result | round2 | round2-result | revealing | finished
   currentWord: null,
@@ -54,6 +75,7 @@ const gameState = reactive({
   // UI
   loading: false,
   loadingText: '',
+  kicked: '', // 被房主踢出時的訊息
   error: '',
   errorCode: '',
   // 角色資料（房間/玩家清單以 roomState 為準）
@@ -87,6 +109,8 @@ function registerGameHandlers(socket) {
   socket.on('cs:word-revealed', ({ word, category, author }) => {
     gameState.currentWord = { word, category, author }
   })
+
+  socket.on('cs:word-used', ({ id }) => rememberWordId(id))
 
   // 提示進度
   socket.on('cs:hint-progress', ({ submittedIds }) => {
@@ -244,9 +268,13 @@ export function useCharacterStorm() {
       const gs = data.gameState
       if (gs) {
         gameState.status          = gs.roundPhase || gs.status || 'waiting'
-        gameState.themePreference = gs.themePreference ?? -1
+        gameState.themePreference = gs.themePreference ?? THEME_ALL
         if (Array.isArray(gs.players)) _applyRoles(gs.players)
       }
+    },
+    onKicked(reason) {
+      gameState.kicked  = reason || '你被房主踢出了房間'
+      gameState.loading = false
     },
     onRoomError(code, message) {
       gameState.error     = message
@@ -268,9 +296,10 @@ export function useCharacterStorm() {
   }
 
   // ── 連線進入遊戲 ──────────────────────────────────────────────
-  function connect(roomId, nickname, isCreating = false, maxPlayers = 6, themePreference = -1) {
+  function connect(roomId, nickname, isCreating = false, maxPlayers = 6, themePreference = THEME_ALL) {
     const playerId = getOrCreatePlayerId()
     gameState.loading     = true
+    gameState.kicked      = ''
     gameState.error       = ''
     gameState.errorCode   = ''
     gameState.loadingText = isCreating ? '建立房間中…' : '加入房間中…'
@@ -297,7 +326,7 @@ export function useCharacterStorm() {
   }
 
   function startGame() {
-    socket.emit('cs:start', { roomId: room.roomState.roomId })
+    socket.emit('cs:start', { roomId: room.roomState.roomId, seenWordIds: loadSeenWordIds() })
   }
 
   function nextTurn() {

@@ -48,6 +48,14 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
     return null;
   }
 
+  // ── 同一 playerId 在同房間是否還有「另一條」存活的連線 ──────
+  function hasOtherLiveSocket(self, roomId, playerId) {
+    for (const s of namespace.sockets.values()) {
+      if (s !== self && s.data?.playerId === playerId && s.data?.roomId === roomId) return true;
+    }
+    return false;
+  }
+
   // ── 廣播給玩家 + 觀戰者 ─────────────────────────────────────
   function broadcast(roomId, event, data) {
     namespace.to(roomId).emit(event, data);
@@ -221,10 +229,14 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
     });
 
     // ── 主動離開 ────────────────────────────────────────────
-    socket.on(EV.ROOM_LEAVE, async () => {
+    // 客戶端需帶 ack 並等到回應再斷線：socket.io 會丟棄「斷線後才處理」的封包，
+    // 若 leave 與 disconnect 背靠背送出，leave 會被吞掉、退出被誤判成掉線
+    socket.on(EV.ROOM_LEAVE, async (ack) => {
       const { roomId, playerId, isSpectator } = socket.data ?? {};
-      if (!roomId || !playerId) return;
-      await handlePlayerLeave(socket, roomId, playerId, isSpectator, 'leave');
+      if (roomId && playerId) {
+        await handlePlayerLeave(socket, roomId, playerId, isSpectator, 'leave');
+      }
+      if (typeof ack === 'function') ack();
     });
 
     // ── 踢人（房主）────────────────────────────────────────
@@ -320,6 +332,10 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
     socket.on('disconnect', async () => {
       const { roomId, playerId, isSpectator } = socket.data ?? {};
       if (!playerId) return;
+
+      // 同一個人已用別條連線接手（重連 / 開了第二個分頁）→ 舊連線晚到的
+      // disconnect 不能把他標成離線，也不能觸發房主轉移
+      if (roomId && hasOtherLiveSocket(socket, roomId, playerId)) return;
 
       try {
         if (!roomId) return;

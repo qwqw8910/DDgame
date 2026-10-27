@@ -62,7 +62,7 @@
                         <div class="input-wrapper">
                             <span class="input-icon">👥</span>
                             <select v-model="maxPlayers" class="game-input pl-11 cursor-pointer">
-                                <option v-for="n in [4, 5, 6, 7, 8, 9, 10]" :key="n" :value="n">最多 {{ n }} 人</option>
+                                <option v-for="n in [4, 5, 6, 7, 8, 9, 10, 11, 12]" :key="n" :value="n">最多 {{ n }} 人</option>
                             </select>
                         </div>
                         <div class="input-wrapper">
@@ -183,8 +183,8 @@ function toggleTheme() {
 }
 
 const createNickname = ref('')
-const maxPlayers = ref(6)
-const selectedTheme = ref(THEME_RANDOM)
+const maxPlayers = ref(12)
+const selectedTheme = ref(THEME_ALL)
 
 const themeList = ref([])
 const bankManagerOpen = ref(false)

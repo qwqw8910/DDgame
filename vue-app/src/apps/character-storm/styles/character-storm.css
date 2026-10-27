@@ -475,6 +475,10 @@
   82%  { transform: translateX(0) skewY(-4deg); opacity: 1; }
   100% { transform: translateX(100%) skewY(-4deg); opacity: 0; }
 }
+/* 橫幅播放期間關掉底下的 backdrop-filter，避免每幀重算模糊 */
+.cs-scope.cs-banner-active .game-card,
+.cs-scope.cs-banner-active .cs-timer-badge,
+.cs-scope.cs-banner-active .cs-hint-bar { backdrop-filter: none; }
 .cs-banner-enter-active, .cs-banner-leave-active { transition: opacity 0.25s ease; }
 .cs-banner-enter-from, .cs-banner-leave-to { opacity: 0; }
 
