@@ -17,6 +17,12 @@
         <!-- 音量 -->
         <CsVolumePanel class="fixed top-4 right-16 z-50" button-class="theme-toggle" />
 
+        <!-- 安裝 PWA（不支援或已安裝時不顯示） -->
+        <div class="fixed top-4 right-28 z-50">
+            <PwaInstallButton button-class="theme-toggle"
+                hint-class="absolute top-12 right-0 w-64 rounded-xl border border-border-glow bg-card-solid px-4 py-3 text-sm text-heading shadow-lg" />
+        </div>
+
         <!-- 返回入口 -->
         <RouterLink to="/"
             class="fixed top-4 left-4 z-50 flex items-center gap-1.5 text-[13px] font-medium no-underline px-3 py-1.5 rounded-lg border backdrop-blur-sm transition-colors duration-150 text-body border-border bg-card hover:text-heading hover:border-border-glow">
@@ -160,6 +166,7 @@ import { fetchThemes, THEME_ALL, THEME_RANDOM } from '../data/themes.js'
 import CharacterStormBankManager from '../components/CharacterStormBankManager.vue'
 import CsMascot from '../components/CsMascot.vue'
 import CsVolumePanel from '../components/CsVolumePanel.vue'
+import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
 import '../styles/character-storm.css'
 
 const router = useRouter()
