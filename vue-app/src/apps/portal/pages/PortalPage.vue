@@ -1,9 +1,12 @@
 <template>
     <div class="portal h-screen overflow-y-auto overflow-x-hidden" :class="{ 'portal--light': !isDark }">
-        <button @click="toggleTheme" :title="isDark ? '切換為亮色' : '切換為暗色'" aria-label="切換主題"
-            class="fixed top-4 right-4 z-50 grid size-11 cursor-pointer place-items-center rounded-full border-[1.5px] border-[color-mix(in_srgb,var(--p-ink)_25%,transparent)] bg-(--p-surface) text-(--p-ink) hover:border-(--p-berry) focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-(--p-berry)">
-            {{ isDark ? '🌙' : '☀️' }}
-        </button>
+        <div class="fixed top-4 right-4 z-50 flex items-center gap-2">
+            <PwaInstallButton :button-class="iconBtn"
+                hint-class="fixed top-[68px] right-4 z-50 max-w-[16rem] rounded-xl border border-[color-mix(in_srgb,var(--p-ink)_25%,transparent)] bg-(--p-surface) px-4 py-3 text-sm text-(--p-ink)" />
+            <button @click="toggleTheme" :title="isDark ? '切換為亮色' : '切換為暗色'" aria-label="切換主題" :class="iconBtn">
+                {{ isDark ? '🌙' : '☀️' }}
+            </button>
+        </div>
 
         <div class="mx-auto max-w-[960px] px-4 pt-14 pb-[72px] sm:px-8 sm:pt-[88px] sm:pb-24">
             <!-- Hero：靠左，襯線粗體標題，視覺重心只放標題旁的糖果 -->
@@ -51,8 +54,11 @@
 import { ref, computed, onMounted } from 'vue'
 import ToolCard from '../components/ToolCard.vue'
 import { tools } from '../data/tools.js'
+import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
 
 const isDark = ref(true)
+
+const iconBtn = 'grid size-11 cursor-pointer place-items-center rounded-full border-[1.5px] border-[color-mix(in_srgb,var(--p-ink)_25%,transparent)] bg-(--p-surface) text-(--p-ink) hover:border-(--p-berry) focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-(--p-berry)'
 
 // 以 tags 分組：含「多人」的放上方大卡片，其餘放下方橫列
 const partyTools = computed(() => tools.filter(t => t.tags.includes('多人')))
