@@ -20,10 +20,14 @@
                 avatarChar(player.nickname) }}</span>
             <span class="cs-card-head__name">{{ player.nickname }}</span>
             <span v-if="isSelf" class="cs-chip cs-chip--me">我</span>
-            <span class="cs-card-head__end">
-                <span class="cs-chip" :class="isGuesser ? 'cs-chip--guesser' : 'cs-chip--clue'">
-                    {{ roleBadge }}
-                </span>
+            <span class="cs-chip" :class="isGuesser ? 'cs-chip--guesser' : 'cs-chip--clue'">
+                {{ roleBadge }}
+            </span>
+            <!-- 互動按鈕（右上角，僅對其他人） -->
+            <span v-if="!isSelf" class="cs-card-head__end cs-react-btns">
+                <button class="cs-react-btn" title="這很屬🔥" @click.stop="emit('react', player.id, '🔥')">🔥</button>
+                <button class="cs-react-btn" title="丟蛋！🥚" @click.stop="emit('react', player.id, '🥚')">🥚</button>
+                <button class="cs-react-btn" title="100 分！💯" @click.stop="emit('react', player.id, '💯')">💯</button>
             </span>
         </div>
 
@@ -98,14 +102,6 @@
                 </div>
             </div>
         </template>
-
-        <!-- 互動按鈕（常駐底部，僅對其他人） -->
-        <div v-if="!isSelf" class="cs-react-btns">
-            <span class="cs-react-label">互動</span>
-            <button class="cs-react-btn" title="這很屬🔥" @click.stop="emit('react', player.id, '🔥')">🔥</button>
-            <button class="cs-react-btn" title="丟蛋！🥚" @click.stop="emit('react', player.id, '🥚')">🥚</button>
-            <button class="cs-react-btn" title="100 分！💯" @click.stop="emit('react', player.id, '💯')">💯</button>
-        </div>
     </div>
 </template>
 
@@ -129,7 +125,7 @@ const isSelf = computed(() => props.player.id === props.myPlayerId)
 const submitted = computed(() => props.state.submittedPlayerIds.includes(props.player.id))
 const roleBadge = computed(() => {
     if (props.isGuesser) return '猜題者'
-    return props.player.quota ? `提示 ${props.player.quota} 字` : '提示者'
+    return props.player.quota ? `${props.player.quota} 字` : '提示者'
 })
 
 // 猜題者揭曉時：點擊被符號擋住的提示字牌，翻開原字

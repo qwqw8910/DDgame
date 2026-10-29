@@ -58,7 +58,7 @@
                         </button>
                     </div>
                     <h2 class="neon-heading text-xl mb-1.5 text-heading">建立新房間</h2>
-                    <p class="text-[15px] mb-[22px] text-body">邀請 4 ～ 10 人加入，開始字元風暴</p>
+                    <p class="text-[15px] mb-[22px] text-body">邀請 4 ～ 16 人加入，開始字元風暴</p>
                     <div class="flex flex-col gap-3 flex-1">
                         <div class="input-wrapper">
                             <span class="input-icon">😊</span>
@@ -68,7 +68,7 @@
                         <div class="input-wrapper">
                             <span class="input-icon">👥</span>
                             <select v-model="maxPlayers" class="game-input pl-11 cursor-pointer">
-                                <option v-for="n in [4, 5, 6, 7, 8, 9, 10, 11, 12]" :key="n" :value="n">最多 {{ n }} 人</option>
+                                <option v-for="n in [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]" :key="n" :value="n">最多 {{ n }} 人</option>
                             </select>
                         </div>
                         <div class="input-wrapper">
