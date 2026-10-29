@@ -81,7 +81,7 @@
                 :max-players="maxPlayers" @copy-link="handleCopyLink" @start="handleStartGame" />
 
             <!-- ── 遊戲進行中（統一左右排版）── -->
-            <div v-else-if="isGamePhase" class="cs-game-layout">
+            <div v-else-if="isGamePhase" class="cs-game-layout" :class="{ 'cs-game-layout--compact': isCompact }">
 
                 <!-- ── 左側面板：階段+進度 / 玩家列表 / 退出 ── -->
                 <div class="cs-left-panel">
@@ -176,8 +176,8 @@
                     </div>
 
                     <div class="cs-players-grid"
-                        :class="{ 'cs-players-grid--dense': playersWithRoles.length > 6, 'cs-players-grid--quad': playersWithRoles.length <= 4 }"
-                        :style="{ '--cs-rows': Math.ceil(playersWithRoles.length / 3) }">
+                        :class="{ 'cs-players-grid--dense': playersWithRoles.length > 6 && !isCompact, 'cs-players-grid--quad': playersWithRoles.length <= 4, 'cs-players-grid--compact': isCompact }"
+                        :style="isCompact ? { '--cs-cols': 4, '--cs-rows': Math.ceil(playersWithRoles.length / 4) } : { '--cs-rows': Math.ceil(playersWithRoles.length / 3) }">
                         <CsPlayerCard v-for="p in playersWithRoles" :key="p.id" :player="p"
                             :players="playersWithRoles" :state="state" :my-player-id="roomState.myPlayerId"
                             :is-guesser="isPlayerGuesser(p)" :is-hint-phase="isHintPhase"
@@ -362,6 +362,10 @@ const hintSubmitted = computed(() => {
     return isHintPhase && state.submittedPlayerIds.includes(roomState.myPlayerId)
 })
 const maxHintChars = computed(() => state.myQuota || 4)
+
+// 13 人以上改用緊湊排版：電腦版 4 欄、不捲動（12 人以下維持原排版）
+const COMPACT_MIN_PLAYERS = 13
+const isCompact = computed(() => playersWithRoles.value.length >= COMPACT_MIN_PLAYERS)
 
 const hintCharCount = computed(() => {
     const stripped = hintInput.value.replace(/\s/g, '')

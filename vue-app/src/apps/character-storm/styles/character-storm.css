@@ -205,7 +205,7 @@
   50%      { filter: brightness(1.25); }
 }
 
-/* 9～10 人：卡片鋪滿可視高度，不出現捲軸 */
+/* 7～12 人：卡片鋪滿可視高度，不出現捲軸 */
 @media (min-width: 641px) {
   .cs-players-grid--dense { overflow: hidden; grid-template-rows: repeat(var(--cs-rows, 3), minmax(0, 1fr)); align-content: stretch; gap: 6px; }
   .cs-players-grid--dense .cs-player-card { padding: 8px !important; min-height: 0; overflow: hidden; }
@@ -215,8 +215,60 @@
   .cs-players-grid--dense .cs-round-label { margin-bottom: 2px; }
   .cs-players-grid--dense .cs-tile--sm { --size: 24px; }
   .cs-players-grid--dense .cs-hint-placeholder { min-height: 26px; }
-  .cs-players-grid--dense .cs-react-label { display: none; }
   .cs-players-grid--dense .cs-guess-row { padding: 3px 8px; }
+}
+
+/* 13 人以上（--compact）：電腦版 4 欄、鋪滿可視高度、不捲動。
+   欄列數由頁面以 --cs-cols / --cs-rows 傳入；卡片是 size container，字牌隨卡片尺寸縮放。
+   手機版（≤640px）維持 2 欄、整頁捲動。 */
+@media (min-width: 641px) {
+  .cs-scope .cs-players-grid--compact {
+    overflow: hidden; align-content: stretch; gap: 8px;
+    grid-template-columns: repeat(var(--cs-cols, 4), minmax(0, 1fr));
+    grid-template-rows: repeat(var(--cs-rows, 3), minmax(0, 1fr));
+  }
+  .cs-scope .cs-players-grid--compact .cs-player-card { container-type: size; min-height: 0; overflow: hidden; padding: 8px 10px !important; }
+  .cs-scope .cs-players-grid--compact .cs-card-head { margin-bottom: 4px; padding-bottom: 4px; flex-shrink: 0; }
+  .cs-scope .cs-players-grid--compact .cs-card-head .cs-avatar { --size: 24px; margin-bottom: 2px; }
+
+  /* 每輪一列：左邊 R1／R2 標籤，右邊字牌 */
+  .cs-scope .cs-players-grid--compact .cs-hint-block { display: flex; align-items: center; gap: 8px; text-align: left; padding: 0 0 3px; min-height: 0; }
+  .cs-scope .cs-players-grid--compact .cs-hint-block + .cs-hint-block { padding-top: 3px; }
+  .cs-scope .cs-players-grid--compact .cs-hint-block .cs-round-label { margin: 0; letter-spacing: 0.05em; flex-shrink: 0; }
+  .cs-scope .cs-players-grid--compact .cs-hint-block .hint-chars-wrap,
+  .cs-scope .cs-players-grid--compact .cs-hint-block .cs-hint-placeholder { flex: 1; min-width: 0; justify-content: flex-start; min-height: 0; }
+  .cs-scope .cs-players-grid--compact .cs-tile--md { --size: clamp(16px, min(calc(38cqh - 15px), 10cqw), 40px); }
+  .cs-scope .cs-players-grid--compact .cs-tile--sm { --size: clamp(16px, min(calc(30cqh - 12px), 9cqw), 26px); }
+  .cs-scope .cs-players-grid--compact .cs-hint-placeholder { font-size: 11px; min-height: 0; }
+
+  .cs-scope .cs-players-grid--compact .cs-guesser-hero { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+  .cs-scope .cs-players-grid--compact .cs-guess-rows { margin-top: 2px; gap: 3px; }
+  .cs-scope .cs-players-grid--compact .cs-guess-row { padding: 2px 8px; min-height: 0; }
+  .cs-scope .cs-players-grid--compact .cs-guesser-hero__title { font-size: 13px; }
+}
+/* 卡片太矮時，猜題者卡只留答案列 */
+@container (max-height: 130px) {
+  .cs-guesser-hero__title { display: none; }
+}
+
+/* 互動按鈕：卡片標頭右上角 */
+.cs-scope .cs-card-head .cs-react-btns { margin: 0 0 0 auto; padding: 0; border: 0; gap: 0; }
+.cs-scope .cs-card-head .cs-react-btn { padding: 2px 4px; font-size: 14px; line-height: 1; }
+
+/* 13 人以上：左側欄與題目區同步壓縮（矮螢幕再縮一級），保持不捲動 */
+@media (min-width: 641px) {
+  .cs-scope .cs-game-layout--compact .cs-left-panel { overflow: hidden; }
+  .cs-scope .cs-game-layout--compact .cs-player-list-card { flex: 1; min-height: 0; overflow: hidden; }
+  .cs-scope .cs-game-layout--compact .cs-player-list { gap: 3px; }
+  .cs-scope .cs-game-layout--compact .cs-player-list-item { padding: 3px 8px; }
+  .cs-scope .cs-game-layout--compact .cs-player-list-item .cs-avatar { --size: 18px; font-size: 10px; margin-bottom: 1px; }
+}
+@media (min-width: 641px) and (max-height: 820px) {
+  .cs-scope .cs-game-layout--compact .cs-question-card .cs-tile--lg { --size: 38px; }
+  .cs-scope .cs-game-layout--compact .cs-question-row { padding-top: 6px; }
+  .cs-scope .cs-game-layout--compact .cs-timer { width: 56px; height: 56px; }
+  .cs-scope .cs-game-layout--compact .cs-phase-card { padding: 8px 12px !important; }
+  .cs-scope .cs-game-layout--compact .cs-player-list-status { display: none; }
 }
 @keyframes cs-tile-pop {
   0%   { transform: scale(0.6) translateY(6px); }
