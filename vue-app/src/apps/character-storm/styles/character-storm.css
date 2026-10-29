@@ -727,8 +727,12 @@
   .cs-scope .cs-phase-card { flex: 1; min-width: 0; padding: 8px 12px !important; }
   .cs-scope .cs-phase-card .cs-phase-title { font-size: 16px; margin: 0; white-space: nowrap; }
   .cs-scope .cs-phase-card .cs-phase-progress { font-size: 13px; margin: 2px 0 0; }
+  .cs-scope .cs-exit-row { flex: none; display: flex; gap: 6px; }
   .cs-scope .cs-exit-btn { width: auto; flex: none; margin: 0; padding: 8px 14px; min-height: 0; font-size: 14px; white-space: nowrap; box-shadow: none; }
 }
+
+.cs-scope .cs-exit-row { display: flex; gap: 8px; }
+.cs-scope .cs-exit-row .cs-exit-btn { flex: 1; }
 
 /* ================================================================
    間諜機制
