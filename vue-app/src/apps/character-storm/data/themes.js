@@ -8,7 +8,7 @@ export const THEME_ALL = -2    // 全部主題混成一個大題庫
 const FALLBACK_NAMES = {
   0: '原始題庫',
   1: '綜合主題包',
-  2: '好友精選包',
+  2: 'Covercooked餓',
   3: '深海底撈',
   4: '百鬼夜行',
 }
