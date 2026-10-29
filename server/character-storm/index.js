@@ -760,6 +760,7 @@ function registerNamespace(io, db) {
         const game = getGame(roomId);
         if (!game || !isHost(_roomCache, roomId, playerId)) return;
 
+        clearTimer(game);  // 遊戲進行中「重新一局」時，先停掉上一局的計時器
         game.status = 'playing';
         game.currentGuesserIndex = pickRandomConnectedGuesserIndex(game, _roomCache, roomId);
         game.themeId  = game.themePreference === THEME_RANDOM ? pickRandomTheme() : game.themePreference;
@@ -769,6 +770,25 @@ function registerNamespace(io, db) {
 
         await startNewGuesserRound(ns, DB, _roomCache, roomId, game);
       } catch (err) { console.error('[CS cs:continue]', err.message); }
+    });
+
+    // ── 重新一局：全員回到等待大廳（房主），讓新玩家加入後再開始 ──
+    socket.on('cs:reset-lobby', ({ roomId }) => {
+      const { playerId } = socket.data ?? {};
+      if (!roomId || !playerId) return;
+      const game = getGame(roomId);
+      if (!game || !isHost(_roomCache, roomId, playerId)) return;
+      clearTimer(game);
+      game.status = 'waiting'; game.roundPhase = null;
+      game.currentWord = null; game.currentGuesserIndex = 0; game.roundNumber = 0;
+      game.guesserHistory = [];
+      game.symbolMap = {}; game.round1Hints = {}; game.round2Hints = {};
+      game.cachedRound1Result = null; game.cachedRound2Result = null;
+      game.guesserLeft = false;
+      game.spy = spyLogic.createSpyState();
+      game.timerRemaining = TIMER_SECONDS;
+      for (const p of game.players) { p.role = null; p.quota = null; }
+      ns.to(roomId).emit('cs:lobby-reset', { players: buildPlayerList(game, _roomCache, roomId) });
     });
 
     // ── 結束遊戲（房主）──────────────────────────────────

@@ -88,6 +88,21 @@ const gameState = reactive({
   reactions:  {}, // { [playerId]: Array<{ id, emoji, fromPlayerId }> }
 })
 
+// gameState 是模組層級單例：換房（含重新建立房間）時必須清掉上一局殘留，否則新房會顯示舊房的遊戲畫面
+function resetGameState() {
+  if (_revealTimer) clearInterval(_revealTimer)
+  Object.assign(gameState, {
+    myRole: null, myQuota: null, isGuesser: false, currentGuesserPlayerId: '',
+    themePreference: THEME_ALL, status: 'waiting', currentWord: null,
+    round1Hints: [], round2Hints: [], round1HintsProvider: [], round2HintsProvider: [],
+    symbolMap: {}, spy: { isSpy: false, used: false, targetId: null }, spyMask: null, spyReveal: null,
+    submittedPlayerIds: [], timerRemaining: GAME_TIMER_SECONDS,
+    guessResult: null, round1GuessResult: null, guessAB: null, wordLength: null,
+    loading: false, loadingText: '', kicked: '', error: '', errorCode: '',
+    rolesById: {}, reactions: {},
+  })
+}
+
 let _revealTimer = null
 let _onGuessResultCb = null
 let _gameHandlersRegistered = false
@@ -221,6 +236,13 @@ function registerGameHandlers(socket) {
     gameState.status = 'finished'
   })
 
+  // 重新一局：回到等待大廳（保留主題選擇）
+  socket.on('cs:lobby-reset', () => {
+    const pref = gameState.themePreference
+    resetGameState()
+    gameState.themePreference = pref
+  })
+
   // 主題更換（房主操作 → 廣播給全室）
   socket.on('cs:theme-changed', ({ themePreference }) => {
     gameState.themePreference = themePreference
@@ -312,6 +334,7 @@ export function useCharacterStorm() {
   // ── 連線進入遊戲 ──────────────────────────────────────────────
   function connect(roomId, nickname, isCreating = false, maxPlayers = 6, themePreference = THEME_ALL, spyEnabled = false) {
     const playerId = getOrCreatePlayerId()
+    resetGameState()
     gameState.loading     = true
     gameState.kicked      = ''
     gameState.error       = ''
@@ -353,6 +376,10 @@ export function useCharacterStorm() {
 
   function continueGame() {
     socket.emit('cs:continue', { roomId: room.roomState.roomId })
+  }
+
+  function resetToLobby() {
+    socket.emit('cs:reset-lobby', { roomId: room.roomState.roomId })
   }
 
   function endGame() {
@@ -408,6 +435,7 @@ export function useCharacterStorm() {
     startGame,
     nextTurn,
     continueGame,
+    resetToLobby,
     endGame,
     disconnect,
     copyInviteLink,

@@ -122,9 +122,15 @@
                     <div style="flex:1"></div>
 
                     <!-- 退出房間 -->
-                    <button class="btn-secondary cs-exit-btn" type="button" @click="handleExitRoom">
-                        退出房間
-                    </button>
+                    <div class="cs-exit-row">
+                        <button class="btn-secondary cs-exit-btn" type="button" @click="handleExitRoom">
+                            退出房間
+                        </button>
+                        <button v-if="roomState.isHost" class="btn-secondary cs-exit-btn" type="button"
+                            @click="showRestartConfirm = true">
+                            重新一局
+                        </button>
+                    </div>
                 </div>
 
                 <!-- ── 右側：題目+秒數 → 玩家卡片 Grid → 底部輸入欄 ── -->
@@ -214,6 +220,21 @@
                     <div style="display:flex;gap:10px;margin-top:8px">
                         <button class="btn-secondary" style="flex:1" @click="showExitConfirm = false">取消</button>
                         <button class="btn-primary" style="flex:1" @click="confirmExit">確定離開</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 重新一局確認框 ── -->
+            <div v-if="showRestartConfirm" class="overlay" @click.self="showRestartConfirm = false">
+                <div class="overlay-card" style="max-width:340px">
+                    <div class="section-header" style="margin-bottom:12px">
+                        <div class="section-icon">🔄</div>
+                        <h2 class="neon-heading" style="font-size:20px">重新一局？</h2>
+                        <p class="section-subtitle">房內所有人都會留下並回到等待大廳，本局進度作廢；等新朋友加入後，由房主再按開始。</p>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:8px">
+                        <button class="btn-secondary" style="flex:1" @click="showRestartConfirm = false">取消</button>
+                        <button class="btn-primary" style="flex:1" @click="confirmRestart">重新一局</button>
                     </div>
                 </div>
             </div>
@@ -324,6 +345,7 @@ const {
     startGame,
     nextTurn,
     continueGame,
+    resetToLobby,
     endGame,
     disconnect,
     copyInviteLink,
@@ -876,6 +898,17 @@ async function confirmExit() {
     showExitConfirm.value = false
     try { await leaveRoom?.() } catch (_) { /* ignore */ }
     goLobby()
+}
+
+// ── 重新一局（房主）：全員回到等待大廳，讓新玩家加入後再由房主開始 ──
+const showRestartConfirm = ref(false)
+
+function confirmRestart() {
+    showRestartConfirm.value = false
+    hintInput.value = ''
+    guessInput.value = ''
+    guessSubmitted.value = false
+    resetToLobby()
 }
 
 // ── 暱稱遮罩 ──────────────────────────────────────────────────────
