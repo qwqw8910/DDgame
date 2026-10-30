@@ -1,5 +1,6 @@
 <template>
     <div class="page-wrapper page-wrapper--scrollable cs-room-page cs-scope cs-bg" :class="{ 'cs-banner-active': phaseFlash.show }">
+        <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
         <a href="#cs-main-content" class="skip-link">跳到主要內容</a>
 
         <!-- Header -->
@@ -281,6 +282,7 @@ import CsVolumePanel from '../components/CsVolumePanel.vue'
 import { useCharacterStormSfx } from '../composables/useCharacterStormSfx.js'
 import { getSavedNickname, saveNickname } from '@/shared/data/identity.js'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
+import ConnectionBanner from '@/shared/components/ConnectionBanner.vue'
 import CharacterStormGuideModal from '../components/CharacterStormGuideModal.vue'
 import CsWaitingPanel from '../components/CsWaitingPanel.vue'
 import CsPlayerCard from '../components/CsPlayerCard.vue'
@@ -474,29 +476,16 @@ function playResultFx(correct) {
 // 綁定 composable 的猜題結果回調
 onGuessResult(showResultCard)
 
-// ── 猜題倒數計時 ──────────────────────────────────────────────────
-const guessTimerRemaining = ref(GUESS_TIMER_SECONDS)
-let _guessTimerInterval = null
-
-function startGuessTimer() {
-    clearInterval(_guessTimerInterval)
-    guessTimerRemaining.value = GUESS_TIMER_SECONDS
-    _guessTimerInterval = setInterval(() => {
-        if (guessTimerRemaining.value > 0) guessTimerRemaining.value--
-        else clearInterval(_guessTimerInterval)
-    }, 1000)
-}
+// ── 猜題倒數計時：與提示階段共用伺服器倒數（重連後不會從頭算）──────
+const guessTimerRemaining = computed(() =>
+    (state.status === 'round1-result' || state.status === 'round2-result') ? state.timerRemaining : GUESS_TIMER_SECONDS)
 
 watch(() => state.status, (val) => {
     if (val === 'round1-result' || val === 'round2-result') {
-        startGuessTimer()
         // 進入新的猜題階段，重置猜題輸入
         guessInput.value = ''
         guessSubmitted.value = false
         nextTick(() => guessBarRef.value?.focus())
-    } else {
-        clearInterval(_guessTimerInterval)
-        guessTimerRemaining.value = GUESS_TIMER_SECONDS
     }
     // 進入第二輪時，重置提示輸入狀態讓提示者可以再輸入
     if (val === 'round2') {
@@ -963,7 +952,6 @@ watch(guessTimerRemaining, (val) => {
 
 onUnmounted(() => {
     cancelAnimationFrame(_phaseFlashRaf)
-    clearInterval(_guessTimerInterval)
     clearTimeout(_phaseFlashTimer)
     clearTimeout(_resultCardTimer)
     clearTimeout(_fxTimer)

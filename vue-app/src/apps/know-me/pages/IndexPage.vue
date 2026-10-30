@@ -100,6 +100,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '@/shared/data/identity.js'
+import { warmUpServer } from '@/shared/api/config.js'
 import { DB } from '../data/db.js'
 
 const router = useRouter()
@@ -127,6 +128,7 @@ function focusJoinNickname() {
 }
 
 onMounted(() => {
+    warmUpServer()
     const saved = getSavedNickname()
     if (saved) {
         createNickname.value = saved

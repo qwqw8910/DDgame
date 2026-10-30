@@ -1,5 +1,6 @@
 <template>
     <div class="flex h-[100dvh] w-full flex-col overflow-hidden bg-dark pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+        <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
         <!-- Header -->
         <header class="relative z-40 shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-header backdrop-blur-md">
             <div class="flex items-center gap-1 min-w-0">
@@ -371,6 +372,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useClocktower, roleInfo } from '../composables/useClocktower.js'
 import { getSavedNickname, saveNickname } from '@/shared/data/identity.js'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
+import ConnectionBanner from '@/shared/components/ConnectionBanner.vue'
 import GameIcon from '../components/GameIcon.vue'
 import RoleToken from '../components/RoleToken.vue'
 import TownCircle from '../components/TownCircle.vue'

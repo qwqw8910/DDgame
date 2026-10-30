@@ -1,5 +1,6 @@
 <template>
     <div class="lodge-bg flex h-[100dvh] w-full flex-col overflow-hidden pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]" :style="{ '--lodge-pattern': `url(${PATTERN_BG_IMG})` }">
+        <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
         <!-- Header -->
         <header class="relative z-40 shrink-0 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2 border-b border-border bg-header backdrop-blur-md">
             <div class="flex items-center gap-1 min-w-0">
@@ -423,6 +424,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useMountainLodge } from '../composables/useMountainLodge.js'
 import { getSavedNickname, saveNickname } from '@/shared/data/identity.js'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
+import ConnectionBanner from '@/shared/components/ConnectionBanner.vue'
 import GameGuideModal from '@/shared/components/GameGuideModal.vue'
 import LodgeCard from '../components/LodgeCard.vue'
 import { useLodgeDarkTheme } from '../composables/useLodgeDarkTheme.js'

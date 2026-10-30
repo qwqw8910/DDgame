@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
 const http   = require('node:http');
 const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
-const { registerRoomHandlers } = require('./index');
+const { registerRoomHandlers, CONNECTION_STATE_RECOVERY } = require('./index');
 
 // ── 工具 ────────────────────────────────────────────────────────
 
@@ -163,7 +163,7 @@ let roomCache;
 
 before(async () => {
   httpServer = http.createServer();
-  io = new Server(httpServer, { cors: { origin: '*' } });
+  io = new Server(httpServer, { cors: { origin: '*' }, connectionStateRecovery: CONNECTION_STATE_RECOVERY });
 
   db = makeMockDb();
   ({ roomCache } = registerRoomHandlers(io, db, {
@@ -872,6 +872,93 @@ describe('換房（同一條 socket 沒斷線就去別的房間）', () => {
       assert.ok(ack.players.some(p => p.id === hostId));
     } finally {
       c.disconnect();
+    }
+  });
+});
+
+// ================================================================
+describe('連線狀態恢復（connectionStateRecovery）', () => {
+  // 模擬網路中斷（非主動斷線）：關掉底層連線，且先不讓它自動重連，方便在斷線期間製造廣播
+  async function dropConnection(c) {
+    c.io.reconnection(false);
+    const p = waitFor(c, 'disconnect');
+    c.io.engine.close();
+    await p;
+  }
+
+  test('短暫斷線後恢復 → 不必 room:join：收到 join-ack(reconnect)、補送漏掉的廣播、重新標成在線', async () => {
+    const c1 = await connectClient();
+    const c2 = await connectClient();
+    const roomId = uuid().slice(0, 6).toUpperCase();
+    const id1 = uuid(), id2 = uuid();
+
+    try {
+      c1.emit('room:create', { roomId, nickname: 'Host', playerId: id1, maxPlayers: 4, appId: 'test' });
+      await waitFor(c1, 'room:join-ack');
+      c2.emit('room:join', { roomId, nickname: 'Flaky', playerId: id2 });
+      await waitFor(c2, 'room:join-ack');
+
+      const offlineP = waitFor(c1, 'room:player-offline');
+      await dropConnection(c2);
+      await offlineP;
+
+      // 斷線期間的廣播：c2 收不到，恢復時應補送
+      const readyP = waitFor(c1, 'room:players-updated');
+      c1.emit('room:ready', { ready: true });
+      await readyP;
+
+      const updates = [];
+      c2.on('room:players-updated', d => updates.push(d));
+      const ackP   = waitFor(c2, 'room:join-ack');
+      const reconP = waitFor(c1, 'room:player-reconnected');
+      c2.connect();
+      await waitFor(c2, 'connect');
+      assert.equal(c2.recovered, true, '應走連線恢復');
+
+      const ack = await ackP;
+      assert.equal(ack.type, 'reconnect');
+      assert.equal((await reconP).playerId, id2);
+      assert.ok(updates.some(d => d.players.find(p => p.id === id1)?.is_ready === true), '應補送斷線期間的 ready 廣播');
+      assert.equal(roomCache.getPlayers(roomId).find(p => p.id === id2).is_online, true);
+    } finally {
+      c1.disconnect();
+      c2.disconnect();
+    }
+  });
+
+  test('斷線期間被踢出 → 恢復時收到 room:kicked，不會被拉回房間', async () => {
+    const c1 = await connectClient();
+    const c2 = await connectClient();
+    const c3 = await connectClient();
+    const roomId = uuid().slice(0, 6).toUpperCase();
+    const id1 = uuid(), id2 = uuid(), id3 = uuid();
+
+    try {
+      c1.emit('room:create', { roomId, nickname: 'Host', playerId: id1, maxPlayers: 4, appId: 'test' });
+      await waitFor(c1, 'room:join-ack');
+      c2.emit('room:join', { roomId, nickname: 'Gone', playerId: id2 });
+      await waitFor(c2, 'room:join-ack');
+      c3.emit('room:join', { roomId, nickname: 'Stay', playerId: id3 });
+      await waitFor(c3, 'room:join-ack');
+
+      const offlineP = waitFor(c1, 'room:player-offline');
+      await dropConnection(c2);
+      await offlineP;
+
+      const leftP = waitFor(c1, 'room:player-left');
+      c1.emit('room:kick', { targetPlayerId: id2 });
+      await leftP;
+
+      const kickedP = waitFor(c2, 'room:kicked');
+      c2.connect();
+      await waitFor(c2, 'connect');
+      assert.equal(c2.recovered, true);
+      await kickedP;
+      assert.ok(!roomCache.getPlayers(roomId).some(p => p.id === id2), '不應被加回名單');
+    } finally {
+      c1.disconnect();
+      c2.disconnect();
+      c3.disconnect();
     }
   });
 });
