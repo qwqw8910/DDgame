@@ -104,6 +104,30 @@ function resetGameState() {
 }
 
 let _revealTimer = null
+
+// ── 倒數：伺服器只在階段開始／重連時送剩餘毫秒，這裡用本地時鐘算秒數 ──
+let _timerEndsAt  = 0
+let _timerTicker  = null
+function _tickTimer() {
+  gameState.timerRemaining = Math.max(0, Math.ceil((_timerEndsAt - Date.now()) / 1000))
+  if (gameState.timerRemaining === 0) _stopTimer()
+}
+function _startTimer(remainingMs) {
+  _stopTimer()
+  _timerEndsAt = Date.now() + remainingMs
+  _tickTimer()
+  if (gameState.timerRemaining > 0) _timerTicker = setInterval(_tickTimer, 250)
+}
+// 停在目前秒數（猜題已送出等）
+function _stopTimer() {
+  clearInterval(_timerTicker)
+  _timerTicker = null
+}
+// 進入新階段：先顯示滿格，等伺服器的 cs:timer
+function _resetTimer() {
+  _stopTimer()
+  gameState.timerRemaining = GAME_TIMER_SECONDS
+}
 let _onGuessResultCb = null
 let _gameHandlersRegistered = false
 // 目前頁面使用中的 room 實例；重連時只 rejoin 這一個（避免舊頁面殘留的實例 rejoin 舊房號）
@@ -141,10 +165,8 @@ function registerGameHandlers(socket) {
     gameState.submittedPlayerIds = submittedIds
   })
 
-  // 倒數
-  socket.on('cs:timer-tick', ({ remaining }) => {
-    gameState.timerRemaining = remaining
-  })
+  // 倒數（提示階段與作答階段共用）
+  socket.on('cs:timer', ({ remainingMs }) => _startTimer(remainingMs ?? 0))
 
   // 第一輪結果
   socket.on('cs:round1-result', ({ hints, hintsProvider, symbolMap, wordLength, spyMask }) => {
@@ -154,7 +176,7 @@ function registerGameHandlers(socket) {
     gameState.symbolMap           = symbolMap
     gameState.status              = 'round1-result'
     gameState.submittedPlayerIds  = []
-    gameState.timerRemaining      = GAME_TIMER_SECONDS
+    _resetTimer()
     gameState.wordLength          = wordLength ?? null
   })
 
@@ -165,13 +187,14 @@ function registerGameHandlers(socket) {
     gameState.symbolMap           = symbolMap
     gameState.status              = 'round2-result'
     gameState.submittedPlayerIds  = []
-    gameState.timerRemaining      = GAME_TIMER_SECONDS
+    _resetTimer()
     gameState.wordLength          = wordLength ?? null
   })
 
   // 猜題結果
   socket.on('cs:guess-result', ({ correct, answer, word, author, wasRound2, a, b, spyReveal }) => {
     if (_revealTimer) { clearInterval(_revealTimer); _revealTimer = null }
+    _stopTimer()
     if (spyReveal) gameState.spyReveal = spyReveal
     gameState.guessResult = { correct, answer }
     gameState.guessAB     = (a !== undefined) ? { a, b } : null
@@ -211,7 +234,7 @@ function registerGameHandlers(socket) {
     gameState.spyMask             = null
     gameState.spyReveal           = null
     gameState.wordLength          = null
-    gameState.timerRemaining      = GAME_TIMER_SECONDS
+    _resetTimer()
   })
 
   // 進入第二輪
@@ -222,7 +245,7 @@ function registerGameHandlers(socket) {
     }
     gameState.status             = 'round2'
     gameState.submittedPlayerIds = []
-    gameState.timerRemaining     = GAME_TIMER_SECONDS
+    _resetTimer()
   })
 
   // 揭曉
@@ -233,6 +256,7 @@ function registerGameHandlers(socket) {
 
   // 房間狀態更新（結算等）
   socket.on('cs:finished', () => {
+    _stopTimer()
     gameState.status = 'finished'
   })
 
@@ -388,6 +412,7 @@ export function useCharacterStorm() {
 
   function disconnect() {
     if (_revealTimer) clearInterval(_revealTimer)
+    _stopTimer()
     socket.disconnect()
     _socket = null
     _gameHandlersRegistered = false

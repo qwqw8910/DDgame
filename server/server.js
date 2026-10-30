@@ -12,6 +12,7 @@ const cors      = require('cors');
 const http      = require('http');
 const { Server } = require('socket.io');
 const { createClient } = require('@supabase/supabase-js');
+const { CONNECTION_STATE_RECOVERY } = require('./room');
 
 // ── 環境變數檢查 ──────────────────────────────────────────────
 const {
@@ -47,6 +48,7 @@ const io = new Server(server, {
   },
   pingTimeout:  30000,
   pingInterval: 10000,
+  connectionStateRecovery: CONNECTION_STATE_RECOVERY,
 });
 
 app.get('/health', (_, res) => res.json({ status: 'ok', ts: Date.now() }));

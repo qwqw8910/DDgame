@@ -83,6 +83,8 @@ export function useRoom(socket, callbacks = {}) {
     isSpectator: false,
     // 連線
     connected:      false,
+    // 已收到 join-ack、人在房內（斷線期間仍為 true，供「重新連線中」提示判斷）
+    inRoom:         false,
     // 加入類型（'player' | 'reconnect' | 'spectator'）
     joinType: null,
     // 觀戰者可升為玩家
@@ -98,6 +100,10 @@ export function useRoom(socket, callbacks = {}) {
   let _handlersRegistered = false
   // 收到 join-ack 後才算真正在房間內；首次連線時不可 rejoin（否則會搶在 create 之前送出 join → 找不到房間）
   let _hasJoined = false
+  function _setJoined(v) {
+    _hasJoined       = v
+    roomState.inRoom = v
+  }
 
   function _registerHandlers() {
     if (_handlersRegistered) return
@@ -105,6 +111,17 @@ export function useRoom(socket, callbacks = {}) {
 
     socket.on('connect',    () => { roomState.connected = true })
     socket.on('disconnect', () => { roomState.connected = false })
+
+    // 手機切回前景 / 網路恢復時立刻重連，不等指數退避（最長 reconnectionDelayMax）
+    // socket.active：仍在自動重連中（非手動 disconnect）—— 避免把已棄用的舊 socket 叫回來
+    const reconnectNow = () => {
+      if (document.visibilityState !== 'visible') return
+      if (!_hasJoined || socket.connected || !socket.active) return
+      socket.disconnect()
+      socket.connect() // 觸發 connect → 遊戲 composable 的 rejoinOnReconnect
+    }
+    document.addEventListener('visibilitychange', reconnectNow)
+    window.addEventListener('online', reconnectNow)
 
     // ── 加入/重連確認 ───────────────────────────────────────
     socket.on(ROOM_EVENTS.JOIN_ACK, (data) => {
@@ -118,7 +135,7 @@ export function useRoom(socket, callbacks = {}) {
       roomState.isSpectator = data.type === 'spectator'
       roomState.error      = ''
       roomState.errorCode  = ''
-      _hasJoined           = true
+      _setJoined(true)
       _callbacks.onJoinAck?.(data)
     })
 
@@ -175,7 +192,7 @@ export function useRoom(socket, callbacks = {}) {
     socket.on(ROOM_EVENTS.KICKED, ({ reason } = {}) => {
       // 座位已被伺服器移除：停止自動重連 rejoin，否則會以新玩家身分被拉回。
       // 不換 playerId、不加黑名單 —— 被踢的人可以直接改名後再進來。
-      _hasJoined = false
+      _setJoined(false)
       _callbacks.onKicked?.(reason)
     })
 
@@ -208,7 +225,7 @@ export function useRoom(socket, callbacks = {}) {
    */
   function createRoom({ roomId, nickname, playerId, maxPlayers = 6, appId = '', options = {} }) {
     _registerHandlers()
-    _hasJoined           = false
+    _setJoined(false)
     _resetIfSwitching(roomId)
     roomState.error      = ''
     roomState.errorCode  = ''
@@ -233,7 +250,7 @@ export function useRoom(socket, callbacks = {}) {
    */
   function joinRoom({ roomId, nickname, playerId }) {
     _registerHandlers()
-    _hasJoined           = false
+    _setJoined(false)
     _resetIfSwitching(roomId)
     roomState.error      = ''
     roomState.errorCode  = ''
@@ -254,6 +271,8 @@ export function useRoom(socket, callbacks = {}) {
 
   /** socket 重連後自動重送 join（由遊戲 composable 的 connect 事件呼叫） */
   function rejoinOnReconnect() {
+    // 伺服器已恢復連線狀態（connectionStateRecovery）：會自己補發 join-ack 與遊戲狀態，不必重送 join
+    if (socket.recovered) return
     if (_hasJoined && roomState.myNickname && roomState.roomId && roomState.myPlayerId) {
       socket.emit(ROOM_EVENTS.JOIN, {
         roomId:   roomState.roomId,
@@ -276,7 +295,7 @@ export function useRoom(socket, callbacks = {}) {
       const timer = setTimeout(resolve, 1500)
       socket.emit(ROOM_EVENTS.LEAVE, () => { clearTimeout(timer); resolve() })
     })
-    _hasJoined           = false
+    _setJoined(false)
     roomState.roomId     = ''
     roomState.myNickname = ''
     resetPlayerId()

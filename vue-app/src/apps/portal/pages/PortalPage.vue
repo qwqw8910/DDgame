@@ -55,6 +55,7 @@ import { ref, computed, onMounted } from 'vue'
 import ToolCard from '../components/ToolCard.vue'
 import { tools } from '../data/tools.js'
 import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
+import { warmUpServer } from '@/shared/api/config.js'
 
 const isDark = ref(true)
 
@@ -65,6 +66,7 @@ const partyTools = computed(() => tools.filter(t => t.tags.includes('多人')))
 const smallTools = computed(() => tools.filter(t => !t.tags.includes('多人')))
 
 onMounted(() => {
+    warmUpServer()
     isDark.value = document.documentElement.getAttribute('data-theme') !== 'light'
 })
 

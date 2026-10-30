@@ -1,5 +1,6 @@
 <template>
     <div class="page-wrapper page-wrapper--scrollable">
+        <ConnectionBanner :connected="state.connected" :active="!!state.room" />
         <!-- Header -->
         <header class="sticky-header app-header--room">
             <div class="header-inner header-inner--room">
@@ -150,6 +151,7 @@ import RevealSection from '../components/RevealSection.vue'
 import FinishedSection from '../components/FinishedSection.vue'
 import PreviewSection from '../components/PreviewSection.vue'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
+import ConnectionBanner from '@/shared/components/ConnectionBanner.vue'
 
 const router = useRouter()
 const route = useRoute()

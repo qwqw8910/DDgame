@@ -77,6 +77,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '@/shared/data/identity.js'
+import { warmUpServer } from '@/shared/api/config.js'
 import { MIN_SEATS, MAX_SEATS } from '../data/constants.js'
 import GameIcon from '../components/GameIcon.vue'
 
@@ -100,6 +101,7 @@ function showToast(msg, type = '', duration = 3000) {
 }
 
 onMounted(() => {
+    warmUpServer()
     const saved = getSavedNickname()
     if (saved) { createNickname.value = saved; joinNickname.value = saved }
 

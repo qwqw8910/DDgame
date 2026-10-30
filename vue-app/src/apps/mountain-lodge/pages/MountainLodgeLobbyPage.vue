@@ -94,6 +94,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '@/shared/data/identity.js'
+import { warmUpServer } from '@/shared/api/config.js'
 import { MIN_PLAYERS, MAX_PLAYERS, LOBBY_BANNER_IMG, LOBBY_TEXTURE_IMGS } from '../data/constants.js'
 import { useLodgeDarkTheme } from '../composables/useLodgeDarkTheme.js'
 import LodgeGuideModal from '../components/LodgeGuideModal.vue'
@@ -129,6 +130,7 @@ function showToast(msg, type = '', duration = 3000) {
 }
 
 onMounted(() => {
+    warmUpServer()
     const saved = getSavedNickname()
     if (saved) { createNickname.value = saved.slice(0, 8); joinNickname.value = saved.slice(0, 8) }
 

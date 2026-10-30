@@ -15,6 +15,7 @@ const spyLogic                       = require('./spy');
 
 const ROUND2_QUOTA  = 4;
 const TIMER_SECONDS = 90;
+const GUESS_GRACE_MS = 3000;
 let AVAILABLE_THEMES = [0, 1, 2, 3]; // 啟動時由 DB 動態覆寫，題庫管理異動後刷新
 
 // themePreference 特殊值：-1 = 每局隨機挑一個主題；-2 = 全部主題混成一個題庫
@@ -55,7 +56,7 @@ function calculateAB(word, guess) {
 //    currentWord, usedWordIds, usedWords, themePreference, themeId,
 //    roundPhase, round1Hints, round2Hints, symbolMap,
 //    cachedRound1Result, cachedRound2Result,
-//    timerRemaining, _timerHandle
+//    timerEndsAt, _timerHandle
 //  }
 // ────────────────────────────────────────────────────────────────
 const csCache = {};
@@ -82,7 +83,7 @@ function initGame(roomId, maxPlayers, themePreference = THEME_ALL) {
     spy:                 spyLogic.createSpyState(),
     cachedRound1Result:  null,
     cachedRound2Result:  null,
-    timerRemaining:      TIMER_SECONDS,
+    timerEndsAt:         null,    // 目前階段（提示／作答）的截止時間（ms）
     _timerHandle:        null,
   };
   return csCache[roomId];
@@ -182,21 +183,31 @@ function makeDB(db) {
 }
 
 // ── 計時器工具 ──────────────────────────────────────────────────
-function clearTimer(game) {
-  if (game._timerHandle) { clearInterval(game._timerHandle); game._timerHandle = null; }
+// 倒數只在階段開始（與重連）時送一次剩餘毫秒，前端用本地時鐘倒數；
+// 送相對值而非截止時間戳，避免前後端時鐘不同步
+function timerRemainingMs(game) {
+  return game.timerEndsAt ? Math.max(0, game.timerEndsAt - Date.now()) : 0;
 }
 
-function startTimer(ns, roomId, game, onExpire) {
+function emitTimer(target, game) {
+  target.emit('cs:timer', { remainingMs: timerRemainingMs(game) });
+}
+
+function clearTimer(game) {
+  if (game._timerHandle) { clearTimeout(game._timerHandle); game._timerHandle = null; }
+  game.timerEndsAt = null;
+}
+
+// graceMs：前端倒數歸零後再等一下才由伺服器代為結算（讓前端自動送出的封包先到）
+function startTimer(ns, roomId, game, onExpire, graceMs = 0) {
   clearTimer(game);
-  game.timerRemaining = TIMER_SECONDS;
-  game._timerHandle = setInterval(async () => {
-    game.timerRemaining -= 1;
-    ns.to(roomId).emit('cs:timer-tick', { remaining: game.timerRemaining });
-    if (game.timerRemaining <= 0) {
-      clearTimer(game);
-      await onExpire().catch(err => console.error('[CS timer]', err.message));
-    }
-  }, 1000);
+  game.timerEndsAt = Date.now() + TIMER_SECONDS * 1000;
+  emitTimer(ns.to(roomId), game);
+  game._timerHandle = setTimeout(async () => {
+    game._timerHandle = null;
+    game.timerEndsAt  = null;
+    await onExpire().catch(err => console.error('[CS timer]', err.message));
+  }, TIMER_SECONDS * 1000 + graceMs);
 }
 
 // ── 廣播工具 ─────────────────────────────────────────────────────
@@ -288,13 +299,11 @@ async function processRoundHints(ns, roomId, game, isRound2, roomCache) {
     sock.emit(eventName, buildResultPayload(_cache, player));
   }
 
-  // 作答也有伺服器端倒數（前端 90 秒 + 3 秒寬限）；猜題者斷線或卡住時代交空白，避免全房卡死
+  // 作答倒數（+3 秒寬限）；猜題者斷線或卡住時代交空白，避免全房卡死
   const expectedPhase = game.roundPhase;
-  game.timerRemaining = TIMER_SECONDS;
-  game._timerHandle = setTimeout(() => {
-    game._timerHandle = null;
+  startTimer(ns, roomId, game, async () => {
     if (game.roundPhase === expectedPhase) resolveGuess(ns, roomCache, roomId, game, '');
-  }, (TIMER_SECONDS + 3) * 1000);
+  }, GUESS_GRACE_MS);
 }
 
 // ── 核心：結算一次猜題（猜題者送出，或伺服器端逾時代交空白）──────
@@ -468,7 +477,7 @@ function registerNamespace(io, db) {
         roundNumber:         game.roundNumber,
         currentGuesserIndex: game.currentGuesserIndex,
         themePreference:     game.themePreference,
-        timerRemaining:      game.timerRemaining,
+        timerRemaining:      Math.ceil(timerRemainingMs(game) / 1000),
         players:             buildPlayerList(game, _roomCache, roomId),
       };
     },
@@ -536,9 +545,8 @@ function registerNamespace(io, db) {
         if (game.cachedRound1Result) socket.emit('cs:round1-result', buildResultPayload(game.cachedRound1Result, p ?? {}));
         if (game.cachedRound2Result) socket.emit('cs:round2-result', buildResultPayload(game.cachedRound2Result, p ?? {}));
       }
-      if (game.timerRemaining > 0) {
-        socket.emit('cs:timer-tick', { remaining: game.timerRemaining });
-      }
+      // 必須在 round*-result 之後：前端收到結果會重置倒數
+      if (game.timerEndsAt) emitTimer(socket, game);
       const hintRecord = phase === 'round2' ? game.round2Hints : game.round1Hints;
       if (['round1', 'round2'].includes(phase)) {
         socket.emit('cs:hint-progress', { submittedIds: Object.keys(hintRecord) });

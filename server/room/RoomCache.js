@@ -168,6 +168,7 @@ class RoomCache {
         () => this._archiveRoom(roomId),
         ARCHIVE_TIMEOUT_MS
       );
+      entry._archiveTimer.unref?.(); // 不讓排程中的封存撐住程序（測試結束、關機時）
       console.log(`[RoomCache] 房間 ${roomId} 全員離線，${ARCHIVE_TIMEOUT_MS / 60000} 分鐘後封存`);
     }
   }

@@ -161,7 +161,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '@/shared/data/identity.js'
-import { SERVER_URL } from '@/shared/api/config.js'
+import { SERVER_URL, warmUpServer } from '@/shared/api/config.js'
 import { fetchThemes, THEME_ALL, THEME_RANDOM } from '../data/themes.js'
 import CharacterStormBankManager from '../components/CharacterStormBankManager.vue'
 import CsMascot from '../components/CsMascot.vue'
@@ -309,6 +309,7 @@ async function loadThemes() {
 }
 
 onMounted(() => {
+    warmUpServer()
     isDark.value = document.documentElement.getAttribute('data-theme') !== 'light'
     loadThemes()
 

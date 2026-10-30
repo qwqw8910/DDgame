@@ -24,6 +24,21 @@ const EV = require('./events');
 // 房主斷線後自動轉移的等待時間（毫秒）
 const HOST_TRANSFER_DELAY_MS = 30 * 1000;
 
+// Socket.io 連線狀態恢復：短暫斷線（切網路、進電梯、App 切背景）在時限內接回時，
+// 伺服器還原 socket.data / 房間頻道並補送漏掉的廣播。new Server() 時傳入。
+// 本模組沒有 middleware，恢復時可略過。伺服器重啟後無法恢復，client 會走一般 room:join 重連。
+const CONNECTION_STATE_RECOVERY = {
+  maxDisconnectionDuration: 2 * 60 * 1000,
+  skipMiddlewares: true,
+};
+
+// DB 寫入不擋廣播：cache 已是真相來源，DB 只供伺服器重啟後重建
+function persist(promise, label) {
+  Promise.resolve(promise)
+    .then(res => { if (res?.error) console.error(`[Room] ${label} DB error:`, res.error.message); })
+    .catch(err => console.error(`[Room] ${label} DB error:`, err.message));
+}
+
 function registerRoomHandlers(namespace, db, hooks = {}) {
   // 正規化：若傳入的是 Server 實例而非 Namespace，取預設 namespace
   // Server.sockets 回傳的是 Namespace 物件；Namespace.sockets 才是 Map<socketId, Socket>
@@ -90,20 +105,17 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
     if (!nextHost) return; // 全員離線，不轉移
 
     roomCache.updateRoom(roomId, { host_player_id: nextHost.id });
-    try {
-      await db.from('rooms')
-        .update({ host_player_id: nextHost.id, updated_at: new Date().toISOString() })
-        .eq('id', roomId);
-    } catch (err) {
-      console.error('[Room] transferHost DB error:', err.message);
-    }
-
     broadcast(roomId, EV.ROOM_HOST_CHANGED, { newHostId: nextHost.id });
+    persist(db.from('rooms')
+      .update({ host_player_id: nextHost.id, updated_at: new Date().toISOString() })
+      .eq('id', roomId), 'transferHost');
     console.log(`[Room] 房間 ${roomId} 房主轉移 → ${nextHost.id} (${nextHost.nickname})`);
   }
 
   // ── 連線 ────────────────────────────────────────────────────
   namespace.on('connection', (socket) => {
+    // 短暫斷線後恢復：client 不會再送 room:join，由伺服器直接接回
+    if (socket.recovered) handleRecovered(socket);
 
     // ── 建立房間 ────────────────────────────────────────────
     socket.on(EV.ROOM_CREATE, async ({ roomId, nickname, playerId, maxPlayers = 6, appId = '', options = {} }) => {
@@ -302,11 +314,10 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
         if (!target) return sendError(socket, EV.ERR_ROOM_NOT_FOUND, '找不到目標玩家！');
 
         roomCache.updateRoom(roomId, { host_player_id: targetPlayerId });
-        await db.from('rooms')
-          .update({ host_player_id: targetPlayerId, updated_at: new Date().toISOString() })
-          .eq('id', roomId);
-
         broadcast(roomId, EV.ROOM_HOST_CHANGED, { newHostId: targetPlayerId });
+        persist(db.from('rooms')
+          .update({ host_player_id: targetPlayerId, updated_at: new Date().toISOString() })
+          .eq('id', roomId), 'transfer-host');
         console.log(`[Room] 主動轉移房主 ${roomId}: ${targetPlayerId}`);
       } catch (err) {
         console.error('[Room:transfer-host]', err.message);
@@ -317,15 +328,11 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
     socket.on(EV.ROOM_READY, async ({ ready }) => {
       const { roomId, playerId } = socket.data ?? {};
       if (!roomId || !playerId) return;
-      try {
-        roomCache.updatePlayer(roomId, playerId, { is_ready: !!ready });
-        await db.from('players')
-          .update({ is_ready: !!ready, updated_at: new Date().toISOString() })
-          .eq('id', playerId);
-        broadcast(roomId, EV.ROOM_PLAYERS_UPDATED, { players: roomCache.getPlayers(roomId) });
-      } catch (err) {
-        console.error('[Room:ready]', err.message);
-      }
+      roomCache.updatePlayer(roomId, playerId, { is_ready: !!ready });
+      broadcast(roomId, EV.ROOM_PLAYERS_UPDATED, { players: roomCache.getPlayers(roomId) });
+      persist(db.from('players')
+        .update({ is_ready: !!ready, updated_at: new Date().toISOString() })
+        .eq('id', playerId), 'ready');
     });
 
     // ── 斷線處理 ────────────────────────────────────────────
@@ -363,7 +370,7 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
 
         // 房主斷線 → 30 秒後自動轉移
         if (entry.room.host_player_id === playerId) {
-          setTimeout(async () => {
+          const t = setTimeout(async () => {
             const current = await roomCache.get(roomId);
             if (!current) return;
             // 確認房主仍然是此玩家且仍然離線
@@ -373,6 +380,7 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
               await transferHostToNext(roomId, playerId);
             }
           }, HOST_TRANSFER_DELAY_MS);
+          t.unref();
         }
 
         console.log(`[Room] 斷線 ${roomId}: ${playerId}`);
@@ -450,7 +458,7 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
           // ── 觀戰 ────────────────────────────────────────
           await leaveCurrentRoom(socket, roomId);
           roomCache.addSpectator(roomId, { id: playerId, nickname });
-          socket.data = { roomId, playerId, isSpectator: true };
+          socket.data = { roomId, playerId, isSpectator: true, nickname }; // nickname：恢復連線時重建觀戰者
           socket.join(roomId);
 
           socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'spectator'));
@@ -507,6 +515,50 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
     } catch (err) {
       console.error('[Room:join]', err.message);
       sendError(socket, EV.ERR_JOIN_FAILED, '加入房間失敗：' + err.message);
+    }
+  }
+
+  // ── 連線狀態恢復：與 room:join 重連相同的效果，但不必等 client 重送 ─────
+  // socket.io 已還原 socket.data 與房間頻道、補送漏掉的廣播（先於此處送出），
+  // 這裡再把人標回在線，並補發 join-ack 與遊戲狀態（斷線期間單獨發給他的事件不會被補送）
+  async function handleRecovered(socket) {
+    const { roomId, playerId, isSpectator, nickname } = socket.data ?? {};
+    if (!roomId || !playerId) return;
+    try {
+      const entry = await roomCache.get(roomId);
+      const player = entry?.players.find(p => p.id === playerId);
+
+      // 斷線期間被踢出 / 房間已封存 → 座位已不在
+      if (!entry || (!isSpectator && !player)) {
+        socket.leave(roomId);
+        socket.data = {};
+        socket.emit(EV.ROOM_KICKED, { reason: entry ? '你已不在這個房間' : '房間已結束' });
+        return;
+      }
+
+      if (isSpectator) {
+        // 觀戰者斷線時已被移除 → 加回去
+        roomCache.addSpectator(roomId, { id: playerId, nickname });
+        socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'spectator'));
+        broadcast(roomId, EV.ROOM_SPECTATORS_UPDATED, { spectators: roomCache.getSpectators(roomId) });
+        if (hooks.spectatorCanUpgrade && hooks.spectatorCanUpgrade(roomId)) {
+          socket.emit(EV.ROOM_SPECTATOR_CAN_JOIN);
+        }
+        console.log(`[Room] 恢復連線（觀戰）${roomId}: ${nickname}`);
+        return;
+      }
+
+      roomCache.setPlayerOnline(roomId, playerId, true);
+      socket.emit(EV.ROOM_JOIN_ACK, await buildJoinAck(roomId, playerId, 'reconnect'));
+      broadcast(roomId, EV.ROOM_PLAYER_RECONNECTED, { playerId, nickname: player.nickname });
+      broadcast(roomId, EV.ROOM_PLAYERS_UPDATED, { players: roomCache.getPlayers(roomId) });
+
+      if (hooks.onPlayerJoined) {
+        await hooks.onPlayerJoined(socket, roomId, playerId, true);
+      }
+      console.log(`[Room] 恢復連線 ${roomId}: ${player.nickname}`);
+    } catch (err) {
+      console.error('[Room:recover]', err.message);
     }
   }
 
@@ -568,4 +620,4 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
   return { roomCache, broadcast };
 }
 
-module.exports = { registerRoomHandlers };
+module.exports = { registerRoomHandlers, CONNECTION_STATE_RECOVERY };
