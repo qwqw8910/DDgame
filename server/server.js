@@ -82,6 +82,10 @@ registerLodge(io, db);
 const { registerNamespace: registerClocktower } = require('./clocktower');
 registerClocktower(io, db);
 
+// ── 同詞相遇 namespace ────────────────────────────────────────
+const { registerNamespace: registerSameWord } = require('./same-word');
+registerSameWord(io, db);
+
 // ── 遊戲狀態快取（房間/玩家改由統一房間模組管理）────────────
 // gameCache[roomId] = { currentRound, currentQuestion, guesses, topics, round_pool, _previewUsedIds, _previewTopicId }
 const gameCache = {};
