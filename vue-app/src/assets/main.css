@@ -1407,6 +1407,106 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   letter-spacing: 0.04em;
 }
 
+/* 甜點守衛戰：草莓牛奶色；不跟隨明暗主題 */
+@layer components {
+  .gt-root { background: #FFF4F2; color: #5E4038; font-family: var(--font-sans); }
+  .gt-root .header-icon-btn { background: #FFFFFF; border-color: #EAC8CF; color: #4A2C2A; }
+  @media (max-width: 400px) { .gt-root .header-icon-btn { padding: 6px 7px; } }
+  .gt-heading { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: #4A2C2A; }
+
+  .gt-btn {
+    padding: 10px 16px; border: 2px solid #4A2C2A; border-radius: 10px; background: #FFFFFF;
+    color: #4A2C2A; font-size: 16px; font-weight: 700; cursor: pointer; transition: background-color 0.12s;
+  }
+  .gt-btn:hover:not(:disabled) { background: #FDE9ED; }
+  .gt-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .gt-btn:focus-visible, .gt-chip:focus-visible, .gt-gem-slot:focus-visible { outline: 2px solid #D6305A; outline-offset: 2px; }
+  .gt-btn--lamp { background: #D6305A; color: #FFFFFF; }
+  .gt-btn--lamp:hover:not(:disabled) { background: #BC2149; }
+  .gt-btn--small { padding: 5px 10px; white-space: nowrap; }
+
+  .gt-chip {
+    padding: 4px 10px; border: 1px solid #EAC8CF; border-radius: 10px; background: #FFFFFF;
+    color: #5E4038; font-size: 16px; cursor: pointer; white-space: nowrap;
+  }
+  .gt-chip:hover { border-color: #D6305A; }
+
+  .gt-input {
+    box-sizing: border-box; width: 100%; height: 46px; padding: 0 12px; border: 2px solid #EAC8CF; border-radius: 10px;
+    background: #FFFFFF; color: #4A2C2A; font-size: 16px; outline: none;
+  }
+  .gt-input::placeholder { color: #A98A82; }
+  .gt-input:focus { border-color: #D6305A; }
+
+  .gt-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #F0D5DA; border-radius: 10px; background: #FFFFFF; }
+  .gt-row--on { border-color: #D6305A; }
+
+  .gt-gem-slot {
+    display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 0 6px;
+    border: 1px solid #F0D5DA; border-radius: 10px; background: #FFFFFF; color: #5E4038; cursor: pointer;
+  }
+  .gt-gem-slot--on { border: 2px solid #D6305A; background: #FDE9ED; }
+
+  .gt-install-hint {
+    position: fixed; top: 56px; right: 12px; z-index: 60; max-width: 16rem; margin: 0; padding: 10px 14px;
+    border: 1px solid #EAC8CF; border-radius: 10px; background: #FFFFFF; color: #5E4038; font-size: 16px;
+  }
+
+  .gt-recipes {
+    position: fixed; z-index: 50; display: flex; flex-direction: column;
+    width: min(340px, calc(100vw - 16px)); max-height: min(62dvh, 560px); overflow: hidden;
+    border: 1px solid #EAC8CF; border-radius: 12px; background: #FFF4F2; color: #5E4038;
+    box-shadow: 0 8px 24px rgba(74, 44, 42, 0.25);
+  }
+  .gt-recipes-handle {
+    display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding: 10px 12px;
+    color: #7A5A50; cursor: grab; touch-action: none; user-select: none;
+  }
+  .gt-recipes-handle:active { cursor: grabbing; }
+  .gt-recipes-close { padding: 10px 14px; border: 0; background: transparent; color: #5E4038; font-size: 16px; cursor: pointer; }
+  .gt-recipes-close:hover { color: #D6305A; }
+  .gt-recipes-close:focus-visible { outline: 2px solid #D6305A; outline-offset: -2px; }
+
+  .gt-need { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border: 1px solid #F0D5DA; border-radius: 8px; background: #FFFFFF; }
+  .gt-need--ready { border-color: #2E9E5B; background: #E9F7EE; color: #1E6B3D; }
+  .gt-need--placing { border-color: #E5B400; background: #FFF7DB; color: #6E5600; }
+  .gt-need--missing { border-style: dashed; border-color: #D6305A; color: #B0244A; }
+
+  .gt-tab {
+    display: flex; flex: 1 0 104px; flex-direction: column; gap: 1px; min-width: 0; max-width: 200px; padding: 3px 8px;
+    border: 1px solid #F0D5DA; border-radius: 10px; background: #FFFFFF; font-size: 14px; line-height: 1.3; text-align: left; cursor: pointer;
+  }
+  .gt-tab--on { border: 2px solid #D6305A; background: #FDE9ED; padding: 2px 7px; }
+  .gt-tab--out { opacity: 0.6; }
+  .gt-tab:focus-visible { outline: 2px solid #D6305A; outline-offset: 1px; }
+
+  .gt-watching {
+    position: absolute; top: 4px; left: 50%; z-index: 10; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 16px);
+    margin: 0; padding: 4px 6px 4px 12px; border: 1px solid #EAC8CF; border-radius: 10px; background: #FFFFFF;
+    color: #4A2C2A; white-space: nowrap; transform: translateX(-50%);
+  }
+
+  .gt-pop-enter-active, .gt-pop-leave-active { transition: opacity 0.16s, transform 0.16s ease-out; }
+  .gt-pop-enter-from, .gt-pop-leave-to { opacity: 0; transform: scale(0.92); }
+  @media (prefers-reduced-motion: reduce) {
+    .gt-tab {
+    display: flex; flex: 1 0 104px; flex-direction: column; gap: 1px; min-width: 0; max-width: 200px; padding: 3px 8px;
+    border: 1px solid #F0D5DA; border-radius: 10px; background: #FFFFFF; font-size: 14px; line-height: 1.3; text-align: left; cursor: pointer;
+  }
+  .gt-tab--on { border: 2px solid #D6305A; background: #FDE9ED; padding: 2px 7px; }
+  .gt-tab--out { opacity: 0.6; }
+  .gt-tab:focus-visible { outline: 2px solid #D6305A; outline-offset: 1px; }
+
+  .gt-watching {
+    position: absolute; top: 4px; left: 50%; z-index: 10; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 16px);
+    margin: 0; padding: 4px 6px 4px 12px; border: 1px solid #EAC8CF; border-radius: 10px; background: #FFFFFF;
+    color: #4A2C2A; white-space: nowrap; transform: translateX(-50%);
+  }
+
+  .gt-pop-enter-active, .gt-pop-leave-active { transition: none; }
+  }
+}
+
 /* PWA standalone on iOS (status-bar-style black-translucent) draws under the status bar. */
 body {
   padding-top: env(safe-area-inset-top);

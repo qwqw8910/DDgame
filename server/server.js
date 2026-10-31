@@ -86,6 +86,10 @@ registerClocktower(io, db);
 const { registerNamespace: registerSameWord } = require('./same-word');
 registerSameWord(io, db);
 
+// ── 寶石塔防 namespace ────────────────────────────────────────
+const { registerNamespace: registerGemTd } = require('./gem-td');
+registerGemTd(io, db);
+
 // ── 遊戲狀態快取（房間/玩家改由統一房間模組管理）────────────
 // gameCache[roomId] = { currentRound, currentQuestion, guesses, topics, round_pool, _previewUsedIds, _previewTopicId }
 const gameCache = {};
