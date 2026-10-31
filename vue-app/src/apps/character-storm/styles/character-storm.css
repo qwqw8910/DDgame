@@ -205,9 +205,9 @@
   50%      { filter: brightness(1.25); }
 }
 
-/* 7～12 人：卡片鋪滿可視高度，不出現捲軸 */
+/* 7～12 人：卡片鋪滿可視高度；列高不低於內容，放不下時才捲動，避免第二輪字牌被裁掉 */
 @media (min-width: 641px) {
-  .cs-players-grid--dense { overflow: hidden; grid-template-rows: repeat(var(--cs-rows, 3), minmax(0, 1fr)); align-content: stretch; gap: 6px; }
+  .cs-players-grid--dense { overflow-y: auto; grid-template-rows: repeat(var(--cs-rows, 3), minmax(min-content, 1fr)); align-content: stretch; gap: 6px; }
   .cs-players-grid--dense .cs-player-card { padding: 8px !important; min-height: 0; overflow: hidden; }
   .cs-players-grid--dense .cs-card-head { margin-bottom: 4px; padding-bottom: 4px; }
   .cs-players-grid--dense .cs-hint-block { padding: 0 0 4px; }
@@ -218,14 +218,41 @@
   .cs-players-grid--dense .cs-guess-row { padding: 3px 8px; }
 }
 
-/* 13 人以上（--compact）：電腦版 4 欄、鋪滿可視高度、不捲動。
+/* 視窗偏矮：提示改成「標籤＋字牌」橫排省高度，讓兩輪字牌盡量不用捲動就看得到 */
+@media (min-width: 641px) and (max-height: 1100px) {
+  .cs-scope .cs-players-grid--dense .cs-hint-block { display: flex; align-items: center; gap: 8px; text-align: left; }
+  .cs-scope .cs-players-grid--dense .cs-round-label { margin: 0; letter-spacing: 0.05em; flex-shrink: 0; }
+  .cs-scope .cs-players-grid--dense .hint-chars-wrap,
+  .cs-scope .cs-players-grid--dense .cs-hint-placeholder { flex: 1; min-width: 0; justify-content: flex-start; }
+  .cs-scope .cs-players-grid--dense .cs-tile--md { --size: 30px; }
+  /* 猜題者卡的標題與等待文字跟角色標籤、左側列表重複，先省略，免得撐高整列 */
+  .cs-scope .cs-players-grid--dense .cs-guesser-hero__title,
+  .cs-scope .cs-players-grid--dense .cs-guesser-hero .cs-hint-placeholder { display: none; }
+  .cs-scope .cs-players-grid--dense .cs-guess-rows { margin-top: 0; gap: 3px; }
+}
+@media (min-width: 641px) and (max-height: 900px) {
+  .cs-scope .cs-players-grid--dense .cs-tile--md { --size: 26px; }
+  .cs-scope .cs-players-grid--dense .cs-card-head .cs-avatar { --size: 22px; }
+}
+@media (min-width: 641px) and (max-height: 820px) {
+  .cs-scope .cs-players-grid:not(.cs-players-grid--compact) .cs-hint-block { display: flex; align-items: center; gap: 8px; text-align: left; padding: 0 0 4px; }
+  .cs-scope .cs-players-grid:not(.cs-players-grid--compact) .cs-hint-block + .cs-hint-block { padding-top: 4px; }
+  .cs-scope .cs-players-grid:not(.cs-players-grid--compact) .cs-round-label { margin: 0; letter-spacing: 0.05em; flex-shrink: 0; }
+  .cs-scope .cs-players-grid:not(.cs-players-grid--compact) .hint-chars-wrap,
+  .cs-scope .cs-players-grid:not(.cs-players-grid--compact) .cs-hint-placeholder { flex: 1; min-width: 0; min-height: 26px; justify-content: flex-start; }
+  .cs-scope .cs-players-grid .cs-guesser-hero__title,
+  .cs-scope .cs-players-grid .cs-guesser-hero .cs-hint-placeholder { display: none; }
+}
+
+/* 13 人以上（--compact）：電腦版 4 欄、鋪滿可視高度，矮到放不下兩輪字牌時才捲動。
    欄列數由頁面以 --cs-cols / --cs-rows 傳入；卡片是 size container，字牌隨卡片尺寸縮放。
+   size container 沒有內容高度，所以列高下限要寫死。
    手機版（≤640px）維持 2 欄、整頁捲動。 */
 @media (min-width: 641px) {
   .cs-scope .cs-players-grid--compact {
-    overflow: hidden; align-content: stretch; gap: 8px;
+    overflow-y: auto; align-content: stretch; gap: 8px;
     grid-template-columns: repeat(var(--cs-cols, 4), minmax(0, 1fr));
-    grid-template-rows: repeat(var(--cs-rows, 3), minmax(0, 1fr));
+    grid-template-rows: repeat(var(--cs-rows, 3), minmax(92px, 1fr));
   }
   .cs-scope .cs-players-grid--compact .cs-player-card { container-type: size; min-height: 0; overflow: hidden; padding: 8px 10px !important; }
   .cs-scope .cs-players-grid--compact .cs-card-head { margin-bottom: 4px; padding-bottom: 4px; flex-shrink: 0; }
@@ -245,10 +272,14 @@
   .cs-scope .cs-players-grid--compact .cs-guess-rows { margin-top: 2px; gap: 3px; }
   .cs-scope .cs-players-grid--compact .cs-guess-row { padding: 2px 8px; min-height: 0; }
   .cs-scope .cs-players-grid--compact .cs-guesser-hero__title { font-size: 13px; }
+  .cs-scope .cs-players-grid--compact .cs-guesser-hero .cs-hint-placeholder { display: none; }
 }
 /* 卡片太矮時，猜題者卡只留答案列 */
 @container (max-height: 130px) {
   .cs-guesser-hero__title { display: none; }
+  .cs-scope .cs-players-grid--compact .cs-guess-rows { margin-top: 0; gap: 2px; }
+  .cs-scope .cs-players-grid--compact .cs-guess-row { padding: 0 8px; border-width: 0; }
+  .cs-scope .cs-players-grid--compact .cs-guess-row > * { font-size: 12px; line-height: 15px; padding-block: 0; }
 }
 
 /* 互動按鈕：卡片標頭右上角 */
