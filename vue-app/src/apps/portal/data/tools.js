@@ -89,6 +89,18 @@ export const tools = [
     tags: ['多人', '遊戲', '推理'],
   },
   {
+    id: 'gem-td',
+    name: '甜點守衛戰',
+    tagline: '別讓蟲子搬走蛋糕',
+    description: '蓋迷宮 · 合成甜點 · 守住蛋糕\n1～4 人，每人一張地圖的塔防！',
+    emoji: '🍰',
+    color: 'blue',
+    route: '/gem-td',
+    externalUrl: null,
+    status: 'beta',
+    tags: ['單人', '多人', '遊戲', '塔防'],
+  },
+  {
     id: 'dinner-invite',
     name: '晚餐邀請',
     tagline: '你敢拒絕嗎？惡搞邀請',

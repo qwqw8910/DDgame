@@ -62,6 +62,7 @@ vue-app/src/
 │   ├── story-canvas/              ← App: 故事關係圖
 │   ├── mountain-lodge/            ← App: 山中別館殺人事件（後端：server/mountain-lodge/）
 │   ├── clocktower/                ← App: 血染鐘樓（後端：server/clocktower/；規格 docs/clocktower-spec.md）
+│   ├── gem-td/                    ← App: 甜點守衛戰（後端：server/gem-td/；規格 docs/gem-td-spec.md）
 │   │
 │   └── [未來新 App slug]/          ← 遵循相同結構
 │       ├── pages/
@@ -204,6 +205,7 @@ server/
 ├── character-storm/       ← namespace /character-storm（index.js、filterLogic.js、roleAssign.js、seed.js、sql/）
 ├── mountain-lodge/        ← 山中別館殺人事件（index.js、gameLogic.js）
 ├── clocktower/            ← 血染鐘樓（index.js、gameLogic.js）
+├── gem-td/                ← 甜點守衛戰（index.js、gameLogic.js、waveSim.js、pathing.js、config.js）
 ├── package.json
 ├── railway.json           ← Railway 部署設定
 └── README.md              ← 環境變數、部署、懂我再說事件總覽
@@ -245,6 +247,7 @@ VITE_SOCKET_URL=http://localhost:3000
 | `story-canvas` | 故事關係圖 | 🟢 live | `/story-canvas` |
 | `mountain-lodge` | 山中別館殺人事件 | 🟡 beta | `/mountain-lodge`, `/mountain-lodge/room` |
 | `clocktower` | 血染鐘樓 | 🟡 beta | `/clocktower`, `/clocktower/room` |
+| `gem-td` | 甜點守衛戰 | 🟡 beta | `/gem-td`, `/gem-td/room` |
 
 另有 `apps/know-me/pages/AdminPage.vue`（題庫管理後台，路由 `/admin`）：不登記進 `tools.js`／Portal 首頁，知道網址才能到。
 
