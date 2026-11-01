@@ -16,9 +16,19 @@
 const ARCHIVE_TIMEOUT_MS = 30 * 60 * 1000; // 30 分鐘
 
 class RoomCache {
-  constructor(db) {
-    this._db    = db;
-    this._cache = {};
+  /**
+   * @param {object} db
+   * @param {object} [opts]
+   * @param {'archive'|'evict'} [opts.idleAction='archive']
+   *        全員離線逾時後的動作。'archive'：DB 標記 archived 並清快取（預設）；
+   *        'evict'：只清記憶體快取，DB 不動，之後仍可用房間碼重新載入（長期保存的房間用）
+   * @param {number} [opts.idleMs=30 分鐘] 全員離線多久後觸發 idleAction
+   */
+  constructor(db, opts = {}) {
+    this._db         = db;
+    this._cache      = {};
+    this._idleAction = opts.idleAction ?? 'archive';
+    this._idleMs     = opts.idleMs ?? ARCHIVE_TIMEOUT_MS;
   }
 
   // ── 初始化（建立房間時）─────────────────────────────────────
@@ -166,10 +176,11 @@ class RoomCache {
     if (!anyOnline && !entry._archiveTimer) {
       entry._archiveTimer = setTimeout(
         () => this._archiveRoom(roomId),
-        ARCHIVE_TIMEOUT_MS
+        this._idleMs
       );
       entry._archiveTimer.unref?.(); // 不讓排程中的封存撐住程序（測試結束、關機時）
-      console.log(`[RoomCache] 房間 ${roomId} 全員離線，${ARCHIVE_TIMEOUT_MS / 60000} 分鐘後封存`);
+      const verb = this._idleAction === 'evict' ? '釋放記憶體' : '封存';
+      console.log(`[RoomCache] 房間 ${roomId} 全員離線，${this._idleMs / 60000} 分鐘後${verb}`);
     }
   }
 
@@ -183,6 +194,11 @@ class RoomCache {
   }
 
   async _archiveRoom(roomId) {
+    if (this._idleAction === 'evict') {
+      console.log(`[RoomCache] 釋放房間快取 ${roomId}（DB 資料保留）`);
+      this.delete(roomId);
+      return;
+    }
     console.log(`[RoomCache] 封存房間 ${roomId}`);
     try {
       await this._db

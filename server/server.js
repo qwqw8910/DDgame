@@ -90,6 +90,10 @@ registerSameWord(io, db);
 const { registerNamespace: registerGemTd } = require('./gem-td');
 registerGemTd(io, db);
 
+// ── 分帳系統 namespace ────────────────────────────────────────
+const { registerNamespace: registerSplitBill } = require('./split-bill');
+registerSplitBill(io, db);
+
 // ── 遊戲狀態快取（房間/玩家改由統一房間模組管理）────────────
 // gameCache[roomId] = { currentRound, currentQuestion, guesses, topics, round_pool, _previewUsedIds, _previewTopicId }
 const gameCache = {};

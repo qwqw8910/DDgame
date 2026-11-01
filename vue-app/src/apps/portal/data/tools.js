@@ -148,6 +148,18 @@ export const tools = [
     status: 'live',
     tags: ['個人', '抽籤', '動畫'],
   },
+  {
+    id: 'split-bill',
+    name: '分帳',
+    tagline: '誰先付、誰欠誰，自動算',
+    description: '記帳 · 分攤 · 簡化債務\n不用註冊，同名即同人！',
+    emoji: '💸',
+    color: 'cyan',
+    route: '/split-bill',
+    externalUrl: null,
+    status: 'beta',
+    tags: ['多人', '記帳', '旅遊'],
+  },
   // ── 未來新增工具範例 ──────────────────────────────────────────
   // {
   //   id: 'my-new-tool',
