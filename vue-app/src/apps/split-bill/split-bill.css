@@ -1,0 +1,266 @@
+@import url("https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap");
+/* 分帳系統專用樣式（獨立於 Vue 元件；class 以 .sb / .eform 為前綴） */
+
+/* -- 房間頁 -- */
+.sb,
+.main-content.sb { width: 100%; max-width: 880px; margin: 0 auto; padding: 12px 16px 88px; }
+.sb__tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; position: sticky; top: 56px; z-index: 5; padding: 6px 0; }
+.sb__tab { flex: 1; white-space: nowrap; padding: 10px 14px; border-radius: 999px; font-size: 16px; cursor: pointer;
+    background: transparent; color: var(--color-body); border: 1px solid var(--color-border); }
+.sb__tab--on { background: var(--color-neon-purple); color: #fff; border-color: transparent; }
+.sb__bar { display: flex; gap: 8px; margin-bottom: 8px; }
+.sb__add { width: auto; white-space: nowrap; padding-left: 18px; padding-right: 18px; }
+.sb__item { margin-bottom: 10px; padding: 14px 16px; }
+.sb__item--del { opacity: 0.5; }
+.sb__item-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.sb__title { font-size: 18px; font-weight: 600; color: var(--color-heading); word-break: break-word; }
+.sb__sub { font-size: 16px; color: var(--color-body); margin-top: 2px; word-break: break-word; }
+.sb__amount { font-size: 18px; font-weight: 700; color: var(--color-heading); white-space: nowrap; }
+.sb__actions { display: flex; gap: 8px; margin-top: 10px; }
+.sb__empty { text-align: center; font-size: 16px; color: var(--color-body); padding: 36px 0; }
+.sb__row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; font-size: 16px; color: var(--color-heading); }
+.sb__log { border-bottom: 1px solid var(--color-border); }
+.sb__pos { color: #10b981; font-weight: 600; }
+.sb__neg { color: #f43f5e; font-weight: 600; }
+.sb__me { font-weight: 700; }
+
+/* -- 結算（誰給誰）與匯率 -- */
+.sb__converted { font-size: 16px; font-weight: 400; }
+.sb__transfer { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: none; border: 0; padding: 4px 0; font-size: 18px; color: var(--color-heading); cursor: pointer; text-align: left; }
+.sb__transfer b { margin-left: auto; white-space: nowrap; }
+.sb__chev { font-size: 14px; color: var(--color-body); }
+.sb__details { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--color-border); }
+.sb__total { border-top: 1px solid var(--color-border); font-weight: 700; margin-top: 4px; }
+.sb__rate { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 16px; color: var(--color-heading); }
+.sb__rate-label { white-space: nowrap; }
+.sb__rate-input { width: 110px; padding-left: 12px !important; }
+.sb__rate-btn { padding: 6px 12px; }
+.sb__code { font-family: 'Source Code Pro', monospace; font-size: 26px; font-weight: 700; letter-spacing: 6px; color: var(--color-neon-rose); }
+
+/* -- 支出列表：篩選列、檢視方式 -- */
+.xlist__panel { padding: 16px; margin-bottom: 12px; }
+.xlist__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.xlist__heading { font-size: 20px; font-weight: 700; color: var(--color-heading); }
+.xlist__add { display: inline-flex; align-items: center; gap: 6px; }
+.xlist__filters { display: flex; gap: 8px; }
+.xlist__select { flex: 0 0 38%; min-width: 130px; }
+.xlist__search { position: relative; flex: 1; min-width: 0; }
+.xlist__search .game-input { width: 100%; padding-left: 14px !important; padding-right: 44px !important; }
+.xlist__search svg { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--color-neon-rose); pointer-events: none; }
+.xlist__bar { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 10px; }
+.xlist__view { position: relative; }
+.xlist__viewbtn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--color-border);
+    background: #fff; color: var(--color-body); font-size: 16px; cursor: pointer; }
+.xlist__viewmenu { padding: 8px; min-width: 160px; }
+.xlist__opt { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 16px; color: var(--color-heading); cursor: pointer; border-radius: 10px; }
+.xlist__opt:hover { background: #fff3ee; }
+.xlist__opt--sep { margin-top: 4px; border-top: 1px dashed var(--color-border); border-radius: 0 0 10px 10px; padding-top: 12px; }
+.xlist__opt input { width: 18px; height: 18px; accent-color: var(--color-neon-rose); }
+.xlist__grid { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
+@media (min-width: 640px) { .xlist__grid--2 { grid-template-columns: 1fr 1fr; } }
+
+/* -- 支出卡片 -- */
+.xcard { padding: 14px 16px; }
+.xcard--del { opacity: 0.55; }
+.xcard__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.xcard__title { font-size: 18px; font-weight: 700; color: var(--color-heading); word-break: break-word; }
+.xcard__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; font-size: 16px; color: var(--color-heading); }
+.xcard__date { padding: 0 10px; border-radius: 999px; background: #ffe9e4; color: var(--color-neon-rose-hover); font-size: 14px; line-height: 1.7; }
+.xcard__payer { font-weight: 500; color: var(--color-neon-rose-hover); }
+.xcard__side { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.xcard__amount { padding: 3px 14px; border-radius: 999px; background: var(--color-neon-rose-hover); color: #fff; font-size: 16px; font-weight: 700; white-space: nowrap; }
+.xcard__converted { margin-top: 6px; text-align: right; font-size: 16px; color: var(--color-body); }
+.xcard__menu { position: relative; }
+.xcard__kebab { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--color-body); cursor: pointer; }
+.xcard__kebab:hover { background: #ffe9e4; }
+.xcard__popover { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: flex; flex-direction: column; min-width: 120px;
+    padding: 6px; background: #fff; border: 2px solid var(--sb-pink, #f5d0ca); border-radius: 14px; box-shadow: 0 8px 20px rgba(90, 58, 54, 0.15); }
+.xcard__item { padding: 8px 12px; border: 0; border-radius: 10px; background: transparent; color: var(--color-heading); font-size: 16px; text-align: left; cursor: pointer; }
+.xcard__item:hover:not(:disabled) { background: #fff3ee; }
+.xcard__item:disabled { opacity: 0.4; cursor: not-allowed; }
+.xcard__item--danger { color: #cf2f5b; }
+.xcard__toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 10px; padding: 6px 14px; border: 0; border-radius: 12px;
+    background: #fff6f4; color: var(--color-neon-rose-hover); font-size: 16px; cursor: pointer; }
+.xcard__chev { transition: transform 0.2s; }
+.xcard__chev--up { transform: rotate(180deg); }
+.xcard__detail { margin-top: 6px; padding: 8px 14px; border-radius: 12px; background: #fff6f4; }
+.xcard__line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 4px 0; font-size: 16px; color: var(--color-heading); word-break: break-word; }
+.xcard__label { color: var(--color-heading); font-weight: 500; white-space: nowrap; }
+.xcard__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.xcard__chip { padding: 1px 12px; border-radius: 999px; border: 1px solid var(--sb-pink, #f5d0ca); background: #fff0ed; color: var(--color-neon-rose-hover); font-size: 15px; }
+.xcard__share { color: var(--color-neon-rose-hover); }
+
+/* -- 支出表單 -- */
+.eform { max-height: 92dvh; overflow-y: auto; }
+.eform__label { display: block; margin: 12px 0 4px; font-size: 16px; color: var(--color-label); }
+.eform__input { padding-left: 14px !important; }
+.eform__input--sm { width: 110px; padding: 8px 10px !important; }
+.eform__row { display: flex; gap: 10px; }
+.eform__grow { flex: 1; min-width: 0; }
+.eform__tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.eform__tab { padding: 8px 14px; border-radius: 999px; font-size: 16px; cursor: pointer;
+    background: transparent; color: var(--color-body); border: 1px solid var(--color-border); }
+.eform__tab--on { background: var(--color-neon-purple); color: #fff; border-color: transparent; }
+.eform__hint { font-size: 16px; color: var(--color-body); margin: 6px 0; }
+.eform__hint--bad { color: #f43f5e; }
+.eform__people { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.eform__person { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 6px 10px; border-radius: 10px; border: 1px solid var(--color-border); }
+.eform__check { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--color-heading); min-width: 0; }
+.eform__check input { width: 20px; height: 20px; }
+.eform__value { display: flex; align-items: center; gap: 6px; }
+.eform__unit { font-size: 16px; color: var(--color-body); min-width: 2.5em; }
+.eform__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+/* ── 暖色主題（參考 keeps.homes：奶油底、珊瑚粉、陽光黃、圓潤字體） ──
+   以 .sb-theme 包住整個分帳 app，覆寫全域色票，固定使用淺色暖調，不隨 data-theme 切換。 */
+.sb-theme {
+    --sb-cream: #fffcf3;
+    --sb-peach: #ffe4d5;
+    --sb-pink: #f5d0ca;
+    --sb-coral: #e5776e;
+    --sb-coral-deep: #d05f56;
+    --sb-yellow: #ffef4b;
+    --sb-sun: #ffd742;
+    --sb-teal: #5fb39b;
+    --sb-ink: #5a3a36;
+
+    --font-sans: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+    --color-heading: var(--sb-ink);
+    --color-label: #9b7a74;
+    --color-body: #8a6d68;
+    --color-dark: var(--sb-cream);
+    --color-card: #ffffff;
+    --color-card-solid: #ffffff;
+    --color-surface: var(--sb-peach);
+    --color-input: #ffffff;
+    --color-border: rgba(229, 119, 110, 0.2);
+    --color-border-glow: rgba(229, 119, 110, 0.45);
+    --color-neon-rose: var(--sb-coral);
+    --color-neon-rose-hover: var(--sb-coral-deep);
+    --color-neon-purple: var(--sb-coral);
+    --color-neon-purple-hover: var(--sb-coral-deep);
+    --color-neon-purple-light: var(--sb-coral);
+    --color-accent: var(--sb-coral);
+    --color-header: rgba(255, 252, 243, 0.92);
+    --color-overlay: rgba(90, 58, 54, 0.45);
+    --color-shadow-neon: rgba(229, 119, 110, 0.25);
+    --color-shadow-dark: rgba(90, 58, 54, 0.15);
+    --color-shadow-ambient: rgba(229, 119, 110, 0.08);
+
+    font-family: var(--font-sans);
+    color: var(--sb-ink);
+    background:
+        radial-gradient(circle at 8% 6%, var(--sb-peach) 0, transparent 38%),
+        radial-gradient(circle at 94% 92%, rgba(255, 239, 75, 0.28) 0, transparent 34%),
+        var(--sb-cream);
+}
+.sb-theme .theme-toggle,
+.sb-theme .header-icon-btn[title="切換主題"] { display: none; }
+
+.sb-theme .game-card {
+    border-radius: 22px;
+    border: 2px solid var(--sb-pink);
+    box-shadow: 0 6px 0 rgba(245, 208, 202, 0.7);
+    backdrop-filter: none;
+}
+.sb-theme .game-card:hover { transform: translateY(-2px); border-color: var(--sb-coral); box-shadow: 0 8px 0 rgba(245, 208, 202, 0.9); }
+.sb-theme .game-input {
+    border-radius: 14px; border: 2px solid var(--sb-pink); background: #fff; color: var(--sb-ink);
+}
+.sb-theme .game-input:focus { border-color: var(--sb-coral); box-shadow: 0 0 0 4px rgba(255, 215, 66, 0.35); }
+.sb-theme .game-input::placeholder { color: #c9aaa4; }
+
+.sb-theme .btn-primary,
+.sb-theme .btn-secondary,
+.sb-theme .btn-ghost { border-radius: 999px; font-weight: 700; letter-spacing: 0.04em; }
+.sb-theme .btn-primary {
+    background: var(--sb-coral); color: #fff; box-shadow: 0 4px 0 var(--sb-coral-deep);
+}
+.sb-theme .btn-primary::before { display: none; }
+.sb-theme .btn-primary:hover:not(:disabled) { background: var(--sb-coral-deep); box-shadow: 0 6px 0 #b9524a; }
+.sb-theme .btn-secondary {
+    background: var(--sb-sun); color: var(--sb-ink); box-shadow: 0 4px 0 #e6b92a;
+}
+.sb-theme .btn-secondary:hover:not(:disabled) { background: var(--sb-yellow); box-shadow: 0 6px 0 #e6b92a; }
+.sb-theme .btn-ghost { color: var(--sb-coral-deep); border: 2px solid var(--sb-pink); background: #fff; }
+.sb-theme .btn-ghost:hover { background: var(--sb-peach); border-color: var(--sb-coral); box-shadow: none; }
+
+.sb-theme .sticky-header { border-bottom: 2px solid var(--sb-pink); }
+.sb-theme .logo-sm,
+.sb-theme .header-room-id { color: var(--sb-coral-deep); }
+.sb-theme .header-room-id { background: var(--sb-yellow); padding: 2px 10px; border-radius: 999px; color: var(--sb-ink); }
+.sb-theme .header-back-btn { color: var(--sb-coral-deep); }
+.sb-theme .header-back-btn:hover { background: var(--sb-peach); }
+.sb-theme .neon-heading { text-shadow: none; }
+.sb-theme .gradient-text { background: none; -webkit-text-fill-color: currentColor; color: var(--sb-coral); }
+.sb-theme .overlay-card { border-radius: 24px; border: 2px solid var(--sb-pink); box-shadow: 0 8px 0 rgba(245, 208, 202, 0.8); }
+.sb-theme .badge { border-radius: 999px; background: var(--sb-peach); color: var(--sb-coral-deep); }
+
+/* 房間頁 / 表單元件 */
+.sb-theme .sb__tabs { background: transparent; }
+.sb-theme .sb__tab,
+.sb-theme .eform__tab { border: 2px solid var(--sb-pink); background: #fff; color: var(--sb-coral-deep); font-weight: 700; }
+.sb-theme .sb__tab--on,
+.sb-theme .eform__tab--on { background: var(--sb-coral); border-color: var(--sb-coral); color: #fff; }
+.sb-theme .sb__pos { color: var(--sb-teal); }
+.sb-theme .sb__neg,
+.sb-theme .eform__hint--bad { color: #e0524a; }
+.sb-theme .sb__code { color: var(--sb-coral); background: var(--sb-yellow); border-radius: 16px; padding: 4px 18px; display: inline-block; }
+.sb-theme .sb__log { border-bottom: 2px dashed var(--sb-pink); }
+.sb-theme .eform__person { border: 2px solid var(--sb-pink); border-radius: 14px; background: #fff; }
+.sb-theme .eform__check input { accent-color: var(--sb-coral); }
+
+/* 下拉選單箭頭（Phosphor Icons caret-down，MIT） */
+.sb-theme select.game-input {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 40px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%23d05f56'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 18px 18px;
+}
+
+.xlist__right { display: flex; align-items: center; gap: 12px; }
+.xlist__del { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; color: var(--color-body); cursor: pointer; white-space: nowrap; }
+.xlist__del input { width: 18px; height: 18px; accent-color: var(--color-neon-rose); }
+
+/* -- 結算卡片（沿用 xcard） -- */
+.xcard__arrow { margin: 0 8px; font-size: 15px; font-weight: 500; color: var(--color-body); }
+.xcard__me { color: var(--color-neon-rose-hover); }
+.xcard__line--split { justify-content: space-between; flex-wrap: nowrap; align-items: center; }
+.xcard__minus { color: var(--sb-teal, #5fb39b); font-weight: 600; white-space: nowrap; }
+.xcard__total { margin-top: 4px; border-top: 1px dashed var(--sb-pink, #f5d0ca); font-weight: 700; }
+
+/* -- 彈出視窗：統一寬度 640、右上角關閉鈕 -- */
+.sb-modal { position: relative; width: min(640px, 94vw) !important; max-width: none !important; }
+.sb-modal > .neon-heading, .sb-modal > p:first-of-type { padding-right: 40px; }
+.sb-modal__close { position: absolute; top: 12px; right: 12px; z-index: 1; display: grid; place-items: center; width: 36px; height: 36px;
+    border: 0; border-radius: 50%; background: transparent; color: var(--color-body); cursor: pointer; }
+.sb-modal__close:hover { background: #ffe9e4; color: var(--color-neon-rose-hover); }
+
+/* 彈窗內容可捲動，操作按鈕固定在視窗最下方 */
+.sb-theme .sb-modal { max-height: 92dvh; overflow-y: auto; padding: 24px; }
+.sb-modal__foot { position: sticky; bottom: -24px; z-index: 1; display: flex; justify-content: flex-end; gap: 10px;
+    margin: 20px -24px -24px; padding: 14px 24px; background: #fff; border-top: 2px dashed #f5d0ca; border-radius: 0 0 20px 20px; }
+
+/* 全站 html/body 是 overflow:hidden，房間頁自己當捲動容器，內容超出視窗時才會出現 scrollbar */
+.sb-theme.page-wrapper--scrollable { height: 100dvh; min-height: 0; overflow-x: hidden; overflow-y: auto; }
+.main-content.sb.main-content--room { padding-bottom: 88px; }
+/* 捲動容器是固定高度的 flex：內容區不能被壓縮，否則超出的內容會蓋掉底部間距 */
+.sb-theme.page-wrapper--scrollable > .main-content { flex: 0 0 auto; min-height: auto; overflow: visible; }
+.sb__rate--add { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--sb-pink, #f5d0ca); }
+.sb__rate-select { width: 150px; }
+.eform__select { margin-top: 0; }
+.eform__select--cur { width: 110px; }
+
+/* 帳本設定：未儲存變更的浮動操作列（低於彈窗的 z-100，高於一般內容） */
+.sb-savebar { position: fixed; left: 50%; bottom: 16px; z-index: 60; transform: translateX(-50%);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    width: min(560px, calc(100vw - 24px)); padding: 12px 14px 12px 20px;
+    background: #fff; border: 2px solid var(--sb-pink, #f5d0ca); border-radius: 22px; box-shadow: 0 8px 0 rgba(245, 208, 202, 0.8), 0 12px 28px rgba(90, 58, 54, 0.18); }
+.sb-savebar__text { font-weight: 700; color: var(--sb-ink, #5a3a36); }
+.sb-savebar__actions { display: flex; gap: 10px; flex-shrink: 0; }
+.savebar-enter-active, .savebar-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.savebar-enter-from, .savebar-leave-to { opacity: 0; transform: translate(-50%, 16px); }

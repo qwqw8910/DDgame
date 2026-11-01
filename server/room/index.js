@@ -16,6 +16,12 @@
 //    hooks.onPlayerJoined       {fn}       (socket, roomId, playerId, isReconnect)
 //    hooks.onPlayerLeft         {fn}       (roomId, playerId, reason)
 //    hooks.onSpectatorUpgraded  {fn}       (socket, roomId, playerId)
+//    hooks.resolvePlayerId      {fn}       ({ roomId, nickname, playerId }) => string
+//                                           由後端決定實際使用的 playerId（例：用「房號+暱稱」
+//                                           推導，使同名者換裝置仍為同一人）。未設則沿用前端傳入值。
+//                                           前端須以 room:join-ack 的 myPlayerId 為準。
+//    hooks.idleAction           {string}   全員離線逾時後：'archive'（預設，封存）| 'evict'（只釋放快取）
+//    hooks.idleMs               {number}   全員離線多久後觸發 idleAction，預設 30 分鐘
 // ================================================================
 
 const { RoomCache } = require('./RoomCache');
@@ -46,7 +52,14 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
     namespace = namespace.sockets; // server.sockets === server.of('/')
   }
 
-  const roomCache = new RoomCache(db);
+  const roomCache = new RoomCache(db, { idleAction: hooks.idleAction, idleMs: hooks.idleMs });
+
+  // ── 實際使用的 playerId（預設為前端傳入值）────────────────────
+  function resolveId(roomId, nickname, playerId) {
+    return hooks.resolvePlayerId
+      ? hooks.resolvePlayerId({ roomId, nickname, playerId })
+      : playerId;
+  }
 
   // ── 取得在線人數（玩家 socket 是否在 room channel） ────────────
   function getOnlineSockets(roomId) {
@@ -120,6 +133,7 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
     // ── 建立房間 ────────────────────────────────────────────
     socket.on(EV.ROOM_CREATE, async ({ roomId, nickname, playerId, maxPlayers = 6, appId = '', options = {} }) => {
       if (!roomId || !nickname || !playerId) return;
+      playerId = resolveId(roomId, nickname, playerId);
       try {
         // 寫入 DB
         const { error: roomErr } = await db.from('rooms').insert({
@@ -356,6 +370,12 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
           return;
         }
 
+        // 同一 playerId 還有別條連線在線（例如手機＋電腦同名登入）→ 不算離線
+        const stillConnected = Array.from(namespace.sockets.values()).some(
+          s => s.id !== socket.id && s.data?.roomId === roomId && s.data?.playerId === playerId
+        );
+        if (stillConnected) return;
+
         // 正式玩家：標記離線（不移除）
         // is_online 為 transient 狀態，只更新記憶體，不寫 DB
         roomCache.setPlayerOnline(roomId, playerId, false);
@@ -393,6 +413,7 @@ function registerRoomHandlers(namespace, db, hooks = {}) {
   // ── 加入房間（含重連、觀戰）：ROOM_JOIN 與 create 的 duplicate 降級共用 ──
   async function handleJoin(socket, { roomId, nickname, playerId } = {}) {
     if (!roomId || !nickname || !playerId) return;
+    playerId = resolveId(roomId, nickname, playerId);
     try {
       // 從 cache（或 DB 重建）取得房間
       const entry = await roomCache.get(roomId);
