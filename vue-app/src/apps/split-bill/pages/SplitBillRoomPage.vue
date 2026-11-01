@@ -51,6 +51,10 @@
 
             <!-- ───────── 支出 ───────── -->
             <section v-if="tab === 'expenses'">
+                <AppAlert v-if="bill.missingRates.length" variant="info" action-label="前往設定匯率" @action="goRateSettings">
+                    {{ bill.missingRates.join('、') }} 的支出還沒有匯率，所以沒有計入結算金額。
+                </AppAlert>
+
                 <div class="game-card xlist__panel">
                     <div class="xlist__top">
                         <h2 class="xlist__heading">支出列表</h2>

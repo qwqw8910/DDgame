@@ -17,8 +17,8 @@
                 </div>
                 <div class="eform__grow">
                     <label class="eform__label">幣別</label>
-                    <SbSelect v-model="currency" class="eform__select" aria-label="幣別" :options="currencyOptions"
-                        @update:model-value="onCurrencyChange" />
+                    <SbSelect v-model="currency" class="eform__select" aria-label="幣別" placeholder="選擇幣別" :options="currencyOptions"
+                        :searchable="true" @update:model-value="onCurrencyChange" />
                 </div>
             </div>
 

@@ -168,7 +168,14 @@
 .sb-theme .game-input {
     border-radius: 14px; border: 2px solid var(--sb-pink); background: #fff; color: var(--sb-ink);
 }
-.sb-theme .game-input:focus { border-color: var(--sb-coral); box-shadow: 0 0 0 4px rgba(255, 215, 66, 0.35); }
+.sb-theme .game-input:focus,
+.sb-theme .game-input:focus-visible,
+.sb-theme input:not([type="checkbox"]):not([type="radio"]):focus,
+.sb-theme input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+.sb-theme select:focus,
+.sb-theme select:focus-visible,
+.sb-theme textarea:focus,
+.sb-theme textarea:focus-visible { border-color: #d05f56 !important; box-shadow: none !important; outline: none !important; }
 .sb-theme .game-input::placeholder { color: #c9aaa4; }
 
 .sb-theme .btn-primary,
