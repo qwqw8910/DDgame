@@ -71,7 +71,7 @@ npm run build           # 產生 dist/
 
    GitHub Repo：https://github.com/qwqw8910/DDgame
 
-> 後端（`../server/`）維持部署於 Railway / Render，不受影響。
+> 後端（`../server/`）維持部署於 Render，不受影響。
 
 ## PWA（可安裝成 App）
 
@@ -111,7 +111,7 @@ npm run generate-pwa-assets
 
 ```
 Vue 前端 (GitHub Pages)
-  shared/composables/useRoom.js 等 ←── Socket.io ──→  Node.js + Express (Railway)
+  shared/composables/useRoom.js 等 ←── Socket.io ──→  Node.js + Express (Render)
   apps/know-me/data/db.js       ←── REST ────────→  Supabase PostgreSQL
 ```
 

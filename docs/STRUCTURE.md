@@ -10,7 +10,7 @@
 ```
 DDgame/                            ← 專案根目錄（GitHub: qwqw8910/DDgame）
 ├── vue-app/                       ← Vue 3 前端（唯一前端入口，部署 GitHub Pages）
-├── server/                        ← Node.js + Socket.io 後端（部署 Railway）
+├── server/                        ← Node.js + Socket.io 後端（部署 Render）
 ├── docs/                          ← 設計文件、規格、構想筆記（含本文件）
 │   ├── STRUCTURE.md               ← 本規範文件（你在這裡）
 │   ├── *-spec.md                  ← 各遊戲規格（clocktower / witch-hunter / character-storm UI）
@@ -207,7 +207,6 @@ server/
 ├── clocktower/            ← 血染鐘樓（index.js、gameLogic.js）
 ├── gem-td/                ← 甜點守衛戰（index.js、gameLogic.js、waveSim.js、pathing.js、config.js）
 ├── package.json
-├── railway.json           ← Railway 部署設定
 └── README.md              ← 環境變數、部署、懂我再說事件總覽
 ```
 

@@ -26,7 +26,7 @@ npm run dev            # 使用 node --watch 自動重啟
 | `SUPABASE_URL` | Supabase 專案 URL |
 | `SUPABASE_SERVICE_KEY` | Service Role Key（Settings → API → service_role）|
 | `CORS_ORIGIN` | 前端來源，多個用逗號分隔 |
-| `PORT` | 伺服器 Port（預設 3000，Railway 會自動注入）|
+| `PORT` | 伺服器 Port（預設 3000，Render 會自動注入）|
 | `CS_WEEKDAY_MODE` | 題庫模式：`fixed` 或 `auto` |
 | `CS_WEEKDAY_OVERRIDE` | 固定題庫星期（0=日...6=六），`fixed` 模式生效 |
 
@@ -62,22 +62,7 @@ npm run dev            # 使用 node --watch 自動重啟
 
 ---
 
-## 部署到 Railway（免費）
-
-1. 前往 [railway.app](https://railway.app) 並登入 GitHub
-2. 點選 **New Project → Deploy from GitHub repo**
-3. 選擇 `DDgame` repo
-4. 設定 **Root Directory** 為 `server`
-5. 在 **Variables** 頁面加入環境變數：
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_KEY`
-   - `CORS_ORIGIN`（填入你的 GitHub Pages URL）
-6. Railway 自動執行 `npm install && npm start`
-7. 取得部署 URL（例如 `https://dongwo.up.railway.app`）
-
----
-
-## 部署到 Render（免費備選）
+## 部署到 Render（免費）
 
 1. 前往 [render.com](https://render.com) → **New Web Service**
 2. 連結 GitHub repo，設定：
