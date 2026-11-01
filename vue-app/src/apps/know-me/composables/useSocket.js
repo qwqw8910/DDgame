@@ -24,7 +24,7 @@ function getSocket() {
   return _socket
 }
 
-// ── HTTP keepalive：每 8 分鐘 ping /health，防止 Render/Railway free tier sleep ──
+// ── HTTP keepalive：每 8 分鐘 ping /health，防止 Render free tier sleep ──
 let _keepaliveTimer = null
 
 function _startKeepalive() {

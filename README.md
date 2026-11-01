@@ -6,7 +6,7 @@
 
 ```
 vue-app/   ← Vue 3 + Tailwind 4 前端（GitHub Pages）  → vue-app/README.md
-server/    ← Node.js + Socket.io 後端（Railway）      → server/README.md
+server/    ← Node.js + Socket.io 後端（Render）      → server/README.md
 docs/      ← 設計文件、規格與目錄規範                  → docs/STRUCTURE.md
 ```
 
