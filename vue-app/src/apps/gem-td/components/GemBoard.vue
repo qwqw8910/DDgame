@@ -13,6 +13,7 @@
 // 手機點一下先預覽、同一格再點一下才放；滑鼠直接放。雙指或滾輪縮放，放大後拖曳平移。
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { GEM_LOOK, MONSTER_LOOK, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
+import { spawnHit, spawnDeath, clearFx, drawFx } from '../composables/usePixelFx.js'
 
 const props = defineProps({
     view: { type: Object, required: true },
@@ -182,6 +183,7 @@ watch(() => props.frame, (frame) => {
         prevMap = new Map()
         curMap = new Map()
         shots.length = 0
+        clearFx()
         return
     }
     const now = performance.now()
@@ -190,10 +192,22 @@ watch(() => props.frame, (frame) => {
     prevMap = curMap
     curMap = new Map(frame.m.map(([id, type, x, y, hp, flags]) => [id, { type, x: x / 10, y: y / 10, hp, flags }]))
 
+    // 消失的蟲子：離出口夠遠就是被打死的，放爆點（走到出口的不算）
+    const end = props.view.board?.end
+    for (const [id, m] of prevMap) {
+        if (curMap.has(id)) continue
+        if (!end || Math.hypot(m.x - end.x, m.y - end.y) > 1.5) spawnDeath(m.x, m.y)
+    }
+
     const towers = new Map(props.view.towers.map(t => [t.id, t]))
     for (const [towerId, monsterId] of frame.s) {
         const tower = towers.get(towerId)
-        if (tower) shots.push({ tower, monsterId, born: now })
+        if (!tower) continue
+        shots.push({ tower, monsterId, born: now })
+        const target = curMap.get(monsterId)
+        if (target) {
+            spawnHit(target.x, target.y, Math.atan2(target.y - tower.y, target.x - tower.x), GEM_LOOK[tower.kind]?.color ?? '#ffffff')
+        }
     }
 }, { flush: 'sync' })
 
@@ -447,8 +461,12 @@ function drawOverlays(view, cell) {
     }
 }
 
+let lastDraw = 0
+
 function draw(now) {
     raf = requestAnimationFrame(draw)
+    const dt = Math.min(0.05, (now - (lastDraw || now)) / 1000)
+    lastDraw = now
     const view = props.view
     if (!ctx || !size || !view?.board) return
     const cell = size / view.board.width
@@ -461,6 +479,7 @@ function draw(now) {
     drawTowers(view, cell, now)
     drawShots(cell, now)
     drawMonsters(cell, now)
+    drawFx(ctx, cell, dt)
     drawOverlays(view, cell)
 }
 
