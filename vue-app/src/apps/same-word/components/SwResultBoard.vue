@@ -41,10 +41,10 @@
                 <p class="m-0 text-xs text-label">🐺 孤狼</p>
                 <p class="m-0 font-bold text-heading">{{ result.loners.map(id => names[id]).join('、') }}</p>
             </div>
-            <div v-if="result.outlier.length" class="game-card !p-3 text-center">
+            <div v-if="result.outlier" class="game-card !p-3 text-center">
                 <img :src="badgeUrl('badge-outlier')" alt="" class="mx-auto h-16 w-16 object-contain" loading="lazy" />
                 <p class="m-0 text-xs text-label">🛸 離譜王</p>
-                <p class="m-0 font-bold text-heading">{{ result.outlier.map(id => names[id]).join('、') }}</p>
+                <p class="m-0 font-bold text-heading">{{ result.outlier.playerIds.map(id => names[id]).join('、') }}</p>
             </div>
         </section>
 
