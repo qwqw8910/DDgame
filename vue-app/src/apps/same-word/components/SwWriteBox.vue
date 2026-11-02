@@ -12,10 +12,6 @@
                 :class="secondsLeft <= 10 ? 'text-ruby animate-timer-pulse' : 'text-heading'">{{ secondsLeft }}</span>
         </div>
 
-        <p v-if="seed" class="m-0 text-sm text-body">
-            開局線索：<b class="text-heading">{{ seed[0] }}</b> × <b class="text-heading">{{ seed[1] }}</b>
-        </p>
-
         <form v-if="canWrite" class="flex w-full max-w-sm flex-col gap-2" @submit.prevent="send">
             <input v-model="draft" ref="inputRef" type="text" maxlength="12" autocomplete="off" autocapitalize="off"
                 placeholder="想到什麼就寫什麼" aria-label="你的詞"
@@ -36,7 +32,6 @@ import { checkWord } from '../data/constants.js'
 const props = defineProps({
     seconds: { type: Number, required: true },   // 剩餘秒數（含小數）
     total: { type: Number, required: true },
-    seed: { type: Array, default: null },
     myWord: { type: String, default: null },
     canWrite: { type: Boolean, default: true },
     round: { type: Number, required: true },

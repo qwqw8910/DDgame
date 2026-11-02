@@ -1,5 +1,6 @@
 <template>
-    <div class="relative h-[100dvh] overflow-x-hidden overflow-y-auto bg-dark">
+    <div class="sw-scope relative h-[100dvh] overflow-x-hidden overflow-y-auto bg-dark">
+        <SwAmbient />
         <RouterLink to="/"
             class="fixed top-4 left-4 z-50 flex items-center gap-1.5 text-[13px] font-medium no-underline px-3 py-1.5 rounded-lg border backdrop-blur-sm transition-colors duration-150 text-body border-border bg-card hover:text-heading hover:border-border-glow">
             ← 甜甜的小秘密
@@ -78,6 +79,7 @@ import { useRouter } from 'vue-router'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname, generateRoomId } from '@/shared/data/identity.js'
 import { warmUpServer } from '@/shared/api/config.js'
 import { MIN_PLAYERS, MAX_PLAYERS } from '../data/constants.js'
+import SwAmbient from '../components/SwAmbient.vue'
 
 const router = useRouter()
 const counts = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, i) => MIN_PLAYERS + i)
@@ -141,3 +143,11 @@ function handleJoinRoom() {
     router.push({ name: 'same-word-room', query: { id: code, nickname } })
 }
 </script>
+
+<style scoped>
+.sw-scope :deep(.game-card) {
+    background: color-mix(in srgb, var(--color-card-solid) 55%, transparent);
+    backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 8px 32px var(--color-shadow-ambient), inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+</style>
