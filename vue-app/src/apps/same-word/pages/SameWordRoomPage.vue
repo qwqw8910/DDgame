@@ -1,5 +1,6 @@
 <template>
-    <div class="flex h-[100dvh] w-full flex-col overflow-hidden bg-dark pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+    <div class="sw-scope relative flex h-[100dvh] w-full flex-col overflow-hidden bg-dark pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+        <SwAmbient :mood="mood" />
         <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
         <!-- Header -->
         <header class="relative z-40 shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-header backdrop-blur-md">
@@ -44,7 +45,7 @@
             </div>
         </div>
 
-        <main v-else-if="roomState.room && view" class="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3 overflow-y-auto p-3">
+        <main v-else-if="roomState.room && view" class="relative z-10 mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3 overflow-y-auto p-3">
             <!-- 觀戰提示 -->
             <div v-if="!isParticipant && phase !== 'waiting'" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm" role="status">
                 <span class="text-label">你正在觀戰，這局結束後可加入。</span>
@@ -100,9 +101,9 @@
 
             <!-- ═════════ 書寫 ═════════ -->
             <template v-else-if="phase === 'writing'">
-                <SwHistoryStrip :rounds="view.rounds" :ids="view.activeIds" :names="names" :my-id="myId" />
+                <SwPrompt :round="prevRound" :seed="view.seed" :names="names" :my-id="myId" />
                 <div class="game-card !p-4">
-                    <SwWriteBox :seconds="secondsLeft" :total="opts.timerSeconds" :seed="view.seed" :my-word="view.myWord"
+                    <SwWriteBox :seconds="secondsLeft" :total="opts.timerSeconds" :my-word="view.myWord"
                         :can-write="canWrite" :round="view.round" @submit="submit" />
                 </div>
                 <ul class="m-0 flex list-none flex-wrap justify-center gap-2 p-0" aria-label="送出狀態">
@@ -123,7 +124,6 @@
                     <SwRevealBoard :round="lastRound" :ids="participants" :names="names" :my-id="myId"
                         :my-vote="view.myOutlierVote" :vote-seconds="voteSeconds" :can-vote="canVote" @vote="onVote" />
                 </div>
-                <SwHistoryStrip v-if="view.rounds.length > 1" :rounds="view.rounds.slice(0, -1)" :ids="view.activeIds" :names="names" :my-id="myId" />
                 <div class="flex flex-wrap items-center justify-center gap-2">
                     <template v-if="roomState.isHost">
                         <button class="btn-primary !w-auto !px-5" @click="nextRound">
@@ -164,9 +164,10 @@ import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
 import ConnectionBanner from '@/shared/components/ConnectionBanner.vue'
 import SwWriteBox from '../components/SwWriteBox.vue'
 import SwRevealBoard from '../components/SwRevealBoard.vue'
-import SwHistoryStrip from '../components/SwHistoryStrip.vue'
+import SwPrompt from '../components/SwPrompt.vue'
 import SwResultBoard from '../components/SwResultBoard.vue'
 import SwFxLayer from '../components/SwFxLayer.vue'
+import SwAmbient from '../components/SwAmbient.vue'
 import { spawnTier, spawnFx } from '../composables/useSwFx.js'
 import { MIN_PLAYERS, ROUND_PRESETS, TIMER_PRESETS } from '../data/constants.js'
 
@@ -213,6 +214,14 @@ const isParticipant = computed(() => view.value?.activeIds?.includes(myId.value)
 const participants = computed(() => (view.value?.activeIds ?? []).filter(id => !view.value.leftIds.includes(id)))
 const canWrite = computed(() => !!isParticipant.value)
 const lastRound = computed(() => view.value.rounds[view.value.rounds.length - 1])
+// 書寫階段的線索：上一輪（已揭曉）雙方／全員寫的詞，更早的不顯示
+const prevRound = computed(() => {
+    const r = view.value.rounds[view.value.rounds.length - 1]
+    return r ? { number: view.value.rounds.length, words: r.words } : null
+})
+
+// 氛圍色調：揭曉偏暖，結算偏派對，其餘平靜
+const mood = computed(() => ({ revealed: 'warm', finished: 'party' })[phase.value] ?? 'calm')
 
 // 計時選項：預設值之外若房主設過自訂值也要列出
 const timerChoices = computed(() => [...new Set([...TIMER_PRESETS, opts.value.timerSeconds])].sort((a, b) => a - b))
@@ -296,3 +305,12 @@ onUnmounted(() => {
     disconnect() // 瀏覽器返回鍵離開頁面時也要斷線，避免留下幽靈在線玩家
 })
 </script>
+
+<style scoped>
+/* 卡片半透明＋毛玻璃，讓背後的色光與粒子透出來 */
+.sw-scope :deep(.game-card) {
+    background: color-mix(in srgb, var(--color-card-solid) 55%, transparent);
+    backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 8px 32px var(--color-shadow-ambient), inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+</style>
