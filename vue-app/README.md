@@ -21,10 +21,13 @@ src/
 ├── apps/                  ← 各 App 自包含（pages / components / composables / data）
 │   ├── portal/            ← 平台入口，工具清單在 data/tools.js
 │   ├── know-me/           ← 懂我再說（含 /admin 題庫管理）
-│   ├── dinner-picker/  dinner-invite/  topic-generator/  gender-score/  story-canvas/
+│   ├── dinner-picker/  dinner-invite/  topic-generator/  gender-score/  story-canvas/  ladder/
 │   ├── character-storm/   ← 默契字囊團：字元風暴
 │   ├── mountain-lodge/    ← 山中別館殺人事件
-│   └── clocktower/        ← 血染鐘樓
+│   ├── clocktower/        ← 血染鐘樓
+│   ├── gem-td/            ← 甜點守衛戰（塔防）
+│   ├── same-word/         ← 同詞相遇
+│   └── split-bill/        ← 分帳
 ├── shared/                ← 跨 App 共用（api/config、identity、useRoom、RoomPlayerPanel、遊戲說明、PwaPrompt）
 ├── router/index.js        ← 路由設定（唯一可 import 所有 App pages 的地方）
 ├── assets/main.css        ← Tailwind 入口：@theme token + @layer components
