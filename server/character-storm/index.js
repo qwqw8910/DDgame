@@ -8,7 +8,7 @@
 // ================================================================
 
 const { registerRoomHandlers } = require('../room');
-const { processHints, validateHint } = require('./filterLogic');
+const { processHints, validateHint, normalizeAnswer, isAnswerCorrect, buildCollisions } = require('./filterLogic');
 const { assignRoles }                = require('./roleAssign');
 const { listThemes }                 = require('./themeStore');
 const spyLogic                       = require('./spy');
@@ -16,6 +16,7 @@ const spyLogic                       = require('./spy');
 const ROUND2_QUOTA  = 4;
 const TIMER_SECONDS = 90;
 const GUESS_GRACE_MS = 3000;
+const GUESSER_OFFLINE_SKIP_MS = 15000; // 猜題者斷線超過此時間仍未回來 → 跳過本題
 let AVAILABLE_THEMES = [0, 1, 2, 3]; // 啟動時由 DB 動態覆寫，題庫管理異動後刷新
 
 // themePreference 特殊值：-1 = 每局隨機挑一個主題；-2 = 全部主題混成一個題庫
@@ -134,7 +135,7 @@ function makeDB(db) {
         if (!count) return null;
         const offset = Math.floor(Math.random() * count);
         const { data, error } = await db.from('character_storm_words')
-          .select('id, word, category, author').eq('is_active', true)
+          .select('*').eq('is_active', true)
           .not('id', 'in', usedFilter).range(offset, offset);
         if (error) throw error;
         return data?.[0] ?? null;
@@ -148,7 +149,7 @@ function makeDB(db) {
         if (!count) return null;
         const offset = Math.floor(Math.random() * count);
         const { data, error } = await db.from('character_storm_words')
-          .select('id, word, category, author').eq('is_active', true)
+          .select('*').eq('is_active', true)
           .eq('weekday_bank', id).not('id', 'in', usedFilter).range(offset, offset);
         if (error) throw error;
         return data?.[0] ?? null;
@@ -306,6 +307,26 @@ async function processRoundHints(ns, roomId, game, isRound2, roomCache) {
   }, GUESS_GRACE_MS);
 }
 
+function collectCollisions(game) {
+  const rounds = [game.cachedRound1Result, game.cachedRound2Result]
+    .filter(Boolean).map(c => c.hintsProvider);
+  return buildCollisions(rounds, game.symbolMap ?? {});
+}
+
+// ── 核心：猜題者離開／長時間斷線 → 本題作廢，交給房主按「下一位」──
+function abortGuesserTurn(ns, roomId, game) {
+  clearTimer(game);
+  game.guesserLeft = true;
+  game.roundPhase  = 'revealing';
+  ns.to(roomId).emit('cs:guess-result', {
+    correct: false, answer: '', word: game.currentWord?.word ?? null,
+    author: game.currentWord?.author ?? null, wasRound2: true, a: 0, b: 0,
+    skipped: true,
+  });
+}
+
+const ACTIVE_PHASES = ['round1', 'round1-result', 'round2', 'round2-result'];
+
 // ── 核心：結算一次猜題（猜題者送出，或伺服器端逾時代交空白）──────
 function resolveGuess(ns, roomCache, roomId, game, answer) {
   // 只有作答階段才接受答案，避免提示階段提早猜或重複結算
@@ -313,8 +334,9 @@ function resolveGuess(ns, roomCache, roomId, game, answer) {
 
   const isRound2 = game.roundPhase === 'round2-result';
   const trimmed  = (answer ?? '').trim();
-  const correct  = trimmed === game.currentWord?.word;
-  const ab       = calculateAB(game.currentWord?.word ?? '', trimmed);
+  const word     = game.currentWord?.word ?? '';
+  const correct  = isAnswerCorrect(trimmed, word, game.currentWord?.aliases);
+  const ab       = calculateAB(normalizeAnswer(word), normalizeAnswer(trimmed));
 
   game.roundPhase = 'revealing';
   clearTimer(game);
@@ -327,6 +349,8 @@ function resolveGuess(ns, roomCache, roomId, game, answer) {
     wasRound2: isRound2, a: ab.a, b: ab.b,
     // 題目揭曉時一併揭曉被間諜遮住的字（不含間諜身分）
     spyReveal: shouldRevealWord ? (game.spy.mask ?? null) : null,
+    // 揭曉時公布撞字：哪些字被代換成符號、誰用過
+    collisions: shouldRevealWord ? collectCollisions(game) : null,
   });
 
   if (!correct && !isRound2) setTimeout(() => startRound2(ns, roomCache, roomId, game), 2000);
@@ -368,6 +392,18 @@ async function startNewGuesserRound(ns, DB, roomCache, roomId, game) {
     emitSpyRole(sock, game, player.id);
   }
 
+  await beginWordPhase(ns, DB, roomCache, roomId, game);
+}
+
+function finishForNoWord(ns, roomCache, roomId, game, message) {
+  clearTimer(game);
+  game.status = 'finished'; game.roundPhase = null;
+  ns.to(roomId).emit('cs:error', { code: 'NO_WORD_LEFT', message });
+  ns.to(roomId).emit('cs:finished', { players: buildPlayerList(game, roomCache, roomId) });
+}
+
+// 抽題並開始提示倒數。題庫抽完時不自動重複出題，改問房主（cs:pool-decision）
+async function beginWordPhase(ns, DB, roomCache, roomId, game) {
   // 不同主題可能有同一個詞（「全部主題」模式），抽到本局用過的詞就排除該筆重抽
   const drawUnused = async () => {
     let w = await DB.drawWord(game.usedWordIds, game.themeId ?? 0).catch(() => null);
@@ -377,18 +413,16 @@ async function startNewGuesserRound(ns, DB, roomCache, roomId, game) {
     }
     return w;
   };
-  let word = await drawUnused();
-  // used 清單跨局累積；整個題庫抽完（或只剩重複詞）時重置一次再抽
-  if (!word && game.usedWordIds.length > 0) {
-    game.usedWordIds = [];
-    game.usedWords   = [];
-    word = await drawUnused();
-  }
+  const word = await drawUnused();
   if (!word) {
-    clearTimer(game);
-    game.status = 'finished'; game.roundPhase = null;
-    ns.to(roomId).emit('cs:error', { code: 'NO_WORD_LEFT', message: '本局題庫已用完，直接結束本局。' });
-    ns.to(roomId).emit('cs:finished', { players: buildPlayerList(game, roomCache, roomId) });
+    if (game.usedWordIds.length > 0) {
+      // used 清單跨局累積；題庫抽完（或只剩重複詞）→ 讓房主決定要不要重複出題
+      clearTimer(game);
+      game.roundPhase = 'pool-exhausted';
+      ns.to(roomId).emit('cs:pool-exhausted', {});
+    } else {
+      finishForNoWord(ns, roomCache, roomId, game, '題庫沒有可用的題目，無法開始。');
+    }
     return;
   }
 
@@ -527,7 +561,14 @@ function registerNamespace(io, db) {
 
       if (!isReconnect) return;
 
+      // 猜題者及時回來 → 取消「斷線跳過本題」
+      if (game._guesserOfflineHandle && getCurrentGuesser(game)?.id === playerId) {
+        clearTimeout(game._guesserOfflineHandle);
+        game._guesserOfflineHandle = null;
+      }
+
       // 重連：補發遊戲狀態
+      if (game.roundPhase === 'pool-exhausted') socket.emit('cs:pool-exhausted', {});
       if (p?.role) socket.emit('cs:role-assigned', { role: p.role, quota: p.quota });
       if (p) emitSpyRole(socket, game, p.id);
 
@@ -562,6 +603,17 @@ function registerNamespace(io, db) {
 
       if (reason === 'disconnect') {
         p.socketId = null;
+        // 猜題者斷線：給重連寬限，逾時仍離線就直接跳過本題，不讓全房等滿計時
+        if (p.role === 'guesser' && ACTIVE_PHASES.includes(game.roundPhase)) {
+          clearTimeout(game._guesserOfflineHandle);
+          const turn = game.roundNumber;
+          game._guesserOfflineHandle = setTimeout(() => {
+            game._guesserOfflineHandle = null;
+            if (game.roundNumber !== turn || !ACTIVE_PHASES.includes(game.roundPhase)) return;
+            if (getCurrentGuesser(game)?.id !== playerId || isOnline(_roomCache, roomId, playerId)) return;
+            abortGuesserTurn(ns, roomId, game);
+          }, GUESSER_OFFLINE_SKIP_MS);
+        }
       } else {
         const leftIndex = game.players.findIndex(pp => pp.id === playerId);
         game.players = game.players.filter(p => p.id !== playerId);
@@ -573,13 +625,7 @@ function registerNamespace(io, db) {
             && ['round1', 'round1-result', 'round2', 'round2-result'].includes(game.roundPhase)
             && p.role === 'guesser') {
           // 猜題者本人離開 → 本題作廢，交給房主按「下一位」
-          clearTimer(game);
-          game.guesserLeft = true;
-          game.roundPhase  = 'revealing';
-          ns.to(roomId).emit('cs:guess-result', {
-            correct: false, answer: '', word: game.currentWord?.word ?? null,
-            author: game.currentWord?.author ?? null, wasRound2: true, a: 0, b: 0,
-          });
+          abortGuesserTurn(ns, roomId, game);
           return;
         }
       }
@@ -758,6 +804,24 @@ function registerNamespace(io, db) {
           await startNewGuesserRound(ns, DB, _roomCache, roomId, game);
         }
       } catch (err) { console.error('[CS cs:next-round]', err.message); }
+    });
+
+    // ── 題庫用完：房主決定重複出題或結束（房主）──────────
+    socket.on('cs:pool-decision', async ({ roomId, repeat }) => {
+      const { playerId } = socket.data ?? {};
+      if (!roomId || !playerId) return;
+      try {
+        const game = getGame(roomId);
+        if (!game || !isHost(_roomCache, roomId, playerId)) return;
+        if (game.roundPhase !== 'pool-exhausted') return;
+        if (repeat) {
+          game.usedWordIds = [];
+          game.usedWords   = [];
+          await beginWordPhase(ns, DB, _roomCache, roomId, game);
+        } else {
+          finishForNoWord(ns, _roomCache, roomId, game, '題庫已用完，本局結束。');
+        }
+      } catch (err) { console.error('[CS cs:pool-decision]', err.message); }
     });
 
     // ── 繼續下一局（房主）────────────────────────────────

@@ -188,8 +188,8 @@
                         <CsPlayerCard v-for="p in playersWithRoles" :key="p.id" :player="p"
                             :players="playersWithRoles" :state="state" :my-player-id="roomState.myPlayerId"
                             :is-guesser="isPlayerGuesser(p)" :is-hint-phase="isHintPhase"
-                            :hint-rounds="visibleHintRounds" :flipped="flippedHints" @react="sendReaction"
-                            @flip="flipHint" />
+                            :hint-rounds="visibleHintRounds" :flipped="flippedHints" :highlight="highlightSymbol"
+                            @react="sendReaction" @flip="flipHint" @pick-symbol="pickSymbol" />
                     </div>
 
                     <!-- ── 間諜面板（僅間諜本人看得到）── -->
@@ -206,7 +206,27 @@
                         :error="hintError" :submitted="hintSubmitted" :can-submit="canSubmitHint"
                         @input="onHintInput" @submit="handleSubmitHint" />
                     <CsRevealBar v-if="state.status === 'revealing'" :correct="!!state.guessResult?.correct"
-                        :guesser-name="currentGuesserName" :is-host="roomState.isHost" @next="handleNextTurn" />
+                        :guesser-name="currentGuesserName" :is-host="roomState.isHost" :skipped="state.skipped"
+                        :collisions="collisionList" @next="handleNextTurn" />
+                </div>
+            </div>
+
+            <!-- ── 題庫用完：房主決定是否重複出題 ── -->
+            <div v-if="state.poolExhausted" class="overlay">
+                <div class="overlay-card" style="max-width:360px">
+                    <div class="section-header" style="margin-bottom:12px">
+                        <div class="section-icon">📚</div>
+                        <h2 class="neon-heading" style="font-size:20px">題庫用完了</h2>
+                        <p class="section-subtitle">
+                            {{ roomState.isHost
+                                ? '可以重新洗牌讓題目重複出現，或直接結束本局。'
+                                : '等待房主決定要重複出題，還是結束本局…' }}
+                        </p>
+                    </div>
+                    <div v-if="roomState.isHost" style="display:flex;gap:10px;margin-top:8px">
+                        <button class="btn-secondary" style="flex:1" @click="decidePool(false)">結束本局</button>
+                        <button class="btn-primary" style="flex:1" @click="decidePool(true)">重複出題</button>
+                    </div>
                 </div>
             </div>
 
@@ -346,6 +366,7 @@ const {
     submitGuess,
     startGame,
     nextTurn,
+    decidePool,
     continueGame,
     resetToLobby,
     endGame,
@@ -505,6 +526,19 @@ function flipHint(pid, round, i) {
     if (!flippedHints.value.includes(k)) flippedHints.value.push(k)
 }
 watch(() => state.status, (s) => { if (s !== 'revealing') flippedHints.value = [] })
+
+// 推理輔助：點一個符號，高亮所有相同符號的字牌（再點一次取消）
+const highlightSymbol = ref('')
+function pickSymbol(sym) { highlightSymbol.value = highlightSymbol.value === sym ? '' : sym }
+watch(() => state.status, (s) => { if (s === 'round1') highlightSymbol.value = '' })
+
+// 揭曉時公布的撞字：符號 ← 原字，以及用過它的玩家暱稱
+const collisionList = computed(() => (state.collisions ?? []).map(c => ({
+    ...c,
+    names: c.playerIds
+        .map(id => playersWithRoles.value.find(p => p.id === id)?.nickname)
+        .filter(Boolean),
+})))
 
 watch(() => state.status, (nextStatus, prevStatus) => {
     if (!prevStatus || prevStatus === nextStatus) return

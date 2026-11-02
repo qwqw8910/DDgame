@@ -92,4 +92,51 @@ function validateHint(text, quota, wordChars = null) {
   return { valid: true };
 }
 
-module.exports = { processHints, validateHint };
+/**
+ * 答案正規化：NFKC（全形→半形）、去空白與標點符號、英文轉小寫
+ * 「臭豆腐 」「臭 豆 腐」「臭豆腐！」都會等於「臭豆腐」
+ */
+function normalizeAnswer(text) {
+  return String(text ?? '')
+    .normalize('NFKC')
+    .replace(/[\s\p{P}\p{S}]/gu, '')
+    .toLowerCase();
+}
+
+/**
+ * 判定猜題是否正確：正規化後等於題目，或等於題庫提供的任一同義答案（aliases）
+ *
+ * @param {string}   guess
+ * @param {string}   word
+ * @param {string[]} [aliases] - 題庫 aliases 欄位（欄位不存在時為 undefined）
+ */
+function isAnswerCorrect(guess, word, aliases) {
+  const g = normalizeAnswer(guess);
+  if (!g) return false;
+  if (g === normalizeAnswer(word)) return true;
+  return Array.isArray(aliases) && aliases.some(a => normalizeAnswer(a) === g);
+}
+
+/**
+ * 彙整「撞字」：被代換成符號的字，以及哪些玩家在任一輪用過它
+ *
+ * @param {Array<Array<{playerId:string, chars:Array<{char:string}>}>>} providerRounds - 每輪的 forProvider
+ * @param {Object} symbolMap - { '字': '●' }
+ * @returns {Array<{char:string, symbol:string, playerIds:string[]}>}
+ */
+function buildCollisions(providerRounds, symbolMap) {
+  const users = {};
+  for (const round of providerRounds) {
+    for (const { playerId, chars } of round ?? []) {
+      for (const { char } of chars) {
+        if (!symbolMap[char]) continue;
+        (users[char] ??= new Set()).add(playerId);
+      }
+    }
+  }
+  return Object.entries(users).map(([char, ids]) => ({
+    char, symbol: symbolMap[char], playerIds: [...ids],
+  }));
+}
+
+module.exports = { processHints, validateHint, normalizeAnswer, isAnswerCorrect, buildCollisions };
