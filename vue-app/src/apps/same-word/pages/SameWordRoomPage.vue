@@ -1,6 +1,5 @@
 <template>
     <div class="sw-scope relative flex h-[100dvh] w-full flex-col overflow-hidden bg-dark pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-        <SwAmbient :mood="mood" />
         <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
         <!-- Header -->
         <header class="relative z-40 shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-header backdrop-blur-md">
@@ -101,10 +100,10 @@
 
             <!-- ═════════ 書寫 ═════════ -->
             <template v-else-if="phase === 'writing'">
-                <SwPrompt :round="prevRound" :seed="view.seed" :names="names" :my-id="myId" />
+                <SwPrompt :round="prevRound" :seed="view.seed" :history="usedWords" :names="names" :my-id="myId" />
                 <div class="game-card !p-4">
                     <SwWriteBox :seconds="secondsLeft" :total="opts.timerSeconds" :my-word="view.myWord"
-                        :can-write="canWrite" :round="view.round" @submit="submit" />
+                        :can-write="canWrite" :round="view.round" :used-words="usedWords" @submit="submit" />
                 </div>
                 <ul class="m-0 flex list-none flex-wrap justify-center gap-2 p-0" aria-label="送出狀態">
                     <li v-for="id in participants" :key="id" class="badge transition-opacity"
@@ -147,7 +146,6 @@
             </template>
         </main>
 
-        <SwFxLayer />
 
         <Transition name="toast">
             <div v-if="toast.show" :class="['toast', 'show', toast.type]">{{ toast.msg }}</div>
@@ -166,9 +164,6 @@ import SwWriteBox from '../components/SwWriteBox.vue'
 import SwRevealBoard from '../components/SwRevealBoard.vue'
 import SwPrompt from '../components/SwPrompt.vue'
 import SwResultBoard from '../components/SwResultBoard.vue'
-import SwFxLayer from '../components/SwFxLayer.vue'
-import SwAmbient from '../components/SwAmbient.vue'
-import { spawnTier, spawnFx } from '../composables/useSwFx.js'
 import { MIN_PLAYERS, ROUND_PRESETS, TIMER_PRESETS } from '../data/constants.js'
 
 const route = useRoute()
@@ -214,6 +209,14 @@ const isParticipant = computed(() => view.value?.activeIds?.includes(myId.value)
 const participants = computed(() => (view.value?.activeIds ?? []).filter(id => !view.value.leftIds.includes(id)))
 const canWrite = computed(() => !!isParticipant.value)
 const lastRound = computed(() => view.value.rounds[view.value.rounds.length - 1])
+// 前幾輪（含開局種子）出現過的詞，不分大小寫去重；不能再寫
+const usedWords = computed(() => {
+    const m = new Map()
+    const add = w => { if (w && !m.has(w.toLowerCase())) m.set(w.toLowerCase(), w) }
+    ;(view.value.seed ?? []).forEach(add)
+    view.value.rounds.forEach(r => Object.values(r.words).forEach(add))
+    return [...m.values()]
+})
 // 書寫階段的線索：上一輪（已揭曉）雙方／全員寫的詞，更早的不顯示
 const prevRound = computed(() => {
     const r = view.value.rounds[view.value.rounds.length - 1]
@@ -221,7 +224,6 @@ const prevRound = computed(() => {
 })
 
 // 氛圍色調：揭曉偏暖，結算偏派對，其餘平靜
-const mood = computed(() => ({ revealed: 'warm', finished: 'party' })[phase.value] ?? 'calm')
 
 // 計時選項：預設值之外若房主設過自訂值也要列出
 const timerChoices = computed(() => [...new Set([...TIMER_PRESETS, opts.value.timerSeconds])].sort((a, b) => a - b))
@@ -235,24 +237,6 @@ const voteSeconds = computed(() => {
     return end ? Math.max(0, Math.ceil((end - now.value) / 1000)) : 0
 })
 const canVote = computed(() => phase.value === 'revealed' && opts.value.outlierVote && !!isParticipant.value && voteSeconds.value > 0)
-
-// ── 特效：揭曉時依新配對的最高等級放特效；結算時放慶祝 ───────────
-// 輪次 + 階段變化才觸發一次（重連補發同一份視圖不會重放）
-const TIER_ORDER = ['soulmates', 'telepathy', 'in-sync', 'compatible', 'slow-burn', 'needs-work', 'barely', 'near-miss']
-let _fxKey = ''
-watch(() => [phase.value, view.value?.round], ([p, r]) => {
-    const key = `${p}:${r}`
-    if (key === _fxKey) return
-    _fxKey = key
-    if (p === 'revealed' && lastRound.value?.newPairs.length) {
-        const best = TIER_ORDER.find(t => lastRound.value.newPairs.some(np => np.tierId === t))
-        spawnTier(best, 0.5, 0.35)
-    } else if (p === 'finished' && view.value.result) {
-        const r2 = view.value.result
-        if (r2.unique) { spawnFx('confetti', 0.5, 0.45); spawnFx('sunburst', 0.5, 0.3) }
-        else if (r2.bestPairs.length) { spawnFx('confetti', 0.3, 0.5); spawnFx('confetti', 0.7, 0.5) }
-    }
-})
 
 function onVote(id) {
     voteOutlier(view.value.myOutlierVote === id ? null : id)
@@ -305,12 +289,3 @@ onUnmounted(() => {
     disconnect() // 瀏覽器返回鍵離開頁面時也要斷線，避免留下幽靈在線玩家
 })
 </script>
-
-<style scoped>
-/* 卡片半透明＋毛玻璃，讓背後的色光與粒子透出來 */
-.sw-scope :deep(.game-card) {
-    background: color-mix(in srgb, var(--color-card-solid) 55%, transparent);
-    backdrop-filter: blur(14px) saturate(140%);
-    box-shadow: 0 8px 32px var(--color-shadow-ambient), inset 0 1px 0 rgba(255, 255, 255, .06);
-}
-</style>

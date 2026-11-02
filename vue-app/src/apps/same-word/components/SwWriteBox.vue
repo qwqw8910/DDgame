@@ -35,6 +35,7 @@ const props = defineProps({
     myWord: { type: String, default: null },
     canWrite: { type: Boolean, default: true },
     round: { type: Number, required: true },
+    usedWords: { type: Array, default: () => [] },   // 前幾輪出現過的詞，不可重複
 })
 const emit = defineEmits(['submit'])
 
@@ -54,6 +55,7 @@ onMounted(() => inputRef.value?.focus())
 function send() {
     const err = checkWord(draft.value)
     if (err) { hint.value = err; return }
+    if (props.usedWords.some(u => u.toLowerCase() === draft.value.trim().toLowerCase())) { hint.value = '這個詞前面幾輪用過了，換一個吧'; return }
     emit('submit', draft.value.trim())
 }
 </script>

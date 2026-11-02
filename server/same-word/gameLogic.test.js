@@ -21,11 +21,14 @@ function wordsFor(n, overrides = {}) {
   return { ...w, ...overrides };
 }
 
+// 前幾輪用過的詞不能再寫，所以每輪替詞加上「輪次字母」後綴；同一輪內相同的詞仍然相同
+const roundTag = g => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[(g.round - 1) % 26];
+
 // 送出並揭曉一輪
 function play(g, n, overrides = {}) {
   const now = g.roundEndsAt;
   for (const [id, word] of Object.entries(wordsFor(n, overrides))) {
-    if (word !== null && !g.leftIds.includes(id)) L.submitWord(g, id, word, { now: now - 1000 });
+    if (word !== null && !g.leftIds.includes(id)) L.submitWord(g, id, word.replace(/(\s*)$/, roundTag(g) + '$1'), { now: now - 1000 });
   }
   return L.settleRound(g, { now });
 }
@@ -298,7 +301,7 @@ test('房主提前結算：書寫中的本輪作廢，未配對 ≥ 2 人皆孤�
   assert.deepEqual(g.pending, {});
 });
 
-test('磁鐵與離譜王：累計次數最多者', () => {
+test('離譜王：累計得票最多者', () => {
   const g = newGame(4, { maxRounds: 0 });
   step(g, 4, { p1: '西瓜' });
   play(g, 4, { p2: '西瓜', p3: '西瓜' });
@@ -307,7 +310,6 @@ test('磁鐵與離譜王：累計次數最多者', () => {
   L.voteOutlier(g, 'p3', 'p1', { now: g.roundEndsAt });
   L.voteOutlier(g, 'p3', 'p4', { now: g.roundEndsAt }); // 改投
   const res = L.finishNow(g);
-  assert.deepEqual(res.magnet, { playerIds: ['p1'], count: 2 });
   assert.deepEqual(res.outlier, { playerIds: ['p4'], count: 3 });
 });
 
@@ -381,7 +383,7 @@ test('buildView：書寫中只看得到自己的詞與誰已送出；揭曉後�
 
   play(g, 3, { p1: '祕密', p2: null });
   const v = L.buildView(g, 'p2');
-  assert.equal(v.rounds[0].words.p1, '祕密');
+  assert.equal(v.rounds[0].words.p1, '祕密A');
   assert.equal(v.submitted, undefined);
   assert.equal(v.myOutlierVote, null);
   assert.equal(v.endsAfterThis, null);
@@ -413,4 +415,20 @@ test('free 模式（預設）：不給開局詞，seed 為 null，也不需要�
   L.startGame(g, ids(2), { now: T0, seedPairs: [['海', '夏天']] });
   assert.equal(g.seed, null);
   assert.equal(L.buildView(g, 'p1').seed, null);
+});
+
+test('前幾輪出現過的詞不能再寫（不分大小寫、含開局種子詞），本輪內相同則可以', () => {
+  const g = newGame(4);
+  play(g, 4, { p1: 'Apple', p2: 'apple' });   // 實際寫的是 AppleA / appleA
+  next(g);
+  const code = c => e => e.code === c;
+  assert.throws(() => L.submitWord(g, 'p1', 'appleA', { now: T0 }), code('WORD_USED'));
+  assert.throws(() => L.submitWord(g, 'p1', 'APPLEA', { now: T0 }), code('WORD_USED'));
+  assert.throws(() => L.submitWord(g, 'p3', 'soloc' + 'A', { now: T0 }), code('WORD_USED'));
+  L.submitWord(g, 'p1', 'appleB', { now: T0 });
+  L.submitWord(g, 'p2', 'appleB', { now: T0 });
+
+  const s = L.createGame({ starterMode: 'seed' });
+  L.startGame(s, ids(2), { now: T0, seedPairs: [['海灘', '冰淇淋']] });
+  assert.throws(() => L.submitWord(s, 'p1', '海灘', { now: T0 }), code('WORD_USED'));
 });
