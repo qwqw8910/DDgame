@@ -406,3 +406,11 @@ test('resetGame：回到大廳並保留設定', () => {
   assert.deepEqual(g.pairs, {});
   assert.equal(g.result, null);
 });
+
+test('free 模式（預設）：不給開局詞，seed 為 null，也不需要種子池', () => {
+  const g = L.createGame();
+  assert.equal(g.options.starterMode, 'free');
+  L.startGame(g, ids(2), { now: T0, seedPairs: [['海', '夏天']] });
+  assert.equal(g.seed, null);
+  assert.equal(L.buildView(g, 'p1').seed, null);
+});
