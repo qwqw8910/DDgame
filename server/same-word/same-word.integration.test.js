@@ -236,3 +236,29 @@ test('揭曉後不自動前進（沒有計時器）；房主可在進行中重�
   emit(roomId, a, 'sw:start');
   await until(() => c.view.phase === 'writing' && c.view.round === 1, 'new game');
 });
+
+test('開局詞可選：預設不給詞；房主改成 seed 才會下發種子詞，改回 free 又沒有', async () => {
+  const roomId = 'SW0006';
+  const [a, b] = await makeRoom(roomId, ['a', 'b']);
+  assert.equal(a.view.options.starterMode, 'free');
+
+  emit(roomId, a, 'sw:start');
+  await until(() => b.view.phase === 'writing', 'writing');
+  assert.equal(b.view.seed, null);
+  emit(roomId, a, 'sw:restart');
+  await until(() => a.view.phase === 'waiting', 'lobby');
+
+  emit(roomId, a, 'sw:set-options', { options: { starterMode: 'seed' } });
+  await until(() => a.view.options.starterMode === 'seed', 'seed mode');
+  emit(roomId, a, 'sw:start');
+  await until(() => b.view.phase === 'writing', 'writing seed');
+  assert.equal(b.view.seed.length, 2);
+  emit(roomId, a, 'sw:restart');
+  await until(() => a.view.phase === 'waiting', 'lobby 2');
+
+  emit(roomId, a, 'sw:set-options', { options: { starterMode: 'free' } });
+  await until(() => a.view.options.starterMode === 'free', 'free mode');
+  emit(roomId, a, 'sw:start');
+  await until(() => b.view.phase === 'writing', 'writing free');
+  assert.equal(b.view.seed, null);
+});

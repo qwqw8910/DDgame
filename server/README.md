@@ -2,7 +2,7 @@
 
 Socket.io + Express 即時遊戲伺服器，搭配 Supabase 作為資料庫。模組結構見 [`../docs/STRUCTURE.md`](../docs/STRUCTURE.md)；共用房間模組見 [`room/README.md`](room/README.md)。
 
-下方「Socket.io 事件總覽」僅涵蓋「懂我再說」；其他遊戲的事件定義在各自的 `index.js`（`character-storm/`、`mountain-lodge/`、`clocktower/`）。
+下方「Socket.io 事件總覽」僅涵蓋「懂我再說」；其他遊戲的事件定義在各自的 `index.js`（`character-storm/`、`mountain-lodge/`、`clocktower/`、`gem-td/`、`same-word/`、`split-bill/`）。
 
 ---
 
