@@ -160,6 +160,18 @@ export const tools = [
     status: 'beta',
     tags: ['多人', '記帳', '旅遊'],
   },
+  {
+    id: 'same-word',
+    name: '同詞相遇',
+    tagline: '同時寫一個詞，看誰跟誰最有默契',
+    description: '多人 · 默契 · 揭曉\n越早寫出同一個詞，默契越高！',
+    emoji: '💘',
+    color: 'rose',
+    route: '/same-word',
+    externalUrl: null,
+    status: 'beta',
+    tags: ['多人', '遊戲', '默契'],
+  },
   // ── 未來新增工具範例 ──────────────────────────────────────────
   // {
   //   id: 'my-new-tool',
