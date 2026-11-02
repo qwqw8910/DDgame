@@ -209,12 +209,26 @@ function convertMinor(amount, from, to, rate) {
  * @param {string} p.baseCurrency
  * @param {Record<string,{rate:number}>} p.rates
  * @returns {{ transfers: {from:string,to:string,amount:number,details:{expenseId:string,amount:number}[]}[],
+ *             simplified: {from:string,to:string,amount:number}[], balances: Record<string,number>,
+ *             breakdown: Record<string,{expenseId:string,paid:number,share:number}[]>,
  *             missingRates: string[] }}
+ *   breakdown[m]：m 在每筆支出付了多少(paid)、該分攤多少(share)；Σ(paid − share) = balances[m]
  *   details.amount 以 from 的角度：正數 = from 因此筆欠 to，負數 = 這筆讓債務減少
  */
 function computeDebts({ expenses = [], baseCurrency = 'TWD', rates = {} }) {
   const pairs = new Map();      // `${a}|${b}`(a<b) → { a, b, net, byExpense: Map }
   const missing = new Set();
+
+  // 每人每筆支出（換算成結算幣別後）實際付了多少、該分攤多少 → 解釋「為什麼最後要付/收這些錢」
+  const ledger = new Map();     // memberId → Map(expenseId → { paid, share })
+  const addLedger = (memberId, expenseId, key, amount) => {
+    if (amount === 0) return;
+    let rows = ledger.get(memberId);
+    if (!rows) ledger.set(memberId, rows = new Map());
+    let row = rows.get(expenseId);
+    if (!row) rows.set(expenseId, row = { paid: 0, share: 0 });
+    row[key] += amount;
+  };
 
   const addDebt = (debtor, creditor, amount, expenseId) => {
     if (debtor === creditor || amount === 0) return;
@@ -241,7 +255,11 @@ function computeDebts({ expenses = [], baseCurrency = 'TWD', rates = {} }) {
     e.splits.forEach((s, j) => {
       if (owed[j] === 0) return;
       const parts = allocateProportional(owed[j], payerWeights);
-      e.payers.forEach((p, i) => addDebt(s.memberId, p.memberId, parts[i], e.id));
+      addLedger(s.memberId, e.id, 'share', owed[j]);
+      e.payers.forEach((p, i) => {
+        addLedger(p.memberId, e.id, 'paid', parts[i]);
+        addDebt(s.memberId, p.memberId, parts[i], e.id);
+      });
     });
   }
 
@@ -257,7 +275,55 @@ function computeDebts({ expenses = [], baseCurrency = 'TWD', rates = {} }) {
     });
   }
   transfers.sort((x, y) => y.amount - x.amount || (x.from < y.from ? -1 : 1));
-  return { transfers, missingRates: [...missing].sort() };
+  const simple = simplifyTransfers(transfers);
+  const breakdown = {};
+  for (const id of Object.keys(simple.balances)) {
+    breakdown[id] = [...(ledger.get(id) ?? [])].map(([expenseId, r]) => ({ expenseId, paid: r.paid, share: r.share }));
+  }
+  return { transfers, ...simple, breakdown, missingRates: [...missing].sort() };
+}
+
+// ── 簡化債務：最少轉帳次數 ──────────────────────────────────────────
+
+/**
+ * 把兩兩對沖後的轉帳，改成「每人只看最後淨收支」的最少轉帳。
+ *   例：尼莫→甜甜 200、甜甜→螺旋 400、螺旋→尼莫 200
+ *       淨額：尼莫 0、甜甜 −200、螺旋 +200 → 甜甜直接給螺旋 200。
+ * 做法：每人淨額 = 收到 − 付出；反覆讓「欠最多的人」付給「該收最多的人」，
+ *       每筆至少結清一人，所以最多 (有淨額的人數 − 1) 筆。每人最後的收支與原本完全一致。
+ * @param {{from:string,to:string,amount:number}[]} transfers
+ * @returns {{ simplified: {from:string,to:string,amount:number}[], balances: Record<string,number> }}
+ *   balances：每人淨收支（正 = 最後會收到、負 = 最後要付出），已排除淨額 0 的人
+ */
+function simplifyTransfers(transfers) {
+  const net = new Map();
+  for (const t of transfers) {
+    net.set(t.from, (net.get(t.from) ?? 0) - t.amount);
+    net.set(t.to,   (net.get(t.to)   ?? 0) + t.amount);
+  }
+  const balances = {};
+  const creditors = [];
+  const debtors = [];
+  for (const [id, v] of [...net].sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
+    if (v === 0) continue;
+    balances[id] = v;
+    (v > 0 ? creditors : debtors).push({ id, amount: Math.abs(v) });
+  }
+
+  const simplified = [];
+  const biggest = (list) => list.reduce((m, x) => (x.amount > m.amount ? x : m));
+  while (creditors.length && debtors.length) {
+    const c = biggest(creditors);
+    const d = biggest(debtors);
+    const amount = Math.min(c.amount, d.amount);
+    simplified.push({ from: d.id, to: c.id, amount });
+    c.amount -= amount;
+    d.amount -= amount;
+    if (c.amount === 0) creditors.splice(creditors.indexOf(c), 1);
+    if (d.amount === 0) debtors.splice(debtors.indexOf(d), 1);
+  }
+  simplified.sort((x, y) => y.amount - x.amount || (x.from < y.from ? -1 : 1));
+  return { simplified, balances };
 }
 
 module.exports = {
@@ -276,4 +342,5 @@ module.exports = {
   validateRate,
   convertMinor,
   computeDebts,
+  simplifyTransfers,
 };

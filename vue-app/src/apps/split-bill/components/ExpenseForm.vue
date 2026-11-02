@@ -1,9 +1,5 @@
 <template>
-    <div class="overlay" @click.self="$emit('cancel')">
-        <form class="game-card eform sb-modal" @submit.prevent="submit">
-            <button type="button" class="sb-modal__close" aria-label="關閉" @click="$emit('cancel')"><svg viewBox="0 0 256 256" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button>
-            <h2 class="neon-heading text-xl mb-4 text-heading sb-modal__title">{{ expense ? '編輯支出' : '新增支出' }}</h2>
-
+    <SbModal as="form" class="eform" :title="expense ? '編輯支出' : '新增支出'" @close="$emit('cancel')" @submit.prevent="submit">
             <div v-if="error" class="error-alert mb-3">{{ error }}</div>
 
             <label class="eform__label">標題</label>
@@ -34,7 +30,7 @@
             </div>
 
             <label class="eform__label">日期</label>
-            <input v-model="paidDate" type="date" class="game-input eform__input" />
+            <SbDatePicker v-model="paidDate" class="eform__select" aria-label="日期" />
 
             <label class="eform__label">怎麼分</label>
             <div class="eform__tabs" role="tablist">
@@ -44,13 +40,27 @@
             </div>
             <p class="eform__hint">{{ currentHint }}</p>
 
+            <div class="eform__bulk">
+                <span class="eform__bulk-count">已選 {{ picked.length }} / {{ members.length }} 人</span>
+                <div class="eform__bulk-btns">
+                    <button type="button" class="eform__bulk-btn" @click="setAll(true)">全選</button>
+                    <button type="button" class="eform__bulk-btn" @click="setAll(false)">全部取消</button>
+                </div>
+            </div>
+
             <div class="eform__people">
                 <div v-for="m in members" :key="m.id" class="eform__person">
                     <label class="eform__check">
                         <input type="checkbox" :checked="rows[m.id].on" @change="rows[m.id].on = $event.target.checked" />
                         <span>{{ m.name }}</span>
                     </label>
-                    <div v-if="rows[m.id].on && splitType !== 'equal'" class="eform__value">
+                    <div v-if="rows[m.id].on && splitType === 'adjust'" class="eform__value">
+                        <input :value="adjustShown(m.id)" class="game-input eform__input eform__input--sm"
+                            :class="{ 'eform__input--auto': !rows[m.id].locked }" inputmode="decimal" placeholder="金額"
+                            @input="onAdjustInput(m.id, $event.target.value)" />
+                        <span class="eform__unit">{{ currency }}</span>
+                    </div>
+                    <div v-else-if="rows[m.id].on && splitType !== 'equal'" class="eform__value">
                         <input v-model="rows[m.id].value" class="game-input eform__input eform__input--sm"
                             inputmode="decimal" :placeholder="valuePlaceholder" />
                         <span class="eform__unit">{{ valueUnit }}</span>
@@ -62,17 +72,18 @@
             <label class="eform__label">備註（選填）</label>
             <input v-model="note" class="game-input eform__input" maxlength="500" />
 
-            <div class="eform__actions sb-modal__foot">
+            <template #actions>
                 <button type="button" class="btn-ghost" @click="$emit('cancel')">取消</button>
                 <button type="submit" class="btn-primary">{{ expense ? '儲存' : '新增' }}</button>
-            </div>
-        </form>
-    </div>
+            </template>
+    </SbModal>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import SbSelect from './SbSelect.vue'
+import SbModal from './SbModal.vue'
+import SbDatePicker from './SbDatePicker.vue'
 import { CURRENCIES, CATEGORIES, SPLIT_TYPES, parseMoney, toInput, formatMoney } from '../data/money.js'
 
 const props = defineProps({
@@ -97,15 +108,17 @@ const splitType = ref(e ? (e.splitType === 'adjust' ? 'exact' : e.splitType) : '
 const error = ref('')
 
 const rows = reactive({})
-for (const m of props.members) rows[m.id] = { on: !e, value: '' }
+for (const m of props.members) rows[m.id] = { on: !e, value: '', locked: false }
 if (e) {
     for (const s of e.splits) {
         const v = splitType.value === 'exact' ? toInput(s.amount, e.currency)
             : splitType.value === 'equal' ? ''
                 : String(s.share ?? '')
-        rows[s.memberId] = { on: true, value: v }
+        rows[s.memberId] = { on: true, value: v, locked: false }
     }
 }
+
+function setAll(on) { for (const m of props.members) rows[m.id].on = on }
 
 const currentHint = computed(() => SPLIT_TYPES.find(t => t.id === splitType.value)?.hint)
 const valuePlaceholder = computed(() => ({ exact: '金額', percent: '%', shares: '份', adjust: '+/- 金額' })[splitType.value])
@@ -120,9 +133,43 @@ function onCurrencyChange() { /* 幣別小數位不同時，讓使用者重新�
 const picked = computed(() => props.members.filter(m => rows[m.id].on))
 const amount = computed(() => parseMoney(amountText.value, currency.value))
 
+// ── 「調整」：欄位直接顯示每個人的金額，一開始是平均；手動改某人的金額就鎖定他，
+//    其餘沒鎖定的人自動重新平分剩下的金額（欄位清空 = 解除鎖定）。送出時以「指定金額」記錄。
+watch(splitType, (t) => { if (t === 'adjust') for (const m of props.members) Object.assign(rows[m.id], { value: '', locked: false }) })
+
+const lockedAmount = (id) => parseMoney(rows[id].value, currency.value) ?? 0
+const adjustCalc = computed(() => {
+    const locked = picked.value.filter(m => rows[m.id].locked)
+    const free = picked.value.filter(m => !rows[m.id].locked)
+    const remain = (amount.value ?? 0) - locked.reduce((a, m) => a + lockedAmount(m.id), 0)
+    const map = {}
+    for (const m of locked) map[m.id] = lockedAmount(m.id)
+    if (free.length && remain >= 0) {
+        const base = Math.floor(remain / free.length)
+        const extra = remain - base * free.length                 // 零頭依序分給前面的人，各多 1 個最小單位
+        free.forEach((m, i) => { map[m.id] = base + (i < extra ? 1 : 0) })
+    }
+    return { map, remain, hasFree: free.length > 0 }
+})
+const adjustShown = (id) => {
+    if (rows[id].locked) return rows[id].value
+    const v = adjustCalc.value.map[id]
+    return amount.value && v != null ? toInput(v, currency.value) : ''
+}
+function onAdjustInput(id, text) {
+    rows[id].value = text
+    rows[id].locked = text.trim() !== ''
+}
+
 // 即時顯示加總狀況（只提示，最終金額以後端計算為準）
 const sumNote = computed(() => {
     const t = splitType.value
+    if (t === 'adjust' && amount.value) {
+        const { remain, hasFree } = adjustCalc.value
+        if (remain < 0) return `指定的金額已超過總額 ${formatMoney(-remain, currency.value)}`
+        if (!hasFree) return remain === 0 ? '✔ 金額加總正確' : `目前加總與總額差 ${formatMoney(remain, currency.value)}`
+        return '✔ 其餘的人自動平分剩下的金額'
+    }
     if (t === 'exact' && amount.value) {
         const sum = picked.value.reduce((a, m) => a + (parseMoney(rows[m.id].value, currency.value) || 0), 0)
         return sum === amount.value ? '✔ 金額加總正確' : `目前加總 ${formatMoney(sum, currency.value)}，與總額差 ${formatMoney(amount.value - sum, currency.value)}`
@@ -143,9 +190,21 @@ function submit() {
         return void (error.value = '這筆支出包含已離開的成員，無法在此編輯；請刪除後重新新增')
     }
 
-    const t = splitType.value
+    let t = splitType.value
     const participants = []
-    for (const m of picked.value) {
+    if (t === 'adjust') {
+        const { map, remain, hasFree } = adjustCalc.value
+        if (remain < 0) return void (error.value = '指定的金額已超過總額')
+        if (!hasFree && remain !== 0) return void (error.value = '每人金額加總需等於總額')
+        for (const m of picked.value) {
+            if (rows[m.id].locked && parseMoney(rows[m.id].value, currency.value) == null) {
+                return void (error.value = `「${m.name}」的金額格式不正確`)
+            }
+            participants.push({ memberId: m.id, value: map[m.id] })
+        }
+        t = 'exact'
+    }
+    for (const m of participants.length ? [] : picked.value) {      // 「調整」已在上面算好
         const raw = rows[m.id].value
         if (t === 'equal') { participants.push({ memberId: m.id }); continue }
         if (t === 'exact' || t === 'adjust') {

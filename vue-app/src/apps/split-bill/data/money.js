@@ -39,7 +39,7 @@ const CURRENCY_LIST = [
 
 export const CURRENCIES = CURRENCY_LIST.map(([code, name]) => ({
   code,
-  label: `${code} ${name}`,
+  label: `${name}（${code}）`,
   digits: ZERO_DIGITS.has(code) ? 0 : THREE_DIGITS.has(code) ? 3 : 2,
 }))
 
@@ -92,5 +92,5 @@ export const SPLIT_TYPES = [
   { id: 'exact',   label: '指定金額', hint: '每人輸入確切金額，加總需等於總額' },
   { id: 'percent', label: '百分比',   hint: '每人輸入百分比，加總需為 100%' },
   { id: 'shares',  label: '份數',     hint: '例如 2 大人 1 小孩 = 2 : 2 : 1' },
-  { id: 'adjust',  label: '調整',     hint: '先平分，再對個別人加減金額' },
+  { id: 'adjust',  label: '調整',     hint: '先平分；改某人的金額後，其餘的人自動平分剩下的' },
 ]

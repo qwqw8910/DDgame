@@ -137,16 +137,16 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .sbsel { position: relative; }
-.sbsel__btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding-left: 14px; padding-right: 14px; text-align: left; cursor: pointer; }
+.sbsel__btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding-left: 16px; padding-right: 16px; text-align: left; cursor: pointer; }
 .sbsel__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sbsel__caret { width: 18px; height: 18px; flex-shrink: 0; color: #d05f56; transition: transform 0.2s; }
 .sbsel__caret--up { transform: rotate(180deg); }
 .sbsel__list { position: fixed; z-index: 300; width: max-content; max-width: min(80vw, 360px);
-    padding: 6px; background: #fff; border: 2px solid #f5d0ca; border-radius: 14px; box-shadow: 0 8px 20px rgba(90, 58, 54, 0.15); }
-.sbsel__search { width: 100%; margin-bottom: 6px; padding-left: 12px !important; }
+    padding: 8px; background: #fff; border: 2px solid #f5d0ca; border-radius: 14px; box-shadow: 0 8px 20px rgba(90, 58, 54, 0.15); }
+.sbsel__search { width: 100%; margin-bottom: 8px; padding-left: 12px !important; }
 .sbsel__items { overflow-y: auto; margin: 0; padding: 0; list-style: none; }
 .sbsel__opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 10px; font-size: 16px; color: #5a3a36; cursor: pointer; }
 .sbsel__opt--hl { background: #fff3ee; }
 .sbsel__opt--on { color: #d05f56; font-weight: 700; }
-.sbsel__none { padding: 10px 12px; font-size: 14px; color: #a08682; }
+.sbsel__none { padding: 8px 12px; font-size: 14px; color: #a08682; }
 </style>

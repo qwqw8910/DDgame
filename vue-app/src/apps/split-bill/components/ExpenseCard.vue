@@ -5,7 +5,7 @@
                 <div class="xcard__title">{{ categoryLabel(expense.category) }} {{ expense.title }}</div>
                 <div class="xcard__meta">
                     <span class="xcard__date">{{ fmtDate(expense.paidAt) }}</span>
-                    <span>由 <b class="xcard__payer">{{ payersText }}</b> 付款</span>
+                    <span class="xcard__payby" :title="`由 ${creatorName} 新增`">由 <b class="xcard__payer">{{ creatorName }}</b> 新增</span>
                 </div>
             </div>
 
@@ -37,30 +37,27 @@
             ≈ {{ formatMoney(convertMinor(expense.amount, expense.currency, baseCurrency, rate), baseCurrency) }}
         </div>
 
-        <button type="button" class="xcard__toggle" :aria-expanded="open" @click="open = !open">
-            <span>詳細</span>
-            <svg :class="['xcard__chev', { 'xcard__chev--up': open }]" viewBox="0 0 24 24" width="18" height="18" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="6 9 12 15 18 9" />
-            </svg>
-        </button>
-
-        <div v-if="open" class="xcard__detail">
-            <div class="xcard__line">
-                <span class="xcard__label">參與成員：</span>
-                <span class="xcard__chips">
-                    <span v-for="s in expense.splits" :key="s.memberId" class="xcard__chip">
-                        {{ nameOf(s.memberId) }}<template v-if="expense.splitType !== 'equal'"> {{ formatMoney(s.amount, expense.currency) }}</template>
-                    </span>
-                </span>
-            </div>
-            <div v-if="expense.payers.length > 1" class="xcard__line">
-                <span class="xcard__label">付款明細：</span>
-                <span>{{ expense.payers.map(p => `${nameOf(p.memberId)} ${formatMoney(p.amount, expense.currency)}`).join('、') }}</span>
-            </div>
+        <div class="xcard__detail">
             <div v-if="myShare != null" class="xcard__line">
                 <span class="xcard__label">你的分攤：</span>
                 <span class="xcard__share">{{ formatMoney(myShare, expense.currency) }}</span>
+                <span class="xcard__chip">{{ splitLabel }}</span>
+            </div>
+            <div class="xcard__line">
+                <span class="xcard__label">墊付成員：</span>
+                <span class="xcard__chips">
+                    <span v-for="p in expense.payers" :key="p.memberId" class="xcard__chip">
+                        {{ nameOf(p.memberId) }}<template v-if="expense.payers.length > 1"> {{ formatMoney(p.amount, expense.currency) }}</template>
+                    </span>
+                </span>
+            </div>
+            <div class="xcard__line">
+                <span class="xcard__label">參與成員：</span>
+                <span class="xcard__chips">
+                    <span v-for="s in expense.splits" :key="s.memberId" class="xcard__chip xcard__chip--gold">
+                        {{ nameOf(s.memberId) }}<template v-if="expense.splitType !== 'equal'"> {{ formatMoney(s.amount, expense.currency) }}</template>
+                    </span>
+                </span>
             </div>
             <div v-if="expense.note" class="xcard__line">
                 <span class="xcard__label">備註：</span>
@@ -84,12 +81,13 @@ const props = defineProps({
 })
 const emit = defineEmits(['edit', 'delete', 'restore'])
 
-const open = ref(false)
 const menuOpen = ref(false)
 const menuEl = ref(null)
 
 const fmtDate = (iso) => new Date(iso).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
-const payersText = computed(() => props.expense.payers.map(p => props.nameOf(p.memberId)).join('、'))
+const creatorName = computed(() => props.nameOf(props.expense.createdBy))
+const SPLIT_LABELS = { equal: '均分', exact: '指定金額', percent: '百分比', shares: '份數', adjust: '調整金額' }
+const splitLabel = computed(() => SPLIT_LABELS[props.expense.splitType] ?? props.expense.splitType)
 const myShare = computed(() => props.expense.splits.find(s => s.memberId === props.meMemberId)?.amount ?? null)
 
 // 點選選單以外的地方、按 Esc 都會收起選單

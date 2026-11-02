@@ -1,18 +1,21 @@
 <template>
     <div class="sb-theme page-wrapper page-wrapper--scrollable">
-        <header class="sticky-header app-header--room">
-            <div class="header-inner header-inner--room">
-                <div class="flex items-center gap-1 min-w-0 flex-1 sm:flex-none">
-                    <button class="header-back-btn" aria-label="返回首頁" @click="goHome">←<span class="hidden sm:inline"> 返回</span></button>
-                    <span class="logo-sm truncate">{{ bill.roomName || '分帳' }} 💸</span>
+        <header class="sb-header">
+            <div class="sb-header__inner">
+                <button class="sb-header__back" aria-label="返回分帳入口" @click="goHome">
+                    <img :src="iconBack" width="20" height="20" alt="" />
+                    <span class="sb-header__back-text">返回分帳入口</span>
+                </button>
+
+                <div class="sb-header__title">
+                    <span class="sb-header__name">{{ bill.roomName || '分帳' }}</span>
+                    <span class="sb-header__code">{{ roomState.roomId }}</span>
                 </div>
-                <div class="header-info order-last w-full justify-center sm:order-none sm:w-auto">
-                    <span class="header-room-id">{{ roomState.roomId }}</span>
-                    <span class="text-base text-body">{{ activeMembers.length }} 人</span>
-                </div>
-                <div class="flex gap-1.5 items-center shrink-0">
-                    <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結" @click="copyLink">🔗</button>
-                    <button class="header-icon-btn" title="切換主題" aria-label="切換主題" @click="toggleTheme">{{ isDark ? '🌙' : '☀️' }}</button>
+
+                <div class="sb-header__actions">
+                    <button class="sb-header__icon" title="複製邀請連結" aria-label="複製邀請連結" @click="copyLink">
+                        <img :src="iconLink" width="24" height="24" alt="" />
+                    </button>
                 </div>
             </div>
         </header>
@@ -24,15 +27,13 @@
         </div>
 
         <!-- 沒有名字 -->
-        <div v-else-if="needNickname" class="overlay">
-            <div class="overlay-card">
-                <h2 class="neon-heading text-xl mb-3">輸入你的名字</h2>
-                <p class="text-base text-body mb-3">同一個名字 = 同一個人，換手機也能接回帳務</p>
-                <input v-model="overlayName" class="game-input mb-3" style="padding-left:14px" maxlength="20"
-                    placeholder="你的名字" @keydown.enter="joinWithName" />
+        <SbModal v-else-if="needNickname" title="輸入你的名字" text="同一個名字 = 同一個人，換手機也能接回帳務" :closable="false">
+            <input v-model="overlayName" class="game-input mt-3" style="padding-left:16px" maxlength="20"
+                placeholder="你的名字" @keydown.enter="joinWithName" />
+            <template #actions>
                 <button class="btn-primary" @click="joinWithName">進入帳本</button>
-            </div>
-        </div>
+            </template>
+        </SbModal>
 
         <!-- 進房失敗 -->
         <main v-else-if="!roomState.room" class="main-content main-content--room">
@@ -44,7 +45,8 @@
 
         <main v-else class="main-content main-content--room sb">
             <!-- Tabs -->
-            <nav class="sb__tabs" role="tablist">
+            <nav ref="tabsEl" class="sb__tabs" role="tablist">
+                <span class="sb__tab-ind" :style="tabInd" aria-hidden="true"></span>
                 <button v-for="t in TABS" :key="t.id" role="tab" :aria-selected="tab === t.id"
                     :class="['sb__tab', { 'sb__tab--on': tab === t.id }]" @click="tab = t.id">{{ t.label }}</button>
             </nav>
@@ -61,7 +63,7 @@
                         <button class="btn-secondary sb__add xlist__add" @click="openForm(null)">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"
                                 stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                            新增支出項目
+                            新增支出
                         </button>
                     </div>
                     <div class="xlist__filters">
@@ -81,7 +83,7 @@
                     <div ref="viewEl" class="xlist__view">
                         <button type="button" class="xlist__viewbtn" aria-haspopup="menu" :aria-expanded="viewOpen"
                             @click="viewOpen = !viewOpen">
-                            檢視方式
+                            {{ layout === 'grid' ? '雙欄檢視' : '單欄檢視' }}
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
                                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
                         </button>
@@ -93,7 +95,7 @@
 </div>
                 </div>
 
-                <p v-if="!bill.expenses.length" class="sb__empty">還沒有支出，按「新增支出項目」記下第一筆吧！</p>
+                <p v-if="!bill.expenses.length" class="sb__empty">還沒有支出，按「新增支出」記下第一筆吧！</p>
                 <p v-else-if="!visibleExpenses.length" class="sb__empty">找不到符合條件的支出</p>
                 <div :class="['xlist__grid', { 'xlist__grid--2': layout === 'grid' }]">
                     <ExpenseCard v-for="x in visibleExpenses" :key="x.id" :expense="x" :name-of="nameOf"
@@ -103,24 +105,26 @@
                 </div>
             </section>
 
-            <!-- ───────── 結算：誰該給誰 ───────── -->
+            <!-- ───────── 結算 ───────── -->
             <section v-else-if="tab === 'transfers'">
                 <AppAlert v-if="bill.missingRates.length" variant="info" action-label="前往設定匯率" @action="goRateSettings">
                     {{ bill.missingRates.join('、') }} 的支出還沒有匯率，所以沒有計入下面的金額。
                 </AppAlert>
 
                 <div class="game-card xlist__panel">
-                    <h2 class="xlist__heading">誰該給誰</h2>
-                    <p class="sb__sub">以 {{ bill.baseCurrency }} 結算，互相欠的已抵銷，點「詳細」看組成明細</p>
+                    <h2 class="xlist__heading">結算</h2>
+                    <p class="sb__sub">
+                        以 {{ bill.baseCurrency }} 結算，已簡化成最少的轉帳次數，每個人最後收到或付出的總金額不變，點「詳細」看每人最後的收支
+                    </p>
                 </div>
 
                 <div class="xlist__bar">
-                    <span class="sb__sub">共 {{ bill.transfers.length }} 筆</span>
+                    <span class="sb__sub">共 {{ bill.simplified.length }} 筆</span>
                     <div class="xlist__right">
                         <div ref="viewEl" class="xlist__view">
                             <button type="button" class="xlist__viewbtn" aria-haspopup="menu" :aria-expanded="viewOpen"
                                 @click="viewOpen = !viewOpen">
-                                檢視方式
+                                {{ layout === 'grid' ? '雙欄檢視' : '單欄檢視' }}
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
                                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
                             </button>
@@ -132,9 +136,9 @@
                     </div>
                 </div>
 
-                <p v-if="!bill.transfers.length" class="sb__empty">目前沒有人需要給錢 🎉</p>
+                <p v-if="!bill.simplified.length" class="sb__empty">目前沒有人需要給錢 🎉</p>
                 <div :class="['xlist__grid', { 'xlist__grid--2': layout === 'grid' }]">
-                    <article v-for="t in bill.transfers" :key="t.from + t.to" class="game-card xcard">
+                    <article v-for="t in bill.simplified" :key="t.from + t.to" class="game-card xcard">
                         <div class="xcard__head">
                             <div class="min-w-0">
                                 <div class="xcard__title">
@@ -142,7 +146,6 @@
                                     <span class="xcard__arrow">給</span>
                                     <span :class="{ 'xcard__me': t.to === bill.meMemberId }">{{ nameOf(t.to) }}</span>
                                 </div>
-                                <div class="xcard__meta"><span class="xcard__date">共 {{ t.details.length }} 筆支出</span></div>
                             </div>
                             <div class="xcard__side"><span class="xcard__amount">{{ formatMoney(t.amount, bill.baseCurrency) }}</span></div>
                         </div>
@@ -156,18 +159,25 @@
                         </button>
 
                         <div v-if="isOpen(t)" class="xcard__detail">
-                            <div v-for="d in t.details" :key="d.expenseId" class="xcard__line xcard__line--split">
+                            <div class="sb__sub">{{ nameOf(t.from) }} 每筆支出的付款 − 應分攤：</div>
+                            <div v-for="r in bill.breakdown[t.from] ?? []" :key="r.expenseId" class="xcard__line xcard__line--split">
                                 <div class="min-w-0">
-                                    <div>{{ expenseTitle(d.expenseId) }}</div>
-                                    <div class="sb__sub">{{ detailNote(d) }}</div>
+                                    <div>{{ expenseTitle(r.expenseId) }}</div>
+                                    <div class="sb__sub">{{ detailNote(r.expenseId) }}</div>
+                                    <div class="sb__sub">
+                                        付款 {{ formatMoney(r.paid, bill.baseCurrency) }} − 分攤 {{ formatMoney(r.share, bill.baseCurrency) }}
+                                    </div>
                                 </div>
-                                <span :class="d.amount < 0 ? 'xcard__minus' : 'xcard__share'">
-                                    {{ d.amount < 0 ? '− ' : '' }}{{ formatMoney(Math.abs(d.amount), bill.baseCurrency) }}
+                                <span :class="r.paid - r.share < 0 ? 'xcard__share' : 'xcard__minus'">
+                                    {{ r.paid - r.share < 0 ? '−' : '+' }} {{ formatMoney(Math.abs(r.paid - r.share), bill.baseCurrency) }}
                                 </span>
                             </div>
                             <div class="xcard__line xcard__line--split xcard__total">
-                                <span>合計</span>
-                                <span>{{ formatMoney(t.amount, bill.baseCurrency) }}</span>
+                                <span>{{ nameOf(t.from) }} 最後會付出</span>
+                                <span>{{ formatMoney(Math.abs(bill.balances[t.from] ?? 0), bill.baseCurrency) }}</span>
+                            </div>
+                            <div v-if="payTargets(t.from).length > 1" class="sb__sub">
+                                分別給：{{ payTargets(t.from).map(x => `${nameOf(x.to)} ${formatMoney(x.amount, bill.baseCurrency)}`).join('、') }}
                             </div>
                         </div>
                     </article>
@@ -199,7 +209,7 @@
                         <div ref="viewEl" class="xlist__view">
                             <button type="button" class="xlist__viewbtn" aria-haspopup="menu" :aria-expanded="viewOpen"
                                 @click="viewOpen = !viewOpen">
-                                檢視方式
+                                {{ layout === 'grid' ? '雙欄檢視' : '單欄檢視' }}
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
                                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
                             </button>
@@ -214,39 +224,67 @@
                 <p v-if="!visibleMembers.length" class="sb__empty">找不到符合條件的成員</p>
                 <div :class="['xlist__grid', { 'xlist__grid--2': layout === 'grid' }]">
                     <MemberCard v-for="m in visibleMembers" :key="m.id" :member="m" :is-me="m.id === bill.meMemberId"
-                        :can-manage="roomState.isHost && m.id !== bill.meMemberId && !m.leftAt && !m.isVirtual"
+                        :can-manage="roomState.isHost && m.id !== bill.meMemberId && !m.leftAt"
                         @transfer="transferTo(m)" @kick="kick(m)" />
                 </div>
             </section>
 
             <!-- ───────── 設定 ───────── -->
-            <section v-else-if="tab === 'settings'">
-                <div class="game-card sb__item">
-                    <h2 class="xlist__heading" style="margin-bottom:10px">帳本設定</h2>
-                    <div class="sb__sub">帳本名稱</div>
-                    <div v-if="isHost" class="sb__bar" style="margin:4px 0 0">
-                        <input v-model="nameDraft" class="game-input" style="padding-left:14px" maxlength="30"
-                            placeholder="例如：日本旅行" @keydown.enter="saveSettings" />
-                    </div>
-                    <div v-else class="sb__title">{{ bill.roomName || '（未命名）' }}</div>
+            <section v-else-if="tab === 'settings'" class="sset">
+                <div class="sset__card">
+                    <h2 class="sset__heading">分帳設定</h2>
+                    <div class="sset__panels">
+                        <div class="sset__panel">
+                            <div class="sset__field">
+                                <span class="sset__label">帳本名稱</span>
+                                <input v-if="isHost" v-model="nameDraft" class="sset__input" maxlength="30"
+                                    placeholder="例如：日本旅行" aria-label="帳本名稱" @keydown.enter="saveSettings" />
+                                <div v-else class="sset__input sset__input--ro">{{ bill.roomName || '（未命名）' }}</div>
+                            </div>
+                            <div class="sset__field sset__field--top">
+                                <span class="sset__label">結算幣別</span>
+                                <div class="sset__col">
+                                    <SbSelect v-if="isHost" v-model="baseDraft" class="sset__select" aria-label="結算幣別" :options="baseOptions" />
+                                    <div v-else class="sset__input sset__input--ro">{{ bill.baseCurrency }}</div>
+                                    <p class="sset__hint">所有支出外幣最終換算成「結算幣別」計算成員分帳。{{ isHost ? '' : '（只有房主可以更改）' }}</p>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="sb__sub" style="margin-top:14px">結算幣別</div>
-                    <SbSelect v-if="isHost" v-model="baseDraft" aria-label="結算幣別" :options="baseOptions" />
-                    <div v-else class="sb__title">{{ bill.baseCurrency }}</div>
-                    <p class="sb__sub">所有外幣都換算成這個幣別來算「誰給誰」。{{ isHost ? '' : '（只有房主可以更改）' }}</p>
+                        <div class="sset__panel">
+                            <span class="sset__label sset__label--block">分享房間</span>
+                            <div class="sset__field">
+                                <span class="sset__label">房間代碼</span>
+                                <div class="sset__input sset__input--copy">
+                                    <span class="sset__text">{{ roomState.roomId }}</span>
+                                    <button type="button" class="sset__copy" title="複製房間代碼" aria-label="複製房間代碼" @click="copyCode">
+                                        <img :src="iconCopy" width="20" height="20" alt="" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="sset__field">
+                                <span class="sset__label">房間連結</span>
+                                <div class="sset__input sset__input--copy">
+                                    <span class="sset__text">{{ inviteLink }}</span>
+                                    <button type="button" class="sset__copy" title="複製邀請連結" aria-label="複製邀請連結" @click="copyLink">
+                                        <img :src="iconCopy" width="20" height="20" alt="" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div id="sb-currency-settings" class="game-card sb__item">
-                    <div class="xlist__top">
-                        <h2 class="xlist__heading">外幣與匯率</h2>
-                        <button v-if="isHost" class="btn-secondary sb__add xlist__add" @click="openAddCurrency">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"
-                                stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                <div id="sb-currency-settings" class="sset__card">
+                    <div class="sset__head">
+                        <h2 class="sset__heading">外幣與匯率</h2>
+                        <button v-if="isHost" class="sset__add" @click="openAddCurrency">
+                            <img :src="iconPlus" width="20" height="20" alt="" />
                             新增幣別
                         </button>
                     </div>
-                    <p v-if="!foreignCurrencies.length" class="sb__sub">還沒有外幣。{{ isHost ? '按「新增幣別」，之後記帳時才能選到。' : '請房主先新增。' }}</p>
-                    <p v-else class="sb__sub">全帳本共用，改了全部一起變。</p>
+                    <p v-if="!foreignCurrencies.length" class="sset__body">尚未新增外幣，{{ isHost ? '「新增幣別」後「新增支出」才能選擇其他幣別。' : '請房主先新增。' }}</p>
+                    <p v-else class="sset__body">全帳本共用，改了全部一起變。</p>
                     <div v-for="c in foreignCurrencies" :key="c.code" class="sb__rate">
                         <span class="sb__rate-label">1 {{ c.code }} =</span>
                         <input v-model="rateDrafts[c.code]" class="game-input sb__rate-input" inputmode="decimal"
@@ -259,17 +297,16 @@
 
                 </div>
 
-                <div class="game-card sb__item">
-                    <div class="sb__sub">房間碼</div>
-                    <div class="flex items-center gap-3">
-                        <span class="sb__code">{{ roomState.roomId }}</span>
-                        <button class="btn-ghost-sm" @click="copyLink">複製邀請連結</button>
+                <div v-if="roomState.isHost" class="sset__card">
+                    <div class="sset__stack">
+                        <h2 class="sset__heading">刪除帳本</h2>
+                        <p class="sset__body">刪除帳本後，所有成員將無法再存取。<br />即使您與成員使用相同的連結代碼，也無法重新進入已刪除的帳本房間。</p>
                     </div>
+                    <button class="sset__danger" @click="removeRoom">刪除帳本</button>
                 </div>
 
-                <div class="sb__actions" style="justify-content:space-between">
-                    <button class="btn-ghost" @click="leave">離開帳本</button>
-                    <button v-if="roomState.isHost" class="btn-danger-sm" @click="removeRoom">刪除整個帳本</button>
+                <div v-else class="sset__card">
+                    <button class="sset__leave" @click="leave">離開帳本</button>
                 </div>
             </section>
 
@@ -277,10 +314,13 @@
             <section v-else>
                 <div class="game-card xlist__panel">
                     <h2 class="xlist__heading" style="margin-bottom:12px">歷史紀錄</h2>
-                    <div class="xlist__search">
-                        <input v-model="logSearch" class="game-input" placeholder="搜尋紀錄…" aria-label="搜尋紀錄" />
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="20" y1="20" x2="16.5" y2="16.5" /></svg>
+                    <div class="xlist__filters">
+                        <SbSelect v-model="logMemberFilter" class="xlist__select" aria-label="依成員篩選" :options="memberOptions" />
+                        <div class="xlist__search">
+                            <input v-model="logSearch" class="game-input" placeholder="搜尋紀錄…" aria-label="搜尋紀錄" />
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="20" y1="20" x2="16.5" y2="16.5" /></svg>
+                        </div>
                     </div>
                 </div>
 
@@ -313,60 +353,42 @@
         </Transition>
 
         <!-- 新增成員 -->
-        <div v-if="showAddMember" class="overlay" @click.self="showAddMember = false">
-            <div class="overlay-card sb-modal" role="dialog" aria-label="新增成員">
-                <button type="button" class="sb-modal__close" aria-label="關閉" @click="showAddMember = false"><svg viewBox="0 0 256 256" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button>
-                <h2 class="neon-heading text-xl mb-3">新增成員</h2>
-
-                <label class="eform__label" style="margin-top:0">成員名稱</label>
-                <div class="sb__bar" style="margin-bottom:4px">
-                    <input ref="addNameInput" v-model="virtualName" class="game-input" style="padding-left:14px" maxlength="20"
-                        placeholder="例如：奶奶" @keydown.enter="submitVirtual" />
-                </div>
-                <p class="sb__sub">之後有人用「同樣的名字」進來，就會自動接手這個成員的所有帳目，不會重複。</p>
-
-                <div class="sb__actions sb-modal__foot">
-                    <button class="btn-ghost" @click="showAddMember = false">取消</button>
-                    <button class="btn-primary" :disabled="!virtualName.trim()" @click="submitVirtual">新增</button>
-                </div>
-            </div>
-        </div>
+        <SbModal v-if="showAddMember" title="新增成員" @close="showAddMember = false">
+            <label class="eform__label" style="margin-top:0">成員名稱</label>
+            <input ref="addNameInput" v-model="virtualName" class="game-input" style="padding-left:16px" maxlength="20"
+                placeholder="例如：奶奶" @keydown.enter="submitVirtual" />
+            <p class="sb__sub" style="margin-top:8px">之後有人用「同樣的名字」進來，就會自動接手這個成員的所有帳目，不會重複。</p>
+            <template #actions>
+                <button class="btn-ghost" @click="showAddMember = false">取消</button>
+                <button class="btn-primary" :disabled="!virtualName.trim()" @click="submitVirtual">新增</button>
+            </template>
+        </SbModal>
 
         <!-- 新增幣別 -->
-        <div v-if="showAddCurrency" class="overlay" @click.self="showAddCurrency = false">
-            <div class="overlay-card sb-modal" role="dialog" aria-label="新增幣別">
-                <button type="button" class="sb-modal__close" aria-label="關閉" @click="showAddCurrency = false"><svg viewBox="0 0 256 256" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button>
-                <h2 class="neon-heading text-xl mb-3">新增幣別</h2>
+        <SbModal v-if="showAddCurrency" title="新增幣別" @close="showAddCurrency = false">
+            <label class="eform__label" style="margin-top:0">幣別</label>
+            <SbSelect v-model="newCurrency" aria-label="選擇要新增的幣別" placeholder="選擇幣別" :options="addableCurrencies" />
 
-                <label class="eform__label" style="margin-top:0">幣別</label>
-                <SbSelect v-model="newCurrency" aria-label="選擇要新增的幣別" placeholder="選擇幣別" :options="addableCurrencies" />
-
-                <label class="eform__label">匯率（必填）</label>
-                <div class="sb__rate" style="margin:0">
-                    <span class="sb__rate-label">1 {{ newCurrency || '外幣' }} =</span>
-                    <input v-model="newRate" class="game-input sb__rate-input" inputmode="decimal" placeholder="實際匯率"
-                        @keydown.enter="addCurrency" />
-                    <span class="sb__rate-label">{{ bill.baseCurrency }}</span>
-                </div>
-
-                <div class="sb__actions sb-modal__foot">
-                    <button class="btn-ghost" @click="showAddCurrency = false">取消</button>
-                    <button class="btn-primary" :disabled="!canAddCurrency" @click="addCurrency">新增</button>
-                </div>
+            <label class="eform__label">匯率（必填）</label>
+            <div class="sb__rate" style="margin:0">
+                <span class="sb__rate-label">1 {{ newCurrency || '外幣' }} =</span>
+                <input v-model="newRate" class="game-input sb__rate-input" inputmode="decimal" placeholder="實際匯率"
+                    @keydown.enter="addCurrency" />
+                <span class="sb__rate-label">{{ bill.baseCurrency }}</span>
             </div>
-        </div>
+            <template #actions>
+                <button class="btn-ghost" @click="showAddCurrency = false">取消</button>
+                <button class="btn-primary" :disabled="!canAddCurrency" @click="addCurrency">新增</button>
+            </template>
+        </SbModal>
 
         <!-- 確認對話框 -->
-        <div v-if="confirm" class="overlay" @click.self="confirm = null">
-            <div class="overlay-card sb-modal">
-                <button type="button" class="sb-modal__close" aria-label="關閉" @click="confirm = null"><svg viewBox="0 0 256 256" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button>
-                <p class="text-xl mb-4 text-heading">{{ confirm.text }}</p>
-                <div class="sb__actions sb-modal__foot">
-                    <button class="btn-ghost" @click="confirm = null">取消</button>
-                    <button class="btn-primary" @click="runConfirm">確定</button>
-                </div>
-            </div>
-        </div>
+        <SbModal v-if="confirm" :title="confirm.title" :text="confirm.text" @close="confirm = null">
+            <template #actions>
+                <button class="btn-ghost" @click="confirm = null">取消</button>
+                <button :class="confirm.danger ? 'btn-danger-sm' : 'btn-primary'" @click="runConfirm">{{ confirm.okText || '確定' }}</button>
+            </template>
+        </SbModal>
 
         <Transition name="toast">
             <div v-if="toast.show" :class="['toast', 'show', toast.type]">{{ toast.msg }}</div>
@@ -385,7 +407,12 @@ import ExpenseForm from '../components/ExpenseForm.vue'
 import AppAlert from '@/shared/components/AppAlert.vue'
 import ExpenseCard from '../components/ExpenseCard.vue'
 import SbSelect from '../components/SbSelect.vue'
+import SbModal from '../components/SbModal.vue'
 import MemberCard from '../components/MemberCard.vue'
+import iconBack from '../assets/back.svg'
+import iconLink from '../assets/link.svg'
+import iconCopy from '../assets/copy.svg'
+import iconPlus from '../assets/plus.svg'
 import '../split-bill.css'
 
 const route = useRoute()
@@ -393,7 +420,7 @@ const router = useRouter()
 const {
     bill, roomState, nameOf, connect, disconnect, copyInviteLink,
     addExpense, updateExpense, deleteExpense, restoreExpense,
-    addVirtualMember, setRate, refreshRate, setBaseCurrency, deleteRoom, renameRoom,
+    addVirtualMember, removeVirtualMember, setRate, refreshRate, setBaseCurrency, deleteRoom, renameRoom,
     kickPlayer, transferHost, leaveRoom,
 } = useSplitBill()
 
@@ -401,10 +428,44 @@ const TABS = [
     { id: 'expenses', label: '支出' },
     { id: 'transfers', label: '結算' },
     { id: 'members', label: '成員' },
-    { id: 'settings', label: '帳本設定' },
+    { id: 'settings', label: '設定' },
     { id: 'activity', label: '歷史紀錄' },
 ]
 const tab = ref('expenses')
+
+// 頁籤選中色塊：量測目前選中的頁籤位置，用 transform 滑過去
+const tabsEl = ref(null)
+const tabInd = ref({ opacity: 0 })
+// 黏稠拉伸：前緣先到、後緣延遲跟上，移動途中色塊會被拉長再縮回
+const FAST = '0.28s cubic-bezier(0.34, 1.2, 0.64, 1)'
+const SLOW = '0.34s cubic-bezier(0.4, 0, 0.2, 1) 0.02s'
+let _lastLeft = null
+function updateTabInd(animate = true) {
+    const nav = tabsEl.value
+    const el = nav?.querySelector('[aria-selected="true"]')
+    if (!el) return
+    const left = el.offsetLeft
+    const right = nav.clientWidth - (left + el.offsetWidth)
+    const movingRight = _lastLeft === null || left >= _lastLeft
+    const move = animate && _lastLeft !== null && left !== _lastLeft
+    _lastLeft = left
+    const tl = move ? (movingRight ? SLOW : FAST) : 'none'
+    const tr = move ? (movingRight ? FAST : SLOW) : 'none'
+    tabInd.value = {
+        left: `${left}px`, right: `${right}px`, height: `${el.offsetHeight}px`, top: `${el.offsetTop}px`, opacity: 1,
+        transition: `left ${tl}, right ${tr}, opacity 0.2s`,
+    }
+}
+let _tabRO = null
+watch([tabsEl, tab], async ([nav]) => {
+    await nextTick()
+    updateTabInd()
+    if (nav && !_tabRO && typeof ResizeObserver !== 'undefined') {
+        _tabRO = new ResizeObserver(() => updateTabInd(false))
+        _tabRO.observe(nav)
+    }
+}, { flush: 'post' })
+onUnmounted(() => _tabRO?.disconnect())
 
 // ── 主題 / 導覽 ─────────────────────────────────────────────
 const isDark = ref(true)
@@ -471,7 +532,7 @@ const memberOptions = computed(() => [
     ...bill.members.map(m => ({ value: m.id, label: m.name + (m.leftAt ? '（已離開）' : '') })),
 ])
 const showDeleted = ref(false)
-const LAYOUT_KEY = 'split-bill:expense-layout'
+const LAYOUT_KEY = 'split-bill:expense-layout:v2'
 const readLayout = () => { try { return localStorage.getItem(LAYOUT_KEY) === 'grid' ? 'grid' : 'list' } catch { return 'list' } }
 const layout = ref(readLayout())      // list 單欄 | grid 雙欄（窄螢幕一律單欄）
 watch(layout, (v) => { try { localStorage.setItem(LAYOUT_KEY, v) } catch { /* 無痕模式等情況不影響使用 */ } })
@@ -494,7 +555,7 @@ const visibleExpenses = computed(() => {
         .sort((a, b) => b.paidAt.localeCompare(a.paidAt) || b.createdAt.localeCompare(a.createdAt))
 })
 
-// 結算：誰該給誰
+// 結算
 const rateOf = (cur) => bill.rates[cur]?.rate ?? null
 const openKeys = ref(new Set())
 const keyOf = (t) => `${t.from}>${t.to}`
@@ -504,10 +565,11 @@ function toggleOpen(t) {
     if (!next.delete(keyOf(t))) next.add(keyOf(t))
     openKeys.value = next
 }
+const payTargets = (id) => bill.simplified.filter(t => t.from === id)
 const expenseOf = (id) => bill.expenses.find(x => x.id === id)
 const expenseTitle = (id) => expenseOf(id)?.title ?? '（已刪除的支出）'
-function detailNote(d) {
-    const x = expenseOf(d.expenseId)
+function detailNote(expenseId) {
+    const x = expenseOf(expenseId)
     if (!x) return ''
     const base = `${formatMoney(x.amount, x.currency)}・${fmtDate(x.paidAt)}`
     const rate = rateOf(x.currency)
@@ -579,6 +641,7 @@ function describe(a) {
         case 'member.leave': return `${who} 離開了帳本`
         case 'member.kick': return `${who} 被移出帳本`
         case 'member.add-virtual': return `${who} 新增了成員「${a.after?.name ?? ''}」`
+        case 'member.remove-virtual': return `${who} 移除了成員「${a.after?.name ?? ''}」`
         default: return `${who}：${a.action}`
     }
 }
@@ -594,9 +657,11 @@ const visibleMembers = computed(() => {
 
 // 歷史紀錄
 const logSearch = ref('')
+const logMemberFilter = ref('')       // '' = 所有成員；否則只看該成員執行的操作
 const visibleLogs = computed(() => {
     const q = logSearch.value.trim().toLowerCase()
-    return q ? activities.value.filter(a => describe(a).toLowerCase().includes(q)) : activities.value
+    return activities.value.filter(a => (!logMemberFilter.value || a.actor === logMemberFilter.value)
+        && (!q || describe(a).toLowerCase().includes(q)))
 })
 
 // ── 操作 ────────────────────────────────────────────────────
@@ -616,7 +681,7 @@ function saveExpense(payload) {
 
 const confirm = ref(null)
 const runConfirm = () => { const c = confirm.value; confirm.value = null; c?.run() }
-const confirmDelete = (x) => { confirm.value = { text: `刪除「${x.title}」？之後可以在「顯示已刪除」中復原。`, run: () => deleteExpense(x.id) } }
+const confirmDelete = (x) => { confirm.value = { title: '刪除支出', text: `確定刪除「${x.title}」？之後可以在「顯示已刪除」中復原。`, okText: '刪除', run: () => deleteExpense(x.id) } }
 
 // ── 帳本名稱 ────────────────────────────────────────────────
 const nameDraft = ref('')
@@ -638,6 +703,7 @@ function saveSettings() {
     if (baseChanged.value) {
         const next = baseDraft.value
         confirm.value = {
+            title: '更改結算幣別',
             text: `改用 ${next} 結算？現有匯率會全部重設為最新匯率（你手動改過的也會被覆蓋）。`,
             run: () => setBaseCurrency(next),
         }
@@ -670,27 +736,38 @@ function submitVirtual() {
 const normalize = (s) => String(s ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase()
 const playerOf = (m) => roomState.players.find(p => normalize(p.nickname) === normalize(m.name))
 function kick(m) {
+    if (m.isVirtual) {
+        confirm.value = { title: '移除成員', text: `確定移除「${m.name}」？帳目會保留，之後以同名加入即可接回。`, okText: '移除', run: () => removeVirtualMember(m.id) }
+        return
+    }
     const p = playerOf(m)
     if (!p) return showToast('找不到這位成員的連線資料', 'error')
-    confirm.value = { text: `把「${m.name}」移出帳本？帳目會保留，對方以同名重新加入即可接回。`, run: () => kickPlayer(p.id) }
+    confirm.value = { title: '移出帳本', text: `確定把「${m.name}」移出帳本？帳目會保留，對方以同名重新加入即可接回。`, okText: '移出', run: () => kickPlayer(p.id) }
 }
 function transferTo(m) {
     const p = playerOf(m)
     if (!p) return showToast('找不到這位成員的連線資料', 'error')
-    confirm.value = { text: `把房主移交給「${m.name}」？`, run: () => transferHost(p.id) }
+    confirm.value = { title: '移交房主', text: `確定把房主移交給「${m.name}」？移交後你就不能管理成員與帳本設定。`, okText: '移交', run: () => transferHost(p.id) }
 }
 function leave() {
     confirm.value = {
-        text: '離開帳本？你的帳目會保留，之後用同一個名字回來就能接回。',
+        title: '離開帳本',
+        text: '確定離開帳本？你的帳目會保留，之後用同一個名字回來就能接回。',
+        okText: '離開',
         run: () => { leaveRoom(); forgetRoom(roomState.roomId); goHome() },
     }
 }
 function removeRoom() {
-    confirm.value = { text: '永久刪除整個帳本與所有帳務？此動作無法復原！', run: () => deleteRoom() }
+    confirm.value = { title: '刪除整個帳本', text: '永久刪除整個帳本與所有帳務？此動作無法復原！', okText: '永久刪除', danger: true, run: () => deleteRoom() }
 }
 
 function copyLink() {
     copyInviteLink()
     showToast('邀請連結已複製 🔗', 'success')
+}
+const inviteLink = computed(() => `${window.location.href.split('#')[0]}#/split-bill?room=${roomState.roomId}`)
+function copyCode() {
+    navigator.clipboard.writeText(roomState.roomId).catch(() => {})
+    showToast('房間代碼已複製', 'success')
 }
 </script>
