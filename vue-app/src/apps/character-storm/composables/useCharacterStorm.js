@@ -69,6 +69,9 @@ const gameState = reactive({
   spy: { isSpy: false, used: false, targetId: null },
   spyMask: null,        // { playerId, index }
   spyReveal: null,      // { playerId, index, char }
+  collisions: null,     // 揭曉後公布的撞字：[{ char, symbol, playerIds }]
+  skipped: false,       // 猜題者離開／斷線，本題被跳過
+  poolExhausted: false, // 題庫用完，等房主決定是否重複出題
   submittedPlayerIds: [],
   timerRemaining: GAME_TIMER_SECONDS,
   // 猜題
@@ -96,6 +99,7 @@ function resetGameState() {
     themePreference: THEME_ALL, status: 'waiting', currentWord: null,
     round1Hints: [], round2Hints: [], round1HintsProvider: [], round2HintsProvider: [],
     symbolMap: {}, spy: { isSpy: false, used: false, targetId: null }, spyMask: null, spyReveal: null,
+    collisions: null, skipped: false, poolExhausted: false,
     submittedPlayerIds: [], timerRemaining: GAME_TIMER_SECONDS,
     guessResult: null, round1GuessResult: null, guessAB: null, wordLength: null,
     loading: false, loadingText: '', kicked: '', error: '', errorCode: '',
@@ -166,7 +170,16 @@ function registerGameHandlers(socket) {
   })
 
   // 倒數（提示階段與作答階段共用）
-  socket.on('cs:timer', ({ remainingMs }) => _startTimer(remainingMs ?? 0))
+  socket.on('cs:timer', ({ remainingMs }) => {
+    gameState.poolExhausted = false
+    _startTimer(remainingMs ?? 0)
+  })
+
+  // 題庫用完：等房主選擇重複出題或結束
+  socket.on('cs:pool-exhausted', () => {
+    _stopTimer()
+    gameState.poolExhausted = true
+  })
 
   // 第一輪結果
   socket.on('cs:round1-result', ({ hints, hintsProvider, symbolMap, wordLength, spyMask }) => {
@@ -192,10 +205,12 @@ function registerGameHandlers(socket) {
   })
 
   // 猜題結果
-  socket.on('cs:guess-result', ({ correct, answer, word, author, wasRound2, a, b, spyReveal }) => {
+  socket.on('cs:guess-result', ({ correct, answer, word, author, wasRound2, a, b, spyReveal, collisions, skipped }) => {
     if (_revealTimer) { clearInterval(_revealTimer); _revealTimer = null }
     _stopTimer()
     if (spyReveal) gameState.spyReveal = spyReveal
+    gameState.collisions = collisions ?? null
+    gameState.skipped    = !!skipped
     gameState.guessResult = { correct, answer }
     gameState.guessAB     = (a !== undefined) ? { a, b } : null
     if (word) gameState.currentWord = { word, author: author ?? null }
@@ -233,6 +248,9 @@ function registerGameHandlers(socket) {
     gameState.spy                 = { isSpy: false, used: false, targetId: null }
     gameState.spyMask             = null
     gameState.spyReveal           = null
+    gameState.collisions          = null
+    gameState.skipped             = false
+    gameState.poolExhausted       = false
     gameState.wordLength          = null
     _resetTimer()
   })
@@ -398,6 +416,10 @@ export function useCharacterStorm() {
     socket.emit('cs:next-round', { roomId: room.roomState.roomId })
   }
 
+  function decidePool(repeat) {
+    socket.emit('cs:pool-decision', { roomId: room.roomState.roomId, repeat })
+  }
+
   function continueGame() {
     socket.emit('cs:continue', { roomId: room.roomState.roomId })
   }
@@ -459,6 +481,7 @@ export function useCharacterStorm() {
     submitGuess,
     startGame,
     nextTurn,
+    decidePool,
     continueGame,
     resetToLobby,
     endGame,

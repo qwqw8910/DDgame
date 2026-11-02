@@ -79,8 +79,8 @@
                     <span v-for="(c, i) in r.get(player.id)" :key="i"
                         :class="[hintTileClass(c), { 'cs-flipcard': canFlip(c), 'is-flipped': isFlipped(r.round, i) }]"
                         :style="{ '--i': i, '--tok': c.tok }" :data-symbol="c.symbol"
-                        :title="c.isSpyMask ? '🕵 間諜干擾：這個字被遮住了' : canFlip(c) && !isFlipped(r.round, i) ? '點擊翻開被擋住的字' : undefined"
-                        @click="canFlip(c) && emit('flip', player.id, r.round, i)">
+                        :title="c.isSpyMask ? '🕵 間諜干擾：這個字被遮住了' : canFlip(c) && !isFlipped(r.round, i) ? '點擊翻開被擋住的字' : symKey(c) ? '點擊高亮所有相同符號' : undefined"
+                        @click="onTileClick(c, r.round, i)">
                         <template v-if="canFlip(c)">
                             <span class="cs-flipcard__back">{{ c.char }}</span>
                             <span class="cs-flipcard__front">{{ c.real }}</span>
@@ -118,8 +118,9 @@ const props = defineProps({
     isHintPhase: { type: Boolean, default: false },
     hintRounds: { type: Array, default: () => [] },
     flipped: { type: Array, default: () => [] },
+    highlight: { type: String, default: '' },   // 目前高亮的符號
 })
-const emit = defineEmits(['react', 'flip'])
+const emit = defineEmits(['react', 'flip', 'pick-symbol'])
 
 const isSelf = computed(() => props.player.id === props.myPlayerId)
 const submitted = computed(() => props.state.submittedPlayerIds.includes(props.player.id))
@@ -132,9 +133,22 @@ const roleBadge = computed(() => {
 const canFlip = c => props.state.isGuesser && props.state.status === 'revealing' && !!c.isSymbol && !!c.real
 const isFlipped = (round, i) => props.flipped.includes(`${props.player.id}:${round}:${i}`)
 
+// 這張字牌代表哪個符號（猜題者看到符號牌；提示者看到撞字牌的角標）
+const symKey = c => (c.isSymbol ? c.char : c.symbol) || ''
+
+function onTileClick(c, round, i) {
+    if (canFlip(c)) return emit('flip', props.player.id, round, i)
+    const key = symKey(c)
+    if (key) emit('pick-symbol', key)
+}
+
 function hintTileClass(c) {
+    const key = symKey(c)
     return ['cs-tile', 'cs-tile--md', {
         'cs-tile--symbol': c.isSymbol, 'cs-tile--conflict': c.isConflict, 'cs-tile--spy': c.isSpyMask,
+        'cs-tile--pickable': !!key,
+        'cs-tile--hl': !!props.highlight && key === props.highlight,
+        'cs-tile--dim': !!props.highlight && key !== props.highlight,
     }]
 }
 </script>
