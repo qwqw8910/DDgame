@@ -19,6 +19,7 @@
 //    bill:expense-delete  { expenseId }
 //    bill:expense-restore { expenseId }
 //    bill:member-add-virtual { name }（僅房主；之後有人以同名加入，就會接手這個成員的所有帳目）
+//    bill:member-remove-virtual { memberId }（僅房主；移除尚未加入的成員，帳目保留，標記為已離開）
 //    bill:rate-set        { currency, rate }（任何成員；整個帳本共用，改了全部換算跟著變）
 //    bill:rate-refresh    { currency }（重新抓取最新匯率，覆蓋手動值）
 //    bill:base-currency-set { currency }（僅房主；結算幣別，會清空既有匯率並重新抓取）
@@ -47,6 +48,7 @@ const EV = {
   EXPENSE_DELETE:      'bill:expense-delete',
   EXPENSE_RESTORE:     'bill:expense-restore',
   MEMBER_ADD_VIRTUAL:  'bill:member-add-virtual',
+  MEMBER_REMOVE_VIRTUAL: 'bill:member-remove-virtual',
   RATE_SET:            'bill:rate-set',
   RATE_REFRESH:        'bill:rate-refresh',
   BASE_CURRENCY_SET:   'bill:base-currency-set',
@@ -452,6 +454,20 @@ function registerNamespace(io, db, opts = {}) {
       state.members.push(member);
       broadcast(roomId, EV.MEMBERS, { members: wireMembers(roomId, state) });
       await logActivity(roomId, state, me, 'member.add-virtual', 'member', member.id, null, { name });
+    });
+
+    // ── 移除虛擬成員（僅房主）：沒有玩家連線可踢，直接標記為已離開，帳目保留 ──
+    on(socket, EV.MEMBER_REMOVE_VIRTUAL, async ({ roomId, state, me, p }) => {
+      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有房主可以移除成員');
+      const member = state.members.find(m => m.id === p.memberId);
+      if (!member) throw new L.BillError('INVALID_INPUT', '找不到這位成員');
+      if (!member.isVirtual) throw new L.BillError('INVALID_INPUT', '這位成員已加入，請使用「移出帳本」');
+      if (member.leftAt) return;
+      const leftAt = nowIso();
+      await store.setMemberLeft(member.id, leftAt);
+      member.leftAt = leftAt;
+      broadcast(roomId, EV.MEMBERS, { members: wireMembers(roomId, state) });
+      await logActivity(roomId, state, me, 'member.remove-virtual', 'member', member.id, null, { name: member.name });
     });
 
     // ── 帳本命名（僅房主）────────────────────────────────────

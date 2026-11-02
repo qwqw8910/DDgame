@@ -24,8 +24,10 @@
                     </svg>
                 </button>
                 <div v-if="menuOpen" class="xcard__popover" role="menu">
-                    <button type="button" role="menuitem" class="xcard__item" @click="pick('transfer')">移交房主</button>
-                    <button type="button" role="menuitem" class="xcard__item xcard__item--danger" @click="pick('kick')">移出帳本</button>
+                    <button v-if="!member.isVirtual" type="button" role="menuitem" class="xcard__item" @click="pick('transfer')">移交房主</button>
+                    <button type="button" role="menuitem" class="xcard__item xcard__item--danger" @click="pick('kick')">
+                        {{ member.isVirtual ? '移除成員' : '移出帳本' }}
+                    </button>
                 </div>
             </div>
         </div>

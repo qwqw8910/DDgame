@@ -169,6 +169,24 @@ describe('誰該給誰（兩兩對沖）', () => {
     assert.deepEqual(r.missingRates, ['JPY']);
   });
 
+  test('breakdown：每人每筆支出 付款 − 分攤 加總 = 最後淨收支', () => {
+    for (let round = 0; round < 200; round++) {
+      const exps = [];
+      for (let k = 0; k < 1 + Math.floor(Math.random() * 4); k++) {
+        const cents = 100 + Math.floor(Math.random() * 100000);
+        const half = Math.floor(cents / 2);
+        const e = expense(`e${k}`, [['A', half], ['B', cents - half]], []);
+        e.splits = L.computeSplits(cents, 'equal', ['A', 'B', 'C', 'D'].slice(0, 2 + Math.floor(Math.random() * 3)).map(memberId => ({ memberId })));
+        exps.push(e);
+      }
+      const { balances, breakdown } = debts(exps);
+      assert.deepEqual(Object.keys(breakdown).sort(), Object.keys(balances).sort());
+      for (const [id, rows] of Object.entries(breakdown)) {
+        assert.equal(sum(rows.map(r => r.paid - r.share)), balances[id]);
+      }
+    }
+  });
+
   test('多人付款、除不盡：明細加總 = 淨額，且總和不多不少', () => {
     for (let round = 0; round < 200; round++) {
       const cents = 100 + Math.floor(Math.random() * 100000);
@@ -181,6 +199,47 @@ describe('誰該給誰（兩兩對沖）', () => {
       const net = {};
       for (const t of transfers) { net[t.from] = (net[t.from] ?? 0) - t.amount; net[t.to] = (net[t.to] ?? 0) + t.amount; }
       assert.equal(sum(Object.values(net)), 0);
+    }
+  });
+});
+
+describe('簡化債務（最少轉帳次數）', () => {
+  const t = (from, to, amount) => ({ from, to, amount });
+
+  test('環狀債務：尼莫→甜甜 200、甜甜→螺旋 400、螺旋→尼莫 200 ⇒ 甜甜給螺旋 200', () => {
+    const { simplified, balances } = L.simplifyTransfers([t('尼莫', '甜甜', 200), t('甜甜', '螺旋', 400), t('螺旋', '尼莫', 200)]);
+    assert.deepEqual(simplified, [t('甜甜', '螺旋', 200)]);
+    assert.deepEqual(balances, { 甜甜: -200, 螺旋: 200 });
+  });
+
+  test('附圖範例：A→C 100、B→C 300、A→B 50 ⇒ A→C 150、B→C 250（3 筆變 2 筆）', () => {
+    const { simplified } = L.simplifyTransfers([t('A', 'C', 100), t('B', 'C', 300), t('A', 'B', 50)]);
+    assert.deepEqual(simplified, [t('B', 'C', 250), t('A', 'C', 150)]);
+  });
+
+  test('沒有債務 → 空；淨額為 0 的人不出現', () => {
+    assert.deepEqual(L.simplifyTransfers([]), { simplified: [], balances: {} });
+  });
+
+  test('隨機債務：每人最後淨收支與原本一致，且筆數不超過原本、不超過 (有淨額人數 − 1)', () => {
+    const ids = ['A', 'B', 'C', 'D', 'E', 'F'];
+    for (let round = 0; round < 300; round++) {
+      const orig = [];
+      for (let i = 0; i < 1 + Math.floor(Math.random() * 10); i++) {
+        const from = ids[Math.floor(Math.random() * ids.length)];
+        const to = ids[Math.floor(Math.random() * ids.length)];
+        if (from !== to) orig.push(t(from, to, 1 + Math.floor(Math.random() * 1000)));
+      }
+      const netOf = (list) => {
+        const n = {};
+        for (const x of list) { n[x.from] = (n[x.from] ?? 0) - x.amount; n[x.to] = (n[x.to] ?? 0) + x.amount; }
+        return Object.fromEntries(Object.entries(n).filter(([, v]) => v !== 0));
+      };
+      const { simplified, balances } = L.simplifyTransfers(orig);
+      assert.deepEqual(netOf(simplified), netOf(orig));
+      assert.deepEqual(balances, netOf(orig));
+      assert.ok(simplified.every(x => x.amount > 0 && x.from !== x.to));
+      assert.ok(simplified.length <= Math.max(0, Object.keys(balances).length - 1));
     }
   });
 });

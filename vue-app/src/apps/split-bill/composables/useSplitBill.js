@@ -32,6 +32,9 @@ const bill = reactive({
   baseCurrency: 'TWD',
   rates: {},          // { [currency]: { rate, source, updatedAt } }  1 外幣 = rate 結算幣別
   transfers: [],      // 誰該給誰（兩兩對沖）：{ from, to, amount, details:[{expenseId, amount}] }
+  simplified: [],     // 簡化後（最少轉帳次數）：{ from, to, amount }
+  balances: {},       // 每人最後淨收支：正 = 會收到、負 = 要付出（淨額 0 的不列）
+  breakdown: {},      // 每人每筆支出：{ expenseId, paid, share }（已換算成結算幣別），Σ(paid − share) = balances
   missingRates: [],   // 還沒有匯率、因此未計入的幣別
   loading: false,
   loadingText: '',
@@ -52,8 +55,11 @@ function upsert(list, item) {
   else list[i] = item
 }
 
-function applyTransfers({ transfers, missingRates }) {
+function applyTransfers({ transfers, simplified, balances, breakdown, missingRates }) {
   bill.transfers = transfers ?? []
+  bill.simplified = simplified ?? []
+  bill.balances = balances ?? {}
+  bill.breakdown = breakdown ?? {}
   bill.missingRates = missingRates ?? []
 }
 
@@ -156,6 +162,7 @@ export function useSplitBill() {
     deleteExpense:   (expenseId) => emit('bill:expense-delete', { expenseId }),
     restoreExpense:  (expenseId) => emit('bill:expense-restore', { expenseId }),
     addVirtualMember:(name) => emit('bill:member-add-virtual', { name }),
+    removeVirtualMember: (memberId) => emit('bill:member-remove-virtual', { memberId }),
     setRate:         (currency, rate) => emit('bill:rate-set', { currency, rate }),
     refreshRate:     (currency) => emit('bill:rate-refresh', { currency }),
     setBaseCurrency: (currency) => emit('bill:base-currency-set', { currency }),
