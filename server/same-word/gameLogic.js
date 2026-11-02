@@ -170,6 +170,13 @@ function startGame(game, playerIds, { now, rng = Math.random, seedPairs = null }
   return game;
 }
 
+// 前幾輪已出現過的詞（含開局種子詞）的 key；本輪不可再寫
+function usedKeys(game) {
+  const keys = new Set((game.seed ?? []).map(wordKey));
+  for (const r of game.rounds) for (const w of Object.values(r.words)) if (w) keys.add(wordKey(w));
+  return keys;
+}
+
 // 送出（可覆蓋，直到揭曉）。回傳是否全員已送出，由 index.js 決定何時 settleRound
 function submitWord(game, playerId, rawWord, { now } = {}) {
   assertPhase(game, 'writing');
@@ -178,6 +185,7 @@ function submitWord(game, playerId, rawWord, { now } = {}) {
   if (now > game.roundEndsAt) throw new GameError('TIME_UP', '時間到了');
   const word = normalizeWord(rawWord);
   if (!word) throw new GameError('BAD_WORD', '請輸入中文或英文（1–12 字）');
+  if (usedKeys(game).has(wordKey(word))) throw new GameError('WORD_USED', '這個詞前面幾輪用過了，換一個吧');
   game.pending[playerId] = word;
   return { allSubmitted: allSubmitted(game) };
 }
@@ -336,20 +344,6 @@ function buildResult(game, endReason) {
       || (hashOf(x) - hashOf(y)))
     .slice(0, TOP_PAIRS);
 
-  // 🧲 磁鐵：本輪的詞，被其他人「下一輪」寫出的累計次數
-  const magnetCounts = {};
-  for (let i = 0; i + 1 < game.rounds.length; i++) {
-    const cur = game.rounds[i].words;
-    const next = game.rounds[i + 1].words;
-    for (const id of ids) {
-      if (!cur[id]) continue;
-      const k = wordKey(cur[id]);
-      for (const other of Object.keys(next)) {
-        if (other !== id && next[other] && wordKey(next[other]) === k) magnetCounts[id] = (magnetCounts[id] ?? 0) + 1;
-      }
-    }
-  }
-
   // 📊 個人默契指數：與所有他人的默契值平均（死對頭 0%）
   const chemistry = {};
   for (const id of ids) {
@@ -363,7 +357,6 @@ function buildResult(game, endReason) {
     loners,
     bestPairs: bestPairs.map(p => ({ a: p.a, b: p.b, firstMatch: p.firstMatch, tierId: p.tierId, value: p.value })),
     worstPairs: worstPairs.map(p => ({ a: p.a, b: p.b, votes: pairVotes[p.key] ?? 0 })),
-    magnet: topCount(magnetCounts, ids),
     outlier: topCount(tally(outlierTargets), ids),
     chemistry,
     matrix: stats.map(p => ({ a: p.a, b: p.b, firstMatch: Number.isFinite(p.firstMatch) ? p.firstMatch : null, tierId: p.tierId, value: p.value })),

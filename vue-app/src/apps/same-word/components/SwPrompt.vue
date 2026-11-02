@@ -13,6 +13,9 @@
             開局線索：<b class="text-heading">{{ seed[0] }}</b> × <b class="text-heading">{{ seed[1] }}</b>
         </p>
         <p v-else class="m-0 text-sm text-body">第一輪：想到什麼就寫什麼，下一輪起會以大家寫的詞為線索</p>
+        <p v-if="history.length" class="m-0 mt-3 text-xs text-label">
+            已用過（不能再寫）：<span v-for="w in history" :key="w" class="mx-1 inline-block text-body">{{ w }}</span>
+        </p>
     </div>
 </template>
 
@@ -23,6 +26,7 @@ import { computed } from 'vue'
 const props = defineProps({
     round: { type: Object, default: null },   // { number, words }
     seed: { type: Array, default: null },
+    history: { type: Array, default: () => [] },   // 所有輪次出現過的詞
     names: { type: Object, required: true },
     myId: { type: String, default: '' },
 })

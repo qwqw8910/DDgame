@@ -35,16 +35,11 @@
         </section>
 
         <!-- 其他頭銜 -->
-        <section class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <section class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div v-if="result.loners.length" class="game-card !p-3 text-center">
                 <img :src="badgeUrl('badge-loner')" alt="" class="mx-auto h-16 w-16 object-contain" loading="lazy" />
                 <p class="m-0 text-xs text-label">🐺 孤狼</p>
                 <p class="m-0 font-bold text-heading">{{ result.loners.map(id => names[id]).join('、') }}</p>
-            </div>
-            <div v-if="result.magnet.length" class="game-card !p-3 text-center">
-                <img :src="badgeUrl('badge-magnet')" alt="" class="mx-auto h-16 w-16 object-contain" loading="lazy" />
-                <p class="m-0 text-xs text-label">🧲 磁鐵</p>
-                <p class="m-0 font-bold text-heading">{{ result.magnet.map(id => names[id]).join('、') }}</p>
             </div>
             <div v-if="result.outlier.length" class="game-card !p-3 text-center">
                 <img :src="badgeUrl('badge-outlier')" alt="" class="mx-auto h-16 w-16 object-contain" loading="lazy" />
