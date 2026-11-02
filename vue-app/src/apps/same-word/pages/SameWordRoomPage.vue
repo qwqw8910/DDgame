@@ -147,6 +147,8 @@
             </template>
         </main>
 
+        <SwFxLayer />
+
         <Transition name="toast">
             <div v-if="toast.show" :class="['toast', 'show', toast.type]">{{ toast.msg }}</div>
         </Transition>
@@ -164,6 +166,8 @@ import SwWriteBox from '../components/SwWriteBox.vue'
 import SwRevealBoard from '../components/SwRevealBoard.vue'
 import SwHistoryStrip from '../components/SwHistoryStrip.vue'
 import SwResultBoard from '../components/SwResultBoard.vue'
+import SwFxLayer from '../components/SwFxLayer.vue'
+import { spawnTier, spawnFx } from '../composables/useSwFx.js'
 import { MIN_PLAYERS, ROUND_PRESETS, TIMER_PRESETS } from '../data/constants.js'
 
 const route = useRoute()
@@ -222,6 +226,24 @@ const voteSeconds = computed(() => {
     return end ? Math.max(0, Math.ceil((end - now.value) / 1000)) : 0
 })
 const canVote = computed(() => phase.value === 'revealed' && opts.value.outlierVote && !!isParticipant.value && voteSeconds.value > 0)
+
+// ── 特效：揭曉時依新配對的最高等級放特效；結算時放慶祝 ───────────
+// 輪次 + 階段變化才觸發一次（重連補發同一份視圖不會重放）
+const TIER_ORDER = ['soulmates', 'telepathy', 'in-sync', 'compatible', 'slow-burn', 'needs-work', 'barely', 'near-miss']
+let _fxKey = ''
+watch(() => [phase.value, view.value?.round], ([p, r]) => {
+    const key = `${p}:${r}`
+    if (key === _fxKey) return
+    _fxKey = key
+    if (p === 'revealed' && lastRound.value?.newPairs.length) {
+        const best = TIER_ORDER.find(t => lastRound.value.newPairs.some(np => np.tierId === t))
+        spawnTier(best, 0.5, 0.35)
+    } else if (p === 'finished' && view.value.result) {
+        const r2 = view.value.result
+        if (r2.unique) { spawnFx('confetti', 0.5, 0.45); spawnFx('sunburst', 0.5, 0.3) }
+        else if (r2.bestPairs.length) { spawnFx('confetti', 0.3, 0.5); spawnFx('confetti', 0.7, 0.5) }
+    }
+})
 
 function onVote(id) {
     voteOutlier(view.value.myOutlierVote === id ? null : id)
