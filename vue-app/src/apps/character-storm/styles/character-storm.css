@@ -14,8 +14,8 @@
   --cs-accent-2: #A78BFA;
   --cs-hot: #FB7185;
   --cs-gold: #FBBF24;
-  --cs-panel: rgba(13, 20, 38, 0.78);
-  --cs-panel-border: rgba(148, 163, 184, 0.14);
+  --cs-panel: #0F1628;
+  --cs-panel-border: rgba(148, 163, 184, 0.16);
   --cs-font-tile: 'Noto Serif TC', 'Noto Sans TC', serif;
 }
 [data-theme="light"] .cs-scope {
@@ -29,7 +29,7 @@
   --cs-accent-2: #7C3AED;
   --cs-hot: #E11D48;
   --cs-gold: #B45309;
-  --cs-panel: rgba(255, 255, 255, 0.92);
+  --cs-panel: #FFFFFF;
   --cs-panel-border: rgba(120, 90, 40, 0.20);
   /* 覆寫通用 token，讓卡片、輸入框、文字全部落在同一暖色調 */
   --color-dark: #FAF6EC;
@@ -44,23 +44,37 @@
   --color-neon-cyan: #0E7490;
 }
 
-/* ── 背景：深夜藍 + 兩道光暈 + 淡淡的字牌格線 ──────────────────── */
-.cs-scope.cs-bg {
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(34, 211, 238, 0.16), transparent 60%),
-    radial-gradient(900px 600px at 110% 110%, rgba(167, 139, 250, 0.16), transparent 60%),
-    linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px) 0 0 / 44px 50px,
-    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px) 0 0 / 44px 50px,
-    var(--color-dark);
+/* ── 背景：單一平面色（字牌本身就是畫面的主角，不再加光暈與格線） ── */
+.cs-scope.cs-bg { background: var(--color-dark); }
+[data-theme="light"] .cs-scope.cs-bg { background: #FAF6EC; }
+
+/* ── Header：圖示按鈕、Logo、房號 ─────────────────────────────── */
+.cs-icon { display: block; flex-shrink: 0; }
+/* header 與下方遊戲區共用同一組左右邊界（16px），不再置中於 800px 欄 */
+.cs-room-page .header-inner--room { max-width: none; }
+.cs-scope .header-icon-btn,
+.cs-scope .theme-toggle { display: inline-flex; align-items: center; justify-content: center; min-width: 38px; min-height: 36px; color: var(--color-heading); box-shadow: none; }
+.cs-scope .header-icon-btn:hover,
+.cs-scope .theme-toggle:hover { box-shadow: none; border-color: color-mix(in srgb, var(--cs-accent) 55%, transparent); }
+.cs-scope .cs-logo { color: var(--color-heading); }
+.cs-scope .cs-room-id { color: var(--color-heading); font-family: inherit; font-variant-numeric: tabular-nums; letter-spacing: 0.12em; }
+.cs-room-count { font-size: 13px; color: var(--color-label); }
+
+/* 房間選單 */
+.cs-room-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 60;
+  display: flex; flex-direction: column; min-width: 180px; padding: 6px;
+  border-radius: 12px; background: var(--cs-panel); border: 1px solid var(--cs-panel-border);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
 }
-[data-theme="light"] .cs-scope.cs-bg {
-  background:
-    radial-gradient(1000px 520px at 8% -8%, rgba(251, 191, 36, 0.14), transparent 62%),
-    radial-gradient(900px 560px at 108% 108%, rgba(14, 116, 144, 0.09), transparent 62%),
-    linear-gradient(rgba(120, 90, 40, 0.05) 1px, transparent 1px) 0 0 / 44px 50px,
-    linear-gradient(90deg, rgba(120, 90, 40, 0.05) 1px, transparent 1px) 0 0 / 44px 50px,
-    #FAF6EC;
+.cs-room-menu__item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px;
+  border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+  font-size: 15px; text-align: left; color: var(--color-heading);
 }
+.cs-room-menu__item:hover, .cs-room-menu__item:focus-visible { background: var(--color-subtle); }
+.cs-room-menu__item--danger { color: var(--cs-hot); }
+[data-theme="light"] .cs-room-menu { box-shadow: 0 10px 28px rgba(110, 80, 30, 0.16); }
 
 /* ================================================================
    字牌
@@ -118,15 +132,15 @@
 .cs-tile--conflict::after {
   content: attr(data-symbol);
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: -8px;
+  right: -8px;
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   font-family: system-ui, sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   color: #fff;
   background: var(--tok);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
@@ -286,20 +300,13 @@
 .cs-scope .cs-card-head .cs-react-btns { margin: 0 0 0 auto; padding: 0; border: 0; gap: 0; }
 .cs-scope .cs-card-head .cs-react-btn { padding: 2px 4px; font-size: 14px; line-height: 1; }
 
-/* 13 人以上：左側欄與題目區同步壓縮（矮螢幕再縮一級），保持不捲動 */
-@media (min-width: 641px) {
-  .cs-scope .cs-game-layout--compact .cs-left-panel { overflow: hidden; }
-  .cs-scope .cs-game-layout--compact .cs-player-list-card { flex: 1; min-height: 0; overflow: hidden; }
-  .cs-scope .cs-game-layout--compact .cs-player-list { gap: 3px; }
-  .cs-scope .cs-game-layout--compact .cs-player-list-item { padding: 3px 8px; }
-  .cs-scope .cs-game-layout--compact .cs-player-list-item .cs-avatar { --size: 18px; font-size: 10px; margin-bottom: 1px; }
-}
+/* 13 人以上：上排同步壓縮（矮螢幕再縮一級），保持不捲動 */
 @media (min-width: 641px) and (max-height: 820px) {
   .cs-scope .cs-game-layout--compact .cs-question-card .cs-tile--lg { --size: 38px; }
   .cs-scope .cs-game-layout--compact .cs-question-row { padding-top: 6px; }
   .cs-scope .cs-game-layout--compact .cs-timer { width: 56px; height: 56px; }
   .cs-scope .cs-game-layout--compact .cs-phase-card { padding: 8px 12px !important; }
-  .cs-scope .cs-game-layout--compact .cs-player-list-status { display: none; }
+  .cs-scope .cs-game-layout--compact .cs-phase-title { font-size: 17px; margin-bottom: 6px; }
 }
 @keyframes cs-tile-pop {
   0%   { transform: scale(0.6) translateY(6px); }
@@ -343,41 +350,58 @@
   [data-theme="light"] .cs-lobby-bg-tiles .cs-tile { opacity: 0.18; }
 }
 
-.cs-hero-title { display: flex; justify-content: center; gap: clamp(6px, 1.6vw, 12px); margin: 6px 0 14px; }
-.cs-hero-kicker {
-  margin: 0 0 6px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.42em;
-  color: var(--cs-accent);
-  text-transform: uppercase;
-}
-.cs-hero-tagline { margin: 0; font-size: 15px; color: var(--color-body); }
+.cs-hero-title { display: flex; justify-content: center; gap: clamp(6px, 1.6vw, 12px); margin: 4px 0 14px; }
+.cs-hero-tagline { margin: 0 auto; max-width: 30em; font-size: 16px; color: var(--color-body); text-wrap: balance; }
 .cs-hero-tagline b { color: var(--color-heading); font-weight: 700; }
 
+/* 入口卡片 */
+.cs-scope .cs-lobby-card { padding: 22px; }
+.cs-lobby-card__title { margin: 0; font-size: 20px; font-weight: 700; color: var(--color-heading); }
+.cs-lobby-card__desc { margin: 0 0 18px; font-size: 15px; color: var(--color-body); }
+.cs-text-btn { padding: 4px 0; border: 0; background: transparent; cursor: pointer; font-size: 14px; color: var(--color-label); text-decoration: underline; text-underline-offset: 3px; }
+.cs-text-btn:hover { color: var(--color-heading); }
+/* 輸入框：沒有前置圖示就不留圖示空間；焦點色統一用青色 */
+.cs-scope .cs-lobby-card .game-input { padding-left: 16px; }
+.cs-scope select.game-input {
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+.cs-scope .game-input:focus { border-color: var(--cs-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cs-accent) 22%, transparent); }
+.cs-scope .cs-check { display: flex; align-items: center; justify-content: space-between; gap: 8px; white-space: nowrap; }
+.cs-scope .cs-code-input { text-align: center; font-weight: 600; }
+.cs-scope .cs-code-input--filled { letter-spacing: 0.4em; font-variant-numeric: tabular-nums; }
+.cs-lobby-rules { margin: 28px auto 0; max-width: 34em; text-align: center; font-size: 15px; line-height: 1.7; color: var(--color-body); text-wrap: balance; }
+
+/* 主按鈕：單一平面青色＋字牌式的實心底邊（按下時壓平），不用漸層、光暈或掃光 */
 .cs-cta {
   position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, #0891B2, #22D3EE) !important;
-  border-color: rgba(34, 211, 238, 0.5) !important;
-  box-shadow: 0 6px 0 #0E7490, 0 12px 24px rgba(8, 145, 178, 0.35) !important;
+  background: #0E7490 !important;   /* 白字 5.4:1 */
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 0 #0B4F61 !important;
   transform: translateY(0);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.2s ease !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.08em;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.2s ease !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em;
 }
-.cs-cta:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
-.cs-cta:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 #0E7490, 0 6px 12px rgba(8, 145, 178, 0.3) !important; }
-.cs-cta::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
-  transform: translateX(-100%);
-  animation: cs-shine 3.2s ease-in-out infinite;
+.cs-cta::before { display: none; }
+.cs-cta:hover:not(:disabled) { background: #0B809E !important; transform: translateY(-1px); }
+.cs-cta:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #0B4F61 !important; }
+
+/* 次要按鈕：外框 */
+.cs-btn-outline {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+  padding: 11px 24px; border-radius: 10px; cursor: pointer;
+  font-size: 16px; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--color-heading); background: transparent;
+  border: 1.5px solid color-mix(in srgb, var(--cs-accent) 60%, transparent);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
-.cs-cta:disabled::after { display: none; }
-@keyframes cs-shine { 0%, 60% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+.cs-btn-outline:hover:not(:disabled) { background: color-mix(in srgb, var(--cs-accent) 10%, transparent); border-color: var(--cs-accent); }
+.cs-btn-outline:active:not(:disabled) { transform: translateY(1px); }
+.cs-btn-outline:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ================================================================
    等待室
@@ -425,29 +449,24 @@
 /* ================================================================
    遊戲中：面板與卡片
    ================================================================ */
-.cs-scope .game-card { background: var(--cs-panel); border-color: var(--cs-panel-border); backdrop-filter: blur(8px); }
+/* 面板：不透明平面＋一條細邊，不用模糊玻璃與陰影 */
+.cs-scope .game-card { background: var(--cs-panel); border-color: var(--cs-panel-border); backdrop-filter: none; box-shadow: none; }
 
-.cs-scope .cs-player-card { border-radius: 16px; padding: 12px !important; display: flex; flex-direction: column; }
-.cs-scope .cs-player-card--clue {
-  background: linear-gradient(165deg, rgba(34, 211, 238, 0.09), var(--cs-panel) 55%);
-  border-color: rgba(34, 211, 238, 0.22);
-}
+.cs-scope .cs-player-card { border-radius: 16px; padding: 12px !important; display: flex; flex-direction: column; transform: none; }
+.cs-scope .cs-player-card--clue { background: var(--cs-panel); border-color: var(--cs-panel-border); }
+/* 猜題者：只用粉紅邊框標示，不閃光 */
 .cs-scope .cs-player-card--guesser {
-  background: linear-gradient(165deg, rgba(251, 113, 133, 0.16), var(--cs-panel) 60%);
-  border-color: rgba(251, 113, 133, 0.5);
-  animation: cs-spotlight 2.4s ease-in-out infinite;
+  background: color-mix(in srgb, var(--cs-hot) 7%, var(--cs-panel));
+  border-color: color-mix(in srgb, var(--cs-hot) 55%, transparent);
 }
-.cs-scope .cs-player-card--self { transform: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--cs-accent) 55%, transparent), 0 12px 26px rgba(8, 145, 178, 0.16); }
-@keyframes cs-spotlight {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0); }
-  50%      { box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.22), 0 0 28px rgba(251, 113, 133, 0.18); }
-}
+.cs-scope .cs-player-card--self { transform: none; border-color: var(--cs-accent); box-shadow: inset 0 0 0 1px var(--cs-accent); }
 
 .cs-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--cs-panel-border); }
 .cs-card-head .cs-avatar { --size: 28px; margin-bottom: 3px; }
+.cs-avatar--offline { opacity: 0.35; filter: grayscale(0.8); }
 .cs-card-head__name { font-weight: 800; font-size: 15px; color: var(--color-heading); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-card-head__end { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-.cs-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 99px; white-space: nowrap; letter-spacing: 0.04em; }
+.cs-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 99px; white-space: nowrap; flex: none; }
 .cs-chip--me { color: #042f2e; background: var(--cs-accent); }
 .cs-chip--clue { color: var(--cs-accent); background: rgba(34, 211, 238, 0.12); border: 1px solid rgba(34, 211, 238, 0.28); }
 .cs-chip--guesser { color: var(--cs-hot); background: rgba(251, 113, 133, 0.12); border: 1px solid rgba(251, 113, 133, 0.35); }
@@ -455,7 +474,7 @@
 .cs-chip--wait { color: var(--color-label); background: var(--color-subtle); }
 @keyframes cs-stamp { 0% { transform: scale(2.2) rotate(-12deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 
-.cs-round-label { display: block; margin: 0 0 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.2em; color: var(--color-label); opacity: 0.8; }
+.cs-round-label { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--color-label); }
 .cs-hint-block { text-align: center; padding: 2px 0 8px; }
 .cs-hint-block + .cs-hint-block { border-top: 1px dashed var(--cs-panel-border); padding-top: 8px; }
 .cs-hint-placeholder { min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--color-label); }
@@ -465,44 +484,64 @@
 .cs-scope .cs-guess-row { flex-wrap: wrap; row-gap: 4px; background: rgba(0, 0, 0, 0.18); border: 1px solid var(--cs-panel-border); border-radius: 10px; }
 .cs-scope .cs-guess-label, .cs-scope .cs-guess-ab, .cs-scope .cs-guess-answer { white-space: nowrap; }
 [data-theme="light"] .cs-scope .cs-guess-row { background: rgba(255, 255, 255, 0.6); }
-.cs-scope .cs-guess-label { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; padding: 1px 6px; border-radius: 6px; background: var(--color-subtle); }
-.cs-scope .cs-guess-ab { padding: 1px 6px; border-radius: 6px; font-family: 'Source Code Pro', monospace; }
+.cs-scope .cs-guess-label { font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: var(--color-subtle); }
+.cs-scope .cs-guess-ab { padding: 1px 6px; border-radius: 6px; font-variant-numeric: tabular-nums; }
 .cs-scope .cs-guess-ab--a { background: rgba(34, 211, 238, 0.14); }
 .cs-scope .cs-guess-ab--b { background: rgba(245, 158, 11, 0.14); }
 
-/* 互動按鈕 */
-.cs-scope .cs-react-btns { margin-top: auto; border-top-color: var(--cs-panel-border); }
+/* 互動按鈕：桌機在卡片右上角；手機移到卡片底部（見下方 ≤640px） */
+.cs-scope .cs-react-btns { margin-top: auto; border-top: 0; }
+.cs-scope .cs-react-btns--foot { display: none; }
 .cs-scope .cs-react-btn { border-radius: 10px; padding: 4px 7px; }
 
-/* 左側：階段卡 */
-.cs-scope .cs-phase-title { background-image: linear-gradient(135deg, var(--cs-accent), var(--cs-accent-2)); font-size: 20px; font-weight: 900; }
-.cs-scope .cs-progress-track { height: 10px; border-radius: 99px; background: rgba(0, 0, 0, 0.25); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3); }
-[data-theme="light"] .cs-scope .cs-progress-track { background: rgba(100, 116, 139, 0.15); }
-.cs-scope .cs-progress-fill {
-  border-radius: 99px;
-  background: linear-gradient(90deg, #06B6D4, #22D3EE, #A78BFA);
-  background-size: 200% 100%;
-  animation: cs-flow 2s linear infinite;
-  transition: width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+/* ── 上排：階段卡｜題目｜倒數 ─────────────────────────────── */
+.cs-scope .cs-game-layout { flex-direction: column; }
+.cs-scope .cs-question-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr auto;
+  grid-template-areas: "phase question timer";
+  gap: 12px;
+  padding: 12px 16px 0;
 }
-@keyframes cs-flow { to { background-position: -200% 0; } }
+.cs-scope .cs-phase-card { grid-area: phase; display: flex; flex-direction: column; justify-content: center; padding: 12px 16px !important; }
+.cs-scope .cs-question-card { grid-area: question; }
+.cs-scope .cs-timer-badge { grid-area: timer; }
+.cs-scope .cs-phase-title {
+  margin: 0 0 8px; font-size: 20px; font-weight: 800; letter-spacing: 0.02em;
+  background: none; color: var(--color-heading); -webkit-text-fill-color: currentColor;
+}
+.cs-scope .cs-phase-progress { margin: 6px 0 0; font-size: 14px; line-height: 1.45; color: var(--color-body); }
+.cs-scope .cs-phase-role { color: var(--color-heading); }
+.cs-scope .cs-progress-track { height: 8px; margin: 0; border-radius: 99px; background: var(--color-subtle); box-shadow: none; }
+.cs-scope .cs-progress-fill { border-radius: 99px; background: var(--cs-accent); transition: width 0.4s ease; }
 
-.cs-scope .cs-player-list-item { padding: 7px 8px; }
-.cs-scope .cs-player-list-item .cs-avatar { --size: 22px; margin-bottom: 2px; font-size: 12px; }
+.cs-scope .cs-players-grid { padding: 12px 16px; gap: 12px; }
+
+/* 6 人以下：卡片撐滿剩餘高度、字牌放大，不留下方大片空白 */
+@media (min-width: 641px) {
+  .cs-scope .cs-players-grid--roomy { grid-template-rows: repeat(var(--cs-rows, 2), minmax(min-content, 1fr)); align-content: stretch; }
+  .cs-scope .cs-players-grid--roomy .cs-hint-block { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .cs-scope .cs-players-grid--roomy .cs-guesser-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .cs-scope .cs-players-grid--roomy .cs-tile--md { --size: clamp(36px, 3.4vw, 50px); }
+  /* 7～12 人：卡片同樣撐滿列高，內容垂直置中 */
+  .cs-scope .cs-players-grid--dense .cs-card-head + * { margin-top: auto; }
+  .cs-scope .cs-players-grid--dense .cs-player-card::after { content: ''; margin-top: auto; }
+}
 
 /* ── 題目區 ────────────────────────────────────────────────── */
 .cs-scope .cs-question-card { display: flex; flex-direction: column; justify-content: center; }
 .cs-question-meta { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.cs-question-meta__item { font-size: 14px; color: var(--color-label); }
 .cs-question-tiles { display: flex; justify-content: center; align-items: flex-end; flex-wrap: wrap; gap: clamp(6px, 1.4vw, 12px); margin: 10px 0 4px; min-height: 64px; }
 .cs-question-sub { text-align: center; font-size: 12px; color: var(--color-label); margin: 2px 0 0; }
 
 /* ── 計時環 ────────────────────────────────────────────────── */
-.cs-scope .cs-timer-badge { min-width: 104px; padding: 8px; border-color: var(--cs-panel-border); background: var(--cs-panel); backdrop-filter: blur(8px); }
+.cs-scope .cs-timer-badge { min-width: 104px; padding: 8px; border-color: var(--cs-panel-border); background: var(--cs-panel); }
 .cs-timer { position: relative; width: 78px; height: 78px; display: grid; place-items: center; }
 .cs-timer svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .cs-timer__track { fill: none; stroke: rgba(148, 163, 184, 0.16); stroke-width: 6; }
-.cs-timer__bar { fill: none; stroke: var(--timer-color, var(--cs-accent)); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 0.3s ease; filter: drop-shadow(0 0 6px var(--timer-color, var(--cs-accent))); }
-.cs-timer__num { font-family: 'Source Code Pro', monospace; font-weight: 800; font-size: 24px; line-height: 1; color: var(--timer-color, var(--cs-accent)); }
+.cs-timer__bar { fill: none; stroke: var(--timer-color, var(--cs-accent)); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 0.3s ease; }
+.cs-timer__num { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 24px; line-height: 1; color: var(--timer-color, var(--cs-accent)); }
 .cs-timer__unit { font-size: 11px; margin-left: 1px; opacity: 0.7; }
 .cs-timer--warn { --timer-color: var(--cs-gold); }
 .cs-timer--danger { --timer-color: var(--cs-hot); animation: cs-heartbeat 1s ease-in-out infinite; }
@@ -514,12 +553,12 @@
 }
 
 /* ── 底部輸入列 ─────────────────────────────────────────────── */
-.cs-scope .cs-hint-bar { background: var(--cs-panel); backdrop-filter: blur(12px); border-top-color: var(--cs-panel-border); padding: 12px 14px; }
+.cs-scope .cs-hint-bar { background: var(--cs-panel); border-top-color: var(--cs-panel-border); padding: 12px 16px; }
 .cs-compose { flex: 1; display: flex; flex-direction: column; gap: 10px; }
 .cs-compose__slots { display: flex; justify-content: center; align-items: flex-end; gap: 6px; flex-wrap: wrap; min-height: 42px; }
 .cs-compose__row { display: flex; align-items: center; gap: 8px; }
 .cs-compose__error { margin: 0; text-align: center; font-size: 13px; font-weight: 600; color: var(--color-error-fg); }
-.cs-time-pill { font-family: 'Source Code Pro', monospace; font-size: 13px; font-weight: 800; padding: 6px 10px; border-radius: 99px; white-space: nowrap; color: var(--cs-accent); background: rgba(34, 211, 238, 0.12); }
+.cs-time-pill { font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 800; padding: 6px 10px; border-radius: 99px; white-space: nowrap; color: var(--cs-accent); background: rgba(34, 211, 238, 0.12); }
 .cs-time-pill--danger { color: #fff; background: var(--cs-hot); animation: cs-heartbeat 1s ease-in-out infinite; }
 .cs-send-btn { white-space: nowrap; padding: 10px 18px !important; width: auto !important; }
 .cs-sent-msg { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--success-text); }
@@ -672,14 +711,14 @@
   [data-theme="light"] .cs-lobby-bg-tiles .cs-tile { opacity: 0.25; }
 }
 
-/* 卡片：白紙 + 暖色細邊 + 柔和陰影 */
+/* 卡片：白紙 + 暖色細邊 */
 [data-theme="light"] .cs-scope .game-card {
   background: var(--cs-panel);
   border-color: var(--cs-panel-border);
-  box-shadow: 0 1px 2px rgba(110, 80, 30, 0.08), 0 8px 24px rgba(110, 80, 30, 0.08);
+  box-shadow: none;
 }
 [data-theme="light"] .cs-scope .game-input {
-  background: #fff;
+  background-color: #fff;
   color: var(--color-heading);
   border-color: rgba(120, 90, 40, 0.28);
 }
@@ -688,25 +727,6 @@
 [data-theme="light"] .cs-scope .cs-seat { background: rgba(255, 255, 255, 0.7); }
 [data-theme="light"] .cs-scope .cs-recap li { background: rgba(255, 255, 255, 0.75); }
 
-/* 主按鈕：淺色下改為較沉穩的青綠 */
-[data-theme="light"] .cs-cta {
-  background: linear-gradient(135deg, #0E7490, #0891B2) !important;
-  border-color: #0E7490 !important;
-  color: #fff !important;
-  box-shadow: 0 6px 0 #155E75, 0 12px 22px rgba(14, 116, 144, 0.25) !important;
-}
-[data-theme="light"] .cs-cta:active:not(:disabled) { box-shadow: 0 2px 0 #155E75, 0 6px 12px rgba(14, 116, 144, 0.25) !important; }
-
-/* 玩家卡 / 標籤 */
-[data-theme="light"] .cs-scope .cs-player-card--clue {
-  background: linear-gradient(165deg, rgba(14, 116, 144, 0.07), var(--cs-panel) 55%);
-  border-color: rgba(14, 116, 144, 0.28);
-}
-[data-theme="light"] .cs-scope .cs-player-card--guesser {
-  background: linear-gradient(165deg, rgba(225, 29, 72, 0.08), var(--cs-panel) 60%);
-  border-color: rgba(225, 29, 72, 0.45);
-}
-[data-theme="light"] .cs-scope .cs-player-card--self { box-shadow: 0 0 0 2px rgba(14, 116, 144, 0.5), 0 10px 22px rgba(14, 116, 144, 0.12); }
 [data-theme="light"] .cs-chip--me,
 [data-theme="light"] .cs-seat__me { color: #fff; background: var(--cs-accent); }
 [data-theme="light"] .cs-chip--clue { background: rgba(14, 116, 144, 0.10); border-color: rgba(14, 116, 144, 0.30); }
@@ -722,10 +742,8 @@
 [data-theme="light"] .cs-reveal-cta__verdict--win { color: #15803D; }
 [data-theme="light"] .cs-result-ab .a { color: #0E7490; background: rgba(14, 116, 144, 0.12); }
 [data-theme="light"] .cs-result-ab .b { color: #B45309; background: rgba(217, 119, 6, 0.14); }
-[data-theme="light"] .cs-scope .cs-progress-track { background: rgba(120, 90, 40, 0.14); box-shadow: inset 0 1px 2px rgba(110, 80, 30, 0.18); }
+[data-theme="light"] .cs-scope .cs-progress-track { background: rgba(120, 90, 40, 0.14); }
 [data-theme="light"] .cs-timer__track { stroke: rgba(120, 90, 40, 0.16); }
-[data-theme="light"] .cs-timer__bar { filter: none; }
-[data-theme="light"] .cs-scope .cs-hint-bar { box-shadow: 0 -4px 16px rgba(110, 80, 30, 0.08); }
 
 /* 揭曉卡 / 轉場：遮罩改為暖色半透明，倒數數字加深 */
 [data-theme="light"] .cs-scope .result-card-overlay { background: rgba(60, 40, 15, 0.38); }
@@ -757,26 +775,28 @@
   .cs-scope .cs-players-grid--quad { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* 手機：題目與玩家卡片必須第一眼就在畫面內。
-   玩家列表與卡片內容重複（卡片已顯示出牌/作答狀態），隱藏；階段卡與退出鈕併成一列 */
+/* 手機：第一列「階段＋倒數」，第二列題目；退出／重新一局已收進 header 選單 */
 @media (max-width: 640px) {
-  .cs-scope .cs-player-list-card { display: none; }
-  .cs-scope .cs-left-panel {
-    flex-direction: row;
-    align-items: center;
+  .cs-scope .cs-question-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "phase timer" "question question";
     gap: 8px;
-    padding: 8px 10px;
+    padding: 8px 12px 0;
   }
-  .cs-scope .cs-left-panel > div[style*="flex:1"] { display: none; }
-  .cs-scope .cs-phase-card { flex: 1; min-width: 0; padding: 8px 12px !important; }
-  .cs-scope .cs-phase-card .cs-phase-title { font-size: 16px; margin: 0; white-space: nowrap; }
-  .cs-scope .cs-phase-card .cs-phase-progress { font-size: 13px; margin: 2px 0 0; }
-  .cs-scope .cs-exit-row { flex: none; display: flex; gap: 6px; }
-  .cs-scope .cs-exit-btn { width: auto; flex: none; margin: 0; padding: 8px 14px; min-height: 0; font-size: 14px; white-space: nowrap; box-shadow: none; }
-}
+  .cs-scope .cs-phase-card { min-width: 0; padding: 10px 12px !important; }
+  .cs-scope .cs-phase-card .cs-phase-title { font-size: 17px; margin: 0 0 6px; }
+  .cs-scope .cs-phase-card .cs-phase-progress { font-size: 13px; margin: 4px 0 0; }
+  .cs-scope .cs-players-grid { padding: 8px 12px; gap: 8px; }
+  .cs-scope .cs-hint-bar { padding: 10px 12px; }
 
-.cs-scope .cs-exit-row { display: flex; gap: 8px; }
-.cs-scope .cs-exit-row .cs-exit-btn { flex: 1; }
+  /* 自己的卡已有青色外框，「我」標籤在窄卡上省略，把空間留給暱稱 */
+  .cs-scope .cs-player-card .cs-chip--me { display: none; }
+
+  /* 互動按鈕改到卡片底部一列，不再擠出卡片右緣 */
+  .cs-scope .cs-react-btns--head { display: none; }
+  .cs-scope .cs-react-btns--foot { display: flex; justify-content: flex-end; gap: 4px; margin-top: auto; padding-top: 8px; }
+  .cs-scope .cs-react-btns--foot .cs-react-btn { padding: 3px 6px; font-size: 14px; line-height: 1; }
+}
 
 /* ================================================================
    間諜機制

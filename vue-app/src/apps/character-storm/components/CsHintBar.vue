@@ -8,7 +8,7 @@
             <div class="cs-compose__row">
                 <span class="cs-time-pill" :class="{ 'cs-time-pill--danger': timer <= 10 }">{{ timer }}s</span>
                 <input :value="modelValue" type="text" class="game-input" style="flex:1" ref="inputRef"
-                    :placeholder="`輸入中文提示（1 ～ ${maxChars} 字）`" :maxlength="12" aria-label="提示輸入"
+                    :placeholder="`中文提示 1～${maxChars} 字`" :maxlength="12" aria-label="提示輸入"
                     autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                     @input="onInput" @keydown.enter="onEnter" />
                 <button type="button" class="btn-primary cs-cta cs-send-btn" :disabled="!canSubmit"

@@ -16,28 +16,28 @@
 
         <!-- 玩家資訊列 -->
         <div class="cs-card-head">
-            <span class="cs-tile cs-avatar" :style="{ '--tok': playerColor(players, player.id) }">{{
+            <span class="cs-tile cs-avatar" :class="{ 'cs-avatar--offline': !isOnline }"
+                :style="{ '--tok': playerColor(players, player.id) }" :title="isOnline ? undefined : '離線中'">{{
                 avatarChar(player.nickname) }}</span>
             <span class="cs-card-head__name">{{ player.nickname }}</span>
             <span v-if="isSelf" class="cs-chip cs-chip--me">我</span>
             <span class="cs-chip" :class="isGuesser ? 'cs-chip--guesser' : 'cs-chip--clue'">
                 {{ roleBadge }}
             </span>
-            <!-- 互動按鈕（右上角，僅對其他人） -->
-            <span v-if="!isSelf" class="cs-card-head__end cs-react-btns">
-                <button class="cs-react-btn" title="這很屬🔥" @click.stop="emit('react', player.id, '🔥')">🔥</button>
-                <button class="cs-react-btn" title="丟蛋！🥚" @click.stop="emit('react', player.id, '🥚')">🥚</button>
-                <button class="cs-react-btn" title="100 分！💯" @click.stop="emit('react', player.id, '💯')">💯</button>
+            <!-- 互動按鈕（桌機：右上角；手機改到卡片底部，避免擠出卡片） -->
+            <span v-if="!isSelf" class="cs-card-head__end cs-react-btns cs-react-btns--head">
+                <button v-for="r in REACTIONS" :key="r.emoji" class="cs-react-btn" :title="r.title"
+                    :aria-label="r.title" @click.stop="emit('react', player.id, r.emoji)">{{ r.emoji }}</button>
             </span>
         </div>
 
         <!-- 猜題者：兩輪答案 -->
         <div v-if="isGuesser" class="cs-guesser-hero">
-            <p class="cs-guesser-hero__title">🎯 {{ isSelf ? '你是猜題者' : '猜題者' }}</p>
+            <p class="cs-guesser-hero__title">{{ isSelf ? '你是猜題者' : '猜題者' }}</p>
             <div class="cs-guess-rows">
                 <!-- R1 -->
                 <div class="cs-guess-row">
-                    <span class="cs-guess-label">R1</span>
+                    <span class="cs-guess-label">第一輪</span>
                     <template v-if="state.round1GuessResult">
                         <span class="cs-guess-answer">{{ state.round1GuessResult.answer || '（空白）' }}</span>
                         <span class="cs-guess-ab cs-guess-ab--a">{{ state.round1GuessResult.a }}A</span>
@@ -49,7 +49,7 @@
                 </div>
                 <!-- R2 (進入 round2 後才顯示) -->
                 <div v-if="['round2', 'round2-result', 'revealing'].includes(state.status)" class="cs-guess-row">
-                    <span class="cs-guess-label">R2</span>
+                    <span class="cs-guess-label">第二輪</span>
                     <template v-if="state.status === 'revealing' && state.guessResult">
                         <span class="cs-guess-answer"
                             :style="{ color: state.guessResult.correct ? 'var(--success-text)' : 'var(--heading)' }">
@@ -73,7 +73,7 @@
         <!-- 提示者：兩輪字牌 -->
         <template v-else>
             <div v-for="r in hintRounds" :key="r.round" class="cs-hint-block">
-                <p class="cs-round-label">ROUND {{ r.round }}</p>
+                <p class="cs-round-label">第{{ r.round === 1 ? '一' : '二' }}輪</p>
                 <TransitionGroup v-if="r.get(player.id).length" appear name="hint-char" tag="div"
                     class="hint-chars-wrap">
                     <span v-for="(c, i) in r.get(player.id)" :key="i"
@@ -102,6 +102,11 @@
                 </div>
             </div>
         </template>
+
+        <span v-if="!isSelf" class="cs-react-btns cs-react-btns--foot">
+            <button v-for="r in REACTIONS" :key="r.emoji" class="cs-react-btn" :title="r.title"
+                :aria-label="r.title" @click.stop="emit('react', player.id, r.emoji)">{{ r.emoji }}</button>
+        </span>
     </div>
 </template>
 
@@ -122,7 +127,14 @@ const props = defineProps({
 })
 const emit = defineEmits(['react', 'flip', 'pick-symbol'])
 
+const REACTIONS = [
+    { emoji: '🔥', title: '這很屬火' },
+    { emoji: '🥚', title: '丟蛋' },
+    { emoji: '💯', title: '100 分' },
+]
+
 const isSelf = computed(() => props.player.id === props.myPlayerId)
+const isOnline = computed(() => props.player.is_online ?? props.player.connected ?? true)
 const submitted = computed(() => props.state.submittedPlayerIds.includes(props.player.id))
 const roleBadge = computed(() => {
     if (props.isGuesser) return '猜題者'
