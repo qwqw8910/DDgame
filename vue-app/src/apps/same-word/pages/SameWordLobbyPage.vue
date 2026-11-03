@@ -10,7 +10,7 @@
             <div class="animate-slide-up text-center mb-10">
                 <img :src="heroUrl" alt="" class="mx-auto mb-3 w-[min(360px,80vw)]" @error="e => e.target.remove()" />
                 <h1 class="neon-heading gradient-text text-[clamp(30px,7vw,46px)] m-0 mb-2 leading-[1.1]">同詞相遇</h1>
-                <p class="text-base font-medium mb-1 [letter-spacing:1px] text-label">同時寫下一個詞 · 看誰跟誰最有默契</p>
+                <p class="text-base font-medium mb-1 [letter-spacing:1px] text-label">每題同時寫下第一個想到的詞 · 看誰跟誰最有默契</p>
                 <p class="text-[15px] text-body">{{ MIN_PLAYERS }} ～ {{ MAX_PLAYERS }} 人</p>
             </div>
 
@@ -19,7 +19,7 @@
                 <div v-if="!hasRoomFromUrl" class="game-card flex flex-col">
                     <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl mb-4 [background:rgba(251,113,133,0.12)] [border:1px_solid_rgba(251,113,133,0.3)]">💘</div>
                     <h2 class="neon-heading text-xl mb-1.5 text-heading">建立新房間</h2>
-                    <p class="text-[15px] mb-[22px] text-body">計時與回合數進房後再調整</p>
+                    <p class="text-[15px] mb-[22px] text-body">計時與題目數進房後再調整</p>
                     <div class="flex flex-col gap-3 flex-1 justify-end">
                         <div class="input-wrapper">
                             <span class="input-icon">😊</span>

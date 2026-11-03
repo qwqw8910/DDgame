@@ -28,7 +28,7 @@
             <template v-if="picked">
                 {{ names[picked.a] }} × {{ names[picked.b] }}：
                 {{ tierOf(cell(picked.a, picked.b).tierId).emoji }} {{ tierOf(cell(picked.a, picked.b).tierId).title }}
-                <span v-if="cell(picked.a, picked.b).firstMatch">（第 {{ cell(picked.a, picked.b).firstMatch }} 輪首次相同）</span>
+                <span>（{{ cell(picked.a, picked.b).total }} 題中有 {{ cell(picked.a, picked.b).count }} 題寫了一樣的詞）</span>
             </template>
             <template v-else>點格子看兩人的稱號</template>
         </p>
@@ -51,6 +51,6 @@ const lookup = computed(() => {
     for (const p of props.matrix) { m.set(`${p.a}|${p.b}`, p); m.set(`${p.b}|${p.a}`, p) }
     return m
 })
-const cell = (a, b) => lookup.value.get(`${a}|${b}`) ?? { value: 0, tierId: 'rivals', firstMatch: null }
+const cell = (a, b) => lookup.value.get(`${a}|${b}`) ?? { value: 0, tierId: 'rivals', count: 0, total: 0 }
 const same = (p, a, b) => (p.a === a && p.b === b) || (p.a === b && p.b === a)
 </script>

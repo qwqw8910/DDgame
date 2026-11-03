@@ -100,7 +100,7 @@ export function useSameWord() {
     setOptions:  (options) => emit('sw:set-options', { options }),
     start:       () => emit('sw:start'),
     submit:      (word) => emit('sw:submit', { word }),
-    voteOutlier: (targetId) => emit('sw:vote-outlier', { targetId }),
+    react:       (targetId, emoji) => emit('sw:react', { targetId, emoji }),
     nextRound:   () => emit('sw:next-round'),
     finishNow:   () => emit('sw:finish-now'),
     restart:     () => emit('sw:restart'),

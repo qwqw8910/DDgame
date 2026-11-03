@@ -6,7 +6,7 @@
             <div class="flex items-center gap-1 min-w-0">
                 <button class="header-back-btn" aria-label="離開房間" @click="goHome">←<span class="hidden sm:inline"> 離開</span></button>
                 <span class="font-bold text-heading truncate">同詞相遇</span>
-                <span v-if="view && view.round" class="badge hidden sm:inline-flex">第 {{ view.round }} 輪</span>
+                <span v-if="view && view.round && phase !== 'finished'" class="badge hidden sm:inline-flex">{{ roundLabel }}</span>
             </div>
             <span class="font-mono font-semibold tracking-[3px] text-neon-purple-light">{{ roomState.roomId }}</span>
             <div class="flex items-center gap-1 shrink-0">
@@ -64,32 +64,39 @@
                 </ul>
 
                 <!-- 設定：房主可改，其他人只看 -->
+                <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="遊戲模式">
+                    <button v-for="m in MODE_CHOICES" :key="m.id" type="button" role="radio" :aria-checked="opts.mode === m.id"
+                        :disabled="!roomState.isHost"
+                        class="flex flex-col gap-0.5 rounded-xl border-2 p-3 text-left transition-colors disabled:cursor-default"
+                        :class="opts.mode === m.id ? 'border-border-glow bg-card text-heading' : 'border-border text-body'"
+                        @click="setOptions({ mode: m.id })">
+                        <b>{{ m.emoji }} {{ m.title }}</b>
+                        <span class="text-xs text-label">{{ m.desc }}</span>
+                    </button>
+                </div>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label v-if="opts.mode === 'prompts'" class="flex flex-col gap-1 text-sm text-label">題目數量
+                        <select class="game-input cursor-pointer" :disabled="!roomState.isHost" :value="opts.rounds"
+                            @change="e => setOptions({ rounds: +e.target.value })">
+                            <option v-for="r in roundChoices" :key="r" :value="r">{{ r }} 題</option>
+                        </select>
+                    </label>
                     <label class="flex flex-col gap-1 text-sm text-label">思考時間
                         <select class="game-input cursor-pointer" :disabled="!roomState.isHost" :value="opts.timerSeconds"
                             @change="e => setOptions({ timerSeconds: +e.target.value })">
                             <option v-for="s in timerChoices" :key="s" :value="s">{{ s }} 秒</option>
                         </select>
                     </label>
-                    <label class="flex flex-col gap-1 text-sm text-label">回合上限
-                        <select class="game-input cursor-pointer" :disabled="!roomState.isHost" :value="opts.maxRounds"
-                            @change="e => setOptions({ maxRounds: +e.target.value })">
-                            <option v-for="r in ROUND_PRESETS" :key="r" :value="r">{{ r === 0 ? '不限' : `${r} 輪` }}</option>
-                        </select>
-                    </label>
-                    <label class="flex flex-col gap-1 text-sm text-label">開局線索
-                        <select class="game-input cursor-pointer" :disabled="!roomState.isHost" :value="opts.starterMode"
-                            @change="e => setOptions({ starterMode: e.target.value })">
-                            <option value="free">自由開始</option>
-                            <option value="seed">隨機給兩個詞當線索</option>
-                        </select>
-                    </label>
-                    <label class="flex items-center justify-between gap-2 self-end rounded-lg border border-border px-3 py-2.5 text-sm text-label">
-                        離譜票
-                        <input type="checkbox" class="h-5 w-5" :checked="opts.outlierVote" :disabled="!roomState.isHost"
-                            @change="e => setOptions({ outlierVote: e.target.checked })" />
+                    <label v-if="opts.mode === 'prompts'" class="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5 text-sm text-label sm:col-span-2">
+                        <span>🎯 終局挑戰<span class="block text-xs">最後全員合作，一起收斂到同一個詞（最多 3 次）</span></span>
+                        <input type="checkbox" class="h-5 w-5 shrink-0" :checked="opts.converge" :disabled="!roomState.isHost"
+                            @change="e => setOptions({ converge: e.target.checked })" />
                     </label>
                 </div>
+                <p class="m-0 text-xs text-label">
+                    <template v-if="opts.mode === 'chain'">玩法：第 1 輪給題目，之後每輪看上一輪大家的詞，寫一個新詞（用過的不能再寫）。同詞 k 人各得 k−1 分；全員同詞 +3 並提早通關。共 {{ CHAIN_ROUNDS }} 輪，約 {{ estimateMinutes }} 分鐘。</template>
+                    <template v-else>玩法：每題同時寫下第一個想到的詞。同詞 k 人，每人得 k−1 分；全員同詞再各 +3。約 {{ estimateMinutes }} 分鐘一局。</template>
+                </p>
 
                 <button v-if="roomState.isHost" class="btn-primary btn-full" :disabled="roomState.players.length < MIN_PLAYERS" @click="start">
                     {{ roomState.players.length < MIN_PLAYERS ? `至少 ${MIN_PLAYERS} 人才能開始` : '開始遊戲' }}
@@ -100,11 +107,14 @@
 
             <!-- ═════════ 書寫 ═════════ -->
             <template v-else-if="phase === 'writing'">
-                <SwPrompt :round="prevRound" :seed="view.seed" :history="usedWords" :names="names" :my-id="myId" />
+                <SwPrompt :kind="view.kind" :prompt="view.prompt" :prompt-index="view.promptIndex" :prompt-total="view.promptTotal"
+                    :attempt="view.attempt" :chain-start="opts.mode === 'chain' && view.kind === 'prompt'" :used-words="usedWords"
+                    :prev-words="prevWords" :names="names" :my-id="myId" />
                 <div class="game-card !p-4">
                     <SwWriteBox :seconds="secondsLeft" :total="opts.timerSeconds" :my-word="view.myWord"
-                        :can-write="canWrite" :round="view.round" :used-words="usedWords" @submit="submit" />
+                        :can-write="canWrite" :round="view.round" @submit="submit" />
                 </div>
+                <SwScoreboard :ids="participants" :scores="view.scores" :names="names" :my-id="myId" />
                 <ul class="m-0 flex list-none flex-wrap justify-center gap-2 p-0" aria-label="送出狀態">
                     <li v-for="id in participants" :key="id" class="badge transition-opacity"
                         :class="view.submitted?.[id] ? 'badge-me' : 'opacity-60'">
@@ -119,19 +129,21 @@
             <!-- ═════════ 揭曉 ═════════ -->
             <template v-else-if="phase === 'revealed'">
                 <div class="game-card !p-4">
-                    <h2 class="m-0 mb-3 text-center text-lg text-heading">第 {{ view.round }} 輪揭曉</h2>
-                    <SwRevealBoard :round="lastRound" :ids="participants" :names="names" :my-id="myId"
-                        :my-vote="view.myOutlierVote" :vote-seconds="voteSeconds" :can-vote="canVote" @vote="onVote" />
+                    <p class="m-0 mb-1 text-center text-xs text-label">{{ roundLabel }}</p>
+                    <h2 class="m-0 mb-3 text-center text-lg text-heading">{{ lastRound.prompt ?? (lastRound.kind === 'chain' ? '接龍' : '終局挑戰') }}</h2>
+                    <SwRevealBoard :round="lastRound" :round-key="view.round" :ids="participants" :names="names" :my-id="myId"
+                        :my-reactions="view.myReactions" :can-react="!!isParticipant" @react="react" />
                 </div>
+                <SwScoreboard :ids="participants" :scores="view.scores" :deltas="lastRound.points" :names="names" :my-id="myId" />
                 <div class="flex flex-wrap items-center justify-center gap-2">
                     <template v-if="roomState.isHost">
                         <button class="btn-primary !w-auto !px-5" @click="nextRound">
-                            {{ view.endsAfterThis ? '看結算' : '下一輪' }}
+                            {{ view.nextStep ? '下一輪' : '看結算' }}<span v-if="autoSeconds > 0" class="tabular-nums">（{{ autoSeconds }}）</span>
                         </button>
-                        <button v-if="!view.endsAfterThis" class="btn-ghost-sm" @click="confirmFinish">提前結算</button>
+                        <button v-if="view.nextStep" class="btn-ghost-sm" @click="confirmFinish">提前結算</button>
                     </template>
                     <p v-else class="m-0 text-sm text-body">
-                        {{ view.endsAfterThis ? '等房主公布結算…' : '等房主開始下一輪…' }}
+                        <span class="tabular-nums">{{ autoSeconds }}</span> 秒後{{ view.nextStep ? '進入下一輪' : '公布結算' }}
                     </p>
                 </div>
             </template>
@@ -163,15 +175,16 @@ import ConnectionBanner from '@/shared/components/ConnectionBanner.vue'
 import SwWriteBox from '../components/SwWriteBox.vue'
 import SwRevealBoard from '../components/SwRevealBoard.vue'
 import SwPrompt from '../components/SwPrompt.vue'
+import SwScoreboard from '../components/SwScoreboard.vue'
 import SwResultBoard from '../components/SwResultBoard.vue'
-import { MIN_PLAYERS, ROUND_PRESETS, TIMER_PRESETS } from '../data/constants.js'
+import { MIN_PLAYERS, ROUND_PRESETS, TIMER_PRESETS, CHAIN_ROUNDS, MODE_CHOICES } from '../data/constants.js'
 
 const route = useRoute()
 const router = useRouter()
 
 const {
     state, roomState, connect,
-    setOptions, start, submit, voteOutlier, nextRound, finishNow, restart,
+    setOptions, start, submit, react, nextRound, finishNow, restart,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useSameWord()
@@ -204,43 +217,43 @@ const view = computed(() => state.view)
 const phase = computed(() => view.value?.phase ?? 'waiting')
 const myId = computed(() => roomState.myPlayerId)
 const names = computed(() => view.value?.names ?? {})
-const opts = computed(() => view.value?.options ?? { timerSeconds: 45, maxRounds: 8, starterMode: 'free', outlierVote: true })
+const opts = computed(() => view.value?.options ?? { mode: 'prompts', rounds: 5, timerSeconds: 30, converge: true, revealSeconds: 10 })
 const isParticipant = computed(() => view.value?.activeIds?.includes(myId.value) && !view.value.leftIds.includes(myId.value))
 const participants = computed(() => (view.value?.activeIds ?? []).filter(id => !view.value.leftIds.includes(id)))
 const canWrite = computed(() => !!isParticipant.value)
 const lastRound = computed(() => view.value.rounds[view.value.rounds.length - 1])
-// 前幾輪（含開局種子）出現過的詞，不分大小寫去重；不能再寫
+// 接龍：前面各輪出現過的詞（不能再寫），不分大小寫去重
 const usedWords = computed(() => {
+    if (opts.value.mode !== 'chain') return []
     const m = new Map()
-    const add = w => { if (w && !m.has(w.toLowerCase())) m.set(w.toLowerCase(), w) }
-    ;(view.value.seed ?? []).forEach(add)
-    view.value.rounds.forEach(r => Object.values(r.words).forEach(add))
+    view.value.rounds.forEach(r => Object.values(r.words).forEach(w => { if (w && !m.has(w.toLowerCase())) m.set(w.toLowerCase(), w) }))
     return [...m.values()]
 })
-// 書寫階段的線索：上一輪（已揭曉）雙方／全員寫的詞，更早的不顯示
-const prevRound = computed(() => {
-    const r = view.value.rounds[view.value.rounds.length - 1]
-    return r ? { number: view.value.rounds.length, words: r.words } : null
+// 終局的線索：上一輪（已揭曉）每人寫的詞，更早的不顯示
+const prevWords = computed(() => view.value.rounds[view.value.rounds.length - 1]?.words ?? {})
+const roundLabel = computed(() => {
+    const v = view.value
+    if (!v) return ''
+    const kind = phase.value === 'revealed' ? lastRound.value.kind : v.kind
+    if (kind === 'converge') return `🎯 終局挑戰 第 ${phase.value === 'revealed' ? lastRound.value.attempt : v.attempt} 次`
+    if (opts.value.mode === 'chain') return `🔗 接龍 第 ${v.promptIndex} / ${v.promptTotal} 輪`
+    return `第 ${v.promptIndex} / ${v.promptTotal} 題`
 })
 
-// 氛圍色調：揭曉偏暖，結算偏派對，其餘平靜
-
-// 計時選項：預設值之外若房主設過自訂值也要列出
+// 計時與題數選項：預設值之外若房主設過自訂值也要列出
 const timerChoices = computed(() => [...new Set([...TIMER_PRESETS, opts.value.timerSeconds])].sort((a, b) => a - b))
+const roundChoices = computed(() => [...new Set([...ROUND_PRESETS, opts.value.rounds])].sort((a, b) => a - b))
+const estimateMinutes = computed(() => {
+    const perRound = opts.value.timerSeconds * 0.7 + opts.value.revealSeconds + 5
+    const rounds = opts.value.mode === 'chain' ? CHAIN_ROUNDS : opts.value.rounds + (opts.value.converge ? 1.5 : 0)
+    return Math.max(3, Math.round((perRound * rounds) / 60))
+})
 
 // ── 時間 ──────────────────────────────────────────────────────────
 const now = ref(Date.now())
 let _tick = null
 const secondsLeft = computed(() => (view.value?.roundEndsAt ? (view.value.roundEndsAt - now.value) / 1000 : 0))
-const voteSeconds = computed(() => {
-    const end = lastRound.value?.outlierEndsAt
-    return end ? Math.max(0, Math.ceil((end - now.value) / 1000)) : 0
-})
-const canVote = computed(() => phase.value === 'revealed' && opts.value.outlierVote && !!isParticipant.value && voteSeconds.value > 0)
-
-function onVote(id) {
-    voteOutlier(view.value.myOutlierVote === id ? null : id)
-}
+const autoSeconds = computed(() => (view.value?.autoNextAt ? Math.max(0, Math.ceil((view.value.autoNextAt - now.value) / 1000)) : 0))
 
 function confirmFinish() {
     if (confirm('要提前結算這一局嗎？')) finishNow()

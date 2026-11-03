@@ -98,20 +98,22 @@ async function makeRoom(roomId, names, maxPlayers = 12) {
 
 const emit = (roomId, p, ev, data = {}) => p.socket.emit(ev, { roomId, ...data });
 
-test('完整一局：設定 → 開局 → 書寫（別人的詞不外洩）→ 揭曉 → 下一輪 → 結算 → 重玩', async () => {
+test('完整一局：設定 → 開局 → 書寫（別人的詞不外洩）→ 揭曉 → 反應 → 房主跳過 → 終局 → 結算 → 重玩', async () => {
   const roomId = 'SW0001';
   const [a, b, c] = await makeRoom(roomId, ['a', 'b', 'c']);
 
-  emit(roomId, b, 'sw:set-options', { options: { maxRounds: 5 } });
+  emit(roomId, b, 'sw:set-options', { options: { rounds: 3 } });
   await until(() => b.errors.length === 1, 'non-host options rejected');
   assert.equal(b.errors[0].code, 'FORBIDDEN');
-  emit(roomId, a, 'sw:set-options', { options: { maxRounds: 5, outlierVote: false } });
-  await until(() => a.view?.options.maxRounds === 5, 'options applied');
+  emit(roomId, a, 'sw:set-options', { options: { rounds: 3 } });
+  await until(() => a.view?.options.rounds === 3, 'options applied');
 
   emit(roomId, b, 'sw:start');
   await until(() => b.errors.length === 2, 'non-host start rejected');
   emit(roomId, a, 'sw:start');
   await until(() => [a, b, c].every(p => p.view.phase === 'writing' && p.view.round === 1), 'writing');
+  assert.equal(a.view.kind, 'prompt');
+  assert.ok(a.view.prompt);
 
   emit(roomId, a, 'sw:submit', { word: '祕密西瓜' });
   await until(() => c.view.submitted?.[a.id] === true, 'submitted flag');
@@ -125,37 +127,66 @@ test('完整一局：設定 → 開局 → 書寫（別人的詞不外洩）→ 
   emit(roomId, c, 'sw:submit', { word: 'xyz' });
   await until(() => [a, b, c].every(p => p.view.phase === 'revealed'), 'revealed');
   assert.deepEqual(a.view.rounds[0].groups, [['id-a'], ['id-b', 'id-c']]);
-  assert.equal(a.view.endsAfterThis, 'allPaired');
+  assert.deepEqual(a.view.scores, { 'id-a': 0, 'id-b': 1, 'id-c': 1 });
+  assert.deepEqual(a.view.rounds[0].lone, ['id-a']);
+  assert.equal(a.view.nextStep, 'prompt');
+  assert.ok(a.view.autoNextAt > Date.now());
+
+  emit(roomId, b, 'sw:react', { targetId: 'id-a', emoji: '🤣' });
+  await until(() => a.view.rounds[0].reactions['id-a']?.['🤣'] === 1, 'reaction counted');
+  assert.deepEqual(b.view.myReactions, { 'id-a': '🤣' });
+  assert.deepEqual(c.view.myReactions, {});
 
   emit(roomId, b, 'sw:next-round');
   await until(() => b.errors.length === 3, 'non-host next rejected');
   emit(roomId, a, 'sw:next-round');
+  await until(() => [a, b, c].every(p => p.view.phase === 'writing' && p.view.round === 2), 'round 2');
+  emit(roomId, a, 'sw:next-round'); // 書寫中按下一輪：被拒絕，且不影響計時器
+  await until(() => a.errors.some(e => e.code === 'BAD_PHASE'), 'next during writing rejected');
+  assert.notEqual(games[roomId]._timer, null);
+
+  for (const p of [a, b, c]) emit(roomId, p, 'sw:submit', { word: '同' });
+  await until(() => a.view.phase === 'revealed', 'revealed 2');
+  assert.equal(a.view.rounds[1].allSame, true);
+  emit(roomId, a, 'sw:next-round');
+  await until(() => a.view.round === 3 && a.view.phase === 'writing', 'round 3');
+  for (const [i, p] of [a, b, c].entries()) emit(roomId, p, 'sw:submit', { word: `詞${'一二三'[i]}` });
+  await until(() => a.view.phase === 'revealed', 'revealed 3');
+
+  emit(roomId, a, 'sw:next-round');
+  await until(() => a.view.kind === 'converge' && a.view.attempt === 1 && a.view.phase === 'writing', 'converge');
+  assert.equal(a.view.prompt, null);
+  for (const p of [a, b, c]) emit(roomId, p, 'sw:submit', { word: '詞二' });
+  await until(() => a.view.phase === 'revealed', 'converge revealed');
+  assert.deepEqual(a.view.converge, { success: true, attempt: 1 });
+  assert.equal(a.view.nextStep, null);
+
+  emit(roomId, a, 'sw:next-round');
   await until(() => [a, b, c].every(p => p.view.phase === 'finished'), 'finished');
-  assert.equal(a.view.result.unique, 'id-a');
-  assert.equal(a.view.result.bestPairs[0].tierId, 'soulmates');
+  assert.equal(a.view.result.scores['id-b'], 1 + 5 + 0 + 6);
+  assert.equal(a.view.result.laugh.playerIds[0], 'id-a');
 
   emit(roomId, a, 'sw:restart');
   await until(() => [a, b, c].every(p => p.view.phase === 'waiting'), 'back to waiting');
-  assert.equal(a.view.options.maxRounds, 5);
+  assert.equal(a.view.options.rounds, 3);
 });
 
-test('逾時：伺服器自動揭曉，未送出視為空白', async () => {
+test('逾時：伺服器自動揭曉，未送出視為空白；揭曉後自動前進', async () => {
   const roomId = 'SW0002';
   const [a, b] = await makeRoom(roomId, ['a', 'b']);
   games[roomId].options.timerSeconds = 1;
+  games[roomId].options.revealSeconds = 1;
   emit(roomId, a, 'sw:start');
   await until(() => a.view.phase === 'writing', 'writing');
   emit(roomId, a, 'sw:submit', { word: '海' });
   await until(() => a.view.phase === 'revealed', 'auto reveal', 3000);
   assert.deepEqual(b.view.rounds[0].words, { 'id-a': '海', 'id-b': '' });
-  assert.equal(b.view.endsAfterThis, null);
 
-  emit(roomId, a, 'sw:next-round');
-  await until(() => a.view.phase === 'writing' && a.view.round === 2, 'round 2');
+  await until(() => a.view.phase === 'writing' && a.view.round === 2, 'auto advance', 3000);
   emit(roomId, a, 'sw:finish-now');
   await until(() => a.view.phase === 'finished', 'host finish');
   assert.equal(a.view.result.endReason, 'host');
-  assert.deepEqual(a.view.result.loners, ['id-a', 'id-b']);
+  assert.equal(games[roomId]._timer, null);
 });
 
 test('重連：書寫中斷線後重新加入，還原階段與自己已送出的詞', async () => {
@@ -173,12 +204,15 @@ test('重連：書寫中斷線後重新加入，還原階段與自己已送出�
   await until(() => b2.view?.phase === 'writing', 'view restored');
   assert.equal(b2.view.myWord, '山');
   assert.equal(b2.view.submitted['id-b'], true);
+  assert.ok(b2.view.prompt);
   assert.equal(c.view.phase, 'writing');
 });
 
 test('離開：最後沒送出的人離開 → 立即揭曉；剩不到 2 人 → 中止回大廳；中途加入者是觀戰者', async () => {
   const roomId = 'SW0004';
   const [a, b, c] = await makeRoom(roomId, ['a', 'b', 'c']);
+  emit(roomId, a, 'sw:set-options', { options: { converge: false, rounds: 3 } });
+  await until(() => a.view.options.converge === false, 'options');
   emit(roomId, a, 'sw:start');
   await until(() => c.view.phase === 'writing', 'writing');
 
@@ -196,9 +230,6 @@ test('離開：最後沒送出的人離開 → 立即揭曉；剩不到 2 人 �
   assert.deepEqual(a.view.leftIds, ['id-c']);
   assert.equal(a.view.rounds[0].words['id-c'], undefined);
 
-  emit(roomId, a, 'sw:next-round');
-  await until(() => a.view.phase === 'finished', 'finished (all paired)');
-
   emit(roomId, a, 'sw:restart');
   await until(() => a.view.phase === 'waiting', 'waiting');
   emit(roomId, a, 'sw:start');
@@ -207,29 +238,22 @@ test('離開：最後沒送出的人離開 → 立即揭曉；剩不到 2 人 �
   await until(() => a.view.phase === 'waiting', 'aborted to lobby');
 });
 
-test('揭曉後不自動前進（沒有計時器）；房主可在進行中重新開房，保留設定', async () => {
+test('房主可在進行中重新開房，保留設定並清掉計時器', async () => {
   const roomId = 'SW0005';
   const [a, b, c] = await makeRoom(roomId, ['a', 'b', 'c']);
-  emit(roomId, a, 'sw:set-options', { options: { maxRounds: 12 } });
-  await until(() => a.view.options.maxRounds === 12, 'options');
+  emit(roomId, a, 'sw:set-options', { options: { rounds: 8 } });
+  await until(() => a.view.options.rounds === 8, 'options');
   emit(roomId, a, 'sw:restart');
   await until(() => a.errors.some(e => e.code === 'BAD_PHASE'), 'restart in lobby rejected');
 
   emit(roomId, a, 'sw:start');
   await until(() => c.view.phase === 'writing', 'writing');
-  for (const [i, p] of [a, b, c].entries()) emit(roomId, p, 'sw:submit', { word: `詞${'一二三'[i]}` });
-  await until(() => c.view.phase === 'revealed', 'revealed');
-  assert.equal(games[roomId]._timer, null);
-  assert.equal('autoNextAt' in c.view, false);
-
   emit(roomId, b, 'sw:restart');
   await until(() => b.errors.some(e => e.code === 'FORBIDDEN'), 'non-host restart rejected');
-  emit(roomId, a, 'sw:next-round');
-  await until(() => c.view.phase === 'writing' && c.view.round === 2, 'round 2');
 
-  emit(roomId, a, 'sw:restart'); // 書寫中也可重新開房
+  emit(roomId, a, 'sw:restart');
   await until(() => [a, b, c].every(p => p.view.phase === 'waiting'), 'back to lobby mid-game');
-  assert.equal(a.view.options.maxRounds, 12);
+  assert.equal(a.view.options.rounds, 8);
   assert.deepEqual(a.view.rounds, []);
   assert.equal(games[roomId]._timer, null);
 
@@ -237,28 +261,46 @@ test('揭曉後不自動前進（沒有計時器）；房主可在進行中重�
   await until(() => c.view.phase === 'writing' && c.view.round === 1, 'new game');
 });
 
-test('開局詞可選：預設不給詞；房主改成 seed 才會下發種子詞，改回 free 又沒有', async () => {
+test('反應：只能在揭曉階段、對別人的詞', async () => {
   const roomId = 'SW0006';
   const [a, b] = await makeRoom(roomId, ['a', 'b']);
-  assert.equal(a.view.options.starterMode, 'free');
-
   emit(roomId, a, 'sw:start');
   await until(() => b.view.phase === 'writing', 'writing');
-  assert.equal(b.view.seed, null);
-  emit(roomId, a, 'sw:restart');
-  await until(() => a.view.phase === 'waiting', 'lobby');
+  emit(roomId, a, 'sw:react', { targetId: 'id-b', emoji: '🤣' });
+  await until(() => a.errors.some(e => e.code === 'BAD_PHASE'), 'react during writing rejected');
+  emit(roomId, a, 'sw:submit', { word: '海' });
+  emit(roomId, b, 'sw:submit', { word: '山' });
+  await until(() => a.view.phase === 'revealed', 'revealed');
+  emit(roomId, a, 'sw:react', { targetId: 'id-a', emoji: '🤣' });
+  await until(() => a.errors.some(e => e.code === 'BAD_TARGET'), 'self react rejected');
+  emit(roomId, a, 'sw:react', { targetId: 'id-b', emoji: '💩' });
+  await until(() => a.errors.some(e => e.code === 'BAD_REACTION'), 'bad emoji rejected');
+});
 
-  emit(roomId, a, 'sw:set-options', { options: { starterMode: 'seed' } });
-  await until(() => a.view.options.starterMode === 'seed', 'seed mode');
+test('接龍模式：第 1 輪有題目、之後沒有；用過的詞被拒絕；全員同詞提早結束', async () => {
+  const roomId = 'SW0007';
+  const [a, b] = await makeRoom(roomId, ['a', 'b']);
+  emit(roomId, a, 'sw:set-options', { options: { mode: 'chain' } });
+  await until(() => a.view.options.mode === 'chain', 'chain mode');
   emit(roomId, a, 'sw:start');
-  await until(() => b.view.phase === 'writing', 'writing seed');
-  assert.equal(b.view.seed.length, 2);
-  emit(roomId, a, 'sw:restart');
-  await until(() => a.view.phase === 'waiting', 'lobby 2');
+  await until(() => b.view.phase === 'writing', 'writing');
+  assert.ok(b.view.prompt);
+  assert.equal(b.view.promptTotal, 6);
 
-  emit(roomId, a, 'sw:set-options', { options: { starterMode: 'free' } });
-  await until(() => a.view.options.starterMode === 'free', 'free mode');
-  emit(roomId, a, 'sw:start');
-  await until(() => b.view.phase === 'writing', 'writing free');
-  assert.equal(b.view.seed, null);
+  emit(roomId, a, 'sw:submit', { word: '海' });
+  emit(roomId, b, 'sw:submit', { word: '山' });
+  await until(() => a.view.phase === 'revealed', 'revealed 1');
+  emit(roomId, a, 'sw:next-round');
+  await until(() => a.view.phase === 'writing' && a.view.kind === 'chain', 'chain round');
+  assert.equal(a.view.prompt, null);
+
+  emit(roomId, a, 'sw:submit', { word: '山' });
+  await until(() => a.errors.some(e => e.code === 'WORD_USED'), 'used word rejected');
+  emit(roomId, a, 'sw:submit', { word: '河' });
+  emit(roomId, b, 'sw:submit', { word: '河' });
+  await until(() => a.view.phase === 'revealed', 'revealed 2');
+  assert.equal(a.view.nextStep, null);
+  emit(roomId, a, 'sw:next-round');
+  await until(() => a.view.phase === 'finished', 'finished early');
+  assert.equal(a.view.result.allSameAt, 2);
 });
