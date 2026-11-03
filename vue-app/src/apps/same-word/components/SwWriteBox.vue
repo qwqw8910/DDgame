@@ -14,10 +14,10 @@
 
         <form v-if="canWrite" class="flex w-full max-w-sm flex-col gap-2" @submit.prevent="send">
             <input v-model="draft" ref="inputRef" type="text" maxlength="12" autocomplete="off" autocapitalize="off"
-                placeholder="想到什麼就寫什麼" aria-label="你的詞"
+                placeholder="第一個想到的詞" aria-label="你的詞"
                 class="game-input !py-3 text-center !text-2xl font-bold" />
             <p class="m-0 min-h-5 text-center text-sm" :class="hint ? 'text-ruby' : 'text-label'">
-                {{ hint || (myWord ? `已送出「${myWord}」，截止前可再改` : '寫好按送出，和大家想成同一個詞') }}
+                {{ hint || (myWord ? `已送出「${myWord}」，截止前可再改` : '寫好按送出，全員送出就立刻揭曉') }}
             </p>
             <button type="submit" class="btn-primary" :disabled="!draft.trim()">{{ myWord ? '更新答案' : '送出' }}</button>
         </form>
@@ -35,7 +35,6 @@ const props = defineProps({
     myWord: { type: String, default: null },
     canWrite: { type: Boolean, default: true },
     round: { type: Number, required: true },
-    usedWords: { type: Array, default: () => [] },   // 前幾輪出現過的詞，不可重複
 })
 const emit = defineEmits(['submit'])
 
@@ -55,7 +54,6 @@ onMounted(() => inputRef.value?.focus())
 function send() {
     const err = checkWord(draft.value)
     if (err) { hint.value = err; return }
-    if (props.usedWords.some(u => u.toLowerCase() === draft.value.trim().toLowerCase())) { hint.value = '這個詞前面幾輪用過了，換一個吧'; return }
     emit('submit', draft.value.trim())
 }
 </script>

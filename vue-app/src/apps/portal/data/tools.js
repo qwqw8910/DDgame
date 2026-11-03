@@ -164,7 +164,7 @@ export const tools = [
     id: 'same-word',
     name: '同詞相遇',
     tagline: '同時寫一個詞，看誰跟誰最有默契',
-    description: '多人 · 默契 · 揭曉\n越早寫出同一個詞，默契越高！',
+    description: '多人 · 默契 · 揭曉\n每題同時寫詞，想法越一致分數越高！',
     emoji: '💘',
     color: 'rose',
     route: '/same-word',

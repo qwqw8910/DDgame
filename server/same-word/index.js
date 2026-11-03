@@ -8,13 +8,13 @@
 //  規則全在 gameLogic.js（純函式）；本檔只負責：事件 → gameLogic、計時器、每人專屬視圖推送。
 //  遊戲狀態只存在記憶體；server 重啟後房間會回到大廳。
 //
-//  房間模組不保存建房 options，所以遊戲設定（計時、回合上限…）由房主在大廳用 sw:set-options 設定。
+//  房間模組不保存建房 options，所以遊戲設定（計時、題目輪數…）由房主在大廳用 sw:set-options 設定。
 // ================================================================
 
 const { registerRoomHandlers } = require('../room');
 const EV = require('../room/events');
 const L = require('./gameLogic');
-const SEED_PAIRS = require('./seedWords');
+const PROMPTS = require('./prompts');
 
 const APP_ID = 'same-word';
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -108,13 +108,24 @@ function registerNamespace(io, db) {
       console.error('[SameWord settle]', err);
       return;
     }
-    // 揭曉後不自動前進：玩家可能需要討論，由房主按「下一輪」
+    // 揭曉後倒數自動前進；房主也可按「下一輪」提前跳過
+    scheduleAutoNext(roomId, game);
     pushState(roomId);
   }
 
-  function advance(roomId, game) {
+  function scheduleAutoNext(roomId, game) {
     clearTimers(game);
-    const r = L.nextRound(game, { now: Date.now() });
+    game._timer = setTimeout(() => {
+      game._timer = null;
+      if (getGame(roomId) !== game || game.phase !== 'revealed') return;
+      advance(roomId, game);
+    }, Math.max(0, game.autoNextAt - Date.now()));
+    game._timer.unref?.();
+  }
+
+  function advance(roomId, game) {
+    const r = L.nextRound(game, { now: Date.now() }); // 非揭曉階段會丟 BAD_PHASE，此時不動計時器
+    clearTimers(game);
     if (!r.finished) scheduleWriting(roomId, game);
     pushState(roomId);
   }
@@ -216,7 +227,7 @@ function registerNamespace(io, db) {
       try {
         const c = asHost(roomId); if (!c) return;
         const ids = roomPlayers(roomId).map(p => p.id);
-        L.startGame(c.game, ids, { now: Date.now(), seedPairs: SEED_PAIRS });
+        L.startGame(c.game, ids, { now: Date.now(), prompts: PROMPTS });
         _roomCache.updateRoom(roomId, { status: 'playing' });
         scheduleWriting(roomId, c.game);
         pushState(roomId);
@@ -232,10 +243,10 @@ function registerNamespace(io, db) {
       } catch (err) { fail(socket, err); }
     });
 
-    socket.on('sw:vote-outlier', ({ roomId, targetId } = {}) => {
+    socket.on('sw:react', ({ roomId, targetId, emoji } = {}) => {
       try {
         const c = ctx(roomId); if (!c) return;
-        L.voteOutlier(c.game, c.playerId, targetId ?? null, { now: Date.now() });
+        L.react(c.game, c.playerId, targetId, emoji ?? null);
         pushState(roomId);
       } catch (err) { fail(socket, err); }
     });
