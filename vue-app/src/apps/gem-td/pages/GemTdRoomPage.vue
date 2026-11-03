@@ -6,7 +6,7 @@
             <div class="flex min-w-0 items-center gap-2">
                 <button class="gt-chip" @click="goHome">離開</button>
                 <span class="truncate font-sans font-bold text-[#4A2C2A] max-[400px]:hidden">甜點守衛戰</span>
-                <span class="hidden font-mono tracking-[2px] text-[#7A5A50] sm:inline">{{ roomState.roomId }}</span>
+                <span class="hidden text-[#7A5A50] tabular-nums sm:inline">{{ roomState.roomId }}</span>
             </div>
             <div class="flex shrink-0 items-center gap-1">
                 <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
@@ -14,9 +14,9 @@
                     @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
                 <PwaInstallButton button-class="header-icon-btn" hint-class="gt-install-hint" />
                 <GemVolumePanel />
-                <button v-if="inGame" class="header-icon-btn" title="合成表" aria-label="合成表" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes">📖</button>
-                <button class="header-icon-btn" title="怎麼玩" aria-label="怎麼玩" @click="guide.open">❔</button>
-                <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink">🔗</button>
+                <button v-if="inGame" class="header-icon-btn" title="合成表" aria-label="合成表" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes"><GemHeaderIcon name="book" /></button>
+                <button class="header-icon-btn" title="怎麼玩" aria-label="怎麼玩" @click="guide.open"><GemHeaderIcon name="help" /></button>
+                <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GemHeaderIcon name="link" /></button>
             </div>
         </header>
 
@@ -49,7 +49,7 @@
         <main v-else-if="view?.phase === 'waiting'" class="mx-auto flex w-full max-w-[520px] flex-1 flex-col gap-6 overflow-y-auto px-4 py-6">
             <div>
                 <h1 class="m-0 font-sans text-3xl font-bold text-[#4A2C2A]">等待玩家</h1>
-                <button class="mt-2 cursor-pointer border-0 bg-transparent p-0 font-mono text-3xl tracking-[6px] text-[#D6305A]"
+                <button class="mt-2 cursor-pointer border-0 bg-transparent p-0 text-3xl font-bold tabular-nums text-[#D6305A]"
                     title="複製邀請連結" @click="handleCopyLink">{{ roomState.roomId }}</button>
                 <p class="mt-1 mb-0 text-[#7A5A50]">點房號複製邀請連結</p>
             </div>
@@ -168,6 +168,7 @@ import GemPanel from '../components/GemPanel.vue'
 import GemPlayerTabs from '../components/GemPlayerTabs.vue'
 import GemGuide from '../components/GemGuide.vue'
 import GemRecipes from '../components/GemRecipes.vue'
+import GemHeaderIcon from '../components/GemHeaderIcon.vue'
 import GemIcon from '../components/GemIcon.vue'
 import GemVolumePanel from '../components/GemVolumePanel.vue'
 
