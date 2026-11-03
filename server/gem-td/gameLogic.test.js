@@ -230,7 +230,7 @@ test('商店：升品質、換位置、拆除都要扣金幣', () => {
   const stone = game.players.a.towers.find(t => t.kind === 'stone');
   const [sx, sy] = [stone.x, stone.y];
 
-  game.players.a.gold = C.SWAP_COST + C.REMOVE_STONE_COST;
+  game.players.a.gold = C.SWAP_COST;
   L.swapWithStone(game, 'a', placed[4].id, stone.id);
   assert.deepEqual([placed[4].x, placed[4].y], [sx, sy]);
   assert.equal(game.players.a.grid.get(`${sx},${sy}`), placed[4]);
@@ -240,7 +240,26 @@ test('商店：升品質、換位置、拆除都要扣金幣', () => {
   assert.equal(game.players.a.towers.includes(stone), false);
   assert.throws(() => L.removeStone(game, 'a', placed[4].id), { code: 'BAD_TOWER' });
   const another = game.players.a.towers.find(t => t.kind === 'stone');
-  assert.throws(() => L.removeStone(game, 'a', another.id), { code: 'NO_GOLD' });
+  L.removeStone(game, 'a', another.id); // 免費，沒錢也能拆
+  assert.equal(game.players.a.gold, 0);
+});
+
+test('熟練度：每階加傷害與攻速，合成特殊塔時擊殺數繼承', () => {
+  assert.deepEqual(C.MASTERY_KILLS.map(n => C.masteryRank(n - 1)), [0, 1, 2, 3]);
+  assert.equal(C.masteryRank(C.MASTERY_KILLS[3]), 4);
+
+  const game = newGame();
+  const mk = (kind, level, kills) => {
+    const t = { id: game.nextTowerId++, x: game.nextTowerId, y: 3, kind, level, owner: 'a', fresh: false, kills, damage: kills * 10 };
+    game.players.a.towers.push(t);
+    return t;
+  };
+  const b = mk('B', 2, 20);
+  mk('Q', 2, 5);
+  mk('D', 2, 7);
+  const result = L.combine(game, 'a', 'silver', b.id);
+  assert.equal(result.kills, 32);
+  assert.equal(result.damage, 320);
 });
 
 test('沒選完不能準備；線上的人都準備好才算全員準備', () => {

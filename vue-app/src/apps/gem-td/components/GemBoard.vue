@@ -353,6 +353,18 @@ function drawTowers(view, cell, now) {
             ctx.font = `700 ${cell * 0.3}px 'Noto Sans TC', sans-serif`
             ctx.fillText(String(t.level), bx, by + cell * 0.01)
         }
+        const steps = props.catalog?.mastery?.kills
+        const rank = steps ? steps.filter(n => t.kills >= n).length : 0
+        if (rank && zoom.value * cell >= 16) {
+            // 右上角的熟練度標籤：金底，內容是 ★ 加階數
+            const w = cell * 0.5
+            const h = cell * 0.28
+            ctx.fillStyle = '#F2B632'
+            ctx.fillRect(x + cell - w, y, w, h)
+            ctx.fillStyle = COLOR.ink
+            ctx.font = `700 ${cell * 0.24}px 'Noto Sans TC', sans-serif`
+            ctx.fillText(`★${rank}`, x + cell - w / 2, y + h / 2 + cell * 0.01)
+        }
     }
 }
 

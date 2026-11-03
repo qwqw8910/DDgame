@@ -283,6 +283,9 @@ function combine(game, playerId, recipeId, atTowerId) {
     ?? used[0];
   const usedFresh = used.some(t => t.fresh);
 
+  // 擊殺數與總傷由所有材料繼承，熟練度不會因為合成歸零
+  base.kills = used.reduce((n, t) => n + t.kills, 0);
+  base.damage = used.reduce((n, t) => n + t.damage, 0);
   for (const t of used) if (t !== base) toStone(t);
   base.kind = recipe.result;
   base.level = C.SPECIALS[recipe.result].tier;

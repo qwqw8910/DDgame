@@ -126,7 +126,13 @@ const QUALITY_RATES = [
 ];
 const QUALITY_COSTS = [30, 70, 130, 220, 350, 520, 750]; // 升到品質 2、3…8 的花費
 const SWAP_COST = 25;
-const REMOVE_STONE_COST = 10;
+const REMOVE_STONE_COST = 0; // 拆餅乾牆免費
+
+// 熟練度：塔累積擊殺數達門檻就升一階，每階加傷害與攻速；合成特殊塔時擊殺數會繼承
+const MASTERY_KILLS = [15, 40, 80, 140];
+const MASTERY_DAMAGE = 0.1;
+const MASTERY_HASTE = 0.05;
+const masteryRank = kills => MASTERY_KILLS.filter(n => kills >= n).length;
 
 // 甜點研究：每個項目 5 級，對自己所有的塔生效，跟品質搶同一筆金幣
 const RESEARCH_COSTS = [60, 120, 200, 300, 450];
@@ -276,6 +282,7 @@ function catalog() {
     qualityCosts: QUALITY_COSTS,
     swapCost: SWAP_COST,
     removeStoneCost: REMOVE_STONE_COST,
+    mastery: { kills: MASTERY_KILLS, damage: MASTERY_DAMAGE, haste: MASTERY_HASTE },
     research: RESEARCH,
     researchCosts: RESEARCH_COSTS,
     interest: { rate: INTEREST_RATE, cap: INTEREST_CAP },
@@ -289,7 +296,7 @@ module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD,
   WAVE_CHOICES, BUILD_SECOND_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
-  SWAP_COST, REMOVE_STONE_COST, RESEARCH, RESEARCH_COSTS, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
+  SWAP_COST, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
   TRAIT_IDS, REGEN_RATE, BOSS_REGEN_RATE, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,
   waveClearBonus, interestOn, armorFactor, gemStats, researchBonus, waveDef, catalog,
 };
