@@ -1,11 +1,11 @@
 <template>
     <div ref="rootRef" class="relative">
         <button :class="buttonClass" title="音量設定" aria-label="音量設定" :aria-expanded="open"
-            @click="toggleOpen">{{ audible ? '🔊' : '🔇' }}</button>
+            @click="toggleOpen"><CsIcon :name="audible ? 'volume' : 'mute'" /></button>
         <div v-if="open"
             class="absolute right-0 top-full z-50 mt-2 flex w-[220px] flex-col gap-2 rounded-[10px] border border-border-glow bg-card-solid p-3 shadow-[0_6px_22px_rgba(0,0,0,0.55)]">
             <div class="flex items-center justify-between">
-                <span class="text-sm font-semibold text-heading">🔊 音量 {{ percent }}%</span>
+                <span class="text-sm font-semibold text-heading">音量 {{ percent }}%</span>
                 <button class="rounded-md border border-border px-2 py-0.5 text-xs text-label"
                     :aria-pressed="!isSfxMuted" @click="toggleSfxMute">{{ isSfxMuted ? '關' : '開' }}</button>
             </div>
@@ -19,6 +19,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useCharacterStormSfx } from '../composables/useCharacterStormSfx.js'
+import CsIcon from './CsIcon.vue'
 
 defineProps({ buttonClass: { type: String, default: 'header-icon-btn' } })
 

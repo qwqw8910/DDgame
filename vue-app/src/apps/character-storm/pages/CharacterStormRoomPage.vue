@@ -10,23 +10,24 @@
                     <button class="header-back-btn" @click="goHome" title="返回首頁" aria-label="返回首頁">
                         ←<span class="hidden sm:inline"> 返回</span>
                     </button>
-                    <span class="logo-sm">默契字囊團 🔡</span>
+                    <span class="logo-sm cs-logo">默契字囊團</span>
                 </div>
                 <div class="header-info order-last w-full justify-center sm:order-none sm:w-auto">
-                    <span class="header-room-id">{{ roomState.roomId }}</span>
-                    <span style="font-size:12px;color:var(--body)">{{ playersWithRoles.length }}/{{
-                        maxPlayers || '?' }} 人</span>
+                    <span class="header-room-id cs-room-id">{{ roomState.roomId }}</span>
+                    <span class="cs-room-count">{{ playersWithRoles.length }}/{{ maxPlayers || '?' }} 人</span>
                 </div>
                 <div class="flex gap-1 sm:gap-1.5 items-center shrink-0">
                     <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
                         :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost" @kick="handleKick"
                         @transfer-host="handleTransferHost" />
-                    <button class="header-icon-btn" title="玩法說明" aria-label="玩法說明" @click="showGuide = true">❓</button>
-                    <button class="header-icon-btn" title="切換主題" aria-label="切換主題" @click="toggleTheme">{{ isDark ? '🌙'
-                        : '☀️' }}</button>
+                    <button class="header-icon-btn" title="玩法說明" aria-label="玩法說明" @click="showGuide = true">
+                        <CsIcon name="help" />
+                    </button>
+                    <button class="header-icon-btn" :title="isDark ? '切換為淺色' : '切換為深色'" aria-label="切換主題"
+                        @click="toggleTheme"><CsIcon :name="isDark ? 'moon' : 'sun'" /></button>
                     <CsVolumePanel />
-                    <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結"
-                        @click="handleCopyLink">🔗</button>
+                    <CsRoomMenu :is-host="roomState.isHost" :in-game="isGamePhase" @copy-link="handleCopyLink"
+                        @restart="showRestartConfirm = true" @exit="handleExitRoom" />
                 </div>
             </div>
         </header>
@@ -81,73 +82,34 @@
                 :is-host="roomState.isHost" :min-players="MIN_PLAYERS_REQUIRED"
                 :max-players="maxPlayers" @copy-link="handleCopyLink" @start="handleStartGame" />
 
-            <!-- ── 遊戲進行中（統一左右排版）── -->
+            <!-- ── 遊戲進行中：上排（階段｜題目｜倒數）→ 玩家卡片 Grid → 底部輸入欄 ── -->
             <div v-else-if="isGamePhase" class="cs-game-layout" :class="{ 'cs-game-layout--compact': isCompact }">
-
-                <!-- ── 左側面板：階段+進度 / 玩家列表 / 退出 ── -->
-                <div class="cs-left-panel">
-
-                    <!-- 左上：階段 + 進度 -->
-                    <div class="game-card cs-phase-card" aria-live="polite">
-                        <p class="cs-phase-title">{{ phaseLabel }}</p>
-                        <div v-if="phaseTotal > 0" class="cs-progress-track" role="progressbar" :aria-valuemin="0"
-                            :aria-valuemax="phaseTotal" :aria-valuenow="phaseSubmitted"
-                            :aria-label="`提交進度 ${phaseSubmitted}/${phaseTotal}`">
-                            <div class="cs-progress-fill" :style="{ width: `${phaseProgressPct}%` }"></div>
-                        </div>
-                        <p v-if="phaseTotal > 0" class="cs-phase-progress">
-                            已提交 {{ phaseSubmitted }}/{{ phaseTotal }}
-                        </p>
-                        <p v-else class="cs-phase-progress">{{ phaseHintText }}</p>
-                    </div>
-
-                    <!-- 左下：玩家列表 -->
-                    <div class="game-card cs-player-list-card">
-                        <p class="cs-card-label" style="margin-bottom:8px">玩家列表</p>
-                        <ul class="cs-player-list">
-                            <li v-for="p in playersWithRoles" :key="p.id" class="cs-player-list-item"
-                                :class="{ 'cs-player-list-item--self': p.id === roomState.myPlayerId }">
-                                <span class="cs-tile cs-avatar" :style="{
-                                    '--tok': playerColor(playersWithRoles, p.id),
-                                    opacity: (p.is_online ?? p.connected) ? 1 : 0.35,
-                                }">{{ avatarChar(p.nickname) }}</span>
-                                <span class="cs-player-list-name">{{ p.nickname }}</span>
-                                <span v-if="p.id === roomState.myPlayerId" class="cs-player-list-tag">我</span>
-                                <span class="cs-player-list-status" :class="getPlayerStatusClass(p)">
-                                    {{ getPlayerStatus(p) }}
-                                </span>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div style="flex:1"></div>
-
-                    <!-- 退出房間 -->
-                    <div class="cs-exit-row">
-                        <button class="btn-secondary cs-exit-btn" type="button" @click="handleExitRoom">
-                            退出房間
-                        </button>
-                        <button v-if="roomState.isHost" class="btn-secondary cs-exit-btn" type="button"
-                            @click="showRestartConfirm = true">
-                            重新一局
-                        </button>
-                    </div>
-                </div>
-
-                <!-- ── 右側：題目+秒數 → 玩家卡片 Grid → 底部輸入欄 ── -->
                 <div class="cs-right-area">
 
-                    <!-- 中上：題目 + 右上倒數 -->
                     <div class="cs-question-row">
+                        <!-- 階段 + 進度 + 我的角色 -->
+                        <div class="game-card cs-phase-card" aria-live="polite">
+                            <p class="cs-phase-title">{{ phaseLabel }}</p>
+                            <div v-if="phaseTotal > 0" class="cs-progress-track" role="progressbar" :aria-valuemin="0"
+                                :aria-valuemax="phaseTotal" :aria-valuenow="phaseSubmitted"
+                                :aria-label="`提交進度 ${phaseSubmitted}/${phaseTotal}`">
+                                <div class="cs-progress-fill" :style="{ width: `${phaseProgressPct}%` }"></div>
+                            </div>
+                            <p class="cs-phase-progress">
+                                <template v-if="phaseTotal > 0">已提交 {{ phaseSubmitted }}/{{ phaseTotal }} · </template>
+                                <span class="cs-phase-role">{{ phaseHintText }}</span>
+                            </p>
+                        </div>
+
                         <div class="game-card cs-question-card">
                             <div class="cs-question-meta">
                                 <p class="cs-card-label" style="margin:0">
                                     {{ state.isGuesser && state.status !== 'revealing' ? '猜猜看' : '題目' }}
                                 </p>
-                                <span v-if="state.currentWord?.author && !state.isGuesser"
-                                    style="font-size:13px;color:var(--label)">✍️ {{ state.currentWord.author }}</span>
-                                <span v-if="state.currentWord?.category && !state.isGuesser"
-                                    style="font-size:12px;color:var(--label)">· {{ state.currentWord.category }}</span>
+                                <span v-if="state.currentWord?.category && !state.isGuesser" class="cs-question-meta__item">
+                                    {{ state.currentWord.category }}</span>
+                                <span v-if="state.currentWord?.author && !state.isGuesser" class="cs-question-meta__item">
+                                    · 出題 {{ state.currentWord.author }}</span>
                             </div>
                             <!-- 猜題者：揭曉前只看到空格牌 -->
                             <template v-if="state.isGuesser && state.status !== 'revealing'">
@@ -183,8 +145,8 @@
                     </div>
 
                     <div class="cs-players-grid"
-                        :class="{ 'cs-players-grid--dense': playersWithRoles.length > 6 && !isCompact, 'cs-players-grid--quad': playersWithRoles.length <= 4, 'cs-players-grid--compact': isCompact }"
-                        :style="isCompact ? { '--cs-cols': 4, '--cs-rows': Math.ceil(playersWithRoles.length / 4) } : { '--cs-rows': Math.ceil(playersWithRoles.length / 3) }">
+                        :class="{ 'cs-players-grid--dense': playersWithRoles.length > 6 && !isCompact, 'cs-players-grid--roomy': playersWithRoles.length <= 6, 'cs-players-grid--quad': playersWithRoles.length <= 4, 'cs-players-grid--compact': isCompact }"
+                        :style="isCompact ? { '--cs-cols': 4, '--cs-rows': Math.ceil(playersWithRoles.length / 4) } : { '--cs-rows': Math.ceil(playersWithRoles.length / (playersWithRoles.length <= 4 ? 2 : 3)) }">
                         <CsPlayerCard v-for="p in playersWithRoles" :key="p.id" :player="p"
                             :players="playersWithRoles" :state="state" :my-player-id="roomState.myPlayerId"
                             :is-guesser="isPlayerGuesser(p)" :is-hint-phase="isHintPhase"
@@ -317,7 +279,9 @@ import CsConfetti from '../components/CsConfetti.vue'
 import '../styles/character-storm.css'
 import { useGameGuide } from '@/shared/composables/useGameGuide.js'
 import { fetchThemes, THEME_ALL } from '../data/themes.js'
-import { avatarChar, playerColor, SYMBOL_COLORS } from '../data/playerLook.js'
+import { SYMBOL_COLORS } from '../data/playerLook.js'
+import CsIcon from '../components/CsIcon.vue'
+import CsRoomMenu from '../components/CsRoomMenu.vue'
 import {
     GAME_PHASES, PHASE_KICKER, phaseLabel as phaseLabelOf, phaseHintText as phaseHintTextOf,
     phaseTitle, phaseDesc, phaseCueKey,
@@ -785,39 +749,6 @@ const visibleHintRounds = computed(() => {
 function isPlayerGuesser(player) {
     if (state.currentGuesserPlayerId) return player.id === state.currentGuesserPlayerId
     return player.role === 'guesser'
-}
-
-// 左下玩家列表：依當前階段顯示該玩家狀態
-function getPlayerStatus(p) {
-    if (isPlayerGuesser(p)) {
-        if (state.status === 'round1-result') {
-            return state.round1GuessResult ? '✓' : '作答中'
-        }
-        if (state.status === 'round2-result') {
-            return state.guessResult ? '✓' : '作答中'
-        }
-        if (state.status === 'round1' || state.status === 'round2') {
-            return '等待提示'
-        }
-        if (state.status === 'revealing') return '已揭曉'
-        return '猜題者'
-    }
-    // 提示者
-    if (state.status === 'round1' || state.status === 'round2') {
-        return state.submittedPlayerIds.includes(p.id) ? '✓' : '作答中'
-    }
-    if (state.status === 'round1-result' || state.status === 'round2-result') {
-        return '等待猜題'
-    }
-    if (state.status === 'revealing') return '—'
-    return '提示者'
-}
-
-function getPlayerStatusClass(p) {
-    const s = getPlayerStatus(p)
-    if (s === '✓') return 'cs-status--done'
-    if (s === '作答中') return 'cs-status--active'
-    return 'cs-status--idle'
 }
 
 // 所有階段切換都會發出事件，音效管理器可監聽 character-storm:phase-cue

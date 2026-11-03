@@ -30,3 +30,6 @@ Thumbs.db
 
 # 本機匯出資料（不提交）
 local-data/
+
+# design-taste-frontend 截圖
+.taste-skill/

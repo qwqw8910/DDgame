@@ -10,12 +10,15 @@
         </div>
 
         <!-- Theme toggle -->
-        <button @click="toggleTheme" title="切換主題" class="theme-toggle fixed top-4 right-4 z-50">
-            {{ isDark ? '🌙' : '☀️' }}
+        <button @click="toggleTheme" :title="isDark ? '切換為淺色' : '切換為深色'" aria-label="切換主題"
+            class="theme-toggle fixed top-4 right-4 z-50">
+            <CsIcon :name="isDark ? 'moon' : 'sun'" />
         </button>
 
         <!-- 音量 -->
-        <CsVolumePanel class="fixed top-4 right-16 z-50" button-class="theme-toggle" />
+        <div class="fixed top-4 right-16 z-50">
+            <CsVolumePanel button-class="theme-toggle" />
+        </div>
 
         <!-- 安裝 PWA（不支援或已安裝時不顯示） -->
         <div class="fixed top-4 right-28 z-50">
@@ -30,103 +33,81 @@
         </RouterLink>
 
         <!-- 主要內容 -->
-        <div class="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-10">
+        <div class="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 pt-16 pb-10">
 
             <!-- Hero -->
-            <div class="text-center mb-10">
-                <div class="flex justify-center mb-2 [--mascot-size:170px] [filter:drop-shadow(0_0_24px_rgba(34,211,238,0.35))]">
+            <div class="text-center mb-7">
+                <div class="flex justify-center mb-1 [--mascot-size:112px]">
                     <CsMascot mood="idle" />
                 </div>
-                <p class="cs-hero-kicker">Character Storm</p>
                 <h1 class="cs-hero-title" aria-label="默契字囊團">
                     <span v-for="(c, i) in '默契字囊團'" :key="i" class="cs-tile cs-tile--xl cs-tile--drop"
                         :style="{ '--i': i + 2 }" aria-hidden="true">{{ c }}</span>
                 </h1>
-                <p class="cs-hero-tagline">撞字會被<b>符號</b>蓋掉 — 靠默契，讓猜題者看懂你的線索！</p>
+                <p class="cs-hero-tagline">撞字會被<b>符號</b>蓋掉，靠默契讓猜題者看懂你的線索</p>
             </div>
 
-            <!-- 操作卡片 -->
-            <div class="w-full max-w-[720px] grid gap-5 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+            <!-- 操作卡片：各自維持內容高度，頂端對齊 -->
+            <div class="w-full max-w-[720px] grid gap-4 items-start sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
 
                 <!-- 建立房間（透過 URL 分享進入時隱藏） -->
-                <div v-if="!hasRoomFromUrl" class="game-card flex flex-col">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl [background:rgba(6,182,212,0.12)] [border:1px_solid_rgba(6,182,212,0.25)]">🏠</div>
-                        <button type="button" class="text-[13px] px-2 py-1 bg-transparent border-0 cursor-pointer text-label hover:text-heading"
-                            @click="bankManagerOpen = true">
-                            🔒 題庫管理
-                        </button>
+                <section v-if="!hasRoomFromUrl" class="game-card cs-lobby-card" aria-labelledby="cs-create-title">
+                    <div class="flex items-baseline justify-between gap-3 mb-1">
+                        <h2 id="cs-create-title" class="cs-lobby-card__title">建立新房間</h2>
+                        <button type="button" class="cs-text-btn" @click="bankManagerOpen = true">題庫管理</button>
                     </div>
-                    <h2 class="neon-heading text-xl mb-1.5 text-heading">建立新房間</h2>
-                    <p class="text-[15px] mb-[22px] text-body">邀請 4 ～ 16 人加入，開始字元風暴</p>
-                    <div class="flex flex-col gap-3 flex-1">
-                        <div class="input-wrapper">
-                            <span class="input-icon">😊</span>
-                            <input v-model="createNickname" ref="createNicknameRef" type="text" placeholder="你的暱稱"
-                                maxlength="12" class="game-input" @keydown.enter="handleCreateRoom" />
-                        </div>
-                        <div class="input-wrapper">
-                            <span class="input-icon">👥</span>
-                            <select v-model="maxPlayers" class="game-input pl-11 cursor-pointer">
+                    <p class="cs-lobby-card__desc">邀請 4～16 人加入，開始字元風暴</p>
+                    <div class="flex flex-col gap-3">
+                        <input v-model="createNickname" ref="createNicknameRef" type="text" placeholder="你的暱稱"
+                            aria-label="你的暱稱" maxlength="12" class="game-input" @keydown.enter="handleCreateRoom" />
+                        <select v-model="selectedTheme" aria-label="題庫主題" class="game-input cursor-pointer">
+                            <option :value="THEME_ALL">題庫：全部主題混合</option>
+                            <option :value="THEME_RANDOM">題庫：每局隨機一個主題</option>
+                            <option v-for="t in themeList" :key="t.id" :value="t.id">題庫：{{ t.name }}</option>
+                        </select>
+                        <div class="grid grid-cols-2 gap-3">
+                            <select v-model="maxPlayers" aria-label="人數上限" class="game-input cursor-pointer">
                                 <option v-for="n in [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]" :key="n" :value="n">最多 {{ n }} 人</option>
                             </select>
-                        </div>
-                        <div class="input-wrapper">
-                            <span class="input-icon">🎲</span>
-                            <select v-model="selectedTheme" class="game-input pl-11 cursor-pointer">
-                                <option :value="THEME_ALL">全部（所有主題混在一起）</option>
-                                <option :value="THEME_RANDOM">隨機主題（每局不同）</option>
-                                <option v-for="t in themeList" :key="t.id" :value="t.id">{{ t.name }}</option>
-                            </select>
-                        </div>
-                        <label class="input-wrapper cursor-pointer select-none" title="每個猜題回合隨機一位提示者當間諜，可遮住一位玩家提示中的一個字">
-                            <span class="input-icon">🕵</span>
-                            <span class="game-input pl-11 flex items-center justify-between">
-                                加入間諜（1 位）
+                            <label class="game-input cs-check cursor-pointer select-none"
+                                title="每個猜題回合隨機一位提示者當間諜，可遮住一位玩家提示中的一個字">
+                                加入間諜
                                 <input v-model="spyEnabled" type="checkbox" class="w-5 h-5" />
-                            </span>
-                        </label>
-                        <button class="btn-primary cs-cta mt-auto"
-                            :disabled="createLoading" @click="handleCreateRoom">
+                            </label>
+                        </div>
+                        <button class="btn-primary cs-cta" :disabled="createLoading" @click="handleCreateRoom">
                             <span v-if="createLoading" class="spinner spinner-sm"></span>
                             {{ createLoading ? '建立中…' : '建立房間' }}
                         </button>
                     </div>
-                </div>
+                </section>
 
                 <!-- 加入房間 -->
-                <div class="game-card flex flex-col">
-                    <div class="w-[50px] h-[50px] rounded-[10px] flex items-center justify-center text-2xl mb-4 [background:rgba(139,92,246,0.12)] [border:1px_solid_rgba(139,92,246,0.25)]">🔑</div>
-                    <h2 class="neon-heading text-xl mb-1.5 text-heading">加入房間</h2>
-                    <p class="text-[15px] mb-[22px] text-body">
-                        {{ hasRoomFromUrl ? `房間碼：${joinCode}` : '輸入朋友分享的房間碼' }}
+                <section class="game-card cs-lobby-card" aria-labelledby="cs-join-title">
+                    <h2 id="cs-join-title" class="cs-lobby-card__title mb-1">加入房間</h2>
+                    <p class="cs-lobby-card__desc">
+                        {{ hasRoomFromUrl ? `房間碼：${joinCode}` : '輸入朋友分享的 6 碼房間碼' }}
                     </p>
-                    <div class="flex flex-col gap-3 flex-1">
-                        <div class="input-wrapper">
-                            <span class="input-icon">😊</span>
-                            <input v-model="joinNickname" ref="joinNicknameRef" type="text" placeholder="你的暱稱"
-                                maxlength="12" class="game-input" @keydown.enter="onJoinNicknameEnter" />
-                        </div>
-                        <div v-if="!hasRoomFromUrl" class="input-wrapper">
-                            <input v-model="joinCode" ref="joinCodeRef" type="text" placeholder="房間碼（6碼）" maxlength="6"
-                                class="game-input text-center [letter-spacing:6px] text-base font-semibold px-0"
-                                @input="joinCode = joinCode.toUpperCase()" @keydown.enter="handleJoinRoom" />
-                        </div>
-                        <button class="btn-secondary mt-auto" :disabled="joinLoading" @click="handleJoinRoom">
+                    <div class="flex flex-col gap-3">
+                        <input v-model="joinNickname" ref="joinNicknameRef" type="text" placeholder="你的暱稱"
+                            aria-label="你的暱稱" maxlength="12" class="game-input" @keydown.enter="onJoinNicknameEnter" />
+                        <input v-if="!hasRoomFromUrl" v-model="joinCode" ref="joinCodeRef" type="text"
+                            placeholder="房間碼" aria-label="房間碼" maxlength="6" autocapitalize="characters"
+                            class="game-input cs-code-input" :class="{ 'cs-code-input--filled': joinCode }"
+                            @input="joinCode = joinCode.toUpperCase()" @keydown.enter="handleJoinRoom" />
+                        <button :class="hasRoomFromUrl ? 'btn-primary cs-cta' : 'cs-btn-outline'"
+                            :disabled="joinLoading" @click="handleJoinRoom">
                             <span v-if="joinLoading" class="spinner spinner-sm"></span>
                             {{ joinLoading ? '加入中…' : '加入房間' }}
                         </button>
                     </div>
-                </div>
+                </section>
             </div>
 
-            <!-- 說明文字 -->
-            <div class="mt-8 text-center max-w-[480px]">
-                <p class="text-[13px] opacity-70 leading-[1.8] text-body">
-                    提示者輸入線索，重複字元會被神秘符號（●▲■）遮蓋<br>
-                    猜題者要從殘缺的線索中，推理出隱藏的答案！
-                </p>
-            </div>
+            <!-- 玩法一句話 -->
+            <p class="cs-lobby-rules">
+                提示者輸入線索，和別人撞到的字會被符號（●▲■）蓋掉；猜題者要從殘缺的線索推理出答案。
+            </p>
         </div>
 
         <CharacterStormBankManager v-model="bankManagerOpen" @changed="loadThemes" />
@@ -166,6 +147,7 @@ import { fetchThemes, THEME_ALL, THEME_RANDOM } from '../data/themes.js'
 import CharacterStormBankManager from '../components/CharacterStormBankManager.vue'
 import CsMascot from '../components/CsMascot.vue'
 import CsVolumePanel from '../components/CsVolumePanel.vue'
+import CsIcon from '../components/CsIcon.vue'
 import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
 import '../styles/character-storm.css'
 
