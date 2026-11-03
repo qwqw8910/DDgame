@@ -84,7 +84,7 @@
                 <h3 class="gt-heading">餅乾牆</h3>
                 <template v-if="phase === 'build' && me && mine">
                     <button v-if="swapFrom" class="gt-btn w-full" @click="$emit('cancel-swap')">取消移動</button>
-                    <button v-else class="gt-btn w-full" :disabled="me.gold < catalog.removeStoneCost" @click="$emit('remove', selected.id)">拆除（{{ catalog.removeStoneCost }} 金）</button>
+                    <button v-else class="gt-btn w-full" @click="$emit('remove', selected.id)">拆除（免費）</button>
                 </template>
                 <p v-else-if="mine" class="m-0">只有建造階段可以拆除。</p>
             </template>
@@ -95,6 +95,7 @@
                     <dt class="text-[#7A5A50]">射程</dt><dd class="m-0">{{ selectedStats.range.toFixed(1) }} 格</dd>
                     <dt class="text-[#7A5A50]">目標</dt><dd class="m-0">{{ HITS[selectedStats.hits] }}</dd>
                     <dt class="text-[#7A5A50]">戰績</dt><dd class="m-0">擊殺 {{ selected.kills }}，總傷 {{ selected.damage }}</dd>
+                    <dt class="text-[#7A5A50]">熟練度</dt><dd class="m-0">{{ masteryText }}</dd>
                 </dl>
                 <p class="mt-1 mb-0 leading-snug">{{ selectedTrait }}</p>
                 <button v-if="canMove" class="gt-btn gt-btn--small mt-2" :disabled="me.gold < catalog.swapCost"
@@ -183,6 +184,13 @@ const selectedStats = computed(() => {
     const t = selected.value
     if (!t || t.kind === 'stone') return null
     return isSpecial(t.kind) ? props.catalog.specials[t.kind].stats : props.catalog.gems[t.kind].levels[t.level - 1]
+})
+const masteryText = computed(() => {
+    const { kills: steps, damage, haste } = props.catalog.mastery
+    const kills = selected.value?.kills ?? 0
+    const rank = steps.filter(n => kills >= n).length
+    const effect = rank ? `傷害 +${Math.round(rank * damage * 100)}%，攻速 +${Math.round(rank * haste * 100)}%` : '尚未升階'
+    return rank < steps.length ? `${rank} 階（${effect}），再 ${steps[rank] - kills} 殺升階` : `${rank} 階滿（${effect}）`
 })
 const selectedTrait = computed(() => {
     const t = selected.value

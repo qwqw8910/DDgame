@@ -27,12 +27,13 @@ function prepareTowers(towers, research) {
 
   return armed.map((ref) => {
     const base = C.gemStats(ref.kind, ref.level);
-    const stats = { ...base, damage: base.damage * bonus.damage, range: base.range + bonus.range };
+    const rank = C.masteryRank(ref.kills);
+    const stats = { ...base, damage: base.damage * (bonus.damage + rank * C.MASTERY_DAMAGE), range: base.range + bonus.range };
     // 同區光環不疊加，取最強的一道
     const haste = auras.reduce((best, { t, aura }) => (
       t !== ref && distance(t.x, t.y, ref.x, ref.y) <= aura.radius ? Math.max(best, aura.haste) : best
     ), 0);
-    return { ref, stats, cooldown: stats.cooldown / (1 + haste + bonus.haste), wait: 0 };
+    return { ref, stats, cooldown: stats.cooldown / (1 + haste + bonus.haste + rank * C.MASTERY_HASTE), wait: 0 };
   });
 }
 

@@ -112,6 +112,15 @@ const EDGE_GAP = 8
 const panel = ref(null)
 const pos = reactive({ x: EDGE_GAP, y: 56 })
 let grab = null
+let dragged = false
+
+// 預設放在右上、血量／金幣那一列的下方，不擋住資訊；拖過就記住使用者的位置
+function placeDefault() {
+    if (!panel.value) return
+    const bar = document.querySelector('.gt-root [role="status"]')
+    const top = bar ? bar.getBoundingClientRect().bottom + EDGE_GAP : 56
+    moveTo(window.innerWidth - panel.value.offsetWidth - EDGE_GAP, top)
+}
 
 function moveTo(x, y) {
     if (!panel.value) return
@@ -120,12 +129,14 @@ function moveTo(x, y) {
 }
 
 function keepInView() {
-    moveTo(pos.x, pos.y)
+    if (dragged) moveTo(pos.x, pos.y)
+    else placeDefault()
 }
 
 function onDragStart(e) {
     e.currentTarget.setPointerCapture(e.pointerId)
     grab = { dx: e.clientX - pos.x, dy: e.clientY - pos.y }
+    dragged = true
 }
 
 function onDragMove(e) {
