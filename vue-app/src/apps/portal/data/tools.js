@@ -172,6 +172,18 @@ export const tools = [
     status: 'beta',
     tags: ['多人', '遊戲', '默契'],
   },
+  {
+    id: 'webp-compress',
+    name: 'WebP 圖片壓縮',
+    tagline: '拖進來就壓，圖片不上傳',
+    description: '拖圖 · 拖資料夾 · 批次壓縮\n本機處理，畫質可調！',
+    emoji: '🗜️',
+    color: 'blue',
+    route: '/webp-compress',
+    externalUrl: null,
+    status: 'beta',
+    tags: ['個人', '工具', '圖片'],
+  },
   // ── 未來新增工具範例 ──────────────────────────────────────────
   // {
   //   id: 'my-new-tool',

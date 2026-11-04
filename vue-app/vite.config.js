@@ -23,6 +23,21 @@ export default defineConfig({
         display: 'standalone',
         background_color: '#0a0a1a',
         theme_color: '#0a0a1a',
+        // 讓 PWA 出現在圖片的「開啟檔案」清單，並可把圖片拖到桌面捷徑上（Chromium only）。
+        // 檔案由 registerFileHandler（main.js）接手並導向 /webp-compress；action 必須在 scope 內。
+        file_handlers: [
+          {
+            action: '/DDgame/',
+            name: 'WebP 圖片壓縮',
+            accept: {
+              'image/png': ['.png'],
+              'image/jpeg': ['.jpg', '.jpeg'],
+              'image/webp': ['.webp'],
+              'image/avif': ['.avif'],
+              'image/bmp': ['.bmp'],
+            },
+          },
+        ],
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
@@ -31,7 +46,8 @@ export default defineConfig({
       },
       workbox: {
         // Large game assets (audio/bg/cards/...) are cached at runtime instead of precached.
-        globPatterns: ['**/*.{js,css,html,svg,woff2}', '*.png'],
+        // wasm = WebP 壓縮器（@jsquash/webp），預先快取才能離線使用圖片壓縮。
+        globPatterns: ['**/*.{js,css,html,svg,woff2,wasm}', '*.png'],
         globIgnores: ['mountain-lodge/**'],
         navigateFallbackDenylist: [/^\/socket\.io\//],
         cleanupOutdatedCaches: true,
@@ -65,6 +81,9 @@ export default defineConfig({
     }),
   ],
   base: '/DDgame/',
+  // WebP 壓縮器是 WASM + 動態 import，Worker 必須用 ES 格式（預設 iife 不支援 code splitting）
+  worker: { format: 'es' },
+  optimizeDeps: { exclude: ['@jsquash/webp'] },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
