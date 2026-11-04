@@ -8,6 +8,17 @@ description: 同步遠端最新、rebase、把目前所有修改合成一個 com
 專案的 git repo 在 `DDgame/`（上層 `DD/` 不是 repo），所有 git 指令都在 `DDgame/` 下執行。
 預設分支是 `main`，PR 的 base 預設為 `main`。
 
+## 使用者補充說明（呼叫時附帶的參數）
+
+使用者可在 `/pr-commit-push` 後面接文字，例如 `/pr-commit-push 修 PWA 快取問題，分支用 fix/pwa-cache`。有附帶文字時，依下列規則採用，**沒寫的部分照原流程**：
+
+- 指定分支名 → 直接採用，不再詢問分支名。
+- 指定 commit 標題、PR 重點或背景 → 以此為準撰寫 commit message 與 PR 內文。
+- 指定範圍（如「只 commit 這幾個檔案」）→ 只 `git add` 該範圍，其餘修改留在工作目錄並於回報中說明。
+- 「只 commit」「不要開 PR」→ 跳過 Step 6；「不要 push」→ 跳過 Step 5 與 Step 6。
+- 附帶文字與鐵則衝突（如要求在 `main` 上直接 commit、跳過 rebase）→ 不照做，說明原因。
+- Step 3 的計畫確認仍然保留，除非使用者明確寫「不用確認」「直接送」。
+
 ## 鐵則：一個功能分支 = 一個 PR = 一次 merge
 
 GitHub 設定為 Allow merge commits，歷史圖靠下列規則保持乾淨，**必須絕對遵守**：
