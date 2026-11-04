@@ -26,6 +26,7 @@ const routes = [
   { path: '/ladder/verify',         name: 'ladder-verify',        component: () => import('../apps/ladder/pages/LadderVerifyPage.vue') },            // 爬樓梯抽籤：驗證清單
   { path: '/same-word',             name: 'same-word',           component: () => import('../apps/same-word/pages/SameWordLobbyPage.vue') },      // 同詞相遇 入口
   { path: '/same-word/room',        name: 'same-word-room',      component: () => import('../apps/same-word/pages/SameWordRoomPage.vue') },       // 同詞相遇 房間
+  { path: '/webp-compress',         name: 'webp-compress',        component: () => import('../apps/webp-compress/pages/WebpCompressPage.vue') },      // WebP 圖片壓縮
   { path: '/split-bill',            name: 'split-bill',           component: () => import('../apps/split-bill/pages/SplitBillLobbyPage.vue') },      // 分帳 入口
   { path: '/split-bill/room',       name: 'split-bill-room',      component: () => import('../apps/split-bill/pages/SplitBillRoomPage.vue') },       // 分帳 房間
 ]
