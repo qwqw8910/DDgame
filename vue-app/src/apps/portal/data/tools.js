@@ -174,9 +174,9 @@ export const tools = [
   },
   {
     id: 'webp-compress',
-    name: 'WebP 圖片壓縮',
+    name: '圖片壓縮',
     tagline: '拖進來就壓，圖片不上傳',
-    description: '拖圖 · 拖資料夾 · 批次壓縮\n本機處理，畫質可調！',
+    description: 'WebP · JPEG · PNG\n拖圖或資料夾，本機批次壓縮！',
     emoji: '🗜️',
     color: 'blue',
     route: '/webp-compress',

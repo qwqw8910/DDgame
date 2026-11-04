@@ -28,7 +28,7 @@ export default defineConfig({
         file_handlers: [
           {
             action: '/DDgame/',
-            name: 'WebP 圖片壓縮',
+            name: '圖片壓縮',
             accept: {
               'image/png': ['.png'],
               'image/jpeg': ['.jpg', '.jpeg'],
