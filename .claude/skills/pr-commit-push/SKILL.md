@@ -1,25 +1,59 @@
 ---
 name: pr-commit-push
-description: 同步遠端最新、rebase、把目前所有修改合成一個 commit、push 並用 gh 開 PR。使用者說「commit 並開 PR」「push 並開 PR」「pr-commit-push」「送 PR」「提交推送」時使用。
+description: 同步遠端最新、rebase、把目前所有修改合成一個 commit（分支上可累積多個 commit）、push 並用 gh 開 PR。使用者說「commit 並開 PR」「push 並開 PR」「pr-commit-push」「送 PR」「提交推送」時使用。
 ---
 
-# Fetch → Rebase → 單一 Commit → Push → 開 PR
+# Fetch → Rebase → Commit → Push → 開 PR
 
 專案的 git repo 在 `DDgame/`（上層 `DD/` 不是 repo），所有 git 指令都在 `DDgame/` 下執行。
 預設分支是 `main`，PR 的 base 預設為 `main`。
+
+## 鐵則：一個功能分支 = 一個 PR = 一次 merge
+
+GitHub 設定為 Allow merge commits，歷史圖靠下列規則保持乾淨，**必須絕對遵守**：
+
+- 一個功能一條分支、一個 PR；新功能一律開新分支、開新 PR，**不在舊功能分支上疊新功能**。
+- 新分支一律從最新的 `origin/main` 切出。
+- 每次開 PR／更新 PR 前**一定要先 rebase** 到最新的 `origin/main`，不可跳過。
+- 分支上只能有線性的 commit，**禁止在本地 `git merge`**（含 `git pull` 的 merge 行為；同步一律用 `git fetch` + `git rebase`）。merge commit 只由 GitHub 合併 PR 時產生。
+- 不直接在 `main` 上 commit／push。
 
 ## 前置檢查
 
 ```bash
 cd DDgame
+git fetch origin --prune
 git branch --show-current
 git status --short
 gh auth status
 ```
 
-- 目前在 `main`（或 base 分支）→ 先請使用者確認新分支名稱再 `git switch -c`，**不要直接在 main 上 commit**。
-- 分支命名沿用現有慣例：`feat/…`、`fix/…`、`refactor/…`、`docs/…`。
-- 沒有任何修改且沒有領先 base 的 commit → 告知使用者沒東西可送，結束。
+- `gh auth status` 的帳號必須有此 repo 權限；失敗或之後 `gh pr create` 被拒時，回報原因並提供 `https://github.com/<owner>/<repo>/pull/new/<branch>` 網頁連結，不自行切換帳號。
+- 沒有任何修改且沒有領先 `origin/main` 的 commit → 告知使用者沒東西可送，結束。
+
+### 判斷目前所在分支
+
+| 情況 | 處理 |
+| --- | --- |
+| 在 `main`（或其他 base 分支） | 走下方「從 main 建立功能分支」 |
+| 在功能分支，且其 PR 已合併（`gh pr list --head <branch> --state merged` 有結果，或 `git branch --merged origin/main` 含此分支） | 視同在 main：這條分支已用完，新修改要走「從 main 建立功能分支」 |
+| 在功能分支，已有 **open** PR，且本次修改屬於同一功能 | 沿用此分支，繼續 Step 1 |
+| 在功能分支，但本次修改是**另一個功能** | 停下來問使用者；預設做法是切到新分支（見下），不要疊在這條分支上 |
+
+### 從 main 建立功能分支
+
+在 `main` 上有未提交修改時，**先看修改內容，再決定分支，最後才 commit**：
+
+1. `git status --short`、`git diff --stat`、`git diff`：讀懂這次修改在做什麼。
+2. 依內容擬分支名與類型，向使用者確認。命名沿用慣例：`feat/…`、`fix/…`、`refactor/…`、`docs/…`、`chore/…`，英文小寫以連字號分隔，如 `feat/gem-td-mastery-ui-polish`。
+3. 本地 `main` 落後時不要 merge，直接以 `origin/main` 為起點切分支，未提交修改會一起帶過去：
+
+   ```bash
+   git switch -c <type>/<name> origin/main
+   ```
+
+   若切換因修改與 `origin/main` 衝突而失敗，改用 `git stash push -u` → `git switch -c <type>/<name> origin/main` → `git stash pop`。
+4. 確認 `git branch --show-current` 已是新分支、`git status --short` 修改都還在，才進入 Step 1。**到此為止尚未 commit。**
 
 ## Step 1：檢查遠端有沒有別人的更新
 
@@ -29,7 +63,7 @@ git log --oneline HEAD..origin/main            # base 上別人新增的
 git log --oneline HEAD..origin/<branch>        # 同名遠端分支上別人新增的（分支已存在於遠端時）
 ```
 
-回報結果：base 與遠端分支各新增幾個 commit（列出 SHA 與標題）。兩者都沒有新增 → 可跳過 Step 2。
+回報結果：base 與遠端分支各新增幾個 commit（列出 SHA 與標題）。用 `git merge-base --is-ancestor origin/main HEAD` 確認分支是否已包含最新 `origin/main`；已包含且遠端分支沒有他人新 commit 時，Step 2 的 rebase 為空操作，確認後即可略過指令，但**結論要在回報中寫明**。
 
 ## Step 2：Rebase 到最新
 
@@ -67,8 +101,10 @@ git diff                                       # 重點檔案讀完整 diff
 **檔案**（N 個）：path/a, path/b …
 ```
 
-## Step 4：產生單一 Commit
+## Step 4：產生 Commit
 
+- **每次執行只產生一個 commit，包含當下所有未提交的修改**（不拆成多個）。
+- 分支上累積多個 commit 是允許的：第一次送 PR 時是一個 commit；之後同一功能再有修改，再執行一次就是在同分支新增一個 commit，**不要 amend、不要 squash**，push 時用一般 `git push` 即可。
 - 使用明確路徑 `git add <paths>`，不要 `git add -A` / `git add .`（避免誤加機密與暫存檔）。
 - Message 格式沿用專案慣例（Conventional Commits，scope 為模組名，標題與內文用繁體中文）：
 
@@ -128,6 +164,9 @@ EOF
 ## 禁止事項
 
 - 不在 `main` 直接 commit／push。
+- 不在本地 `git merge` 或 `git pull`（會產生 merge commit）；同步只用 `fetch` + `rebase`。
+- 不在已合併或屬於其他功能的分支上疊新 commit；新功能一律新分支、新 PR。
+- 開 PR 前沒有 rebase 到最新 `origin/main` 就不能 push／開 PR。
 - 不使用 `--force`、`--no-verify`、`git reset --hard`、`git clean` 等會丟失工作的指令（除非使用者明確要求）。
 - 不修改 git config。
 - Step 3 的確認之前不 commit、不 push。
