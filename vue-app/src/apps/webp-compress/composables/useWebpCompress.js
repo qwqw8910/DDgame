@@ -1,5 +1,5 @@
 import { ref, computed, onBeforeUnmount } from 'vue'
-import { PRESETS } from '../data/presets.js'
+import { FORMATS, PRESETS, DEFAULT_PRESET, JPEG_BACKGROUNDS } from '../data/presets.js'
 import { buildZip } from '../utils/zip.js'
 
 const SETTINGS_KEY = 'webp-compress-settings'
@@ -13,26 +13,36 @@ function saveSettings(settings) {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) } catch { /* storage unavailable */ }
 }
 
-function toWebpPath(relPath) {
-  return relPath.replace(/\.[^./]+$/, '') + '.webp'
+function toOutputPath(relPath, ext) {
+  return relPath.replace(/\.[^./]+$/, '') + '.' + ext
 }
 
 let nextId = 1
 
 export function useWebpCompress() {
   const saved = loadSettings()
-  const presetId = ref(PRESETS.some((p) => p.id === saved.presetId) ? saved.presetId : 'balanced')
+  const format = ref(FORMATS.some((f) => f.id === saved.format) ? saved.format : 'webp')
+  // 每種格式各記一個預設，切換格式時不用重選
+  const presetIds = ref(Object.fromEntries(
+    FORMATS.map((f) => [f.id, PRESETS[f.id].some((p) => p.id === saved.presetIds?.[f.id]) ? saved.presetIds[f.id] : DEFAULT_PRESET[f.id]]),
+  ))
   const maxEdge = ref(Number(saved.maxEdge) || 0)
+  const background = ref(JPEG_BACKGROUNDS.some((b) => b.value === saved.background) ? saved.background : JPEG_BACKGROUNDS[0].value)
   const items = ref([])
 
-  const preset = computed(() => PRESETS.find((p) => p.id === presetId.value))
-  const settingsKey = computed(() => `${presetId.value}|${maxEdge.value}`)
+  const formatInfo = computed(() => FORMATS.find((f) => f.id === format.value))
+  const presets = computed(() => PRESETS[format.value])
+  const presetId = computed(() => presetIds.value[format.value])
+  const preset = computed(() => presets.value.find((p) => p.id === presetId.value))
+  // 底色只影響 JPEG，其他格式不該因為它而被判定為「舊設定」
+  const settingsKey = computed(() =>
+    `${format.value}|${presetId.value}|${maxEdge.value}|${format.value === 'jpeg' ? background.value : ''}`)
 
   // ── Worker 池（第一次加入圖片時才建立，載入 WASM 較重） ──
   const pool = []
   function ensurePool() {
     while (pool.length < POOL_SIZE) {
-      pool.push({ worker: new Worker(new URL('../workers/webp.worker.js', import.meta.url), { type: 'module' }), busy: false })
+      pool.push({ worker: new Worker(new URL('../workers/compress.worker.js', import.meta.url), { type: 'module' }), busy: false })
     }
   }
 
@@ -49,6 +59,7 @@ export function useWebpCompress() {
     const token = ++item.token
     item.status = 'working'
     item.key = settingsKey.value
+    item.outFormat = format.value
     slot.busy = true
     const release = () => { slot.busy = false; pump() }
     slot.worker.onmessage = ({ data }) => {
@@ -60,7 +71,13 @@ export function useWebpCompress() {
       if (item.token === token && item.status === 'working') fail(item, e.message || '壓縮失敗')
       release()
     }
-    slot.worker.postMessage({ file: item.file, options: { ...preset.value.options }, maxEdge: maxEdge.value })
+    slot.worker.postMessage({
+      file: item.file,
+      format: format.value,
+      options: { ...preset.value.options },
+      maxEdge: maxEdge.value,
+      background: background.value,
+    })
   }
 
   function setResult(item, blob) {
@@ -71,16 +88,17 @@ export function useWebpCompress() {
 
   function finish(item, data) {
     if (!data.ok) return fail(item, data.error)
-    const webp = new Blob([data.buffer], { type: 'image/webp' })
-    // 原檔本來就是 WebP 且重壓後反而更大：保留原檔，不倒退
-    const keepOriginal = /\.webp$/i.test(item.file.name) && webp.size >= item.file.size
+    const info = FORMATS.find((f) => f.id === item.outFormat)
+    const encoded = new Blob([data.buffer], { type: info.mime })
+    // 原檔格式和輸出相同、且重壓後反而更大：保留原檔，不倒退（跨格式轉換是使用者要的，不保留）
+    const keepOriginal = info.inputRe.test(item.file.name) && encoded.size >= item.file.size
     item.keptOriginal = keepOriginal
     item.width = data.width
     item.height = data.height
     item.srcWidth = data.srcWidth
     item.srcHeight = data.srcHeight
     item.error = ''
-    setResult(item, keepOriginal ? item.file : webp)
+    setResult(item, keepOriginal ? item.file : encoded)
     item.status = 'done'
   }
 
@@ -103,6 +121,7 @@ export function useWebpCompress() {
         outBlob: null,
         status: 'queued',
         key: '',
+        outFormat: 'webp',
         token: 0,
         keptOriginal: false,
         width: 0,
@@ -136,10 +155,12 @@ export function useWebpCompress() {
 
   // ── 設定 ──
   function persist() {
-    saveSettings({ presetId: presetId.value, maxEdge: maxEdge.value })
+    saveSettings({ format: format.value, presetIds: presetIds.value, maxEdge: maxEdge.value, background: background.value })
   }
 
-  function setPreset(id) { presetId.value = id; persist() }
+  function setPreset(id) { presetIds.value[format.value] = id; persist() }
+  function setFormat(id) { format.value = id; persist() }
+  function setBackground(value) { background.value = value; persist() }
   function setMaxEdge(value) { maxEdge.value = Number(value); persist() }
 
   // 設定改變不會自動重壓（大量圖片會很慢），由使用者按「套用設定重新壓縮」
@@ -158,7 +179,8 @@ export function useWebpCompress() {
     const used = new Set()
     const map = new Map()
     for (const item of items.value) {
-      const path = item.keptOriginal ? item.relPath : toWebpPath(item.relPath)
+      const ext = FORMATS.find((f) => f.id === (item.status === 'done' ? item.outFormat : format.value)).ext
+      const path = item.keptOriginal ? item.relPath : toOutputPath(item.relPath, ext)
       let candidate = path
       for (let n = 2; used.has(candidate.toLowerCase()); n++) candidate = path.replace(/(\.[^./]+)?$/, `-${n}$1`)
       used.add(candidate.toLowerCase())
@@ -224,7 +246,7 @@ export function useWebpCompress() {
   })
 
   return {
-    items, presetId, maxEdge, preset, staleCount, pendingCount, totals, doneItems, outPaths, canSaveToFolder,
-    addFiles, removeItem, clearAll, setPreset, setMaxEdge, recompressAll, downloadZip, saveToFolder, triggerDownload,
+    items, format, formatInfo, presets, presetId, maxEdge, background, preset, staleCount, pendingCount, totals, doneItems, outPaths, canSaveToFolder,
+    addFiles, removeItem, clearAll, setFormat, setPreset, setMaxEdge, setBackground, recompressAll, downloadZip, saveToFolder, triggerDownload,
   }
 }

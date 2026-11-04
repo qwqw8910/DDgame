@@ -10,6 +10,8 @@
     "generate-pwa-assets": "pwa-assets-generator"
   },
   "dependencies": {
+    "@jsquash/jpeg": "^1.6.0",
+    "@jsquash/oxipng": "^2.3.0",
     "@jsquash/webp": "^1.5.0",
     "@supabase/supabase-js": "^2.105.0",
     "@tailwindcss/vite": "^4.3.3",

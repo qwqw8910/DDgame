@@ -17,16 +17,30 @@
       </header>
 
       <div>
-        <h1 class="m-0 text-3xl font-black">WebP 圖片壓縮</h1>
-        <p class="mt-1 mb-0 text-body">拖入圖片或整個資料夾，在瀏覽器本機壓成 WebP。圖片不會上傳到任何地方。</p>
+        <h1 class="m-0 text-3xl font-black">圖片壓縮</h1>
+        <p class="mt-1 mb-0 text-body">拖入圖片或整個資料夾，在瀏覽器本機壓成 WebP、JPEG 或 PNG。圖片不會上傳到任何地方。</p>
       </div>
 
       <!-- 設定 -->
       <section class="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4">
         <div>
-          <p class="m-0 mb-2 font-semibold text-label">壓縮品質</p>
-          <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <button v-for="p in PRESETS" :key="p.id" type="button" @click="setPreset(p.id)"
+          <p class="m-0 mb-2 font-semibold text-label">輸出格式</p>
+          <div class="grid grid-cols-3 gap-2">
+            <button v-for="f in FORMATS" :key="f.id" type="button" @click="setFormat(f.id)"
+              class="cursor-pointer rounded-xl border px-2 py-2 transition-colors"
+              :class="format === f.id
+                ? 'border-neon-purple bg-accent-tint font-bold text-heading'
+                : 'border-border bg-transparent text-body hover:border-border-glow'">
+              {{ f.label }}
+            </button>
+          </div>
+          <p v-if="format === 'png'" class="mt-2 mb-0 text-body">PNG 是無損格式，沒有畫質選項；照片轉成 PNG 通常會比原檔更大。</p>
+        </div>
+
+        <div>
+          <p class="m-0 mb-2 font-semibold text-label">{{ format === 'png' ? '最佳化力度' : '壓縮品質' }}</p>
+          <div class="grid grid-cols-2 gap-2" :class="presets.length > 3 ? 'sm:grid-cols-5' : 'grid-cols-3'">
+            <button v-for="p in presets" :key="p.id" type="button" @click="setPreset(p.id)"
               class="cursor-pointer rounded-xl border px-2 py-2 transition-colors"
               :class="presetId === p.id
                 ? 'border-neon-purple bg-accent-tint font-bold text-heading'
@@ -36,6 +50,15 @@
           </div>
           <p class="mt-2 mb-0 text-body">{{ preset.hint }}</p>
         </div>
+
+        <label v-if="format === 'jpeg'" class="flex flex-wrap items-center gap-3">
+          <span class="font-semibold text-label">透明處底色</span>
+          <select :value="background" @change="setBackground($event.target.value)"
+            class="cursor-pointer rounded-lg border border-border bg-input px-3 py-2 text-heading">
+            <option v-for="b in JPEG_BACKGROUNDS" :key="b.value" :value="b.value">{{ b.label }}</option>
+          </select>
+          <span class="text-body">JPEG 不支援透明，透明的地方會填上這個顏色。</span>
+        </label>
 
         <label class="flex flex-wrap items-center gap-3">
           <span class="font-semibold text-label">縮小尺寸</span>
@@ -147,14 +170,14 @@
 <script setup>
 import { ref, watch } from 'vue'
 import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
-import { PRESETS, MAX_EDGES } from '../data/presets.js'
+import { FORMATS, MAX_EDGES, JPEG_BACKGROUNDS } from '../data/presets.js'
 import { useWebpCompress } from '../composables/useWebpCompress.js'
 import { incoming } from '../composables/useIncomingImages.js'
 import { collectFromDrop, collectFromFileList } from '../utils/collect.js'
 
 const {
-  items, presetId, maxEdge, preset, staleCount, pendingCount, totals, doneItems, outPaths, canSaveToFolder,
-  addFiles, removeItem, clearAll, setPreset, setMaxEdge, recompressAll, downloadZip, saveToFolder,
+  items, format, presets, presetId, maxEdge, background, preset, staleCount, pendingCount, totals, doneItems, outPaths, canSaveToFolder,
+  addFiles, removeItem, clearAll, setFormat, setPreset, setMaxEdge, setBackground, recompressAll, downloadZip, saveToFolder,
 } = useWebpCompress()
 
 const btnClass = 'cursor-pointer rounded-xl border-0 bg-neon-purple px-4 py-2 font-semibold text-white transition-colors hover:bg-neon-purple-hover disabled:cursor-not-allowed disabled:opacity-40'
