@@ -1,69 +1,41 @@
 <template>
-    <div class="page-wrapper page-wrapper--scrollable">
+    <div class="page-wrapper page-wrapper--scrollable bg-canvas font-text text-ink">
         <ConnectionBanner :connected="state.connected" :active="!!state.room" />
-        <!-- Header -->
-        <header class="sticky-header app-header--room">
-            <div class="header-inner header-inner--room">
-                <span class="logo-sm">懂我再說 👀</span>
-                <div class="header-info">
-                    <span class="header-room-id">{{ state.roomId }}</span>
-                    <span class="text-xs text-body">{{ state.players.length }}/{{ state.room?.max_players
-                        ?? '?' }} 人</span>
-                    <span v-if="state.currentRound && state.room?.status === 'playing'" class="header-round">
-                        第 {{ state.currentRound.round_number }} 回合
-                    </span>
-                </div>
-                <div class="flex gap-1.5 items-center">
-                    <RoomPlayerPanel
-                        :players="state.players"
-                        :my-id="state.myPlayerId"
-                        :host-id="state.room?.host_player_id"
-                        :is-host="state.isHost"
-                        @kick="handleKick"
-                        @transfer-host="handleTransferHost" />
-                    <button class="header-icon-btn" title="複製邀請連結" @click="copyLink">🔗</button>
-                    <button class="header-icon-btn" title="切換主題" @click="toggleTheme">{{ themeIcon }}</button>
-                </div>
-            </div>
-        </header>
 
-        <!-- Loading -->
+        <RoomHeader class="sticky top-0" title="懂我再說" :room-id="state.roomId" :progress="headerProgress"
+            @leave="goHome" @invite="copyLink">
+            <template #players="{ btnClass }">
+                <RoomPlayerPanel :players="state.players" :my-id="state.myPlayerId"
+                    :host-id="state.room?.host_player_id" :is-host="state.isHost" :trigger-class="btnClass"
+                    @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
+            </template>
+        </RoomHeader>
+
+        <!-- 載入中 -->
         <div v-if="state.loading" class="fullscreen-overlay fullscreen-overlay--blur">
-            <div class="loading-icon">🎭</div>
             <span class="spinner mb-3.5"></span>
             <p class="text-body text-base">{{ state.loadingText || '連線中…' }}</p>
         </div>
 
-        <!-- Nickname Overlay（沒有暱稱時顯示） -->
-        <div v-else-if="showNicknameOverlay" class="overlay">
-            <div class="overlay-card">
-                <div class="section-header mb-4">
-                    <div class="section-icon">👤</div>
-                    <h2 class="neon-heading text-xl">輸入你的暱稱</h2>
-                    <p class="section-subtitle">讓朋友知道你是誰！</p>
-                </div>
-                <div v-if="nicknameError" class="error-alert">{{ nicknameError }}</div>
-                <div class="input-wrapper mb-3">
-                    <span class="input-icon">✏️</span>
-                    <input v-model="overlayNickname" ref="overlayInputRef" class="game-input" type="text"
-                        placeholder="你的暱稱…" maxlength="12" @keydown.enter="joinWithNickname" />
-                </div>
-                <button class="btn-primary" @click="joinWithNickname">
-                    加入房間 🚀
-                </button>
-            </div>
-        </div>
+        <!-- 被踢出 / 無法加入 -->
+        <RoomBlocked v-else-if="blocked" :kicked="blocked.kicked" :message="blocked.message" @back="goLobby" />
+
+        <!-- 暱稱遮罩（直接點邀請連結進來、或暱稱被用走了） -->
+        <RoomNicknameGate v-else-if="showNicknameOverlay" title="懂我再說" :room-id="pendingRoomId"
+            :server-error="nicknameError" @submit="joinWithNickname" />
+
+        <!-- 大廳 -->
+        <main v-else-if="state.room?.status === 'waiting'" class="mx-auto flex w-full max-w-3xl flex-1 flex-col p-3">
+            <RoomLobby class="flex-1" :room-id="state.roomId" :players="state.players" :my-id="state.myPlayerId"
+                :host-id="state.room.host_player_id" :is-host="state.isHost"
+                :min-players="MIN_PLAYERS" :max-players="state.room.max_players" ready-mode
+                @invite="copyLink" @start="startGame" @ready="setReady" />
+        </main>
 
         <!-- 遊戲主畫面 -->
         <main v-else-if="state.room" class="main-content main-content--room"
-            :class="{ 'main-content--game': state.room.status === 'playing', 'main-content--lobby': state.room.status !== 'playing' }">
-            <!-- 大廳 -->
-            <LobbySection v-if="state.room.status === 'waiting'" :players="state.players" :my-id="state.myPlayerId"
-                :host-id="state.room.host_player_id" :is-host="state.isHost" :room-id="state.roomId"
-                @toggle-ready="toggleReady" @start-game="startGame"
-                @kick="handleKick" @transfer-host="handleTransferHost" @copy-link="copyLink" />
-
-            <template v-else-if="state.room.status === 'playing'">
+            :class="{ 'main-content--game': state.room.status === 'playing' }">
+            <template v-if="state.room.status === 'playing'">
                 <!-- 伺服器重啟後 gameState 遺失，顯示提示等待房主重新開始 -->
                 <div v-if="!state.currentRound" class="game-section text-center py-12 px-4">
                     <div class="text-5xl mb-4">🔌</div>
@@ -139,11 +111,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSocket } from '../composables/useSocket.js'
 import { getOrCreatePlayerId, getSavedNickname, saveNickname } from '@/shared/data/identity.js'
-import LobbySection from '../components/LobbySection.vue'
 import TopicSection from '../components/TopicSection.vue'
 import AnswerSection from '../components/AnswerSection.vue'
 import GuessSection from '../components/GuessSection.vue'
@@ -152,27 +123,23 @@ import FinishedSection from '../components/FinishedSection.vue'
 import PreviewSection from '../components/PreviewSection.vue'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
 import ConnectionBanner from '@/shared/components/ConnectionBanner.vue'
+import RoomHeader from '@/shared/components/room/RoomHeader.vue'
+import RoomLobby from '@/shared/components/room/RoomLobby.vue'
+import RoomNicknameGate from '@/shared/components/room/RoomNicknameGate.vue'
+import RoomBlocked from '@/shared/components/room/RoomBlocked.vue'
+
+// 伺服器 start_game 的下限
+const MIN_PLAYERS = 2
 
 const router = useRouter()
 const route = useRoute()
 
-// ── 主題切換 ──────────────────────────────────────────────────────
-const themeIcon = ref(document.documentElement.getAttribute('data-theme') === 'light' ? '☀️' : '🌙')
-function toggleTheme() {
-    const html = document.documentElement
-    const next = html.getAttribute('data-theme') === 'light' ? 'mygame' : 'light'
-    html.setAttribute('data-theme', next)
-    localStorage.setItem('theme', next === 'light' ? 'light' : 'dark')
-    themeIcon.value = next === 'light' ? '☀️' : '🌙'
-}
-
 // ── UI 狀態 ───────────────────────────────────────────────────────
 const showNicknameOverlay = ref(false)
-const overlayNickname = ref('')
-const overlayInputRef = ref(null)
 const nicknameError = ref('')
-const pendingRoomId = ref('')
-const pendingPlayerId = ref('')
+const pendingRoomId = ref((route.query.id || '').toString().toUpperCase())
+// 進不去房間 / 被踢出：{ kicked, message }
+const blocked = ref(null)
 const submittedAnswerLocal = ref(null)
 const revealAnimDone = ref(false)
 const toast = ref({ show: false, msg: '', type: '' })
@@ -188,7 +155,7 @@ function showToast(msg, type = '', duration = 3000) {
 const {
     state,
     connectAndJoin,
-    toggleReady,
+    setReady,
     startGame,
     selectTopic,
     submitAnswer,
@@ -202,15 +169,22 @@ const {
     swapPreview,
     confirmPreview,
     setOnline,
+    leaveRoom,
+    disconnect,
 } = useSocket({
     onRoomState() {
         showNicknameOverlay.value = false
         revealAnimDone.value = false
     },
-    onJoinError(msg) {
-        showNicknameOverlay.value = true
-        nicknameError.value = msg
-        nextTick(() => overlayInputRef.value?.focus())
+    onJoinError(msg, code) {
+        // 已在房內的錯誤（例如踢人失敗）用 toast；進房時的錯誤才擋畫面
+        if (state.room) { showToast(msg, 'error'); return }
+        if (code === 'NICKNAME_TAKEN') {
+            nicknameError.value = msg
+            showNicknameOverlay.value = true
+            return
+        }
+        blocked.value = { kicked: false, message: msg }
     },
     onRoundRevealed({ currentRound }) {
         revealAnimDone.value = false
@@ -221,25 +195,25 @@ const {
     },
     onAnswerAccepted(answer) {
         submittedAnswerLocal.value = answer
-        showToast('✓ 答案已送出！', 'success')
+        showToast('答案已送出', 'success')
     },
     onKicked() {
-        showToast('你已被房主踢出房間 😢', 'error', 5000)
-        setTimeout(() => router.push('/'), 2500)
+        blocked.value = { kicked: true, message: '你被房主踢出了房間' }
     },
     onError(msg) {
-        showToast('❌ ' + msg, 'error')
+        showToast(msg, 'error')
     },
     onReconnect() {
-        showToast('✓ 已重新連線', 'success', 2500)
+        // 首次連線也會觸發 connect，只有已在房內時才算「重新連線」
+        if (state.room) showToast('已重新連線', 'success', 2500)
     },
 })
 
 // ── Init ─────────────────────────────────────────────────────────
 onMounted(() => {
-    const roomId = (route.query.id || '').toString().toUpperCase()
+    const roomId = pendingRoomId.value
 
-    if (!roomId) { router.push('/'); return }
+    if (!roomId) { router.push('/game'); return }
 
     const playerId = getOrCreatePlayerId()
     const nickname = (route.query.nickname || getSavedNickname() || '').toString()
@@ -248,10 +222,6 @@ onMounted(() => {
         connectAndJoin(roomId, playerId, nickname)
     } else {
         showNicknameOverlay.value = true
-        // store pending info in local refs (state is readonly)
-        pendingRoomId.value = roomId
-        pendingPlayerId.value = playerId
-        nextTick(() => overlayInputRef.value?.focus())
     }
 
     document.addEventListener('visibilitychange', handleVisibility)
@@ -261,6 +231,8 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener('visibilitychange', handleVisibility)
     window.removeEventListener('beforeunload', handleBeforeUnload)
+    clearTimeout(_toastTimer)
+    disconnect() // 瀏覽器返回鍵離開頁面時也要斷線，避免留下幽靈在線玩家
 })
 
 function handleVisibility() {
@@ -270,15 +242,27 @@ function handleBeforeUnload() {
     setOnline(false)
 }
 
-// ── 暱稱 Overlay ─────────────────────────────────────────────────
-function joinWithNickname() {
-    const nickname = overlayNickname.value.trim()
-    if (!nickname) { nicknameError.value = '請輸入暱稱'; return }
-    const roomId = pendingRoomId.value || (route.query.id || '').toString().toUpperCase()
-    const playerId = pendingPlayerId.value || getOrCreatePlayerId()
+// ── 暱稱遮罩 ─────────────────────────────────────────────────────
+function joinWithNickname(nickname) {
     saveNickname(nickname)
-    connectAndJoin(roomId, playerId, nickname)
+    nicknameError.value = ''
     showNicknameOverlay.value = false
+    connectAndJoin(pendingRoomId.value, getOrCreatePlayerId(), nickname)
+}
+
+// ── 頂列進度 ─────────────────────────────────────────────────────
+const headerProgress = computed(() => (state.room?.status === 'playing' && state.currentRound
+    ? `第 ${state.currentRound.round_number} 回合` : ''))
+
+// ── 離開 ─────────────────────────────────────────────────────────
+function goLobby() {
+    disconnect()
+    router.push('/game')
+}
+async function goHome() {
+    if (state.room?.status === 'playing' && !confirm('遊戲進行中，確定要離開房間嗎？')) return
+    await leaveRoom()
+    goLobby()
 }
 
 // ── 動作包裝 ─────────────────────────────────────────────────────
@@ -292,21 +276,14 @@ function handleSubmitGuess(letter) {
     submitGuess(letter)
 }
 
-function handleKick(playerId, nickname) {
-    if (!confirm(`確定要踢出 ${nickname}？`)) return
-    kickPlayer(playerId)
-}
-
-function handleTransferHost(playerId, nickname) {
-    if (!confirm(`將房主移交給 ${nickname}？`)) return
-    transferHost(playerId)
-}
-
-function copyLink() {
+async function copyLink() {
     const url = `${location.origin}${location.pathname}#/room?id=${state.roomId}`
-    navigator.clipboard.writeText(url)
-        .then(() => showToast('房間連結已複製 🔗', 'success'))
-        .catch(() => showToast('請手動複製連結', 'error'))
+    try {
+        await navigator.clipboard.writeText(url)
+        showToast('邀請連結已複製', 'success')
+    } catch {
+        showToast(`無法自動複製，請告訴朋友房號 ${state.roomId}`, 'error', 5000)
+    }
 }
 
 // ── Confetti 彩帶 ─────────────────────────────────────────────────
