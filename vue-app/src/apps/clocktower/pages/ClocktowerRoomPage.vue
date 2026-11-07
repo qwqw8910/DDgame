@@ -1,24 +1,20 @@
 <template>
-    <div class="flex h-[100dvh] w-full flex-col overflow-hidden bg-dark pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+    <div class="flex h-[100dvh] w-full flex-col overflow-hidden bg-canvas font-text text-ink pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
         <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
-        <!-- Header -->
-        <header class="relative z-40 shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-header backdrop-blur-md">
-            <div class="flex items-center gap-1 min-w-0">
-                <button class="header-back-btn" aria-label="離開房間" @click="goHome">←<span class="hidden sm:inline"> 離開</span></button>
-                <span class="font-bold text-heading truncate">血染鐘樓</span>
-                <span v-if="view" class="badge hidden sm:inline-flex">{{ roleLabel }}</span>
-            </div>
-            <div class="hidden sm:flex items-center gap-2">
-                <span class="font-mono font-semibold tracking-[3px] text-neon-purple-light">{{ roomState.roomId }}</span>
-            </div>
-            <div class="flex items-center gap-1 shrink-0">
+
+        <RoomHeader title="血染鐘樓" :room-id="roomState.roomId" :progress="headerProgress"
+            @leave="goHome" @invite="handleCopyLink">
+            <template #actions="{ btnClass }">
+                <button type="button" :class="btnClass" aria-label="角色一覽" title="角色一覽" @click="showRoles = true">
+                    <RoomIcon name="book" />
+                </button>
+            </template>
+            <template #players="{ btnClass }">
                 <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
-                    :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost"
+                    :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost" :trigger-class="btnClass"
                     @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
-                <button class="header-icon-btn" title="角色一覽" aria-label="角色一覽" @click="showRoles = true"><GameIcon id="roleSheet" :size="18" /></button>
-                <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GameIcon id="link" :size="18" /></button>
-            </div>
-        </header>
+            </template>
+        </RoomHeader>
 
         <RoleSheet :open="showRoles" :script="state.script" :my-role-id="view?.me?.roleId ?? null" @close="showRoles = false" />
 
@@ -30,100 +26,77 @@
         </div>
 
         <!-- 被踢出 / 無法加入 -->
-        <div v-else-if="state.kicked || (state.error && !roomState.room)" class="overlay">
-            <div class="overlay-card text-center">
-                <div class="mb-2"><GameIcon id="left" :size="40" /></div>
-                <p class="text-heading text-lg font-semibold mb-1">{{ state.kicked ? '你已離開房間' : '無法進入房間' }}</p>
-                <p class="text-body mb-4">{{ state.kicked || state.error }}</p>
-                <button class="btn-primary" @click="goLobby">回到入口</button>
-            </div>
-        </div>
+        <RoomBlocked v-else-if="state.kicked || (state.error && !roomState.room && !nicknameTaken)" :kicked="!!state.kicked"
+            :message="state.kicked || state.error" @back="goLobby" />
 
         <!-- 暱稱遮罩 -->
-        <div v-else-if="showNicknameOverlay" class="overlay">
-            <div class="overlay-card">
-                <div class="section-header mb-4">
-                    <h2 class="neon-heading text-xl">輸入你的暱稱</h2>
-                    <p class="text-sm text-body m-0">請使用和 Discord 相同的暱稱</p>
-                </div>
-                <div class="input-wrapper mb-3">
-                    <input v-model="overlayNickname" ref="overlayInputRef" class="game-input" type="text"
-                        placeholder="你的暱稱…" maxlength="12" aria-label="暱稱" autocomplete="off" @keydown.enter="joinWithNickname" />
-                </div>
-                <button class="btn-primary" @click="joinWithNickname">加入房間</button>
-            </div>
-        </div>
+        <RoomNicknameGate v-else-if="showNicknameOverlay || nicknameTaken" :server-error="nicknameTaken ? state.error : ''" title="血染鐘樓" :room-id="(route.query.id || '').toUpperCase()"
+            hint="請使用和 Discord 相同的暱稱，大家才認得出你。" @submit="joinWithNickname" />
 
-        <main v-else-if="roomState.room && view" class="flex min-h-0 w-full flex-1 flex-col gap-2 overflow-hidden p-2 sm:p-3">
+        <main v-else-if="roomState.room && view" class="flex min-h-0 w-full flex-1 flex-col gap-2"
+            :class="phase === 'lobby' ? 'mx-auto max-w-3xl overflow-y-auto p-3' : 'overflow-hidden p-2 sm:p-3'">
             <!-- 暫停 -->
             <div v-if="phase === 'paused'" class="shrink-0 rounded-xl border border-lemon/50 bg-lemon/10 px-3 py-2 text-center text-sm font-semibold text-heading" role="alert">
                 <GameIcon id="pause" :size="16" /> 等待說書人重新連線…（遊戲暫停）
             </div>
 
             <!-- 觀戰提示 -->
-            <div v-if="role === 'spectator' && phase !== 'lobby'" class="shrink-0 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm" role="status">
-                <span class="text-label">你正在觀戰：只看得到公開城鎮廣場，不能發言或私聊。</span>
-                <button v-if="roomState.isSpectator && roomState.spectatorCanJoin" class="btn-primary !w-auto !px-3 !py-1.5 text-sm" @click="upgradeFromSpectator">加入房間</button>
-            </div>
+            <RoomSpectatorBar v-if="role === 'spectator' && phase !== 'lobby'" class="shrink-0"
+                message="你正在觀戰：只看得到公開城鎮廣場，不能發言或私聊。"
+                :can-join="roomState.isSpectator && roomState.spectatorCanJoin" @join="upgradeFromSpectator" />
 
             <!-- ═════════════ 大廳 ═════════════ -->
-            <section v-if="phase === 'lobby'" class="mx-auto grid w-full max-w-5xl min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2 lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-1">
-                <div class="game-card flex min-h-0 flex-col gap-2 overflow-y-auto !p-3">
-                    <div class="flex items-center justify-between gap-2">
-                        <span class="font-mono text-xl font-bold tracking-[4px] text-neon-purple-light">{{ roomState.roomId }}</span>
-                        <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GameIcon id="link" :size="18" /></button>
+            <!-- 共用等待室：玩家區換成入座圓桌，設定區放說書人與注意事項；開始按鈕交給說書人 -->
+            <RoomLobby v-if="phase === 'lobby'" class="flex-1" :room-id="roomState.roomId" :players="roomState.players"
+                :my-id="myId" :host-id="roomState.room.host_player_id" :is-host="roomState.isHost"
+                :min-players="0" :is-starter="role === 'storyteller'" start-label="進入開局設定" :start-blocker="seatBlocker"
+                :waiting-text="lobbyWaitingText" :can-join="roomState.isSpectator && roomState.spectatorCanJoin"
+                players-title="座位" :players-count="`已入座 ${seatedCount} / ${view.seatCount}`"
+                settings-title="說書人" settings-note="由房主指定"
+                @invite="handleCopyLink" @start="setup('begin')" @join="upgradeFromSpectator">
+                <template #players>
+                    <!-- 依視窗高度縮放：桌機也能在第一屏看到整個圓桌和下方提示 -->
+                    <div class="relative mx-auto aspect-square w-full max-w-[min(520px,max(300px,calc(100dvh-460px)))]">
+                        <TownCircle :seats="lobbySeats" :my-id="myId" :online="view.online" :names="names" :selected="swapFrom !== null ? [swapFrom] : []"
+                            @seat-click="onLobbySeat">
+                            <template #center>
+                                <GameIcon id="banner" :size="28" />
+                            </template>
+                        </TownCircle>
                     </div>
-                    <details class="text-xs text-body">
-                        <summary class="cursor-pointer text-label">注意事項</summary>
-                        <ul class="m-0 mt-1 list-none p-0 leading-relaxed">
-                            <li><GameIcon id="voice" :size="12" /> 公開討論請進 Discord 語音，私聊與所有操作在網頁上</li>
-                            <li><GameIcon id="voice" :size="12" /> 請使用和 Discord 相同的暱稱</li>
-                            <li><GameIcon id="night" :size="12" /> 夜晚請關麥克風</li>
-                            <li><GameIcon id="warn" :size="12" /> 不可出示角色牌或截圖</li>
-                        </ul>
-                    </details>
+                    <p class="m-0 mt-3 text-center text-base text-ink-muted">{{ seatHint }}</p>
+                </template>
 
-                    <!-- 說書人 -->
-                    <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-border p-2">
-                        <GameIcon id="storyteller" :size="16" />
-                        <span class="min-w-0 flex-1 truncate text-sm text-heading">說書人：{{ view.storytellerId ? (names[view.storytellerId] ?? '?') : '尚未決定' }}<span v-if="view.storytellerId === myId" class="badge badge-me ml-1">我</span></span>
+                <template #settings>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <p class="m-0 min-w-0 flex-1 text-lg text-ink">
+                            {{ view.storytellerId ? (names[view.storytellerId] ?? '?') : '尚未決定' }}
+                            <span v-if="view.storytellerId === myId" class="text-base text-brand-ink">你</span>
+                        </p>
                         <template v-if="roomState.isHost">
-                            <button class="btn-secondary !w-auto !px-2 !py-1 text-xs" @click="randomStoryteller"><GameIcon id="dice" :size="12" /> 隨機</button>
-                            <select class="game-input !w-auto max-w-[8.5rem] cursor-pointer !py-1 text-xs" :value="view.storytellerId ?? ''" aria-label="指定說書人" @change="e => e.target.value && setStoryteller(e.target.value)">
+                            <button type="button" :class="ghostBtnClass" @click="randomStoryteller">隨機抽</button>
+                            <select :class="selectClass" class="!w-auto max-w-[10rem]" :value="view.storytellerId ?? ''" aria-label="指定說書人"
+                                @change="e => e.target.value && setStoryteller(e.target.value)">
                                 <option value="" disabled>指定…</option>
                                 <option v-for="p in roomState.players" :key="p.id" :value="p.id">{{ p.nickname }}{{ p.id === myId ? '（我）' : '' }}</option>
                             </select>
                         </template>
                     </div>
-                    <p v-if="!roomState.isHost && !view.storytellerId" class="m-0 text-xs text-body">由房主指定或隨機抽出；說書人不入座、不計分。</p>
+                    <p class="m-0 mt-2 text-base text-ink-muted">說書人不入座、不計分，負責主持整局。</p>
 
-                    <!-- 說書人：開局 -->
-                    <template v-if="role === 'storyteller'">
-                        <p class="m-0 text-xs text-body">點兩個座位可以互換位置（座位順序就是鄰座）。</p>
-                        <div v-if="DEV_BOTS" class="flex gap-2">
-                            <button class="btn-ghost-sm flex-1" @click="setup('add-bots')"><GameIcon id="bot" :size="14" /> 填入測試機器人</button>
-                            <button class="btn-ghost-sm flex-1" @click="setup('remove-bots')">移除機器人</button>
-                        </div>
-                        <button class="btn-primary btn-full !py-2" :disabled="seatedCount < MIN_SEATS" @click="setup('begin')">
-                            進入開局設定（{{ seatedCount }}/{{ MIN_SEATS }}+ 人）
-                        </button>
-                    </template>
-                    <p v-else-if="isRoomPlayer" class="m-0 text-center text-xs text-body">
-                        {{ mySeatLobby >= 0 ? `你坐在 ${mySeatLobby + 1} 號。點自己的座位可以離座。` : '點一個空座位入座。' }}
-                    </p>
-                    <button v-if="roomState.isSpectator && roomState.spectatorCanJoin" class="btn-primary btn-full" @click="upgradeFromSpectator">加入房間</button>
-                </div>
+                    <div v-if="role === 'storyteller' && DEV_BOTS" class="mt-4 grid grid-cols-2 gap-2">
+                        <button type="button" :class="ghostBtnClass" @click="setup('add-bots')">填入測試機器人</button>
+                        <button type="button" :class="ghostBtnClass" @click="setup('remove-bots')">移除機器人</button>
+                    </div>
 
-                <div class="game-card relative min-h-0 !p-2">
-                    <TownCircle :seats="lobbySeats" :my-id="myId" :online="view.online" :names="names" :selected="swapFrom !== null ? [swapFrom] : []"
-                        @seat-click="onLobbySeat">
-                        <template #center>
-                            <GameIcon id="banner" :size="28" />
-                            <p class="m-0 text-xs text-label">已入座 {{ seatedCount }} / {{ view.seatCount }}</p>
-                        </template>
-                    </TownCircle>
-                </div>
-            </section>
+                    <h4 class="m-0 mt-5 text-base font-medium text-ink">開始前請注意</h4>
+                    <ul class="m-0 mt-2 flex list-disc flex-col gap-1 pl-5 text-base leading-relaxed text-ink-muted">
+                        <li>公開討論在 Discord 語音，私聊與所有操作在這個網頁上</li>
+                        <li>夜晚請關麥克風</li>
+                        <li>不可出示角色牌或截圖</li>
+                    </ul>
+                </template>
+            </RoomLobby>
 
             <!-- ═════════════ 開局設定 ═════════════ -->
             <section v-else-if="phase === 'setup'" class="mx-auto grid w-full max-w-6xl min-h-0 flex-1 gap-2"
@@ -367,12 +340,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useClocktower, roleInfo } from '../composables/useClocktower.js'
 import { getSavedNickname, saveNickname } from '@/shared/data/identity.js'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
 import ConnectionBanner from '@/shared/components/ConnectionBanner.vue'
+import RoomHeader from '@/shared/components/room/RoomHeader.vue'
+import RoomIcon from '@/shared/components/room/RoomIcon.vue'
+import RoomLobby from '@/shared/components/room/RoomLobby.vue'
+import RoomNicknameGate from '@/shared/components/room/RoomNicknameGate.vue'
+import RoomBlocked from '@/shared/components/room/RoomBlocked.vue'
+import RoomSpectatorBar from '@/shared/components/room/RoomSpectatorBar.vue'
 import GameIcon from '../components/GameIcon.vue'
 import RoleToken from '../components/RoleToken.vue'
 import TownCircle from '../components/TownCircle.vue'
@@ -420,11 +399,10 @@ function showToast(msg, type = '', duration = 3000) {
 
 // ── 暱稱遮罩 ──────────────────────────────────────────────────────
 const showNicknameOverlay = ref(false)
-const overlayNickname = ref('')
-const overlayInputRef = ref(null)
-function joinWithNickname() {
-    const nickname = overlayNickname.value.trim()
-    if (!nickname) { showToast('請輸入暱稱！', 'error'); return }
+// 進房時暱稱被用走了：留在遮罩上換一個，而不是丟到「無法進入」
+const nicknameTaken = computed(() => state.errorCode === 'NICKNAME_TAKEN' && !roomState.room)
+function joinWithNickname(nickname) {
+    clearError()
     saveNickname(nickname)
     showNicknameOverlay.value = false
     connect((route.query.id || '').toUpperCase(), nickname, false)
@@ -448,6 +426,24 @@ const lobbySeats = computed(() => (view.value?.lobbySeats ?? []).map((pid, i) =>
 })))
 const seatedCount = computed(() => (view.value?.lobbySeats ?? []).filter(Boolean).length)
 const mySeatLobby = computed(() => (view.value?.lobbySeats ?? []).indexOf(myId.value))
+
+// ── 大廳（共用等待室）文案 ────────────────────────────────────────
+const seatBlocker = computed(() => (seatedCount.value < MIN_SEATS
+    ? `還差 ${MIN_SEATS - seatedCount.value} 人入座（至少 ${MIN_SEATS} 人）` : ''))
+const seatHint = computed(() => {
+    if (role.value === 'storyteller') return '點兩個座位可以互換位置，座位順序就是鄰座。'
+    if (!isRoomPlayer.value) return '入座後才能參加這一局。'
+    return mySeatLobby.value >= 0 ? `你坐在 ${mySeatLobby.value + 1} 號，點自己的座位可以離座。` : '點一個空座位入座。'
+})
+const lobbyWaitingText = computed(() => (view.value?.storytellerId ? '等說書人進入開局設定…' : '等房主指定說書人…'))
+// 頂列：遊戲中顯示「第 2 夜・玩家」這類進度，大廳只顯示房號
+const headerProgress = computed(() => {
+    if (!view.value || phase.value === 'lobby') return ''
+    return `${phase.value === 'setup' ? '開局設定' : statusLabel.value}・${roleLabel.value}`
+})
+
+const selectClass = 'h-11 w-full rounded-inset border-0 bg-fill px-3 text-base text-ink shadow-[inset_0_0_0_1px_var(--color-hairline)] cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand'
+const ghostBtnClass = 'inline-flex h-11 cursor-pointer items-center justify-center rounded-full border-0 bg-fill px-4 text-base text-ink transition-[background-color,scale] duration-150 ease-soft hover:bg-hairline active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-reduce:transition-none'
 
 // ── 時間（以伺服器時間校正）──────────────────────────────────────
 const now = ref(Date.now())
@@ -680,9 +676,9 @@ watch(() => state.error, (msg) => { if (msg && roomState.room) { showToast(msg, 
 watch(() => state.invitePing, () => { if (navigator.vibrate) navigator.vibrate(80) })
 watch(() => view.value?.me?.prompt?.id, (id) => { if (id && navigator.vibrate) navigator.vibrate(120) })
 
-function handleCopyLink() {
-    copyInviteLink()
-    showToast('邀請連結已複製', 'success')
+async function handleCopyLink() {
+    if (await copyInviteLink()) showToast('邀請連結已複製', 'success')
+    else showToast(`無法自動複製，請告訴朋友房號 ${roomState.roomId}`, 'error', 5000)
 }
 
 // ── 離開 ──────────────────────────────────────────────────────────
@@ -713,7 +709,6 @@ onMounted(() => {
     if (!roomId) { router.push({ name: 'clocktower' }); return }
     if (!nickname) {
         showNicknameOverlay.value = true
-        nextTick(() => overlayInputRef.value?.focus())
         return
     }
     // 建立房間後立刻把 create=1 從網址移除，避免 F5 重整時重建

@@ -8,12 +8,12 @@
  * @property {string}  name        - 顯示用名稱
  * @property {string}  tagline     - 卡片副標題（15字以內）
  * @property {string}  description - 卡片說明文字（30字以內）
- * @property {string}  emoji       - 工具主圖示
- * @property {'purple'|'rose'|'blue'|'cyan'|'orange'} color - 卡片主題色
+ * @property {string}  emoji       - 工具 emoji（首頁 v2 改用 ToolIcon.vue 的線稿圖示，新工具請在那裡補一個 id 對應的圖示）
+ * @property {'purple'|'rose'|'blue'|'cyan'|'orange'} color - （已停用）舊版卡片主題色；首頁 v2 所有卡片同一樣式，保留欄位以免其他地方引用
  * @property {string|null}  route       - vue-router 內部路由（優先使用）
  * @property {string|null}  externalUrl - 外部連結（null = 使用 route）
  * @property {'live'|'coming-soon'|'beta'} status - 卡片狀態
- * @property {string[]} tags       - 類型標籤（供未來篩選使用）
+ * @property {string[]} tags       - 類型標籤；首頁卡片會列出；含「多人」的放首頁上方，其餘放下方
  */
 export const tools = [
   {
@@ -122,7 +122,7 @@ export const tools = [
     route: '/gender-score',
     externalUrl: null,
     status: 'live',
-    tags: ['多人', '遊戲', '評分'],
+    tags: ['雙人', '遊戲', '評分'],
   },
   {
     id: 'story-canvas',

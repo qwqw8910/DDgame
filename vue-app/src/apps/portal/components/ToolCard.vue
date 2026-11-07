@@ -1,37 +1,36 @@
 <template>
-    <component :is="isClickable ? (tool.externalUrl ? 'a' : 'RouterLink') : 'div'" v-bind="linkProps"
-        class="group relative flex gap-4 text-inherit no-underline [--flavor:var(--p-grape)] border-[1.5px] border-[color-mix(in_srgb,var(--flavor)_38%,transparent)] bg-[color-mix(in_srgb,var(--flavor)_14%,var(--p-surface))] shadow-[0_3px_0_color-mix(in_srgb,var(--flavor)_55%,transparent)] animate-[pcard-in_.5s_cubic-bezier(.3,1.2,.5,1)_both] [animation-delay:calc(var(--i,0)*55ms+120ms)] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-(--flavor) motion-reduce:animate-none motion-reduce:transition-none"
-        :class="[
-            flavorClass,
-            wide ? 'items-center rounded-2xl px-[18px] py-3.5' : 'rounded-[22px] px-[22px] pt-[22px] pb-5',
-            isClickable
-                ? 'transition-[transform,box-shadow] duration-200 ease-[cubic-bezier(.3,1.4,.5,1)] hover:-translate-y-0.5 hover:shadow-[0_5px_0_color-mix(in_srgb,var(--flavor)_55%,transparent)] active:translate-y-px active:shadow-[0_1px_0_color-mix(in_srgb,var(--flavor)_55%,transparent)] motion-reduce:hover:transform-none'
-                : 'opacity-60 shadow-none',
-        ]">
-        <div aria-hidden="true"
-            class="grid shrink-0 place-items-center rounded-full leading-none border-[1.5px] border-dashed border-[color-mix(in_srgb,var(--flavor)_70%,transparent)] bg-[color-mix(in_srgb,var(--flavor)_28%,var(--p-surface))]"
-            :class="wide ? 'size-[46px] p-[11px]' : 'size-[60px] p-3.5'">
-            <ToolIcon :id="tool.id" class="text-(--flavor)" />
+    <!-- 固定結構：圖示＋名稱 → 分隔線 → 一行說明 → 小標籤。所有卡片同一套樣式，不用顏色區分 -->
+    <component :is="tag" v-bind="linkProps"
+        class="group flex h-full flex-col rounded-tile bg-raised p-5 text-inherit no-underline shadow-(--shadow-tile) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        :class="isClickable
+            ? 'cursor-pointer transition-[translate,box-shadow] duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-(--shadow-tile-hover) active:translate-y-0 active:duration-75 motion-reduce:transition-none motion-reduce:hover:translate-y-0'
+            : 'opacity-60'"
+        :aria-disabled="isClickable ? undefined : 'true'">
+        <div class="flex items-center gap-3.5">
+            <span aria-hidden="true" class="grid size-11 shrink-0 place-items-center rounded-inset bg-fill p-2.5 text-ink">
+                <ToolIcon :id="tool.id" />
+            </span>
+            <h3 class="m-0 min-w-0 flex-1 font-display text-xl leading-snug font-normal text-ink">{{ tool.name }}</h3>
+            <svg v-if="isClickable" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                class="size-5 shrink-0 text-ink-faint transition-[translate,color] duration-200 ease-soft group-hover:translate-x-0.5 group-hover:text-ink motion-reduce:transition-none">
+                <path d="m8 5 5 5-5 5" />
+            </svg>
         </div>
 
-        <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-2.5">
-                <h3 class="m-0 font-serif-tc font-black leading-tight text-(--p-ink)"
-                    :class="wide ? 'text-lg' : 'text-[21px]'">{{ tool.name }}</h3>
-                <span v-if="statusLabel"
-                    class="rounded-full px-2.5 py-px text-base font-semibold text-(--p-ink) bg-[color-mix(in_srgb,var(--p-lemon)_75%,transparent)]">{{ statusLabel }}</span>
-            </div>
-            <p class="m-0 text-base font-semibold text-(--p-ink) opacity-85" :class="wide ? 'mt-0.5' : 'mt-1'">
-                {{ tool.tagline }}
-            </p>
-            <p v-if="!wide" class="mt-2.5 mb-0 whitespace-pre-line text-base leading-relaxed text-(--p-ink-soft)">
-                {{ tool.description }}
-            </p>
-        </div>
+        <hr class="my-4 h-px border-0 bg-hairline" />
 
-        <span v-if="isClickable" aria-hidden="true"
-            class="text-xl text-(--p-ink) transition-transform duration-200 group-hover:translate-x-1"
-            :class="wide ? 'self-center' : 'self-end'">→</span>
+        <p class="m-0 text-base leading-relaxed text-ink-muted">{{ tool.tagline }}</p>
+
+        <div class="mt-auto flex items-start gap-3 pt-4">
+            <ul class="m-0 flex min-w-0 flex-1 list-none flex-wrap gap-1.5 p-0" aria-label="標籤">
+                <li v-for="t in tool.tags" :key="t"
+                    class="rounded-full bg-fill px-2.5 py-0.5 text-base leading-snug text-ink-faint">{{ t }}</li>
+            </ul>
+            <!-- 狀態標籤：外框樣式，與分類標籤（填色）區分 -->
+            <span v-if="statusLabel"
+                class="shrink-0 rounded-full px-2.5 py-0.5 text-base leading-snug text-ink-muted shadow-[inset_0_0_0_1px_var(--color-hairline)]">{{ statusLabel }}</span>
+        </div>
     </component>
 </template>
 
@@ -42,24 +41,17 @@ import ToolIcon from './ToolIcon.vue'
 
 const props = defineProps({
     tool: { type: Object, required: true },
-    // wide = 橫列精簡版（單人 / 雙人工具）
-    wide: { type: Boolean, default: false },
 })
-
-// tool.color 對應一種糖果口味色（定義於 main.css 的 .portal）
-const FLAVORS = {
-    purple: '[--flavor:var(--p-grape)]',
-    rose: '[--flavor:var(--p-berry)]',
-    blue: '[--flavor:var(--p-blue)]',
-    cyan: '[--flavor:var(--p-mint)]',
-    orange: '[--flavor:var(--p-orange)]',
-}
-const flavorClass = computed(() => FLAVORS[props.tool.color] ?? FLAVORS.purple)
 
 const isClickable = computed(() =>
     props.tool.status !== 'coming-soon' &&
-    (props.tool.route || props.tool.externalUrl)
+    !!(props.tool.route || props.tool.externalUrl)
 )
+
+const tag = computed(() => {
+    if (!isClickable.value) return 'div'
+    return props.tool.externalUrl ? 'a' : RouterLink
+})
 
 const statusLabel = computed(() => {
     if (props.tool.status === 'coming-soon') return '即將推出'

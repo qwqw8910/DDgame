@@ -235,10 +235,10 @@ export function useSocket(callbacks = {}) {
     onKicked() {
       callbacks.onKicked?.()
     },
-    onRoomError(_code, message) {
+    onRoomError(code, message) {
       state.loading = false
       state.error   = message
-      callbacks.onJoinError?.(message)
+      callbacks.onJoinError?.(message, code)
     },
   })
 
@@ -270,10 +270,11 @@ export function useSocket(callbacks = {}) {
   // 遊戲動作包裝
   const actions = {
     // 房間操作（委派給 useRoom）
-    toggleReady:    () => room.setReady(true),
+    setReady:       (ready) => room.setReady(ready),
     kickPlayer:     (targetId) => room.kickPlayer(targetId),
     transferHost:   (targetId) => room.transferHost(targetId),
     leaveRoom:      () => room.leaveRoom(),
+    disconnect:     () => socket.disconnect(),
 
     // 遊戲操作
     startGame:      () => emit('start_game',      {}),
