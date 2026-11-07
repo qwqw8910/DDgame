@@ -149,6 +149,25 @@
         </ul>
         <p v-if="allDone" class="ld-final">全部抽完囉！</p>
       </div>
+
+      <!-- 抽完後：勾選幾個人，彼此重新換對象（例如與往年重複時） -->
+      <div v-if="allDone" class="ld-result ld-reroll">
+        <h2>重抽調整｜勾選要換的人</h2>
+        <p class="ld-note">
+          勾選 2 人以上，只在他們之間重新配對（其他人不變），每個人都會換到和原本不同的{{ pairMode ? '對象' : '結果' }}{{ pairMode && noSelf ? '，且不會抽到自己' : '' }}。
+          {{ linkMode ? '重抽後請重新複製被調整者的連結與驗證連結，舊連結會失效。' : '' }}
+        </p>
+        <div class="ld-reroll-chips">
+          <button v-for="r in rows" :key="r.player" class="ld-chip" :class="{ on: rerollSel.has(r.player) }"
+            :style="{ '--c': colorOf(r.player) }" :disabled="running" @click="toggleReroll(r.player)">
+            {{ label(names, r.player, '人') }}<small v-if="!linkMode"> → {{ r.prize }}</small>
+          </button>
+        </div>
+        <p v-if="rerollMsg" class="ld-warn">{{ rerollMsg }}</p>
+        <button class="ld-primary" :disabled="running || rerollSel.size < 2" @click="reroll">
+          重抽選取的人（{{ rerollSel.size }}）
+        </button>
+      </div>
     </section>
   </div>
 </template>
@@ -337,6 +356,8 @@ function resetRun() {
   Object.keys(who).forEach(k => delete who[k])
   paths.value = []
   selected.value = new Set()
+  rerollSel.value = new Set()
+  rerollMsg.value = ''
   running.value = false
 }
 function build() {
@@ -410,6 +431,43 @@ function go() {
     }
     raf = requestAnimationFrame(tick)
   })
+}
+
+// 重抽調整：只在勾選的人之間打散目標，每人都要換到和原本不同的（pair 模式再加上不可抽到自己）
+const rerollSel = ref(new Set())
+const rerollMsg = ref('')
+function toggleReroll(p) {
+  const s = new Set(rerollSel.value)
+  if (s.has(p)) s.delete(p)
+  else s.add(p)
+  rerollSel.value = s
+  rerollMsg.value = ''
+}
+function reroll() {
+  const colOf = {}
+  for (const c in who) colOf[who[c]] = Number(c)
+  const ps = [...rerollSel.value]
+  const old = ps.map(p => results[colOf[p]])
+  const forbidSelf = pairMode.value && noSelf.value
+  let next = null
+  for (let t = 0; t < 2000 && !next; t++) {
+    const cand = [...old]
+    for (let i = cand.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cand[i], cand[j]] = [cand[j], cand[i]]
+    }
+    if (cand.every((v, i) => v !== old[i] && !(forbidSelf && v === ps[i]))) next = cand
+  }
+  if (!next) {
+    rerollMsg.value = '這幾個人之間無法都換到新的對象，請多勾幾個人再試'
+    return
+  }
+  ps.forEach((p, i) => {
+    results[colOf[p]] = next[i]
+    paths.value = paths.value.filter(x => x.id !== colOf[p]) // 樓梯軌跡已不符，移除
+  })
+  rerollSel.value = new Set()
+  rerollMsg.value = ''
 }
 
 onBeforeUnmount(() => cancelAnimationFrame(raf))
@@ -500,6 +558,9 @@ button:disabled { opacity: .35; cursor: not-allowed; }
 .ld-result li b { color: var(--c); font-family: 'Shippori Mincho', serif; font-size: 18px; }
 .ld-result li.wait { opacity: .45; }
 .ld-result li span { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 18px; }
+.ld-reroll { margin-top: 16px; }
+.ld-reroll-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.ld-reroll-chips .ld-chip.on { background: var(--c); border-color: var(--c); color: #fff; }
 .ld-note { margin: 0 0 12px; font-size: 13px; color: #5c5547; line-height: 1.7; }
 .ld-final { margin: 14px 0 0; font-family: 'Shippori Mincho', serif; color: var(--accent); font-weight: 700; }
 .ld-warn { margin: 0 0 10px; font-size: 13px; color: var(--accent); font-weight: 700; }
