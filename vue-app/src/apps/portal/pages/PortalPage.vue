@@ -1,51 +1,64 @@
 <template>
-    <div class="portal h-screen overflow-y-auto overflow-x-hidden" :class="{ 'portal--light': !isDark }">
-        <div class="fixed top-4 right-4 z-50 flex items-center gap-2">
-            <PwaInstallButton :button-class="iconBtn"
-                hint-class="fixed top-[68px] right-4 z-50 max-w-[16rem] rounded-xl border border-[color-mix(in_srgb,var(--p-ink)_25%,transparent)] bg-(--p-surface) px-4 py-3 text-sm text-(--p-ink)" />
-            <button @click="toggleTheme" :title="isDark ? '切換為亮色' : '切換為暗色'" aria-label="切換主題" :class="iconBtn">
-                {{ isDark ? '🌙' : '☀️' }}
-            </button>
-        </div>
-
-        <div class="mx-auto max-w-[960px] px-4 pt-14 pb-[72px] sm:px-8 sm:pt-[88px] sm:pb-24">
-            <!-- Hero：靠左，襯線粗體標題，視覺重心只放標題旁的糖果 -->
-            <header class="mb-14">
-                <svg class="mb-3.5 h-auto w-24 origin-left -rotate-12 animate-[candy-in_.7s_cubic-bezier(.3,1.4,.5,1)_both] motion-reduce:animate-none"
-                    viewBox="0 0 120 64" aria-hidden="true">
-                    <path d="M4 10 L34 32 L4 54 Z" fill="var(--p-berry)" />
-                    <path d="M116 10 L86 32 L116 54 Z" fill="var(--p-berry)" />
-                    <ellipse cx="60" cy="32" rx="34" ry="26" fill="var(--p-berry)" />
-                    <path d="M42 12 Q56 32 42 52 M60 8 Q74 32 60 56" stroke="var(--p-paper)" stroke-width="7"
-                        stroke-linecap="round" fill="none" opacity=".85" />
-                </svg>
-                <h1 class="m-0 font-serif-tc text-[clamp(40px,9vw,72px)] font-black leading-[1.1] tracking-[.02em] text-(--p-ink)">
+    <div class="h-dvh overflow-x-hidden overflow-y-auto bg-canvas font-text text-ink">
+        <div class="mx-auto max-w-[1280px] 2xl:max-w-[1440px] min-[1920px]:max-w-[1600px] px-4 pt-[max(16px,env(safe-area-inset-top))] pb-[max(48px,env(safe-area-inset-bottom))] sm:px-8 lg:px-12">
+            <!-- 首屏重點：只有標題。圖示按鈕和眉標同一列，不另佔一列 -->
+            <header class="pb-10 sm:pb-14">
+                <div class="flex items-center justify-between gap-4">
+                    <p class="m-0 text-base font-medium text-brand-ink">{{ tools.length }} 個小遊戲與小工具</p>
+                    <div class="flex shrink-0 items-center gap-2">
+                        <div v-if="canInstall" class="relative">
+                            <button type="button" :class="iconBtn" aria-label="安裝成 App" title="安裝成 App"
+                                :aria-expanded="installEvent ? undefined : String(showIosHint)" @click="onInstall">
+                                <svg aria-hidden="true" viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor"
+                                    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14" />
+                                </svg>
+                            </button>
+                            <p v-if="showIosHint" role="status"
+                                class="absolute top-[calc(100%+8px)] right-0 z-10 m-0 w-64 rounded-tile bg-raised px-4 py-3 text-base leading-relaxed text-ink shadow-(--shadow-tile-hover)">
+                                點 Safari 的「分享」→「加入主畫面」即可安裝
+                            </p>
+                        </div>
+                        <button type="button" :class="iconBtn" :aria-label="isDark ? '切換為淺色模式' : '切換為深色模式'"
+                            :title="isDark ? '切換為淺色模式' : '切換為深色模式'" @click="toggleTheme">
+                            <!-- 顯示「按下去會變成的」模式 -->
+                            <svg v-if="isDark" aria-hidden="true" viewBox="0 0 24 24" class="size-5" fill="none"
+                                stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                                <circle cx="12" cy="12" r="4" />
+                                <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+                            </svg>
+                            <svg v-else aria-hidden="true" viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor"
+                                stroke-width="1.8" stroke-linejoin="round">
+                                <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <h1 class="mt-3 mb-0 font-display text-[clamp(44px,10vw,88px)] leading-[1.08] font-normal tracking-[0.01em] text-ink">
                     甜甜的小秘密
                 </h1>
-                <p class="mt-[18px] mb-0 max-w-[30em] text-lg leading-[1.7] text-(--p-ink-soft)">
-                    {{ tools.length }} 個給朋友與情侶的小遊戲和小工具。<br class="hidden sm:inline" />
-                    挑一個，丟連結給大家就能開始。
+                <p class="mt-5 mb-0 max-w-[26em] text-lg leading-relaxed text-ink-muted sm:text-xl">
+                    給朋友與情侶的派對遊戲和生活小工具。<br class="hidden sm:inline" />挑一個，丟連結給大家就能開始。
                 </p>
             </header>
 
-            <!-- 多人 -->
-            <section class="mb-12" aria-labelledby="shelf-party">
-                <h2 id="shelf-party" class="m-0 mb-[18px] font-serif-tc text-2xl font-bold text-(--p-ink)">和朋友一起玩</h2>
-                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    <ToolCard v-for="(tool, i) in partyTools" :key="tool.id" :tool="tool" :style="{ '--i': i }" />
-                </div>
+            <!-- 上下兩塊：含「多人」的放上面，其餘（單人 / 雙人 / 工具）放下面 -->
+            <section v-for="(shelf, s) in shelves" :key="shelf.id" :aria-labelledby="`shelf-${shelf.id}`"
+                :class="s > 0 && 'mt-14'">
+                <h2 :id="`shelf-${shelf.id}`" class="m-0 mb-5 flex items-baseline gap-2 font-display text-2xl font-normal text-ink">
+                    {{ shelf.title }}
+                    <span class="text-base tabular-nums text-ink-faint">{{ shelf.tools.length }}</span>
+                </h2>
+                <ul class="m-0 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
+                    <li v-for="tool in shelf.tools" :key="tool.id">
+                        <ToolCard :tool="tool" />
+                    </li>
+                </ul>
             </section>
 
-            <!-- 單人 / 雙人 -->
-            <section class="mb-12" aria-labelledby="shelf-small">
-                <h2 id="shelf-small" class="m-0 mb-[18px] font-serif-tc text-2xl font-bold text-(--p-ink)">自己或兩個人</h2>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
-                    <ToolCard v-for="(tool, i) in smallTools" :key="tool.id" :tool="tool" wide
-                        :style="{ '--i': partyTools.length + i }" />
-                </div>
-            </section>
-
-            <footer class="mt-16 text-base text-(--p-ink-soft) opacity-75">持續更新中，有想玩的歡迎告訴我</footer>
+            <footer class="mt-16 border-t border-hairline pt-6 text-base text-ink-faint">
+                持續更新中，有想玩的歡迎告訴我
+            </footer>
         </div>
     </div>
 </template>
@@ -54,16 +67,26 @@
 import { ref, computed, onMounted } from 'vue'
 import ToolCard from '../components/ToolCard.vue'
 import { tools } from '../data/tools.js'
-import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
+import { usePwaInstall } from '@/shared/composables/usePwaInstall.js'
 import { warmUpServer } from '@/shared/api/config.js'
 
+// 以 tags 分組：含「多人」的放上面，其餘放下面
+const shelves = computed(() => [
+    { id: 'party', title: '和朋友一起玩', tools: tools.filter(t => t.tags.includes('多人')) },
+    { id: 'small', title: '自己或兩個人', tools: tools.filter(t => !t.tags.includes('多人')) },
+].filter(s => s.tools.length > 0))
+
+const iconBtn = 'grid size-11 cursor-pointer place-items-center rounded-full border-0 bg-raised text-ink shadow-(--shadow-tile) transition-[background-color,scale] duration-150 ease-soft hover:bg-fill active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-reduce:transition-none'
+
+// PWA 安裝：Chromium 直接跳安裝框；iOS Safari 沒有 API，改顯示手動步驟
+const { installEvent, canInstall, install } = usePwaInstall()
+const showIosHint = ref(false)
+function onInstall() {
+    if (installEvent.value) install()
+    else showIosHint.value = !showIosHint.value
+}
+
 const isDark = ref(true)
-
-const iconBtn = 'grid size-11 cursor-pointer place-items-center rounded-full border-[1.5px] border-[color-mix(in_srgb,var(--p-ink)_25%,transparent)] bg-(--p-surface) text-(--p-ink) hover:border-(--p-berry) focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-(--p-berry)'
-
-// 以 tags 分組：含「多人」的放上方大卡片，其餘放下方橫列
-const partyTools = computed(() => tools.filter(t => t.tags.includes('多人')))
-const smallTools = computed(() => tools.filter(t => !t.tags.includes('多人')))
 
 onMounted(() => {
     warmUpServer()
