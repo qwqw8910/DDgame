@@ -207,12 +207,16 @@ server/
 ├── mountain-lodge/        ← 山中別館殺人事件（index.js、gameLogic.js）
 ├── clocktower/            ← 血染鐘樓（index.js、gameLogic.js）
 ├── gem-td/                ← 甜點守衛戰（index.js、gameLogic.js、waveSim.js、pathing.js、config.js）
+├── tests/                 ← 所有後端測試（不放在模組資料夾內）；規則見 tests/README.md
+│   ├── unit/<模組>/        ← 純函式單元測試，例如 unit/gem-td/gameLogic.test.js
+│   ├── integration/       ← socket 整合測試，一個模組一個檔，例如 integration/gem-td.test.js
+│   └── manual/            ← 需要真 server／Supabase 的手動腳本，npm test 不會跑
 ├── package.json
 └── README.md              ← 環境變數、部署、懂我再說事件總覽
 ```
 
-- 每個遊戲模組匯出 `registerNamespace(io, db)`，由 `server.js` 掛載；遊戲規則純邏輯放 `gameLogic.js`，並配 `*.test.js`
-- 測試：`*.test.js` 為單元測試，`*.integration.test.js` 為 socket 整合測試
+- 每個遊戲模組匯出 `registerNamespace(io, db)`，由 `server.js` 掛載；遊戲規則純邏輯放 `gameLogic.js`
+- 測試：單元測試放 `tests/unit/<模組>/<檔名>.test.js`，socket 整合測試放 `tests/integration/<模組>.test.js`；放進去就會被 `npm test`（在 `server/` 下）跑到，不需改 `package.json`
 - 「今晚吃什麼」「話題產生器」等純前端工具不經過此 server
 - 新 App 需要後端時，在同一 server 加 namespace 模組，避免多 server 管理成本
 

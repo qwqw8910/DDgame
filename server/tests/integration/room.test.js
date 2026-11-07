@@ -1,9 +1,9 @@
 // ================================================================
-//  server/room/room.integration.test.js
+//  server/tests/integration/room.test.js
 //  統一房間模組 整合測試（node:test + socket.io-client）
 //
 //  完全在記憶體中執行（Mock DB，不需要 Supabase）。
-//  執行：node --test server/room/room.integration.test.js
+//  執行（在 server/ 下）：node --test --test-force-exit tests/integration/room.test.js
 // ================================================================
 'use strict';
 
@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
 const http   = require('node:http');
 const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
-const { registerRoomHandlers, CONNECTION_STATE_RECOVERY } = require('./index');
+const { registerRoomHandlers, CONNECTION_STATE_RECOVERY } = require('../../room/index');
 
 // ── 工具 ────────────────────────────────────────────────────────
 

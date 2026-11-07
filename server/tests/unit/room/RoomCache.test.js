@@ -1,14 +1,14 @@
 // ================================================================
-//  server/room/RoomCache.test.js
+//  server/tests/unit/room/RoomCache.test.js
 //  RoomCache 單元測試（node:test + node:assert）
 //
-//  執行：node --test server/room/RoomCache.test.js
+//  執行（在 server/ 下）：node --test tests/unit/room/RoomCache.test.js
 // ================================================================
 'use strict';
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
-const { RoomCache } = require('./RoomCache');
+const { RoomCache } = require('../../../room/RoomCache');
 
 // ── Mock DB（不需要真實 Supabase）────────────────────────────────
 function makeMockDb(roomOverride = {}, playersOverride = []) {

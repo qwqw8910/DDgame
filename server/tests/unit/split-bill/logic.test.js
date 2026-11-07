@@ -2,7 +2,7 @@
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const L = require('./logic');
+const L = require('../../../split-bill/logic');
 
 const sum = arr => arr.reduce((a, b) => a + b, 0);
 const ids = n => Array.from({ length: n }, (_, i) => ({ memberId: `m${i + 1}` }));

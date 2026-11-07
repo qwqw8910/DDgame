@@ -1,6 +1,6 @@
 // ================================================================
 //  山中別館殺人事件 — 整合測試（真 socket.io + 記憶體 Mock DB）
-//  執行：node --test mountain-lodge/lodge.integration.test.js
+//  執行（在 server/ 下）：node --test --test-force-exit tests/integration/mountain-lodge.test.js
 // ================================================================
 'use strict';
 
@@ -9,8 +9,8 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
-const { registerNamespace } = require('./index');
-const L = require('./gameLogic');
+const { registerNamespace } = require('../../mountain-lodge/index');
+const L = require('../../mountain-lodge/gameLogic');
 
 L.config.passLockSeconds = 0; // 整合測試不等閱牌倒數
 

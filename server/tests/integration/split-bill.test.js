@@ -1,9 +1,9 @@
 // ================================================================
-//  server/split-bill/split-bill.integration.test.js
+//  server/tests/integration/split-bill.test.js
 //  分帳系統整合測試（node:test + socket.io-client）
 //
 //  完全在記憶體中執行（Fake DB + Memory store，不需要 Supabase）。
-//  執行：node --test --test-force-exit split-bill/split-bill.integration.test.js
+//  執行（在 server/ 下）：node --test --test-force-exit tests/integration/split-bill.test.js
 // ================================================================
 'use strict';
 
@@ -12,8 +12,8 @@ const assert = require('node:assert/strict');
 const http   = require('node:http');
 const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
-const { registerNamespace } = require('./index');
-const { createMemoryStore } = require('./store');
+const { registerNamespace } = require('../../split-bill/index');
+const { createMemoryStore } = require('../../split-bill/store');
 
 // ── Fake DB：只實作房間模組用到的 rooms / players ──────────────────
 function makeFakeDb() {

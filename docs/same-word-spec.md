@@ -113,10 +113,11 @@ waiting ─開始→ writing ─全員送出／時間到→ revealed ─自動�
 ```
 server/same-word/
   gameLogic.js        純函式：createGame / startGame / submitWord / settleRound / react / nextRound / finishNow / leavePlayer / buildResult / buildView
-  gameLogic.test.js   node --test（單元）
   prompts.js          題庫（60 題）
   index.js            registerNamespace：房間 hooks + sw:* 事件 + 書寫倒數／揭曉自動前進計時器
-  same-word.integration.test.js
+server/tests/
+  unit/same-word/gameLogic.test.js   單元測試
+  integration/same-word.test.js      socket 整合測試
 vue-app/src/apps/same-word/
   pages/              SameWordLobbyPage / SameWordRoomPage
   components/         SwPrompt（題目／終局線索）、SwWriteBox、SwRevealBoard（逐組翻牌＋反應）、SwScoreboard、SwResultBoard、SwPairMatrix

@@ -36,7 +36,7 @@
                 :can-join="roomState.isSpectator && roomState.spectatorCanJoin"
                 @invite="handleCopyLink" @start="start" @join="upgradeFromSpectator">
                 <template #settings>
-                    <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="遊戲模式">
+                    <div class="grid grid-cols-3 gap-2 max-sm:grid-cols-1" role="radiogroup" aria-label="遊戲模式">
                         <button v-for="m in MODE_CHOICES" :key="m.id" type="button" role="radio" :aria-checked="opts.mode === m.id"
                             :disabled="!roomState.isHost"
                             class="flex min-h-11 flex-col gap-1 rounded-inset border-0 p-3 text-left transition-[background-color,box-shadow] duration-150 ease-soft enabled:cursor-pointer disabled:cursor-default motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
@@ -56,12 +56,26 @@
                                 <option v-for="r in roundChoices" :key="r" :value="r">{{ r }} 題</option>
                             </select>
                         </label>
-                        <label class="flex flex-col gap-2 text-base text-ink-muted">思考時間
+                        <label v-if="opts.mode !== 'relay'" class="flex flex-col gap-2 text-base text-ink-muted">思考時間
                             <select :class="selectClass" :disabled="!roomState.isHost" :value="opts.timerSeconds"
                                 @change="e => setOptions({ timerSeconds: +e.target.value })">
                                 <option v-for="s in timerChoices" :key="s" :value="s">{{ s }} 秒</option>
                             </select>
                         </label>
+                        <template v-else>
+                            <label class="flex flex-col gap-2 text-base text-ink-muted">每棒時間
+                                <select :class="selectClass" :disabled="!roomState.isHost" :value="opts.turnSeconds"
+                                    @change="e => setOptions({ turnSeconds: +e.target.value })">
+                                    <option v-for="s in turnChoices" :key="s" :value="s">{{ s }} 秒{{ s <= 5 ? '（極限）' : '' }}</option>
+                                </select>
+                            </label>
+                            <label class="flex flex-col gap-2 text-base text-ink-muted">每人接幾次
+                                <select :class="selectClass" :disabled="!roomState.isHost" :value="opts.laps"
+                                    @change="e => setOptions({ laps: +e.target.value })">
+                                    <option v-for="n in lapChoices" :key="n" :value="n">{{ n }} 次（共 {{ n * roomState.players.length }} 段）</option>
+                                </select>
+                            </label>
+                        </template>
                         <label v-if="opts.mode === 'prompts'"
                             class="flex min-h-11 items-center justify-between gap-3 rounded-inset bg-fill px-4 py-3 sm:col-span-2"
                             :class="roomState.isHost ? 'cursor-pointer' : 'cursor-default'">
@@ -75,11 +89,26 @@
                     </div>
 
                     <p class="m-0 mt-4 text-base leading-relaxed text-ink-muted">
-                        <template v-if="opts.mode === 'chain'">玩法：第 1 輪給題目，之後每輪看上一輪大家的詞，寫一個新詞（用過的不能再寫）。同詞 k 人各得 k−1 分；全員同詞 +3 並提早通關。共 {{ CHAIN_ROUNDS }} 輪，約 {{ estimateMinutes }} 分鐘。</template>
+                        <template v-if="opts.mode === 'relay'">玩法：抽一張主題卡，依隨機順序輪流接「三個字」，每棒只看得到上一個人寫的三個字。全部接完揭曉整段話，給別人的每一段按讚或大便，最後頒發神接手、大便製造機、閃電手、卡關王。約 {{ estimateMinutes }} 分鐘。</template>
+                        <template v-else-if="opts.mode === 'chain'">玩法：第 1 輪給題目，之後每輪看上一輪大家的詞，寫一個新詞（用過的不能再寫）。同詞 k 人各得 k−1 分；全員同詞 +3 並提早通關。共 {{ CHAIN_ROUNDS }} 輪，約 {{ estimateMinutes }} 分鐘。</template>
                         <template v-else>玩法：每題同時寫下第一個想到的詞。同詞 k 人，每人得 k−1 分；全員同詞再各 +3。約 {{ estimateMinutes }} 分鐘一局。</template>
                     </p>
                 </template>
             </RoomLobby>
+
+            <!-- ═════════ 接句：輪流接三個字 ═════════ -->
+            <template v-else-if="phase === 'relay' && view.relay">
+                <SwRelayTurn :relay="view.relay" :names="names" :my-id="myId" :can-write="!!isParticipant"
+                    :participants="participants" :turn-seconds="opts.turnSeconds" :now="now" @submit="submitSegment" />
+                <div v-if="roomState.isHost" class="text-center">
+                    <button type="button" :class="secondaryBtn" @click="confirmFinish">提前結束</button>
+                </div>
+            </template>
+
+            <!-- ═════════ 接句：揭曉整段話＋投票 ═════════ -->
+            <SwRelayStory v-else-if="phase === 'voting' && view.relay" :key="view.relay.total" :relay="view.relay" :names="names"
+                :my-id="myId" :can-vote="!!isParticipant" :is-host="roomState.isHost" :now="now"
+                @vote="vote" @end="endVoting" />
 
             <!-- ═════════ 書寫 ═════════ -->
             <template v-else-if="phase === 'writing'">
@@ -126,10 +155,11 @@
 
             <!-- ═════════ 結算 ═════════ -->
             <template v-else-if="phase === 'finished' && view.result">
-                <SwResultBoard :result="view.result" :names="names" />
+                <SwRelayResult v-if="view.result.mode === 'relay'" :result="view.result" :names="names" />
+                <SwResultBoard v-else :result="view.result" :names="names" />
                 <div class="flex flex-wrap items-center justify-center gap-2 pb-2">
-                    <button v-if="roomState.isHost" class="btn-primary !w-auto !px-5" @click="restart">回大廳再玩一局</button>
-                    <p v-else class="m-0 text-sm text-body">等房主回大廳…</p>
+                    <button v-if="roomState.isHost" type="button" :class="primaryBtn" @click="restart">回大廳再玩一局</button>
+                    <p v-else class="m-0 text-base text-ink-muted">等房主回大廳…</p>
                 </div>
             </template>
         </main>
@@ -158,7 +188,11 @@ import SwRevealBoard from '../components/SwRevealBoard.vue'
 import SwPrompt from '../components/SwPrompt.vue'
 import SwScoreboard from '../components/SwScoreboard.vue'
 import SwResultBoard from '../components/SwResultBoard.vue'
-import { MIN_PLAYERS, ROUND_PRESETS, TIMER_PRESETS, CHAIN_ROUNDS, MODE_CHOICES } from '../data/constants.js'
+import SwRelayTurn from '../components/SwRelayTurn.vue'
+import SwRelayStory from '../components/SwRelayStory.vue'
+import SwRelayResult from '../components/SwRelayResult.vue'
+import { MIN_PLAYERS, ROUND_PRESETS, TIMER_PRESETS, CHAIN_ROUNDS, MODE_CHOICES, TURN_PRESETS, LAP_PRESETS } from '../data/constants.js'
+import { primaryBtn, secondaryBtn } from '../data/ui.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -166,6 +200,7 @@ const router = useRouter()
 const {
     state, roomState, connect,
     setOptions, start, submit, react, nextRound, finishNow, restart,
+    submitSegment, vote, endVoting,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useSameWord()
@@ -197,7 +232,7 @@ const view = computed(() => state.view)
 const phase = computed(() => view.value?.phase ?? 'waiting')
 const myId = computed(() => roomState.myPlayerId)
 const names = computed(() => view.value?.names ?? {})
-const opts = computed(() => view.value?.options ?? { mode: 'prompts', rounds: 5, timerSeconds: 30, converge: true, revealSeconds: 10 })
+const opts = computed(() => view.value?.options ?? { mode: 'prompts', rounds: 5, timerSeconds: 30, converge: true, revealSeconds: 10, turnSeconds: 8, laps: 2 })
 const isParticipant = computed(() => view.value?.activeIds?.includes(myId.value) && !view.value.leftIds.includes(myId.value))
 const participants = computed(() => (view.value?.activeIds ?? []).filter(id => !view.value.leftIds.includes(id)))
 const canWrite = computed(() => !!isParticipant.value)
@@ -220,14 +255,25 @@ const roundLabel = computed(() => {
     return `第 ${v.promptIndex} / ${v.promptTotal} 題`
 })
 // 頂列只在遊戲進行中顯示進度
-const headerProgress = computed(() => (view.value?.round && ['writing', 'revealed'].includes(phase.value) ? roundLabel.value : ''))
+const headerProgress = computed(() => {
+    const r = view.value?.relay
+    if (phase.value === 'relay' && r) return `接句 ${Math.min(r.done + 1, r.total)} / ${r.total}`
+    if (phase.value === 'voting') return '揭曉投票'
+    return view.value?.round && ['writing', 'revealed'].includes(phase.value) ? roundLabel.value : ''
+})
 
 const selectClass = 'h-11 w-full rounded-inset border-0 bg-fill px-3 text-base text-ink shadow-[inset_0_0_0_1px_var(--color-hairline)] enabled:cursor-pointer disabled:cursor-default disabled:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand'
 
 // 計時與題數選項：預設值之外若房主設過自訂值也要列出
 const timerChoices = computed(() => [...new Set([...TIMER_PRESETS, opts.value.timerSeconds])].sort((a, b) => a - b))
 const roundChoices = computed(() => [...new Set([...ROUND_PRESETS, opts.value.rounds])].sort((a, b) => a - b))
+const turnChoices = computed(() => [...new Set([...TURN_PRESETS, opts.value.turnSeconds])].sort((a, b) => a - b))
+const lapChoices = computed(() => [...new Set([...LAP_PRESETS, opts.value.laps])].sort((a, b) => a - b))
 const estimateMinutes = computed(() => {
+    if (opts.value.mode === 'relay') {
+        const segs = opts.value.laps * Math.max(MIN_PLAYERS, roomState.players.length)
+        return Math.max(2, Math.round((segs * (opts.value.turnSeconds * 0.7 + 1) + 75) / 60))
+    }
     const perRound = opts.value.timerSeconds * 0.7 + opts.value.revealSeconds + 5
     const rounds = opts.value.mode === 'chain' ? CHAIN_ROUNDS : opts.value.rounds + (opts.value.converge ? 1.5 : 0)
     return Math.max(3, Math.round((perRound * rounds) / 60))
@@ -240,7 +286,8 @@ const secondsLeft = computed(() => (view.value?.roundEndsAt ? (view.value.roundE
 const autoSeconds = computed(() => (view.value?.autoNextAt ? Math.max(0, Math.ceil((view.value.autoNextAt - now.value) / 1000)) : 0))
 
 function confirmFinish() {
-    if (confirm('要提前結算這一局嗎？')) finishNow()
+    const msg = phase.value === 'relay' ? '要提前結束嗎？會直接揭曉目前接到的部分。' : '要提前結算這一局嗎？'
+    if (confirm(msg)) finishNow()
 }
 
 async function handleCopyLink() {
@@ -254,7 +301,7 @@ function goLobby() {
     router.push({ name: 'same-word' })
 }
 async function goHome() {
-    if (['writing', 'revealed'].includes(phase.value) && isParticipant.value
+    if (['writing', 'revealed', 'relay', 'voting'].includes(phase.value) && isParticipant.value
         && !confirm('遊戲進行中離開，這一局你會被排除。確定要離開嗎？')) return
     await leaveRoom()
     goLobby()
