@@ -1,6 +1,6 @@
 // ================================================================
 //  寶石塔防 — 整合測試（真 socket.io + 記憶體 Mock DB）
-//  執行：node --test --test-force-exit gem-td/gem-td.integration.test.js
+//  執行（在 server/ 下）：node --test --test-force-exit tests/integration/gem-td.test.js
 // ================================================================
 'use strict';
 
@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
-const { registerNamespace } = require('./index');
+const { registerNamespace } = require('../../gem-td/index');
 
 // ── Mock DB（rooms / players 兩張表）────────────────────────────
 function makeMockDb() {

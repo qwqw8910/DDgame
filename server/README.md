@@ -17,6 +17,14 @@ npm run dev            # 使用 node --watch 自動重啟
 
 伺服器預設在 `http://localhost:3000` 啟動。
 
+### 測試
+
+```bash
+npm test               # 單元＋整合測試，不需要 .env
+```
+
+測試都在 `tests/`（`unit/`、`integration/`、`manual/`），規則見 [tests/README.md](tests/README.md)。
+
 ---
 
 ## 環境變數說明

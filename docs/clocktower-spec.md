@@ -96,7 +96,7 @@ Town Square 的同步設計值得直接參考：**說書人端是唯一真實來
 
 結論：**只使用現有 hooks（`canJoinAsPlayer`、`spectatorCanUpgrade`、`buildGameState`、`onPlayerJoined`、`onPlayerLeft`、`onSpectatorUpgraded`），不動 `server/room/`**，其他遊戲（懂我再說、字元風暴、山中別館）不受影響。
 
-若之後仍需要改共用模組，規則是：只新增可選 hook，未設定時維持原行為，並在改完後跑 `server/room/*.test.js`、`server/mountain-lodge/*.test.js` 與其他遊戲的既有測試，全部通過才算完成。
+若之後仍需要改共用模組，規則是：只新增可選 hook，未設定時維持原行為，並在改完後於 `server/` 下跑 `npm test`（含 room、mountain-lodge 與其他遊戲的既有測試），全部通過才算完成。
 
 說書人雖然在 `players` 表裡，但**不放進座位 `seats`**，也不參與 `players.score` 計分。
 
@@ -106,8 +106,6 @@ Town Square 的同步設計值得直接參考：**說書人端是唯一真實來
 server/clocktower/
 ├── index.js               ← namespace /clocktower，registerRoomHandlers + ct:* 事件
 ├── gameLogic.js           ← 純函式：狀態機、buildView、投票計算、勝負判定
-├── gameLogic.test.js
-├── clocktower.integration.test.js
 └── scripts/
     ├── roles.json         ← 角色規則定義（相容官方 Script Tool 格式，見 5.1）
     └── trouble-brewing.json  ← 劇本：角色 id 清單 + _meta
@@ -646,7 +644,7 @@ vue-app/public/clocktower/
   - 自動提醒標記的放置與清除時機。
   - 私聊：同時只能在一個群組、接受新邀請自動離開、邀請過期、`free` 以外不能送訊息、群組剩 1 人自動結束。
   - **`buildView` 不洩漏**：任何玩家 / 觀戰者視圖都不包含他人 `roleId`、`reminders`、酒鬼的真實身份、別人群組的私聊內容、別人的私訊說書人；終局視圖才包含。
-- 整合測試對照 `lodge.integration.test.js`：建房 → 指定說書人 → 入座 → 開局 → 一晚一天 → 結束。
+- 整合測試對照 `server/tests/integration/mountain-lodge.test.js`：建房 → 指定說書人 → 入座 → 開局 → 一晚一天 → 結束。
 - **完成後必須跑全部既有測試**（`server/room`、`server/mountain-lodge`、`server/character-storm` 等），確認其他遊戲沒有被影響。
 
 ### 上線前登記（依 `docs/STRUCTURE.md`）

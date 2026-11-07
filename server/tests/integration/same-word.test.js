@@ -1,6 +1,6 @@
 // ================================================================
 //  同詞相遇 — 整合測試（真 socket.io + 記憶體 Mock DB）
-//  執行：node --test --test-force-exit same-word/same-word.integration.test.js
+//  執行（在 server/ 下）：node --test --test-force-exit tests/integration/same-word.test.js
 // ================================================================
 'use strict';
 
@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
-const { registerNamespace } = require('./index');
+const { registerNamespace } = require('../../same-word/index');
 
 // ── Mock DB（rooms / players 兩張表）────────────────────────────
 function makeMockDb() {
@@ -303,4 +303,46 @@ test('接龍模式：第 1 輪有題目、之後沒有；用過的詞被拒絕�
   emit(roomId, a, 'sw:next-round');
   await until(() => a.view.phase === 'finished', 'finished early');
   assert.equal(a.view.result.allSameAt, 2);
+});
+
+test('接句模式：輪流盲接 → 時間到卡住 → 投票 → 房主公布', async () => {
+  const roomId = 'SWRLY1';
+  const ps = await makeRoom(roomId, ['ra', 'rb', 'rc']);
+  const [host] = ps;
+  const byId = id => ps.find(p => p.id === id);
+
+  emit(roomId, host, 'sw:set-options', { options: { mode: 'relay', laps: 1, turnSeconds: 5 } });
+  await until(() => host.view?.options.mode === 'relay', 'relay options');
+  emit(roomId, host, 'sw:start');
+  await until(() => ps.every(p => p.view.phase === 'relay' && p.view.relay?.writerId), 'relay phase');
+
+  const w1 = byId(host.view.relay.writerId);
+  emit(roomId, w1, 'sw:segment', { text: '秘密的' });
+  await until(() => host.view.relay.done === 1, 'first segment');
+  const w2 = byId(host.view.relay.writerId);
+  await until(() => w2.view.relay.prev === '秘密的', 'writer sees prev');
+  const w3 = ps.find(p => p !== w1 && p !== w2);
+  assert.equal(JSON.stringify(w3.view).includes('秘密的'), false, '其他人看不到內容');
+
+  // 第二棒不寫：等伺服器的倒數（5 秒＋寬限）把它記成卡住
+  await until(() => host.view.relay.writerId === w3.id, 'timeout advanced', 8000);
+  assert.equal(host.view.relay.turns[1].timeout, true);
+  emit(roomId, w2, 'sw:segment', { text: '太晚了' });
+  await until(() => w2.errors.some(e => e.code === 'NOT_YOUR_TURN'), 'late rejected');
+  emit(roomId, w3, 'sw:segment', { text: '大象啊！' });
+  await until(() => ps.every(p => p.view.phase === 'voting') || w3.errors.length, 'voting');
+  assert.deepEqual(w3.errors, []);
+  assert.equal(host.view.relay.story, '秘密的大象啊！');
+  assert.equal(host.view.relay.segments[1].timeout, true);
+
+  emit(roomId, w1, 'sw:vote', { index: 2, value: 'up' });
+  await until(() => w1.view.relay.myVotes['2'] === 'up', 'vote recorded');
+  emit(roomId, w1, 'sw:vote', { index: 0, value: 'up' });
+  await until(() => w1.errors.some(e => e.code === 'BAD_TARGET'), 'self vote rejected');
+
+  emit(roomId, host, 'sw:end-voting');
+  await until(() => ps.every(p => p.view.phase === 'finished'), 'finished');
+  assert.equal(host.view.result.mode, 'relay');
+  assert.deepEqual(host.view.result.best, { playerIds: [w3.id], count: 1 });
+  assert.deepEqual(host.view.result.stuck, { playerIds: [w2.id], count: 1 });
 });

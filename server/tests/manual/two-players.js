@@ -4,7 +4,7 @@
 //  使用方式：
 //    1. 確認 server/.env 已設定 SUPABASE_URL / SUPABASE_SERVICE_KEY
 //    2. 啟動後端：node server.js
-//    3. 另開終端執行：node test-two-players.js
+//    3. 另開終端執行：node tests/manual/two-players.js（在 server/ 目錄下執行，才讀得到 .env）
 //
 //  流程：加入 → 準備 → 開始 → 跑 N_ROUNDS 輪
 //        每輪：選主題 → 選答 → 猜測 → 揭曉 → (房主) 下一回合

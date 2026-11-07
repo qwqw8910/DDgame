@@ -1,15 +1,15 @@
 // ================================================================
 //  寶石塔防 — 單元測試
-//  執行：node --test gem-td/gameLogic.test.js
+//  執行（在 server/ 下）：node --test tests/unit/gem-td/gameLogic.test.js
 // ================================================================
 'use strict';
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const L = require('./gameLogic');
-const C = require('./config');
-const { prepareTowers, stepWave } = require('./waveSim');
-const { findFullPath } = require('./pathing');
+const L = require('../../../gem-td/gameLogic');
+const C = require('../../../gem-td/config');
+const { prepareTowers, stepWave } = require('../../../gem-td/waveSim');
+const { findFullPath } = require('../../../gem-td/pathing');
 
 function seededRng(seed = 1) {
   let s = seed >>> 0;

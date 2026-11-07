@@ -96,6 +96,14 @@ Apple 式的克制：大量留白、一個畫面一個重點、一個主色、�
 ### 依賴
 - 不引入新的 UI 套件。可用的只有 Tailwind 4 與 reka-ui。要加任何依賴先問使用者。
 
+### 後端與測試的位置
+功能需要後端（多人連線、計分）時，程式碼放 `server/<模組>/`，**測試不要放在模組資料夾裡**，一律放 `server/tests/`：
+- 規則純邏輯（`gameLogic.js`）→ `server/tests/unit/<模組>/gameLogic.test.js`
+- Socket 事件流程 → `server/tests/integration/<模組>.test.js`（參考 `integration/same-word.test.js`：`listen(0)` 取隨機 port、用假 DB）
+- 需要真 server／Supabase 的手動腳本 → `server/tests/manual/`
+- 放進去就會被 `npm test` 跑到，不必改 `package.json`。完整規則見 `server/tests/README.md`。
+- 前端（`vue-app`）目前沒有自動化測試，畫面的驗證用下一節的截圖流程。
+
 ## 修改設計系統本身
 
 要新增或修改 token、改元件的標準寫法時：
@@ -116,11 +124,12 @@ Apple 式的克制：大量留白、一個畫面一個重點、一個主色、�
 3. 鍵盤走一遍：Tab 順序合理、焦點框看得見、Enter／空白鍵能操作。
 4. 用 apple-design 的審查流程審一次（至少讀 `accessibility.md`、`layout.md`、`typography.md`、`color.md`、`dark-mode.md` 加上畫面上有的元件頁），列出剩餘問題與嚴重度。
 5. `cd vue-app && npm run build` 必須通過。
+6. 有動到 `server/` 時，`cd server && npm test` 必須通過。`tests/integration/room.test.js` 偶爾會隨機出現 `waitFor("connect") timeout`，重跑一次；重跑後還是失敗就是真的壞了。
 
 ## 回報格式
 
 - 做了什麼、改了哪些檔案（區分「本任務的檔案」與「不得不碰的共用檔案」，後者說明原因）
 - 用到哪些 token／元件；若新增 token，附對比度與 ui-ux-pro-max 依據
-- 驗證結果：截圖路徑、橫向捲動與 44px 檢查結果、build 結果
+- 驗證結果：截圖路徑、橫向捲動與 44px 檢查結果、build 結果、有動後端時的 `npm test` 結果（通過／失敗數）
 - apple-design 審查：整體評級、沒修的項目與原因
 - 與本規範不一致、需要使用者決定的地方

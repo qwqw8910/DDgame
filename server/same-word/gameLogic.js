@@ -10,6 +10,8 @@
 //    第幾次全員同詞，全場各得 6／4／2 分，失敗不扣分
 //  - 接龍模式（mode='chain'）：固定 6 輪，只有第 1 輪給題目，之後以上一輪大家的詞為線索，
 //    前面出現過的詞不能再寫；每輪計分同上，全員同詞即加分並提早結束
+//  - 接句模式（mode='relay'）：依順序輪流接「三個字」，寫的人只看得到上一段；接完揭曉整段話，
+//    大家對別人的每一段按讚或大便，最後頒獎（不計分、不算默契）
 //  - 兩兩默契 = 計分輪中兩人寫出相同詞的比例（終局不計）
 //  - rng 與 now 由呼叫端注入；自動前進的計時由 index.js 負責（本檔只存 autoNextAt）
 //  - 函式直接修改傳入的 game 物件；違規丟 GameError
@@ -36,10 +38,21 @@ const CONVERGE_POINTS = [6, 4, 2];        // 終局第 1／2／3 次成功的全
 const CONVERGE_MAX = CONVERGE_POINTS.length;
 const REACTIONS = ['🤣', '🤔', '👏'];
 
-const MODES = ['prompts', 'chain'];
+const MODES = ['prompts', 'chain', 'relay'];
 const CHAIN_ROUNDS = 6;
 
-const DEFAULT_OPTIONS = { mode: 'prompts', rounds: 5, timerSeconds: 30, converge: true, revealSeconds: 10 };
+// 接句模式
+const SEGMENT_LEN = 3;                   // 每段剛好 3 個字（標點不算）
+const SEGMENT_PUNCT = '，。！？、…～';    // 可以夾在字裡的標點，讓整段話有節奏
+const TURN_MIN_SECONDS = 5;
+const TURN_MAX_SECONDS = 30;
+const LAPS_MIN = 1;
+const LAPS_MAX = 5;
+const TURN_GRACE_MS = 600;               // 網路延遲寬限：倒數歸零後這段時間內送達仍算數
+const VOTE_SECONDS = 60;                 // 投票時間（另加每段 0.6 秒給揭曉動畫）
+const VOTES = ['up', 'poop'];
+
+const DEFAULT_OPTIONS = { mode: 'prompts', rounds: 5, timerSeconds: 30, converge: true, revealSeconds: 10, turnSeconds: 8, laps: 2 };
 
 // 默契稱號：依兩人同詞比例（value 0–100）。tierForValue 取第一個 min <= value 者
 const CHEMISTRY_TIERS = [
@@ -117,6 +130,12 @@ function resolveOptions(input = {}) {
   if (!Number.isInteger(o.revealSeconds) || o.revealSeconds < REVEAL_MIN_SECONDS || o.revealSeconds > REVEAL_MAX_SECONDS) {
     throw new GameError('BAD_OPTIONS', `揭曉停留需為 ${REVEAL_MIN_SECONDS}–${REVEAL_MAX_SECONDS} 秒`);
   }
+  if (!Number.isInteger(o.turnSeconds) || o.turnSeconds < TURN_MIN_SECONDS || o.turnSeconds > TURN_MAX_SECONDS) {
+    throw new GameError('BAD_OPTIONS', `接句時間需為 ${TURN_MIN_SECONDS}–${TURN_MAX_SECONDS} 秒`);
+  }
+  if (!Number.isInteger(o.laps) || o.laps < LAPS_MIN || o.laps > LAPS_MAX) {
+    throw new GameError('BAD_OPTIONS', `每人接句次數需為 ${LAPS_MIN}–${LAPS_MAX}`);
+  }
   return o;
 }
 
@@ -142,6 +161,7 @@ function createGame(options = {}) {
     promptsDone: 0,    // 已揭曉的計分輪數（題目輪或接龍輪）
     allSameAt: null,   // 接龍：第幾輪全員同詞（提前結束）
     converge: null,    // null | { success, attempt }
+    relay: null,       // 接句模式狀態，見 startRelay
     result: null,
   };
 }
@@ -155,6 +175,7 @@ function resetGame(game) {
 // ── 查詢 ────────────────────────────────────────────────────────
 const participantsOf = game => game.activeIds.filter(id => !game.leftIds.includes(id));
 const isChain = game => game.options.mode === 'chain';
+const isRelay = game => game.options.mode === 'relay';
 const totalScoredRounds = game => (isChain(game) ? CHAIN_ROUNDS : game.options.rounds);
 const allSubmitted = game => participantsOf(game).every(id => id in game.pending);
 
@@ -196,13 +217,14 @@ function nextStep(game) {
 }
 
 // ── 流程 ────────────────────────────────────────────────────────
-function startGame(game, playerIds, { now, rng = Math.random, prompts = null } = {}) {
+function startGame(game, playerIds, { now, rng = Math.random, prompts = null, themes = null } = {}) {
   assertPhase(game, 'waiting');
   requireNow(now);
   if (!Array.isArray(playerIds) || new Set(playerIds).size !== playerIds.length) throw new GameError('BAD_PLAYERS', '玩家名單不正確');
   if (playerIds.length < MIN_PLAYERS || playerIds.length > MAX_PLAYERS) {
     throw new GameError('BAD_PLAYERS', `需要 ${MIN_PLAYERS}–${MAX_PLAYERS} 位玩家`);
   }
+  if (isRelay(game)) return startRelay(game, playerIds, { now, rng, themes });
   if (!Array.isArray(prompts) || !prompts.length) throw new GameError('NO_PROMPTS', '沒有可用的題目');
   game.prompts = drawPrompts(prompts, isChain(game) ? 1 : game.options.rounds, rng);
   game.activeIds = [...playerIds];
@@ -347,7 +369,7 @@ function nextRound(game, { now } = {}) {
 
 // 房主提前結算：書寫中的本輪作廢
 function finishNow(game) {
-  assertPhase(game, 'writing', 'revealed');
+  assertPhase(game, 'writing', 'revealed', 'relay', 'voting');
   finishGame(game, 'host');
   return game.result;
 }
@@ -356,14 +378,25 @@ function finishGame(game, endReason) {
   game.pending = {};
   game.roundEndsAt = null;
   game.autoNextAt = null;
+  if (game.relay) { game.relay.turnEndsAt = null; game.relay.voteEndsAt = null; }
   game.phase = 'finished';
-  game.result = buildResult(game, endReason);
+  game.result = isRelay(game) ? buildRelayResult(game, endReason) : buildResult(game, endReason);
 }
 
 // 玩家中途離開：之後的輪次從所有計算中排除，已得分數保留
-function leavePlayer(game, playerId) {
-  if (!['writing', 'revealed'].includes(game.phase)) return { changed: false };
+function leavePlayer(game, playerId, { now = Date.now() } = {}) {
+  if (!['writing', 'revealed', 'relay', 'voting'].includes(game.phase)) return { changed: false };
   if (!game.activeIds.includes(playerId) || game.leftIds.includes(playerId)) return { changed: false };
+  if (game.phase === 'relay') {
+    const wasWriter = relayWriter(game) === playerId;
+    game.leftIds.push(playerId);
+    // 輪到的人離開：同一個位置換下一位接，重新計時
+    if (wasWriter) {
+      game.relay.turnStartedAt = now;
+      game.relay.turnEndsAt = now + game.options.turnSeconds * 1000;
+    }
+    return { changed: true, remaining: participantsOf(game).length, allSubmitted: false, writerChanged: wasWriter };
+  }
   game.leftIds.push(playerId);
   delete game.pending[playerId];
   const remaining = participantsOf(game).length;
@@ -440,6 +473,195 @@ function buildResult(game, endReason) {
   };
 }
 
+// ── 接句模式 ────────────────────────────────────────────────────
+// 依順序輪流，每人一次接 3 個字；寫的人只看得到上一段（盲接）。全部接完進入 voting，
+// 揭曉整段話，參與者對別人的每一段按讚或大便；房主公布（或時間到）後 finished。
+
+// 回傳可顯示的一段（去空白、全形英數轉半形、半形標點轉全形）；不合規回傳 null
+function normalizeSegment(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.replace(/\s+/g, '')
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/,/g, '，').replace(/\?/g, '？').replace(/!/g, '！').replace(/~/g, '～');
+  const chars = [...s];
+  const body = chars.filter(c => !SEGMENT_PUNCT.includes(c));
+  if (body.length !== SEGMENT_LEN || chars.length > SEGMENT_LEN * 2) return null;
+  if (!body.every(c => /^[一-鿿A-Za-z0-9]$/.test(c))) return null;
+  return s;
+}
+
+function startRelay(game, playerIds, { now, rng, themes }) {
+  if (!Array.isArray(themes) || !themes.length) throw new GameError('NO_PROMPTS', '沒有可用的主題');
+  // 順序打亂，不讓房主永遠第一個
+  const order = [...playerIds];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  game.activeIds = [...playerIds];
+  game.leftIds = [];
+  game.scores = Object.fromEntries(playerIds.map(id => [id, 0]));
+  game.lones = {};
+  game.relay = {
+    theme: themes[Math.floor(rng() * themes.length)],
+    order,
+    total: playerIds.length * game.options.laps,
+    segments: [],      // { by, text, ms, timeout }
+    votes: {},         // voterId → { segmentIndex → 'up' | 'poop' }
+    turnStartedAt: now,
+    turnEndsAt: now + game.options.turnSeconds * 1000,
+    voteEndsAt: null,
+  };
+  game.phase = 'relay';
+  return game;
+}
+
+// 目前輪到誰：依原本順序跳過已離開的人
+function relayWriter(game) {
+  const r = game.relay;
+  if (!r || game.phase !== 'relay') return null;
+  const order = r.order.filter(id => !game.leftIds.includes(id));
+  return order.length ? order[r.segments.length % order.length] : null;
+}
+
+function pushSegment(game, seg, now) {
+  const r = game.relay;
+  r.segments.push(seg);
+  if (r.segments.length >= r.total) {
+    game.phase = 'voting';
+    r.turnEndsAt = null;
+    r.voteEndsAt = now + (VOTE_SECONDS + Math.ceil(r.total * 0.6)) * 1000;
+    return { done: true };
+  }
+  r.turnStartedAt = now;
+  r.turnEndsAt = now + game.options.turnSeconds * 1000;
+  return { done: false };
+}
+
+function submitSegment(game, playerId, raw, { now } = {}) {
+  assertPhase(game, 'relay');
+  requireNow(now);
+  assertParticipant(game, playerId);
+  if (relayWriter(game) !== playerId) throw new GameError('NOT_YOUR_TURN', '還沒輪到你');
+  if (now > game.relay.turnEndsAt + TURN_GRACE_MS) throw new GameError('TIME_UP', '時間到了');
+  const text = normalizeSegment(raw);
+  if (!text) throw new GameError('BAD_SEGMENT', `請剛好寫 ${SEGMENT_LEN} 個字（標點不算）`);
+  return pushSegment(game, { by: playerId, text, ms: Math.max(0, now - game.relay.turnStartedAt), timeout: false }, now);
+}
+
+// 時間到沒寫：記成「卡住」，換下一位
+function timeoutTurn(game, { now } = {}) {
+  assertPhase(game, 'relay');
+  requireNow(now);
+  if (now < game.relay.turnEndsAt + TURN_GRACE_MS) throw new GameError('TOO_EARLY', '還在倒數');
+  return pushSegment(game, { by: relayWriter(game), text: '', ms: null, timeout: true }, now);
+}
+
+// 對別人的某一段投「讚」或「大便」，value 為 null 代表收回
+function voteSegment(game, voterId, index, value) {
+  assertPhase(game, 'voting');
+  assertParticipant(game, voterId);
+  const seg = Number.isInteger(index) ? game.relay.segments[index] : null;
+  if (!seg) throw new GameError('BAD_TARGET', '沒有這一段');
+  if (seg.timeout) throw new GameError('BAD_TARGET', '卡住的段落不能投');
+  if (seg.by === voterId) throw new GameError('BAD_TARGET', '不能投自己寫的');
+  if (value !== null && !VOTES.includes(value)) throw new GameError('BAD_VOTE', '只能按讚或大便');
+  const mine = (game.relay.votes[voterId] ??= {});
+  if (value === null) delete mine[index];
+  else mine[index] = value;
+}
+
+function endVoting(game) {
+  assertPhase(game, 'voting');
+  finishGame(game, 'complete');
+  return game.result;
+}
+
+// 整段話（卡住的段落跳過）
+const relayStory = segments => segments.filter(s => !s.timeout).map(s => s.text).join('');
+
+function relayView(game, viewerId) {
+  const r = game.relay;
+  const writerId = relayWriter(game);
+  const v = {
+    theme: r.theme,
+    order: r.order,
+    total: r.total,
+    done: r.segments.length,
+    writerId,
+    turnEndsAt: r.turnEndsAt,
+    voteEndsAt: r.voteEndsAt,
+    // 每一段是誰、有沒有卡住：接句中也公開（看得到進度），但不公開內容
+    turns: r.segments.map(s => ({ by: s.by, timeout: s.timeout })),
+  };
+  if (game.phase === 'relay') {
+    // 只有輪到的人看得到上一段；往回找最近一段沒卡住的
+    const prev = [...r.segments].reverse().find(s => !s.timeout);
+    v.prev = writerId === viewerId ? (prev?.text ?? null) : null;
+    v.mySegments = r.segments.filter(s => s.by === viewerId && !s.timeout).map(s => s.text);
+  } else {
+    v.segments = r.segments.map(s => ({ by: s.by, text: s.text, timeout: s.timeout }));
+    v.story = relayStory(r.segments);
+    v.myVotes = r.votes[viewerId] ?? {};
+    // 投票中不公開票數（避免跟風），只公開投過票的人數
+    v.voters = Object.values(r.votes).filter(m => Object.keys(m).length).length;
+  }
+  return v;
+}
+
+function buildRelayResult(game, endReason) {
+  const r = game.relay;
+  const ids = participantsOf(game);
+  const segments = r.segments.map(s => ({ by: s.by, text: s.text, timeout: s.timeout, ms: s.ms, up: 0, poop: 0 }));
+  for (const mine of Object.values(r.votes)) {
+    for (const [i, v] of Object.entries(mine)) if (segments[i]) segments[i][v] += 1;
+  }
+
+  const sum = key => {
+    const m = {};
+    for (const s of segments) if (!s.timeout) m[s.by] = (m[s.by] ?? 0) + s[key];
+    return m;
+  };
+  const stuck = {};
+  for (const s of segments) if (s.timeout) stuck[s.by] = (stuck[s.by] ?? 0) + 1;
+
+  // ⚡ 閃電手：平均反應時間最短（至少接成一段）
+  const times = {};
+  for (const s of segments) if (!s.timeout) (times[s.by] ??= []).push(s.ms);
+  let fastest = null;
+  for (const id of ids) {
+    if (!times[id]) continue;
+    const ms = Math.round(times[id].reduce((a, b) => a + b, 0) / times[id].length);
+    if (!fastest || ms < fastest.ms) fastest = { playerIds: [id], ms };
+    else if (ms === fastest.ms) fastest.playerIds.push(id);
+  }
+
+  // 單段票數最多的段落（須 > 0，可並列）
+  const topSegments = key => {
+    const max = Math.max(0, ...segments.map(s => s[key]));
+    return max ? segments.flatMap((s, i) => (s[key] === max ? [i] : [])) : [];
+  };
+
+  // 全員並列就不頒（等於沒有分出高下）
+  const award = top => (top && ids.length > 1 && top.playerIds.length === ids.length ? null : top);
+
+  return {
+    mode: 'relay',
+    endReason,
+    theme: r.theme,
+    story: relayStory(r.segments),
+    segments,
+    total: r.total,
+    best: award(topCount(sum('up'), ids)),
+    poop: award(topCount(sum('poop'), ids)),
+    stuck: award(topCount(stuck, ids)),
+    fastest: award(fastest),
+    bestSegments: topSegments('up'),
+    poopSegments: topSegments('poop'),
+    leftIds: [...game.leftIds],
+  };
+}
+
 // ── 每人專屬視圖 ─────────────────────────────────────────────────
 function buildView(game, viewerId) {
   const view = {
@@ -467,6 +689,7 @@ function buildView(game, viewerId) {
     pairs: pairStats(game).map(p => ({ a: p.a, b: p.b, count: p.count, value: p.value, tierId: p.tierId })),
     result: game.result,
   };
+  if (game.relay) view.relay = relayView(game, viewerId);
   if (game.phase === 'writing') {
     // 只下發「誰已送出」與自己的詞；不下發送出時間
     view.submitted = Object.fromEntries(participantsOf(game).map(id => [id, id in game.pending]));
@@ -494,7 +717,8 @@ function reactionTotals(round) {
 module.exports = {
   GameError,
   MIN_PLAYERS, MAX_PLAYERS, WORD_MAX_LEN, TOP_PAIRS, ALL_SAME_BONUS, CONVERGE_POINTS, CONVERGE_MAX, REACTIONS,
-  DEFAULT_OPTIONS, CHEMISTRY_TIERS, MODES, CHAIN_ROUNDS,
+  DEFAULT_OPTIONS, CHEMISTRY_TIERS, MODES, CHAIN_ROUNDS, SEGMENT_LEN, TURN_GRACE_MS, VOTE_SECONDS,
+  normalizeSegment, relayWriter, submitSegment, timeoutTurn, voteSegment, endVoting,
   normalizeWord, wordKey, tierForValue, resolveOptions, drawPrompts,
   createGame, resetGame, startGame, submitWord, settleRound, react, nextRound, finishNow, leavePlayer,
   participantsOf, pairStats, nextStep, buildResult, buildView,

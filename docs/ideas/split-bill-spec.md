@@ -309,7 +309,7 @@ Attachment      (id, expense_id, url, mime_type)              -- 選配
 - 斷線重連後 `bill:state` 與離線期間他人新增的支出一致
 - 玩家離開／被踢後帳目與餘額不變
 - server 重啟後由 DB 還原帳務
-- 後端整合測試比照 `room.integration.test.js` 的方式撰寫
+- 後端整合測試比照 `server/tests/integration/room.test.js` 的方式撰寫
 
 ---
 

@@ -15,6 +15,7 @@ const { registerRoomHandlers } = require('../room');
 const EV = require('../room/events');
 const L = require('./gameLogic');
 const PROMPTS = require('./prompts');
+const RELAY_THEMES = require('./relayThemes');
 
 const APP_ID = 'same-word';
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -123,6 +124,38 @@ function registerNamespace(io, db) {
     game._timer.unref?.();
   }
 
+  // 接句：每一棒倒數（含網路寬限），時間到記成卡住並換下一位
+  function scheduleTurn(roomId, game) {
+    clearTimers(game);
+    if (game.phase === 'voting') return scheduleVoting(roomId, game);
+    if (game.phase !== 'relay') return;
+    game._timer = setTimeout(() => {
+      game._timer = null;
+      if (getGame(roomId) !== game || game.phase !== 'relay') return;
+      try {
+        L.timeoutTurn(game, { now: Math.max(Date.now(), game.relay.turnEndsAt + L.TURN_GRACE_MS) });
+      } catch (err) {
+        console.error('[SameWord relay]', err);
+        return;
+      }
+      scheduleTurn(roomId, game);
+      pushState(roomId);
+    }, Math.max(0, game.relay.turnEndsAt + L.TURN_GRACE_MS - Date.now()));
+    game._timer.unref?.();
+  }
+
+  // 接句：投票時間到自動公布
+  function scheduleVoting(roomId, game) {
+    clearTimers(game);
+    game._timer = setTimeout(() => {
+      game._timer = null;
+      if (getGame(roomId) !== game || game.phase !== 'voting') return;
+      L.endVoting(game);
+      pushState(roomId);
+    }, Math.max(0, game.relay.voteEndsAt - Date.now()));
+    game._timer.unref?.();
+  }
+
   function advance(roomId, game) {
     const r = L.nextRound(game, { now: Date.now() }); // 非揭曉階段會丟 BAD_PHASE，此時不動計時器
     clearTimers(game);
@@ -143,9 +176,10 @@ function registerNamespace(io, db) {
   function handleLeft(roomId, playerId) {
     const game = getGame(roomId);
     if (!game) return;
-    const r = L.leavePlayer(game, playerId);
+    const r = L.leavePlayer(game, playerId, { now: Date.now() });
     if (!r.changed) return pushState(roomId);
     if (r.remaining < L.MIN_PLAYERS) return backToLobby(roomId, game, '玩家不足，本局中止，回到大廳。');
+    if (r.writerChanged) scheduleTurn(roomId, game);
     if (r.allSubmitted) return settle(roomId, game);
     pushState(roomId);
   }
@@ -227,9 +261,39 @@ function registerNamespace(io, db) {
       try {
         const c = asHost(roomId); if (!c) return;
         const ids = roomPlayers(roomId).map(p => p.id);
-        L.startGame(c.game, ids, { now: Date.now(), prompts: PROMPTS });
+        L.startGame(c.game, ids, { now: Date.now(), prompts: PROMPTS, themes: RELAY_THEMES });
         _roomCache.updateRoom(roomId, { status: 'playing' });
-        scheduleWriting(roomId, c.game);
+        if (c.game.phase === 'relay') scheduleTurn(roomId, c.game);
+        else scheduleWriting(roomId, c.game);
+        pushState(roomId);
+      } catch (err) { fail(socket, err); }
+    });
+
+    // 接句：輪到的人送出三個字
+    socket.on('sw:segment', ({ roomId, text } = {}) => {
+      try {
+        const c = ctx(roomId); if (!c) return;
+        L.submitSegment(c.game, c.playerId, text, { now: Date.now() });
+        scheduleTurn(roomId, c.game);
+        pushState(roomId);
+      } catch (err) { fail(socket, err); }
+    });
+
+    // 接句：對某一段按讚／大便（value 為 null 收回）
+    socket.on('sw:vote', ({ roomId, index, value } = {}) => {
+      try {
+        const c = ctx(roomId); if (!c) return;
+        L.voteSegment(c.game, c.playerId, index, value ?? null);
+        pushState(roomId);
+      } catch (err) { fail(socket, err); }
+    });
+
+    // 接句：房主提早公布結果
+    socket.on('sw:end-voting', ({ roomId } = {}) => {
+      try {
+        const c = asHost(roomId); if (!c) return;
+        clearTimers(c.game);
+        L.endVoting(c.game);
         pushState(roomId);
       } catch (err) { fail(socket, err); }
     });

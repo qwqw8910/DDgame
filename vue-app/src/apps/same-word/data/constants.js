@@ -46,4 +46,27 @@ export function checkWord(raw) {
 export const MODE_CHOICES = [
   { id: 'prompts', emoji: '📝', title: '題目模式', desc: '每題一個新題目，比誰跟別人想得一樣，最後有合作終局' },
   { id: 'chain', emoji: '🔗', title: '接龍模式', desc: '只有第 1 輪有題目，之後看大家的詞一路往中間靠，共 6 輪' },
+  { id: 'relay', emoji: '💬', title: '接句模式', desc: '輪流快速接三個字，只看得到上一段，最後揭曉整段話' },
 ]
+
+// ── 接句模式（與 server/same-word/gameLogic.js 保持一致）──────────
+export const SEGMENT_LEN = 3
+export const SEGMENT_PUNCT = '，。！？、…～'
+export const TURN_PRESETS = [5, 8, 10, 15]
+export const LAP_PRESETS = [1, 2, 3, 4]
+
+// 去空白、半形標點轉全形；回傳 { text, count }，count 是不含標點的字數
+export function readSegment(raw) {
+  const text = String(raw ?? '').replace(/\s+/g, '')
+    .replace(/,/g, '，').replace(/\?/g, '？').replace(/!/g, '！').replace(/~/g, '～')
+  const count = [...text].filter(c => !SEGMENT_PUNCT.includes(c)).length
+  return { text, count }
+}
+
+export function checkSegment(raw) {
+  const { text, count } = readSegment(raw)
+  if (!count) return `請寫 ${SEGMENT_LEN} 個字`
+  if (count !== SEGMENT_LEN) return `要剛好 ${SEGMENT_LEN} 個字（現在 ${count} 個，標點不算）`
+  if (![...text].every(c => SEGMENT_PUNCT.includes(c) || /^[一-鿿A-Za-z0-9Ａ-Ｚａ-ｚ０-９]$/.test(c))) return '只能用中文、英文或數字'
+  return ''
+}

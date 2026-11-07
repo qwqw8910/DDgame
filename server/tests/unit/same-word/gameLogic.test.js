@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const L = require('./gameLogic');
+const L = require('../../../same-word/gameLogic');
 
 const T0 = 1_000_000;
 const ids = n => Array.from({ length: n }, (_, i) => `p${i + 1}`);
@@ -49,7 +49,7 @@ test('正規化：英文不分大小寫、全形轉半形、頭尾空白去掉�
 
 // ── 設定與開局 ─────────────────────────────────────────────────
 test('設定：預設值與範圍檢查', () => {
-  assert.deepEqual(L.resolveOptions(), { mode: 'prompts', rounds: 5, timerSeconds: 30, converge: true, revealSeconds: 10 });
+  assert.deepEqual(L.resolveOptions(), { mode: 'prompts', rounds: 5, timerSeconds: 30, converge: true, revealSeconds: 10, turnSeconds: 8, laps: 2 });
   assert.throws(() => L.resolveOptions({ mode: 'free' }), { code: 'BAD_OPTIONS' });
   assert.throws(() => L.resolveOptions({ rounds: 2 }), { code: 'BAD_OPTIONS' });
   assert.throws(() => L.resolveOptions({ rounds: 11 }), { code: 'BAD_OPTIONS' });
@@ -455,4 +455,98 @@ test('接龍：剩 1 人時結束', () => {
   L.leavePlayer(g, 'p2');
   play(g, { p1: '海' });
   assert.equal(L.nextStep(g), null);
+});
+
+// ── 接句模式 ─────────────────────────────────────────────────
+const THEMES = ['主題甲', '主題乙'];
+function relayGame(n, options = {}) {
+  const g = L.createGame({ mode: 'relay', ...options });
+  L.startGame(g, ids(n), { now: T0, themes: THEMES, rng: () => 0.5 });
+  return g;
+}
+const writeTurn = (g, text, dt = 1000) => L.submitSegment(g, L.relayWriter(g), text, { now: g.relay.turnEndsAt - g.options.turnSeconds * 1000 + dt });
+
+test('接句：段落必須剛好三個字，標點不算', () => {
+  assert.equal(L.normalizeSegment('我今天'), '我今天');
+  assert.equal(L.normalizeSegment(' 去 吃 飯 '), '去吃飯');
+  assert.equal(L.normalizeSegment('好,啦啦!'), '好，啦啦！');
+  assert.equal(L.normalizeSegment('ＯＫ了'), 'OK了');
+  for (const bad of ['我', '我今天去', '，，，', 'かなか', '', null, '好，，，，啦啦']) {
+    assert.equal(L.normalizeSegment(bad), null, String(bad));
+  }
+});
+
+test('接句：輪流寫，只有輪到的人看得到上一段，接完進入投票', () => {
+  const g = relayGame(3, { laps: 2 });
+  assert.equal(g.phase, 'relay');
+  assert.equal(g.relay.total, 6);
+  assert.ok(THEMES.includes(g.relay.theme));
+  const first = L.relayWriter(g);
+  const other = ids(3).find(id => id !== first);
+  assert.throws(() => L.submitSegment(g, other, '我今天', { now: T0 + 100 }), { code: 'NOT_YOUR_TURN' });
+  assert.throws(() => L.submitSegment(g, first, '太長了吧', { now: T0 + 100 }), { code: 'BAD_SEGMENT' });
+  writeTurn(g, '我今天');
+  const second = L.relayWriter(g);
+  assert.notEqual(second, first);
+  assert.equal(L.buildView(g, second).relay.prev, '我今天');
+  assert.equal(L.buildView(g, first).relay.prev, null);
+  assert.equal(L.buildView(g, first).relay.segments, undefined, '接句中不下發內容');
+  for (const t of ['去上班', '遇到鬼', '超可怕', '但是他', '很帥氣']) writeTurn(g, t);
+  assert.equal(g.phase, 'voting');
+  const v = L.buildView(g, first).relay;
+  assert.equal(v.story, '我今天去上班遇到鬼超可怕但是他很帥氣');
+  assert.equal(v.segments.length, 6);
+});
+
+test('接句：時間到記成卡住，跳過不進整段話', () => {
+  const g = relayGame(2, { laps: 1 });
+  assert.throws(() => L.timeoutTurn(g, { now: T0 + 1000 }), { code: 'TOO_EARLY' });
+  const stuckId = L.relayWriter(g);
+  L.timeoutTurn(g, { now: g.relay.turnEndsAt + L.TURN_GRACE_MS });
+  writeTurn(g, '哈哈哈');
+  assert.equal(g.phase, 'voting');
+  L.endVoting(g);
+  assert.equal(g.result.story, '哈哈哈');
+  assert.deepEqual(g.result.stuck, { playerIds: [stuckId], count: 1 });
+});
+
+test('接句：投票不能投自己與卡住的段落，結算頒獎', () => {
+  const g = relayGame(3, { laps: 1 });
+  const [a, b, c] = g.relay.order;
+  writeTurn(g, '從前有', 500);
+  writeTurn(g, '一隻貓', 2000);
+  writeTurn(g, '在放屁', 3000);
+  assert.throws(() => L.voteSegment(g, a, 0, 'up'), { code: 'BAD_TARGET' });
+  assert.throws(() => L.voteSegment(g, a, 9, 'up'), { code: 'BAD_TARGET' });
+  assert.throws(() => L.voteSegment(g, a, 1, 'love'), { code: 'BAD_VOTE' });
+  L.voteSegment(g, a, 2, 'up');
+  L.voteSegment(g, b, 2, 'up');
+  L.voteSegment(g, a, 1, 'poop');
+  L.voteSegment(g, c, 1, 'poop');
+  L.voteSegment(g, c, 0, 'up');
+  L.voteSegment(g, c, 0, null); // 收回
+  assert.equal(L.buildView(g, a).relay.voters, 3);
+  L.endVoting(g);
+  const r = g.result;
+  assert.equal(r.mode, 'relay');
+  assert.deepEqual(r.best, { playerIds: [c], count: 2 });
+  assert.deepEqual(r.poop, { playerIds: [b], count: 2 });
+  assert.deepEqual(r.bestSegments, [2]);
+  assert.deepEqual(r.fastest, { playerIds: [a], ms: 500 });
+  assert.equal(r.stuck, null);
+});
+
+test('接句：輪到的人離開，換下一位並重新計時', () => {
+  const g = relayGame(3, { laps: 1 });
+  const w = L.relayWriter(g);
+  const r = L.leavePlayer(g, w, { now: T0 + 5000 });
+  assert.equal(r.writerChanged, true);
+  assert.notEqual(L.relayWriter(g), w);
+  assert.equal(g.relay.turnEndsAt, T0 + 5000 + g.options.turnSeconds * 1000);
+});
+
+test('接句：設定驗證', () => {
+  assert.throws(() => L.resolveOptions({ mode: 'relay', turnSeconds: 2 }), { code: 'BAD_OPTIONS' });
+  assert.throws(() => L.resolveOptions({ mode: 'relay', laps: 9 }), { code: 'BAD_OPTIONS' });
+  assert.equal(L.resolveOptions({ mode: 'relay' }).turnSeconds, 8);
 });

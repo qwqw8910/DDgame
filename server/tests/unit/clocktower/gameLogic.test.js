@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const L = require('./gameLogic');
+const L = require('../../../clocktower/gameLogic');
 
 const ST = 'st';
 const ids = n => Array.from({ length: n }, (_, i) => `p${i + 1}`);

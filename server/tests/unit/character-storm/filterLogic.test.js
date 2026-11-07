@@ -2,7 +2,7 @@
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { processHints, normalizeAnswer, isAnswerCorrect, buildCollisions } = require('./filterLogic');
+const { processHints, normalizeAnswer, isAnswerCorrect, buildCollisions } = require('../../../character-storm/filterLogic');
 
 describe('isAnswerCorrect', () => {
   test('完全相同', () => assert.equal(isAnswerCorrect('臭豆腐', '臭豆腐'), true));
