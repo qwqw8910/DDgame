@@ -1,83 +1,91 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center px-4 pt-16 pb-12 relative overflow-x-hidden">
-    <!-- 浮動背景 emoji -->
-    <div class="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
-      <span class="float-emoji text-[52px] top-[4%] left-[4%] [animation-delay:0s]">♂️</span>
-      <span class="float-emoji text-[44px] top-[6%] right-[8%] [animation-delay:1.3s]">♀️</span>
-      <span class="float-emoji text-4xl top-[22%] left-[6%] [animation-delay:0.6s]">💯</span>
-      <span class="float-emoji text-[40px] top-[18%] right-[14%] [animation-delay:2s]">🔟</span>
-      <span class="float-emoji text-[48px] bottom-[22%] left-[3%] [animation-delay:1.6s]">💘</span>
-      <span class="float-emoji text-[38px] bottom-[8%] right-[5%] [animation-delay:0.3s]">✨</span>
-    </div>
+  <!-- html/body 是 overflow-hidden，捲動發生在這一層 -->
+  <div class="h-dvh overflow-x-hidden overflow-y-auto bg-canvas font-text text-ink">
+    <div
+      class="mx-auto flex min-h-full max-w-[1280px] 2xl:max-w-[1440px] min-[1920px]:max-w-[1600px] flex-col px-12 pt-[max(16px,env(safe-area-inset-top))] pb-[max(48px,env(safe-area-inset-bottom))] max-lg:px-8 max-sm:px-4">
 
-    <!-- 返回按鈕 -->
-    <RouterLink to="/" aria-label="返回首頁"
-      class="fixed top-4 left-4 z-50 inline-flex items-center rounded-lg px-3.5 py-2 text-base font-medium no-underline border transition-[color,border-color,box-shadow] duration-200 bg-card text-label border-border-glow hover:text-heading hover:border-neon-purple [box-shadow:0_2px_8px_var(--color-shadow-dark)]">
-      ← 返回
-    </RouterLink>
-
-    <!-- 主卡片 -->
-    <main role="main"
-      class="animate-slide-up relative z-10 w-full max-w-[500px] flex flex-col gap-[18px] rounded-[20px] p-6 pb-7 backdrop-blur-lg bg-card sm:p-8 sm:pb-7"
-      style="border:1px solid var(--color-border-glow); box-shadow: 0 12px 48px rgba(0,0,0,0.4), 0 0 40px rgba(139,92,246,0.08)">
-
-      <!-- 標題 + 性別切換 -->
-      <header class="text-center">
-        <div class="mb-3">
-          <span class="gradient-text neon-heading text-[clamp(28px,7vw,42px)] font-extrabold leading-none">十分男女</span>
-        </div>
-        <p class="text-base font-normal m-0 text-body">你能接受嗎？給 1–10 分</p>
-      </header>
-
-      <!-- 進度 -->
-      <div class="flex justify-between items-center mb-1.5" aria-label="題目進度">
-        <span class="text-base font-normal text-body">第 {{ currentIndex + 1 }} 題</span>
-        <span class="text-base font-medium rounded-md px-2.5 py-0.5 [color:var(--color-neon-purple-light)] [background:rgba(139,92,246,0.1)] [border:1px_solid_rgba(139,92,246,0.2)]">{{ currentQuestion.category }}</span>
-        <span class="text-base font-normal text-body">共 {{ questions.length }} 題</span>
-      </div>
-      <div class="progress-track" role="progressbar" :aria-valuenow="currentIndex + 1" :aria-valuemin="1"
-        :aria-valuemax="questions.length">
-        <div class="progress-fill" :style="{ width: progressPct + '%' }"></div>
-      </div>
-
-      <!-- 題目卡 -->
-      <div :key="currentIndex" class="rounded-2xl overflow-hidden flex flex-col border border-border">
-
-        <!-- 上半：完美前提 -->
-        <div class="flex flex-col gap-2 px-5 pt-[18px] pb-3.5 [background:rgba(139,92,246,0.07)]">
-          <span class="inline-flex items-center gap-1 text-base font-semibold [letter-spacing:0.3px] [color:var(--color-neon-purple-light)]">✨ 完美條件</span>
-          <p class="text-[clamp(16px,3.5vw,20px)] font-semibold leading-relaxed m-0 break-words text-heading">{{ renderedSetup }}，</p>
-        </div>
-
-        <!-- 分隔線 -->
-        <div class="flex items-center justify-center relative bg-subtle border-t border-b border-border">
-          <span class="text-base font-extrabold [letter-spacing:4px] px-4 py-1.5 bg-clip-text text-transparent [-webkit-text-fill-color:transparent] [background-image:linear-gradient(135deg,var(--color-neon-rose),#F472B6)]">BUT</span>
-        </div>
-
-        <!-- 下半：致命缺點 -->
-        <div class="flex flex-col gap-2 px-5 pt-3.5 pb-[18px] [background:rgba(225,29,72,0.07)]">
-          <span class="inline-flex items-center gap-1 text-base font-semibold [letter-spacing:0.3px] [color:var(--color-neon-rose-light)]">💀 致命缺點</span>
-          <p class="text-[clamp(16px,3.5vw,20px)] font-bold leading-relaxed m-0 break-words text-heading">{{ renderedFlaw }}</p>
-        </div>
-      </div>
-
-      <!-- 下一題 -->
-      <div class="flex">
-        <button @click="nextQuestion"
-          class="w-full py-3.5 px-6 text-lg font-semibold font-sans [letter-spacing:0.5px] border-0 rounded-[10px] cursor-pointer text-white transition-[transform,box-shadow] duration-200 [background:linear-gradient(135deg,var(--color-neon-purple)_0%,var(--color-neon-rose)_100%)] [box-shadow:0_4px_16px_rgba(139,92,246,0.3)] hover:-translate-y-0.5 hover:[box-shadow:0_8px_24px_rgba(139,92,246,0.4)] active:translate-y-0">
-          {{ isLast ? '重新開始 🔄' : '下一題 →' }}
+      <!-- 頂列：返回 ｜ 深淺色 -->
+      <div class="flex items-center justify-between gap-2">
+        <RouterLink to="/" :class="iconBtn" aria-label="返回首頁" title="返回首頁">
+          <RoomIcon name="back" />
+        </RouterLink>
+        <button type="button" :class="iconBtn" :aria-label="themeLabel" :title="themeLabel" @click="toggleTheme">
+          <!-- 顯示「按下去會變成的」模式，與首頁一致 -->
+          <RoomIcon :name="isDark ? 'sun' : 'moon'" />
         </button>
       </div>
 
-    </main>
+      <main class="mx-auto flex w-full max-w-[720px] flex-1 flex-col pt-12 max-sm:pt-6">
+        <!-- 標題 -->
+        <header>
+          <p class="m-0 text-base font-medium text-brand-ink">共 {{ questions.length }} 題，隨機出題</p>
+          <h1 class="mt-3 mb-0 font-display text-[clamp(40px,8vw,64px)] leading-[1.08] font-normal tracking-[0.01em] text-ink">
+            十分男女</h1>
+          <p class="mt-4 mb-0 text-xl leading-relaxed text-ink-muted max-sm:text-lg">
+            對方滿分，只有一個缺點。你能接受嗎？各自喊出 1–10 分。</p>
+        </header>
+
+        <!-- 進度 -->
+        <div class="mt-10 max-sm:mt-8">
+          <div class="flex items-center justify-between gap-3 text-base text-ink-muted">
+            <span class="tabular-nums">第 {{ currentIndex + 1 }} / {{ questions.length }} 題</span>
+            <span v-if="currentQuestion.category"
+              class="rounded-full bg-fill px-2.5 py-0.5 leading-snug text-ink-faint">{{ currentQuestion.category }}</span>
+          </div>
+          <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-fill" role="progressbar" aria-label="題目進度"
+            :aria-valuenow="currentIndex + 1" :aria-valuemin="1" :aria-valuemax="questions.length">
+            <div class="h-full rounded-full bg-ink transition-[width] duration-200 ease-soft motion-reduce:transition-none"
+              :style="{ width: progressPct + '%' }"></div>
+          </div>
+        </div>
+
+        <!-- 題目卡：前提 → 分隔線 → 缺點（重點） -->
+        <section class="mt-6 rounded-tile bg-raised p-8 shadow-(--shadow-tile) max-sm:p-5" aria-live="polite"
+          aria-atomic="true">
+          <p class="m-0 text-base text-ink-faint">完美條件</p>
+          <p class="mt-2 mb-0 text-lg leading-relaxed break-words text-ink-muted">{{ currentQuestion.setup }}，</p>
+
+          <div class="my-6 flex items-center gap-4" aria-hidden="true">
+            <hr class="h-px flex-1 border-0 bg-hairline" />
+            <span class="font-display text-base tracking-[0.3em] text-ink-faint">BUT</span>
+            <hr class="h-px flex-1 border-0 bg-hairline" />
+          </div>
+
+          <p class="m-0 text-base text-ink-faint">致命缺點</p>
+          <p
+            class="mt-2 mb-0 font-display text-[clamp(22px,3vw,28px)] leading-normal font-normal break-words text-ink">
+            {{ currentQuestion.flaw }}</p>
+        </section>
+
+        <!-- 下一題 -->
+        <div class="mt-6 flex justify-end max-sm:block">
+          <button type="button"
+            class="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-brand px-7 text-lg font-medium text-on-brand transition-[scale] duration-150 ease-soft active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-reduce:transition-none max-sm:w-full"
+            @click="nextQuestion">
+            {{ isLast ? '重新洗牌' : '下一題' }}
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round" class="size-5">
+              <path v-if="isLast" d="M15.5 8A6 6 0 0 0 4.6 7M4.5 12a6 6 0 0 0 10.9 1M4.5 3.5V7H8M15.5 16.5V13H12" />
+              <path v-else d="m8 5 5 5-5 5" />
+            </svg>
+          </button>
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-// gender toggle removed — questions use neutral pronouns (對方/對象)
 import { RouterLink } from 'vue-router'
+import RoomIcon from '@/shared/components/room/RoomIcon.vue'
+import { useTheme } from '@/shared/composables/useTheme.js'
 import questionsData from '../data/questions.json'
+
+const { isDark, toggleTheme } = useTheme()
+const themeLabel = computed(() => (isDark.value ? '切換為淺色模式' : '切換為深色模式'))
+
+const iconBtn = 'grid size-11 cursor-pointer place-items-center rounded-full border-0 bg-raised text-ink no-underline shadow-(--shadow-tile) transition-[background-color,scale] duration-150 ease-soft hover:bg-fill active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-reduce:transition-none'
 
 // ── 題目清單 ─────────────────────────────────────────────────
 const questions = ref([])
@@ -103,9 +111,6 @@ const currentIndex = ref(0)
 const currentQuestion = computed(() =>
   questions.value[currentIndex.value] ?? { id: 0, setup: '', flaw: '載入中…', category: '' }
 )
-
-const renderedSetup = computed(() => currentQuestion.value.setup)
-const renderedFlaw  = computed(() => currentQuestion.value.flaw)
 
 const isLast = computed(() => currentIndex.value === questions.value.length - 1)
 
