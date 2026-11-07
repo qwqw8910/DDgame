@@ -324,11 +324,16 @@ export function useRoom(socket, callbacks = {}) {
   }
 
   /** 產生邀請連結（遊戲路由由呼叫方提供） */
-  function copyInviteLink(routePath) {
+  // 回傳 Promise<boolean>：true = 已寫入剪貼簿；false = 瀏覽器擋下（非 https、權限拒絕），呼叫端應提示手動複製
+  async function copyInviteLink(routePath) {
     const base = window.location.href.split('#')[0]
     const link = `${base}#${routePath}?room=${roomState.roomId}`
-    navigator.clipboard.writeText(link).catch(() => {})
-    return link
+    try {
+      await navigator.clipboard.writeText(link)
+      return true
+    } catch {
+      return false
+    }
   }
 
   const api = {
