@@ -13,6 +13,30 @@
   --font-mono: 'Source Code Pro', 'SF Mono', monospace;
   --font-serif-tc: 'Noto Serif TC', 'Songti TC', serif;
 
+  /* ── 新設計系統 v2（首頁先用；其他 app 改版時沿用，舊 token 等全部改完再清） ──
+     原則：主色只有一個（玫瑰紅 brand），其餘全部中性石灰階。預設值 = 深色，
+     [data-theme="light"] 於下方覆寫。對比度（WCAG）寫在每行註解。 */
+  --font-display: 'Huninn', 'Noto Sans TC', ui-rounded, sans-serif;               /* 標題：justfont 粉圓 */
+  --font-text: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei', sans-serif; /* 內文 */
+
+  --color-canvas: #0C0A09;       /* 頁面底 */
+  --color-raised: #1C1917;       /* 卡片、按鈕底 */
+  --color-fill: #292524;         /* 圖示底、標籤底、hover 底 */
+  --color-hairline: #2E2A27;     /* 分隔線、卡片描邊（非文字） */
+  --color-ink: #F5F5F4;          /* 主要文字 18.1:1 on canvas */
+  --color-ink-muted: #A8A29E;    /* 次要文字 6.9:1 on raised */
+  --color-ink-faint: #938C87;    /* 輔助文字 5.3:1 on raised、4.6:1 on fill */
+  --color-brand: #FB7185;        /* 主色填色（選中、主要按鈕） */
+  --color-brand-ink: #FB7185;    /* 主色文字 7.3:1 on canvas */
+  --color-on-brand: #1C1917;     /* 主色上的文字 6.5:1 */
+  --color-brand-soft: rgba(251, 113, 133, 0.14);
+  --color-warning-ink: #FBBF24;  /* 警告文字 10.5:1 on raised、9.1:1 on fill */
+  --color-danger-ink: #F87171;   /* 錯誤文字 6.3:1 on raised、5.5:1 on fill */
+
+  --radius-tile: 1.25rem;        /* 卡片、面板（唯一的大圓角） */
+  --radius-inset: 0.75rem;       /* 卡片內的圖示框（= tile 圓角 − 內距的同心圓角） */
+  --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+
   --color-neon-rose: #E11D48;
   --color-neon-rose-hover: #BE123C;
   --color-neon-rose-deep: #9F1239;
@@ -95,6 +119,31 @@
   --color-accent-tint: rgba(124, 58, 237, 0.08);
   --color-divider: rgba(100, 116, 139, 0.15);
   --color-error-fg: #E11D48;
+
+  /* 設計系統 v2 淺色值 */
+  --color-canvas: #F6F5F4;
+  --color-raised: #FFFFFF;
+  --color-fill: #F0EFEE;
+  --color-hairline: #E7E5E4;
+  --color-ink: #1C1917;          /* 16.1:1 on canvas */
+  --color-ink-muted: #57534E;    /* 7.0:1 on canvas */
+  --color-ink-faint: #6B6560;    /* 5.3:1 on canvas、5.0:1 on fill */
+  --color-brand: #E11D48;        /* 白字 4.7:1 */
+  --color-brand-ink: #BE123C;    /* 主色文字 6.3:1 on white（#E11D48 在 canvas 上只有 4.3:1，文字不用它） */
+  --color-on-brand: #FFFFFF;
+  --color-brand-soft: rgba(225, 29, 72, 0.08);
+  --color-warning-ink: #B45309;  /* 5.0:1 on white、4.6:1 on canvas（fill 上只有 4.4:1，不要放在 fill 上） */
+  --color-danger-ink: #B91C1C;   /* 6.5:1 on white、5.9:1 on canvas、5.6:1 on fill */
+}
+
+/* 設計系統 v2 陰影：放在 @theme 外，才能隨主題在執行期切換（以 shadow-(--shadow-tile) 使用） */
+:root {
+  --shadow-tile: 0 0 0 1px var(--color-hairline);
+  --shadow-tile-hover: 0 0 0 1px #44403C, 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+[data-theme="light"] {
+  --shadow-tile: 0 0 0 1px var(--color-hairline), 0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-tile-hover: 0 0 0 1px #D6D3D1, 0 10px 28px rgba(28, 25, 23, 0.08);
 }
 
 /* Back-compat aliases: components not yet touched by the Tailwind migration
