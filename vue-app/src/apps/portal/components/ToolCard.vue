@@ -5,13 +5,13 @@
             flavorClass,
             wide ? 'items-center rounded-2xl px-[18px] py-3.5' : 'rounded-[22px] px-[22px] pt-[22px] pb-5',
             isClickable
-                ? 'transition-[transform,box-shadow] duration-200 ease-[cubic-bezier(.3,1.4,.5,1)] hover:-translate-y-1 hover:-rotate-[.6deg] hover:shadow-[0_7px_0_color-mix(in_srgb,var(--flavor)_55%,transparent)] active:translate-y-px active:shadow-[0_1px_0_color-mix(in_srgb,var(--flavor)_55%,transparent)] motion-reduce:hover:transform-none'
+                ? 'transition-[transform,box-shadow] duration-200 ease-[cubic-bezier(.3,1.4,.5,1)] hover:-translate-y-0.5 hover:shadow-[0_5px_0_color-mix(in_srgb,var(--flavor)_55%,transparent)] active:translate-y-px active:shadow-[0_1px_0_color-mix(in_srgb,var(--flavor)_55%,transparent)] motion-reduce:hover:transform-none'
                 : 'opacity-60 shadow-none',
         ]">
         <div aria-hidden="true"
             class="grid shrink-0 place-items-center rounded-full leading-none border-[1.5px] border-dashed border-[color-mix(in_srgb,var(--flavor)_70%,transparent)] bg-[color-mix(in_srgb,var(--flavor)_28%,var(--p-surface))]"
-            :class="wide ? 'size-[46px] text-[23px]' : 'size-[60px] text-[30px]'">
-            {{ tool.emoji }}
+            :class="wide ? 'size-[46px] p-[11px]' : 'size-[60px] p-3.5'">
+            <ToolIcon :id="tool.id" class="text-(--flavor)" />
         </div>
 
         <div class="min-w-0 flex-1">
@@ -38,6 +38,7 @@
 <script setup>
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import ToolIcon from './ToolIcon.vue'
 
 const props = defineProps({
     tool: { type: Object, required: true },
