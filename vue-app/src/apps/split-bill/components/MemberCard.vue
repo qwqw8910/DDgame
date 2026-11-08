@@ -1,22 +1,15 @@
 <template>
-    <article :class="['game-card', 'xcard', { 'xcard--del': member.leftAt }]">
-        <div class="xcard__head">
-            <div class="min-w-0">
-                <div class="xcard__title">
-                    {{ member.name }}
-                    <span v-if="isMe" class="badge badge-me">我</span>
-                    <span v-if="member.isHost" class="badge badge-host">👑 房主</span>
-                    <span v-if="member.isVirtual" class="badge badge-waiting">未加入</span>
-                    <span v-if="member.leftAt" class="badge">已離開</span>
-                </div>
-                <div class="xcard__meta">
-                    <span v-if="member.leftAt">帳目仍保留；以同名重新加入即可接回</span>
-                    <span v-else-if="member.isVirtual">之後用同名加入，就會自動接上這些帳目</span>
-                    <span v-else>{{ member.online ? '🟢 在線' : '⚪ 離線' }}</span>
-                </div>
-            </div>
-
-            <div v-if="canManage" ref="menuEl" class="xcard__menu">
+    <div :class="['mrow', { 'mrow--del': member.leftAt }]">
+        <div class="mrow__name">
+            {{ member.name }}
+            <span v-if="isMe" class="badge badge-me">我</span>
+        </div>
+        <div class="mrow__type">
+            <span class="xcard__chip">{{ member.isHost ? '管理員' : member.isVirtual ? '虛擬成員' : '成員' }}</span>
+            <span v-if="member.leftAt" class="xcard__chip">已離開</span>
+        </div>
+        <div class="mrow__actions">
+            <div v-if="canManage || canInvite" ref="menuEl" class="xcard__menu">
                 <button type="button" class="xcard__kebab" aria-label="更多操作" aria-haspopup="menu" :aria-expanded="menuOpen"
                     @click="menuOpen = !menuOpen">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
@@ -24,14 +17,15 @@
                     </svg>
                 </button>
                 <div v-if="menuOpen" class="xcard__popover" role="menu">
-                    <button v-if="!member.isVirtual" type="button" role="menuitem" class="xcard__item" @click="pick('transfer')">移交房主</button>
-                    <button type="button" role="menuitem" class="xcard__item xcard__item--danger" @click="pick('kick')">
-                        {{ member.isVirtual ? '移除成員' : '移出帳本' }}
+                    <button v-if="canInvite" type="button" role="menuitem" class="xcard__item" @click="pick('copy-link')">分享邀請連結</button>
+                    <button v-if="canManage && !member.isVirtual" type="button" role="menuitem" class="xcard__item" @click="pick('transfer')">移交管理員</button>
+                    <button v-if="canManage" type="button" role="menuitem" class="xcard__item xcard__item--danger" @click="pick('kick')">
+                        移除成員
                     </button>
                 </div>
             </div>
         </div>
-    </article>
+    </div>
 </template>
 
 <script setup>
@@ -40,9 +34,10 @@ import { ref, watch, onBeforeUnmount } from 'vue'
 defineProps({
     member: { type: Object, required: true },
     isMe: { type: Boolean, default: false },
-    canManage: { type: Boolean, default: false },   // 房主對其他在場真人成員
+    canManage: { type: Boolean, default: false },   // 管理員對其他在場真人成員
+    canInvite: { type: Boolean, default: false },   // 虛擬成員可分享邀請連結
 })
-const emit = defineEmits(['transfer', 'kick'])
+const emit = defineEmits(['transfer', 'kick', 'copy-link'])
 
 const menuOpen = ref(false)
 const menuEl = ref(null)

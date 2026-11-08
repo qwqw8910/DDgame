@@ -21,7 +21,7 @@
                 <!-- 建立房間（透過分享連結進入時隱藏） -->
                 <div v-if="!hasRoomFromUrl" class="game-card flex flex-col">
                     <h2 class="neon-heading text-xl mb-1.5 text-heading">🏠 建立新帳本</h2>
-                    <p class="text-base mb-5 text-body">例如「日本旅行」，再把房間碼分享給大家</p>
+                    <p class="text-base mb-5 text-body">例如「日本旅行」，再把帳本代碼分享給大家</p>
                     <div class="flex flex-col gap-3 flex-1 justify-end">
                         <div class="input-wrapper">
                             <span class="input-icon">📒</span>
@@ -44,11 +44,11 @@
                 <div class="game-card flex flex-col">
                     <h2 class="neon-heading text-xl mb-1.5 text-heading">🔑 加入帳本</h2>
                     <p class="text-base mb-5 text-body">
-                        {{ hasRoomFromUrl ? `房間碼：${joinCode}` : '輸入朋友分享的房間碼' }}
+                        {{ hasRoomFromUrl ? `帳本代碼：${joinCode}` : '輸入朋友分享的帳本代碼' }}
                     </p>
                     <div class="flex flex-col gap-3 flex-1 justify-end">
                         <div v-if="!hasRoomFromUrl" class="input-wrapper">
-                            <input v-model="joinCode" type="text" placeholder="房間碼（6碼）" maxlength="6"
+                            <input v-model="joinCode" type="text" placeholder="帳本代碼（6碼）" maxlength="6"
                                 class="game-input text-center [letter-spacing:6px] font-semibold px-0"
                                 @input="joinCode = joinCode.toUpperCase()" />
                         </div>
@@ -77,7 +77,7 @@
             </div>
 
             <p class="mt-6 text-center max-w-[480px] text-body text-base leading-relaxed">
-                輸入某人的名字就能以該人身分操作，請只把房間碼分享給信任的人。
+                輸入某人的名字就能以該人身分操作，請只把帳本代碼分享給信任的人。
             </p>
         </div>
 
@@ -178,7 +178,9 @@ onMounted(() => {
     if (code) {
         joinCode.value = code
         hasRoomFromUrl.value = true
-        showToast('請輸入名字後加入帳本 🎉', 'info')
+        const invited = (hashParams.get('nickname') || '').trim().slice(0, 20)
+        if (invited) joinNickname.value = invited
+        showToast(invited ? `管理員幫你取好名字了，確認後加入帳本 🎉` : '請輸入名字後加入帳本 🎉', 'info')
     }
 })
 
@@ -202,7 +204,7 @@ function handleCreate() {
 function handleJoin() {
     const code = joinCode.value.trim().toUpperCase()
     const nickname = joinNickname.value.trim()
-    if (code.length !== 6) return showToast('請輸入 6 碼房間碼！', 'error')
+    if (code.length !== 6) return showToast('請輸入 6 碼帳本代碼！', 'error')
     if (!nickname) return showToast('請輸入你的名字！', 'error')
     go({ id: code, nickname }, nickname)
 }
