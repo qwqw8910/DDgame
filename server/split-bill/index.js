@@ -3,7 +3,7 @@
 // ================================================================
 //  分帳系統 — Socket.io namespace `/split-bill`
 //
-//  - 房間管理（建立／加入／重連／踢人／轉移房主）全部交給統一房間模組。
+//  - 房間管理（建立／加入／重連／踢人／轉移管理員）全部交給統一房間模組。
 //  - 身分 = 房間內名稱：playerId 由「房號 + 名稱」推導（見 logic.memberPlayerId），
 //    同名者換裝置進來會被當成同一人重連。前端須以 room:join-ack 的 myPlayerId 為準。
 //  - 帳務資料以 DB 為唯一真實來源；記憶體只是快取（roomCache.gameData），
@@ -18,13 +18,13 @@
 //    bill:expense-update  { expenseId, baseUpdatedAt?, ...同 add（整筆覆寫） }
 //    bill:expense-delete  { expenseId }
 //    bill:expense-restore { expenseId }
-//    bill:member-add-virtual { name }（僅房主；之後有人以同名加入，就會接手這個成員的所有帳目）
-//    bill:member-remove-virtual { memberId }（僅房主；移除尚未加入的成員，帳目保留，標記為已離開）
+//    bill:member-add-virtual { name }（僅管理員；之後有人以同名加入，就會接手這個成員的所有帳目）
+//    bill:member-remove-virtual { memberId }（僅管理員；移除尚未加入的成員，帳目保留，標記為已離開）
 //    bill:rate-set        { currency, rate }（任何成員；整個帳本共用，改了全部換算跟著變）
 //    bill:rate-refresh    { currency }（重新抓取最新匯率，覆蓋手動值）
-//    bill:base-currency-set { currency }（僅房主；結算幣別，會清空既有匯率並重新抓取）
-//    bill:room-delete     （僅房主）
-//    bill:room-rename     { name }（僅房主；帳本名稱，最多 30 字）
+//    bill:base-currency-set { currency }（僅管理員；結算幣別，會清空既有匯率並重新抓取）
+//    bill:room-delete     （僅管理員）
+//    bill:room-rename     { name }（僅管理員；帳本名稱，最多 30 字）
 //
 //  Server → Client：
 //    bill:state, bill:members, bill:expense-changed, bill:settings { baseCurrency, rates },
@@ -240,20 +240,20 @@ function registerNamespace(io, db, opts = {}) {
   }
 
   const canEdit = (roomId, me, createdBy) => me.id === createdBy || isHost(roomId, me);
-  const forbidden = () => new L.BillError('FORBIDDEN', '只有建立者或房主可以這麼做');
+  const forbidden = () => new L.BillError('FORBIDDEN', '只有建立者或管理員可以這麼做');
 
   // ── 註冊事件的包裝：驗證身分 → 上鎖 → 載入狀態 → 執行 → 統一回報錯誤 ──
   function on(socket, event, fn) {
     socket.on(event, (payload) => {
       const { roomId, playerId } = socket.data ?? {};
       if (!roomId || !playerId) {
-        return socket.emit(EV.ERROR, { code: 'NOT_IN_ROOM', message: '尚未加入房間' });
+        return socket.emit(EV.ERROR, { code: 'NOT_IN_ROOM', message: '尚未加入帳本' });
       }
       withLock(roomId, async () => {
         const state = await getState(roomId);
-        if (!state) throw new L.BillError('ROOM_NOT_FOUND', '找不到房間');
+        if (!state) throw new L.BillError('ROOM_NOT_FOUND', '找不到帳本');
         const me = state.members.find(m => m.playerId === playerId);
-        if (!me) throw new L.BillError('NOT_IN_ROOM', '你不是這個房間的成員');
+        if (!me) throw new L.BillError('NOT_IN_ROOM', '你不是這個帳本的成員');
         await fn({ socket, roomId, state, me, p: payload ?? {} });
       }).catch((err) => {
         if (!(err instanceof L.BillError)) console.error(`[SplitBill:${event}]`, err);
@@ -402,11 +402,11 @@ function registerNamespace(io, db, opts = {}) {
       });
     }
 
-    // ── 匯率：新增幣別只有房主；已存在的匯率任何成員都能改，整個帳本共用，所有換算立即跟著變 ──
+    // ── 匯率：新增幣別只有管理員；已存在的匯率任何成員都能改，整個帳本共用，所有換算立即跟著變 ──
     on(socket, EV.RATE_SET, async ({ roomId, state, me, p }) => {
       const currency = currencyOf(p.currency);
       if (currency === state.baseCurrency) throw new L.BillError('INVALID_INPUT', '結算幣別本身不需要匯率');
-      if (!state.rates[currency] && !isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有房主可以新增幣別');
+      if (!state.rates[currency] && !isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有管理員可以新增幣別');
       const before = state.rates[currency]?.rate ?? null;
       const entry = await putRate(roomId, state, currency, p.rate, 'manual');
       broadcastSettings(roomId, state);
@@ -416,23 +416,23 @@ function registerNamespace(io, db, opts = {}) {
     on(socket, EV.RATE_REFRESH, async ({ roomId, state, me, p }) => {
       const currency = currencyOf(p.currency);
       if (currency === state.baseCurrency) throw new L.BillError('INVALID_INPUT', '結算幣別本身不需要匯率');
-      if (!state.rates[currency] && !isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有房主可以新增幣別');
+      if (!state.rates[currency] && !isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有管理員可以新增幣別');
       const before = state.rates[currency]?.rate ?? null;
       const entry = await autoRate(roomId, state, currency);
       broadcastSettings(roomId, state);
       await logActivity(roomId, state, me, 'rate.refresh', 'rate', currency, { currency, rate: before }, { currency, rate: entry.rate });
     });
 
-    // ── 結算幣別（僅房主）：舊匯率全部失效，並替用到的外幣重新抓取 ──
+    // ── 結算幣別（僅管理員）：舊匯率全部失效，並替用到的外幣重新抓取 ──
     on(socket, EV.BASE_CURRENCY_SET, async ({ roomId, state, me, p }) => {
-      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有房主可以更改結算幣別');
+      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有管理員可以更改結算幣別');
       const currency = currencyOf(p.currency);
       const before = state.baseCurrency;
       if (currency === before) return;
 
       await store.setBaseCurrency(roomId, currency);
       state.baseCurrency = currency;
-      const kept = Object.keys(state.rates);          // 房主新增過的幣別，換結算幣別後也要保留
+      const kept = Object.keys(state.rates);          // 管理員新增過的幣別，換結算幣別後也要保留
       state.rates = {};
       const used = new Set([...kept, ...state.expenses.filter(e => !e.deletedAt).map(e => e.currency)].filter(c => c !== currency));
       await Promise.allSettled([...used].map(c => autoRate(roomId, state, c)));   // 抓不到的留給使用者手動輸入
@@ -443,7 +443,7 @@ function registerNamespace(io, db, opts = {}) {
 
     // ── 新增虛擬成員（尚未加入的人，之後用同名登入即自動認領）──
     on(socket, EV.MEMBER_ADD_VIRTUAL, async ({ roomId, state, me, p }) => {
-      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有房主可以新增成員');
+      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有管理員可以新增成員');
       const name = L.validateName(p.name);
       const key  = L.nameKey(name);
       if (state.members.some(m => m.nameKey === key)) {
@@ -456,12 +456,12 @@ function registerNamespace(io, db, opts = {}) {
       await logActivity(roomId, state, me, 'member.add-virtual', 'member', member.id, null, { name });
     });
 
-    // ── 移除虛擬成員（僅房主）：沒有玩家連線可踢，直接標記為已離開，帳目保留 ──
+    // ── 移除虛擬成員（僅管理員）：沒有玩家連線可踢，直接標記為已離開，帳目保留 ──
     on(socket, EV.MEMBER_REMOVE_VIRTUAL, async ({ roomId, state, me, p }) => {
-      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有房主可以移除成員');
+      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有管理員可以移除成員');
       const member = state.members.find(m => m.id === p.memberId);
       if (!member) throw new L.BillError('INVALID_INPUT', '找不到這位成員');
-      if (!member.isVirtual) throw new L.BillError('INVALID_INPUT', '這位成員已加入，請使用「移出帳本」');
+      if (!member.isVirtual) throw new L.BillError('INVALID_INPUT', '這位成員已加入，請使用「移除成員」');
       if (member.leftAt) return;
       const leftAt = nowIso();
       await store.setMemberLeft(member.id, leftAt);
@@ -470,9 +470,9 @@ function registerNamespace(io, db, opts = {}) {
       await logActivity(roomId, state, me, 'member.remove-virtual', 'member', member.id, null, { name: member.name });
     });
 
-    // ── 帳本命名（僅房主）────────────────────────────────────
+    // ── 帳本命名（僅管理員）────────────────────────────────────
     on(socket, EV.ROOM_RENAME, async ({ roomId, state, me, p }) => {
-      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有房主可以幫帳本命名');
+      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有管理員可以幫帳本命名');
       const name = str(L.normalizeName(p.name), 30, '帳本名稱', { required: true });
       const before = state.roomName ?? '';
       if (name === before) return;
@@ -482,9 +482,9 @@ function registerNamespace(io, db, opts = {}) {
       await logActivity(roomId, state, me, 'room.rename', 'room', roomId, { name: before }, { name });
     });
 
-    // ── 刪除房間（僅房主；帳務資料連帶永久刪除）──────────────
+    // ── 刪除房間（僅管理員；帳務資料連帶永久刪除）──────────────
     on(socket, EV.ROOM_DELETE, async ({ roomId, me }) => {
-      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有房主可以刪除房間');
+      if (!isHost(roomId, me)) throw new L.BillError('FORBIDDEN', '只有管理員可以刪除帳本');
 
       const { error } = await db.from('rooms').delete().eq('id', roomId);   // CASCADE 清除 players 與所有 bill_*
       if (error) throw error;
@@ -496,7 +496,7 @@ function registerNamespace(io, db, opts = {}) {
         if (s.data?.roomId === roomId) s.data = {};
       }
       roomCache.delete(roomId);
-      console.log(`[SplitBill] 房間 ${roomId} 已由房主刪除`);
+      console.log(`[SplitBill] 房間 ${roomId} 已由管理員刪除`);
     });
   });
 

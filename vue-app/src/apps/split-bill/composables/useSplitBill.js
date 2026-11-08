@@ -125,7 +125,7 @@ export function useSplitBill() {
   function connect(roomId, nickname, isCreating = false, maxPlayers = 20) {
     const playerId = getOrCreatePlayerId()
     bill.loading = true
-    bill.loadingText = isCreating ? '建立房間中…' : '加入房間中…'
+    bill.loadingText = isCreating ? '建立帳本中…' : '加入帳本中…'
     bill.error = ''
     bill.errorCode = ''
     bill.kicked = false

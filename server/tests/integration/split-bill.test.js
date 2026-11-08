@@ -156,7 +156,7 @@ describe('分帳系統（房間 + 名稱即 Key + DB 持久化）', () => {
   before(async () => { srv = await startServer(db, store); });
   after(async () => { await srv.close(); });
 
-  test('房主建房 → 自動成為帳務成員，且 playerId 由名稱推導', async () => {
+  test('管理員建房 → 自動成為帳務成員，且 playerId 由名稱推導', async () => {
     amy = await srv.enter({ roomId: ROOM, nickname: 'Amy', create: true });
     assert.equal(amy.ack.type, 'player');
     assert.equal(amy.state.members.length, 1);
@@ -167,7 +167,7 @@ describe('分帳系統（房間 + 名稱即 Key + DB 持久化）', () => {
     amyId = amy.state.meMemberId;
   });
 
-  test('第二人加入；房主收到成員更新', async () => {
+  test('第二人加入；管理員收到成員更新', async () => {
     const membersUpdated = waitFor(amy.socket, 'bill:members');
     bob = await srv.enter({ roomId: ROOM, nickname: 'Bob' });
     assert.equal(bob.state.members.length, 2);
@@ -226,7 +226,7 @@ describe('分帳系統（房間 + 名稱即 Key + DB 持久化）', () => {
     assert.equal(amyPhone.state.expenses[0].id, firstExpenseId);
   });
 
-  test('非建立者不能改別人的支出；房主可以', async () => {
+  test('非建立者不能改別人的支出；管理員可以', async () => {
     const err = waitFor(bob.socket, 'bill:error');
     bob.socket.emit('bill:expense-update', {
       expenseId: firstExpenseId, title: '偷改', amount: 100, payerId: amyId,
@@ -234,7 +234,7 @@ describe('分帳系統（房間 + 名稱即 Key + DB 持久化）', () => {
     });
     assert.equal((await err).code, 'FORBIDDEN');
 
-    // Bob 新增的支出，房主 Amy 可編輯
+    // Bob 新增的支出，管理員 Amy 可編輯
     const added = waitMatch(amy.socket, 'bill:expense-changed', d => d.expense.title === '計程車');
     bob.socket.emit('bill:expense-add', {
       title: '計程車', amount: 90, payerId: bobId,
@@ -338,8 +338,8 @@ describe('長期保存：server 重啟後資料仍在 DB', () => {
 });
 
 // ================================================================
-describe('房主刪除房間', () => {
-  test('只有房主能刪；刪除後房間與帳務資料都消失', async () => {
+describe('管理員刪除房間', () => {
+  test('只有管理員能刪；刪除後房間與帳務資料都消失', async () => {
     const db = makeFakeDb();
     const store = createMemoryStore();
     const srv = await startServer(db, store);
@@ -433,7 +433,7 @@ describe('外幣與群組匯率', () => {
     assert.equal((await err2).code, 'RATE_UNAVAILABLE');
     assert.equal(store._t.expenses.length, 2);
 
-    // 6) 只有房主能換結算幣別；換成 USD 後舊匯率清空並重抓 JPY→USD
+    // 6) 只有管理員能換結算幣別；換成 USD 後舊匯率清空並重抓 JPY→USD
     const forbidden = waitFor(bob.socket, 'bill:error');
     bob.socket.emit('bill:base-currency-set', { currency: 'USD' });
     assert.equal((await forbidden).code, 'FORBIDDEN');
