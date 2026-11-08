@@ -16,6 +16,7 @@
 // ================================================================
 
 const crypto = require('node:crypto');
+const { BillError } = require('./logic');
 
 const ACTIVITY_LIMIT = 200;
 const DEFAULT_CURRENCY = 'TWD';
@@ -94,10 +95,15 @@ function createSupabaseStore(db) {
     },
 
     async saveRate(roomId, { currency, rate, source, updatedAt }) {
-      must(await db.from('bill_rates').upsert(
+      const res = await db.from('bill_rates').upsert(
         { room_id: roomId, currency, rate, source, updated_at: updatedAt },
         { onConflict: 'room_id,currency' },
-      ));
+      );
+      // 003_currency.sql 尚未在 Supabase 執行（loadAll 會靜默略過，這裡才會爆）→ 給出可讀的原因
+      if (res.error && (res.error.code === 'PGRST205' || res.error.code === '42P01')) {
+        throw new BillError('SCHEMA_MISSING', '資料庫尚未建立匯率資料表，請管理員先在 Supabase 執行 003_currency.sql');
+      }
+      must(res);
     },
 
     async setRoomName(roomId, name) {
