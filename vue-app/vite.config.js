@@ -10,7 +10,7 @@ export default defineConfig({
     vue(),
     tailwindcss(),
     VitePWA({
-      // 'prompt': a new version waits instead of reloading a running game; PwaPrompt.vue applies it silently on load.
+      // 'prompt': PwaPrompt.vue applies a new version immediately (updateServiceWorker(true)) as soon as it is found.
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
