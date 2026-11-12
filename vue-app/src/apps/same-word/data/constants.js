@@ -19,6 +19,15 @@ export const TIERS = {
 export const tierOf = id => TIERS[id] ?? TIERS.rivals
 export const badgeUrl = name => `${import.meta.env.BASE_URL}same-word/${name}.webp`
 
+// 遊戲中先把結算用的徽章下載好，結算畫面才不會等圖或破圖
+let _preloaded = false
+export function preloadBadges() {
+  if (_preloaded || typeof Image === 'undefined') return
+  _preloaded = true
+  const names = [...new Set(Object.values(TIERS).map(t => t.badge)), 'badge-unique', 'badge-outlier']
+  for (const n of names) { const img = new Image(); img.decoding = 'async'; img.src = badgeUrl(n) }
+}
+
 // 同詞群組配色（循環使用）
 export const GROUP_COLORS = ['#FB7185', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6']
 

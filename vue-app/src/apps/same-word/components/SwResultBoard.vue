@@ -46,7 +46,9 @@
             <h3 class="m-0 mb-2 text-base text-heading">💘 最佳拍檔</h3>
             <ul class="m-0 flex list-none flex-col gap-2 p-0">
                 <li v-for="p in result.bestPairs" :key="p.a + p.b" class="flex items-center gap-3">
-                    <img :src="badgeUrl(tierOf(p.tierId).badge)" alt="" class="h-12 w-12 object-contain" loading="lazy" />
+                    <img v-if="!broken[tierOf(p.tierId).badge]" :src="badgeUrl(tierOf(p.tierId).badge)" alt="" width="48" height="48"
+                        class="h-12 w-12 shrink-0 object-contain" @error="broken[tierOf(p.tierId).badge] = true" />
+                    <span v-else class="grid h-12 w-12 shrink-0 place-items-center text-3xl" aria-hidden="true">{{ tierOf(p.tierId).emoji }}</span>
                     <div>
                         <p class="m-0 font-bold text-heading">{{ names[p.a] }} × {{ names[p.b] }}</p>
                         <p class="m-0 text-sm text-body">{{ tierOf(p.tierId).title }}・{{ p.total }} 題中有 {{ p.count }} 題同詞</p>
@@ -70,12 +72,16 @@
         <!-- 其他頭銜 -->
         <section class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div v-if="result.unique" class="game-card !p-3 text-center">
-                <img :src="badgeUrl('badge-unique')" alt="" class="mx-auto h-16 w-16 object-contain" loading="lazy" />
+                <img v-if="!broken['badge-unique']" :src="badgeUrl('badge-unique')" alt="" width="64" height="64"
+                    class="mx-auto h-16 w-16 object-contain" @error="broken['badge-unique'] = true" />
+                <p v-else class="m-0 text-5xl leading-[4rem]" aria-hidden="true">🦄</p>
                 <p class="m-0 text-xs text-label">🦄 最特別（獨一無二 {{ result.unique.count }} 次）</p>
                 <p class="m-0 font-bold text-heading">{{ result.unique.playerIds.map(id => names[id]).join('、') }}</p>
             </div>
             <div v-if="result.laugh" class="game-card !p-3 text-center">
-                <img :src="badgeUrl('badge-outlier')" alt="" class="mx-auto h-16 w-16 object-contain" loading="lazy" />
+                <img v-if="!broken['badge-outlier']" :src="badgeUrl('badge-outlier')" alt="" width="64" height="64"
+                    class="mx-auto h-16 w-16 object-contain" @error="broken['badge-outlier'] = true" />
+                <p v-else class="m-0 text-5xl leading-[4rem]" aria-hidden="true">🤣</p>
                 <p class="m-0 text-xs text-label">🤣 離譜王（被笑 {{ result.laugh.count }} 次）</p>
                 <p class="m-0 font-bold text-heading">{{ result.laugh.playerIds.map(id => names[id]).join('、') }}</p>
             </div>
@@ -104,7 +110,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive } from 'vue'
 import { badgeUrl, tierOf } from '../data/constants.js'
 import SwPairMatrix from './SwPairMatrix.vue'
 
@@ -112,6 +118,9 @@ const props = defineProps({
     result: { type: Object, required: true },
     names: { type: Object, required: true },
 })
+
+// 徽章載入失敗就改顯示 emoji，不留破圖
+const broken = reactive({})
 
 // 已離場者不進榜
 const ids = computed(() => Object.keys(props.result.chemistry))

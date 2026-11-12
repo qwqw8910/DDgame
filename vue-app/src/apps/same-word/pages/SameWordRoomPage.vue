@@ -191,7 +191,7 @@ import SwResultBoard from '../components/SwResultBoard.vue'
 import SwRelayTurn from '../components/SwRelayTurn.vue'
 import SwRelayStory from '../components/SwRelayStory.vue'
 import SwRelayResult from '../components/SwRelayResult.vue'
-import { MIN_PLAYERS, ROUND_PRESETS, TIMER_PRESETS, CHAIN_ROUNDS, MODE_CHOICES, TURN_PRESETS, LAP_PRESETS } from '../data/constants.js'
+import { preloadBadges, MIN_PLAYERS, ROUND_PRESETS, TIMER_PRESETS, CHAIN_ROUNDS, MODE_CHOICES, TURN_PRESETS, LAP_PRESETS } from '../data/constants.js'
 import { primaryBtn, secondaryBtn } from '../data/ui.js'
 
 const route = useRoute()
@@ -310,6 +310,7 @@ async function goHome() {
 // ── 初始化 ────────────────────────────────────────────────────────
 onMounted(() => {
     _tick = setInterval(() => { now.value = Date.now() }, 250)
+    preloadBadges()
 
     const roomId = (route.query.id || '').toUpperCase()
     const nickname = route.query.nickname?.trim() || getSavedNickname()

@@ -13,9 +13,12 @@
         </div>
 
         <form v-if="canWrite" class="flex w-full max-w-sm flex-col gap-2" @submit.prevent="send">
-            <input v-model="draft" ref="inputRef" type="text" maxlength="12" autocomplete="off" autocapitalize="off"
-                placeholder="第一個想到的詞" aria-label="你的詞"
-                class="game-input !py-3 text-center !text-2xl font-bold" />
+            <!-- 不用 v-model：中文輸入法組字中 v-model 不會更新，Android 鍵盤常常一直停在組字狀態，
+                 送出鈕就一直是 disabled、按 Enter 也送不出去，時間到變成空白 -->
+            <input :value="draft" ref="inputRef" type="text" maxlength="12" autocomplete="off" autocapitalize="off"
+                enterkeyhint="send" placeholder="第一個想到的詞" aria-label="你的詞"
+                class="game-input !py-3 text-center !text-2xl font-bold"
+                @input="draft = $event.target.value" @keydown.enter="onEnter" />
             <p class="m-0 min-h-5 text-center text-sm" :class="hint ? 'text-ruby' : 'text-label'">
                 {{ hint || (myWord ? `已送出「${myWord}」，截止前可再改` : '寫好按送出，全員送出就立刻揭曉') }}
             </p>
@@ -47,13 +50,38 @@ const hint = ref('')
 const inputRef = ref(null)
 
 // 新的一輪清空輸入框並聚焦
-watch(() => props.round, () => { draft.value = ''; hint.value = ''; inputRef.value?.focus() })
+watch(() => props.round, () => { draft.value = ''; hint.value = ''; autoSent = false; lastSent = null; inputRef.value?.focus() })
 watch(draft, () => { hint.value = '' })
 onMounted(() => inputRef.value?.focus())
 
-function send() {
-    const err = checkWord(draft.value)
-    if (err) { hint.value = err; return }
-    emit('submit', draft.value.trim())
+// 注音選字時按的 Enter 只用來確認選字，不送出
+function onEnter(e) {
+    if (e.isComposing) e.preventDefault()
 }
+
+// 以輸入框實際的字為準（組字中 draft 可能還沒同步）
+const currentText = () => (inputRef.value?.value ?? draft.value).trim()
+
+function send() {
+    const text = currentText()
+    const err = checkWord(text)
+    if (err) { hint.value = err; return }
+    draft.value = text
+    // 連按 Enter 不重送同一個詞（避免最後一人送出後立刻揭曉，第二下跳出錯誤提示）
+    if (text === lastSent || text === props.myWord) return
+    lastSent = text
+    emit('submit', text)
+}
+let lastSent = null
+
+// 保險：快到時間還有沒送出（或改過沒更新）的合法詞，自動幫忙送出
+let autoSent = false
+watch(() => props.seconds, (s) => {
+    if (autoSent || !props.canWrite || s > 1.2 || s <= 0) return
+    const text = currentText()
+    if (!text || text === props.myWord || text === lastSent || checkWord(text)) return
+    autoSent = true
+    lastSent = text
+    emit('submit', text)
+})
 </script>
