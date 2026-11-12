@@ -64,6 +64,8 @@ export function useSameWord() {
       // 觀戰者不會觸發伺服器的 onPlayerJoined，主動索取自己的視圖
       socket.emit('sw:sync', { roomId: data.room?.id ?? room.roomState.roomId })
     },
+    // 切回前景：補拿背景期間漏掉的 sw:state（iOS 凍結時伺服器推的狀態會遺失）
+    onResume() { socket.emit('sw:sync', { roomId: room.roomState.roomId }) },
     onKicked(reason) { sw.kicked = reason || '你被房主踢出了房間' },
     onRoomError(code, message) {
       sw.error = message
