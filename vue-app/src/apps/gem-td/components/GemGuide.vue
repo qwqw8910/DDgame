@@ -12,7 +12,7 @@
             <ul class="gg-list">
                 <li>本回合有 2 個同種同級：留下的那個升 1 級；4 個升 2 級。</li>
                 <li>材料湊齊時可合成特殊塔。材料可以是本回合的甜點，也可以是場上自己保留的塔。</li>
-                <li>遊戲中按右上角 📖 打開合成表，可以拖到不擋視線的地方，同級合成與三階特殊塔都查得到，缺少的材料會標出來。</li>
+                <li>合成表在左欄（視窗較窄時是浮動面板，可以拖到不擋視線的地方），用右上角的書本按鈕開關。同級合成與三階特殊塔都查得到，缺少的材料會標出來。</li>
             </ul>
         </GameGuideSection>
         <GameGuideSection title="多人">
@@ -61,6 +61,18 @@
                 </li>
             </ul>
         </GameGuideSection>
+        <GameGuideSection v-if="keys" title="鍵盤快捷鍵">
+            <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
+                <li v-for="k in KEY_HELP" :key="k.text" class="flex items-baseline gap-2">
+                    <span class="flex w-16 shrink-0 items-center gap-0.5">
+                        <template v-for="key in k.keys" :key="key">
+                            <kbd v-if="key !== '～'" class="gt-kbd">{{ key }}</kbd><span v-else>～</span>
+                        </template>
+                    </span>
+                    <span>{{ k.text }}</span>
+                </li>
+            </ul>
+        </GameGuideSection>
         <GameGuideSection title="手機操作">
             <p class="m-0">點一下格子預覽，同一格再點一下才放下。雙指縮放，放大後可拖曳地圖。</p>
         </GameGuideSection>
@@ -72,10 +84,12 @@ import GameGuideModal from '@/shared/components/GameGuideModal.vue'
 import GameGuideSection from '@/shared/components/GameGuideSection.vue'
 import GemIcon from './GemIcon.vue'
 import { GEM_ORDER, ingredientLabel } from '../data/gems.js'
+import { KEY_HELP } from '../composables/useGemTdKeys.js'
 
 defineProps({
     modelValue: { type: Boolean, default: false },
     catalog: { type: Object, default: null },
+    keys: { type: Boolean, default: false },
 })
 defineEmits(['update:modelValue'])
 </script>

@@ -1,12 +1,14 @@
 <template>
-    <nav v-if="tabs.length > 1" class="flex shrink-0 gap-1 overflow-x-auto px-2 pb-1" aria-label="切換要看的地圖">
+    <nav v-if="tabs.length > 1" class="flex shrink-0 gap-1" :class="vertical ? 'gt-tabs--vertical flex-col' : 'overflow-x-auto px-2 pb-1'"
+        aria-label="切換要看的地圖">
         <button v-for="t in tabs" :key="t.id" class="gt-tab" :class="{ 'gt-tab--on': t.id === view.watching, 'gt-tab--out': t.out }"
             :aria-pressed="t.id === view.watching" @click="$emit('watch', t.id)">
             <span class="flex items-center gap-1.5">
                 <span class="size-2.5 shrink-0 rounded-full" :style="{ background: t.mark }" aria-hidden="true" />
-                <span class="truncate font-semibold text-[#4A2C2A]">{{ t.name }}</span>
+                <span class="truncate font-semibold text-(--gt-ink)">{{ t.name }}</span>
+                <span v-if="vertical && t.id === view.watching" class="ml-auto shrink-0 text-(--gt-accent-ink)">正在看</span>
             </span>
-            <span class="truncate text-[#7A5A50]" :class="{ 'text-[#D6305A]': t.alert }">{{ t.status }}</span>
+            <span class="truncate" :class="t.alert ? 'text-(--gt-accent-ink)' : 'text-(--gt-muted)'">{{ t.status }}</span>
         </button>
     </nav>
 </template>
@@ -20,6 +22,7 @@ const props = defineProps({
     catalog: { type: Object, required: true },
     frame: { type: Object, default: null },
     myId: { type: String, default: '' },
+    vertical: { type: Boolean, default: false }, // 電腦版左欄直排
 })
 defineEmits(['watch'])
 

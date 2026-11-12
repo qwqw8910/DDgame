@@ -11,9 +11,9 @@
 <script setup>
 // 地圖畫布：只負責畫面與輸入。座標以「格」為單位，格子中心是 (x + .5, y + .5)。
 // 手機點一下先預覽、同一格再點一下才放；滑鼠直接放。雙指或滾輪縮放，放大後拖曳平移。
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
 import { GEM_LOOK, MONSTER_LOOK, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
-import { spawnHit, spawnDeath, clearFx, drawFx } from '../composables/usePixelFx.js'
+import { spawnHit, spawnDeath, clearFx, drawFx, hasFx } from '../composables/usePixelFx.js'
 
 const props = defineProps({
     view: { type: Object, required: true },
@@ -39,6 +39,9 @@ let panX = 0
 let panY = 0
 let raf = 0
 let observer = null
+// 畫面沒有動態（建造中、沒有特效）時只在有變化才重畫，不必每秒畫 60 次
+let dirty = true
+const invalidate = () => { dirty = true }
 
 const COLOR = {
     cloth: '#FFFFFF', tint: '#FBE3E8', cross: '#F5C9D3', ink: '#4A2C2A',
@@ -58,18 +61,21 @@ function resize() {
     canvas.height = size * dpr
     ctx = canvas.getContext('2d')
     clampPan()
+    invalidate()
 }
 
 function clampPan() {
     const max = size * zoom.value - size
     panX = Math.min(0, Math.max(-max, panX))
     panY = Math.min(0, Math.max(-max, panY))
+    invalidate()
 }
 
 function resetView() {
     zoom.value = 1
     panX = 0
     panY = 0
+    invalidate()
 }
 
 function zoomAt(factor, cx, cy) {
@@ -193,13 +199,14 @@ watch(() => props.frame, (frame) => {
     curMap = new Map(frame.m.map(([id, type, x, y, hp, flags]) => [id, { type, x: x / 10, y: y / 10, hp, flags }]))
 
     // 消失的蟲子：離出口夠遠就是被打死的，放爆點（走到出口的不算）
-    const end = props.view.board?.end
+    const view = toRaw(props.view)
+    const end = view.board?.end
     for (const [id, m] of prevMap) {
         if (curMap.has(id)) continue
         if (!end || Math.hypot(m.x - end.x, m.y - end.y) > 1.5) spawnDeath(m.x, m.y)
     }
 
-    const towers = new Map(props.view.towers.map(t => [t.id, t]))
+    const towers = new Map(view.towers.map(t => [t.id, t]))
     for (const [towerId, monsterId] of frame.s) {
         const tower = towers.get(towerId)
         if (!tower) continue
@@ -224,6 +231,7 @@ function imageOf(url) {
     let img = images.get(url)
     if (!img) {
         img = new Image()
+        img.onload = invalidate
         img.src = url
         images.set(url, img)
     }
@@ -248,7 +256,7 @@ function drawGem(kind, level, cx, cy, cell, alpha = 1) {
 }
 
 function statsOf(kind, level) {
-    const c = props.catalog
+    const c = toRaw(props.catalog)
     if (!c) return null
     return isSpecial(kind) ? c.specials[kind]?.stats : c.gems[kind]?.levels[level - 1]
 }
@@ -266,15 +274,31 @@ function drawRange(kind, level, cx, cy, cell, color) {
 }
 
 // ── 繪製 ─────────────────────────────────────────────────────────
-function drawBoard(view, cell) {
-    const { board, path } = view
-    // 格紋桌布：直條與橫條交疊處最深
+// 格紋桌布每幀都一樣：先畫成「一格一像素」的小圖，之後每幀一次 drawImage 放大貼上
+// （關閉平滑，放大後仍是銳利的方格），取代每幀 25×25 次 fillRect
+let clothCache = null
+function clothOf(board) {
+    if (clothCache?.board === board) return clothCache.canvas
+    const canvas = document.createElement('canvas')
+    canvas.width = board.width
+    canvas.height = board.height
+    const c = canvas.getContext('2d')
     for (let y = 0; y < board.height; y++) {
         for (let x = 0; x < board.width; x++) {
-            ctx.fillStyle = [COLOR.cloth, COLOR.tint, COLOR.cross][(x % 2) + (y % 2)]
-            ctx.fillRect(x * cell, y * cell, cell + 0.5, cell + 0.5)
+            // 直條與橫條交疊處最深
+            c.fillStyle = [COLOR.cloth, COLOR.tint, COLOR.cross][(x % 2) + (y % 2)]
+            c.fillRect(x, y, 1, 1)
         }
     }
+    clothCache = { board, canvas }
+    return canvas
+}
+
+function drawBoard(view, cell) {
+    const { board, path } = view
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(clothOf(board), 0, 0, board.width * cell, board.height * cell)
+    ctx.imageSmoothingEnabled = true
 
     if (path.length > 1) {
         ctx.beginPath()
@@ -323,7 +347,10 @@ function drawCookie(x, y, cell) {
     }
 }
 
-function drawTowers(view, cell, now) {
+function drawTowers(view, catalog, cell, now) {
+    const steps = catalog?.mastery?.kills
+    const showLevel = zoom.value * cell >= 22
+    const showRank = steps && zoom.value * cell >= 16
     for (const t of view.towers) {
         const x = t.x * cell
         const y = t.y * cell
@@ -341,7 +368,7 @@ function drawTowers(view, cell, now) {
             ctx.globalAlpha = 1
         }
         drawGem(t.kind, t.level, cx, cy, cell)
-        if (zoom.value * cell >= 22 && !isSpecial(t.kind)) {
+        if (showLevel && !isSpecial(t.kind)) {
             const badge = cell * 0.2
             const bx = x + badge
             const by = y + cell - badge
@@ -353,9 +380,8 @@ function drawTowers(view, cell, now) {
             ctx.font = `700 ${cell * 0.3}px 'Noto Sans TC', sans-serif`
             ctx.fillText(String(t.level), bx, by + cell * 0.01)
         }
-        const steps = props.catalog?.mastery?.kills
-        const rank = steps ? steps.filter(n => t.kills >= n).length : 0
-        if (rank && zoom.value * cell >= 16) {
+        const rank = showRank ? countReached(steps, t.kills) : 0
+        if (rank) {
             // 右上角的熟練度標籤：金底，內容是 ★ 加階數
             const w = cell * 0.5
             const h = cell * 0.28
@@ -368,10 +394,17 @@ function drawTowers(view, cell, now) {
     }
 }
 
-function drawMonsters(cell, now) {
+// 達到幾個熟練度門檻（門檻由小到大）；每幀每座塔都會呼叫，不建立新陣列
+function countReached(steps, kills) {
+    let n = 0
+    while (n < steps.length && kills >= steps[n]) n++
+    return n
+}
+
+function drawMonsters(catalog, cell, now) {
     if (!curMap.size) return
     const t = Math.min(1, (now - curAt) / frameGap)
-    const types = props.catalog?.monsters ?? []
+    const types = catalog?.monsters ?? []
     for (const [id, m] of curMap) {
         const pos = monsterPos(id, m, t)
         const cx = (pos.x + 0.5) * cell
@@ -408,9 +441,9 @@ function drawMonsters(cell, now) {
             ctx.fill()
         }
 
-        const traitId = props.catalog?.traitIds.find((_, i) => m.flags & (4 << i))
+        const traitId = m.flags >= 4 ? catalog?.traitIds.find((_, i) => m.flags & (4 << i)) : null
         if (traitId) {
-            ctx.strokeStyle = props.catalog.traits[traitId].color
+            ctx.strokeStyle = catalog.traits[traitId].color
             ctx.lineWidth = Math.max(1, cell * 0.06)
             ctx.setLineDash([cell * 0.14, cell * 0.1])
             ctx.beginPath()
@@ -479,8 +512,15 @@ function draw(now) {
     raf = requestAnimationFrame(draw)
     const dt = Math.min(0.05, (now - (lastDraw || now)) / 1000)
     lastDraw = now
-    const view = props.view
+    // view / catalog 是深層響應式（readonly reactive）；每幀繪製不需要追蹤，
+    // 直接讀原始物件，省掉幾千次 Proxy 存取
+    const view = toRaw(props.view)
+    const catalog = toRaw(props.catalog)
     if (!ctx || !size || !view?.board) return
+    const animating = view.phase === 'wave' || shots.length > 0 || hasFx()
+        || view.towers.some(t => t.fresh && t.owner === props.myId) // 剛放下的塔外框會閃
+    if (!animating && !dirty) return
+    dirty = false
     const cell = size / view.board.width
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -488,14 +528,15 @@ function draw(now) {
     ctx.setTransform(dpr * zoom.value, 0, 0, dpr * zoom.value, dpr * panX, dpr * panY)
 
     drawBoard(view, cell)
-    drawTowers(view, cell, now)
+    drawTowers(view, catalog, cell, now)
     drawShots(cell, now)
-    drawMonsters(cell, now)
+    drawMonsters(catalog, cell, now)
     drawFx(ctx, cell, dt)
     drawOverlays(view, cell)
 }
 
 watch(() => props.pendingGem, () => { armed.value = null })
+watch([() => props.view, () => props.selectedId, () => props.pendingGem, () => props.catalog, hover, armed, zoom], invalidate)
 
 onMounted(() => {
     resize()
