@@ -61,6 +61,7 @@ const _instances = new WeakMap()
  *   callbacks.onHostChanged(newHostId)
  *   callbacks.onSpectatorCanJoin()
  *   callbacks.onRoomError(code, message)
+ *   callbacks.onResume()              - 切回前景且 socket 看似仍連線時（應索取最新遊戲狀態）
  */
 export function useRoom(socket, callbacks = {}) {
   const existing = _instances.get(socket)
@@ -116,7 +117,11 @@ export function useRoom(socket, callbacks = {}) {
     // socket.active：仍在自動重連中（非手動 disconnect）—— 避免把已棄用的舊 socket 叫回來
     const reconnectNow = () => {
       if (document.visibilityState !== 'visible') return
-      if (!_hasJoined || socket.connected || !socket.active) return
+      if (!_hasJoined || !socket.active) return
+      // iOS 背景時 JS 被凍結，連線可能早已死掉但 socket.connected 仍為 true（心跳計時器沒跑）。
+      // 交給遊戲送一次同步請求：連線已死 → 送出時 engine.io 檢查心跳逾時並觸發重連；
+      // 連線正常 → 直接補拿背景期間漏掉的狀態。
+      if (socket.connected) { _callbacks.onResume?.(); return }
       socket.disconnect()
       socket.connect() // 觸發 connect → 遊戲 composable 的 rejoinOnReconnect
     }
