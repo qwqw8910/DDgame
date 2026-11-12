@@ -42,10 +42,10 @@
 
             <form class="mt-4 flex gap-3 max-sm:flex-col" @submit.prevent="send">
                 <label class="sr-only" for="relay-input">接三個字</label>
-                <input id="relay-input" ref="inputRef" v-model="draft" type="text" maxlength="8" autocomplete="off" autocapitalize="off"
+                <input id="relay-input" ref="inputRef" :value="draft" @input="draft = $event.target.value" type="text" maxlength="8" autocomplete="off" autocapitalize="off"
                     enterkeyhint="send" placeholder="三個字"
                     class="h-14 min-w-0 flex-1 max-sm:flex-none rounded-inset border-0 bg-fill px-4 text-center font-display text-3xl text-ink shadow-[inset_0_0_0_1px_var(--color-hairline)] placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                    @compositionstart="composing = true" @compositionend="composing = false" />
+                    @keydown.enter="e => { if (e.isComposing) e.preventDefault() }" />
                 <button type="submit" :class="[primaryBtn, '!h-14 !px-8']" :disabled="count !== SEGMENT_LEN">送出</button>
             </form>
             <p class="m-0 mt-2 text-base" :class="hint ? 'text-danger-ink' : 'text-ink-faint'" aria-live="polite">
@@ -119,13 +119,13 @@ function dotLabel(i) {
 // ── 輸入 ─────────────────────────────────────────────────────────
 const draft = ref('')
 const hint = ref('')
-const composing = ref(false)
 const inputRef = ref(null)
 const count = computed(() => readSegment(draft.value).count)
-watch(draft, () => { hint.value = '' })
+watch(draft, () => { hint.value = ''; sent = false }) // 改了字就允許再送
 
 // 輪到我：清空、聚焦、手機震一下
 watch(isMine, async (mine) => {
+    sent = false
     if (!mine) return
     draft.value = ''
     hint.value = ''
@@ -136,9 +136,12 @@ watch(isMine, async (mine) => {
 onMounted(() => { if (isMine.value) inputRef.value?.focus() })
 
 function send() {
-    if (composing.value) return // 注音／拼音選字時按 Enter 不送出
-    const err = checkSegment(draft.value)
+    const raw = inputRef.value?.value ?? draft.value // 以輸入框實際內容為準
+    const err = checkSegment(raw)
     if (err) { hint.value = err; return }
-    emit('submit', readSegment(draft.value).text)
+    if (sent) return // 連按 Enter 只送一次，等換棒
+    sent = true
+    emit('submit', readSegment(raw).text)
 }
+let sent = false
 </script>
