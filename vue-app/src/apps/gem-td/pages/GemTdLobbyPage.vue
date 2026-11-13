@@ -1,5 +1,5 @@
 <template>
-    <div class="gt-root min-h-[100dvh] overflow-x-hidden">
+    <div class="gt-root h-[100dvh] overflow-x-hidden overflow-y-auto">
         <header class="flex items-center justify-between px-4 py-3 sm:px-8">
             <RouterLink to="/" class="gt-chip no-underline">回首頁</RouterLink>
             <div class="flex items-center gap-2">
