@@ -1,7 +1,7 @@
 // 甜點守衛戰 — 外觀資料。名稱、數值、配方由伺服器的 gt:catalog 下發，這裡只放畫面用的東西。
 export const APP_ID = 'gem-td'
 export const MIN_PLAYERS = 1
-export const MAX_PLAYERS = 4
+export const MAX_PLAYERS = 6
 
 export const WAVE_CHOICES = [
   { value: 15, label: '15 波（短局）' },
@@ -58,7 +58,7 @@ export const MONSTER_LOOK = {
   titan: { color: '#7A2E8C', size: 1.25 },
 }
 
-export const PLAYER_MARKS = ['#D6305A', '#2F7FD1', '#2E9E5B', '#B8860B']
+export const PLAYER_MARKS = ['#D6305A', '#2F7FD1', '#2E9E5B', '#B8860B', '#7C4DCC', '#D9731F']
 
 // 配方材料的顯示文字，例如「葡萄棒棒糖 Lv5+」「銀糖珠」
 export function ingredientLabel(need, catalog) {

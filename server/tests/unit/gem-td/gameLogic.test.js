@@ -688,3 +688,18 @@ test('關掉傷害測試：打完最後一波直接結算；結算帶漏怪與�
   assert.ok(scores.find(s => s.id === 'a').leaked >= 1);
   assert.equal(awards.perfectIds.includes('b'), true);
 });
+
+test('最多 6 人：7 人開局會被擋；只組有人在看的地圖快照', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
+  assert.equal(C.MAX_PLAYERS, 6);
+  assert.throws(() => newGame([...ids, 'g']), { code: 'BAD_PLAYER_COUNT' });
+
+  const game = newGame(ids, { options: { livesMode: 'solo' } });
+  L.startWave(game);
+  const all = L.buildFrames(game);
+  assert.deepEqual(Object.keys(all).sort(), ids);
+  const some = L.buildFrames(game, new Set(['b', 'e']));
+  assert.deepEqual(Object.keys(some).sort(), ['b', 'e']);
+  assert.equal(Object.keys(some.b.players).length, 6, '摘要仍包含所有人');
+  assert.deepEqual(game.players.a.sim.shots, [], '沒人看的地圖會清掉射擊事件');
+});

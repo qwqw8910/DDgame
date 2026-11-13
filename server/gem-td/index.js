@@ -4,7 +4,7 @@
 //  甜點守衛戰 — 事件轉接（/gem-td namespace）
 //
 //  房間管理全部委託給 server/room，只使用既有 hooks，不修改共用模組。
-//  rooms.app_id = 'gem-td'，max_players = 1–4。
+//  rooms.app_id = 'gem-td'，max_players = 1–6。
 //  規則全在 gameLogic.js / waveSim.js；本檔只負責：事件 → gameLogic、計時器、狀態推送。
 //  - gt:state：每人專屬視圖，只在狀態變動時推送
 //  - gt:frame：波次中的快照，只送觀看者正在看的那張地圖；用 volatile 發送，掉幀由下一幀補上，
@@ -138,10 +138,11 @@ function registerNamespace(io, db) {
   }
 
   function sendFrames(roomId, game) {
-    const frames = L.buildFrames(game);
-    for (const s of socketsInRoom(roomId)) {
-      const frame = frames[L.resolveWatch(game, s.data.playerId, s.data.gtWatch)];
-      if (frame) s.volatile.emit('gt:frame', frame);
+    // 只組有人正在看的地圖；其他地圖的快照沒人收，不必花力氣組
+    const targets = socketsInRoom(roomId).map(s => ({ s, id: L.resolveWatch(game, s.data.playerId, s.data.gtWatch) }));
+    const frames = L.buildFrames(game, new Set(targets.map(t => t.id)));
+    for (const { s, id } of targets) {
+      if (frames[id]) s.volatile.emit('gt:frame', frames[id]);
     }
   }
 
