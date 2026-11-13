@@ -6,7 +6,7 @@
 // ================================================================
 
 const MIN_PLAYERS = 1;
-const MAX_PLAYERS = 4;
+const MAX_PLAYERS = 6;
 
 const GEMS_PER_ROUND = 5;
 const START_LIVES = 100;
@@ -254,7 +254,16 @@ function waveGroups(type, wave) {
 }
 
 // 每張地圖各打一份完整的波次，血量不隨人數變動
+const waveDefCache = new Map();
+
+// 波次內容只由 (wave, totalWaves) 決定，每次推送狀態都會問一次，所以記起來
 function waveDef(wave, totalWaves) {
+  const key = `${wave}/${totalWaves}`;
+  if (!waveDefCache.has(key)) waveDefCache.set(key, buildWaveDef(wave, totalWaves));
+  return waveDefCache.get(key);
+}
+
+function buildWaveDef(wave, totalWaves) {
   if (wave > totalWaves) {
     // 傷害測試：血量以最後一波為基準，不再往上疊一波的成長
     const group = monsterGroup('titan', 1, totalWaves);

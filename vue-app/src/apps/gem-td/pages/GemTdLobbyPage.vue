@@ -14,7 +14,7 @@
                 <img :src="HERO_IMAGE" alt="一群螞蟻朝草莓蛋糕前進，路上擋著糖果和馬卡龍" class="mb-6 block aspect-[16/7] w-full rounded-lg object-cover object-[50%_30%]" />
                 <h1 class="m-0 font-sans text-[clamp(44px,11vw,84px)] leading-[1.05] font-black tracking-[0.02em] text-(--gt-accent)">甜點守衛戰</h1>
                 <p class="mt-4 mb-0 max-w-[32em] text-lg leading-relaxed text-(--gt-muted)">
-                    每回合放下五個甜點，只留一個當塔。剩下的變成餅乾牆，把蟲子逼進你蓋的迷宮。最多四人一起守住蛋糕。
+                    每回合放下五個甜點，只留一個當塔。剩下的變成餅乾牆，把蟲子逼進你蓋的迷宮。最多六人一起守住蛋糕。
                 </p>
             </div>
 

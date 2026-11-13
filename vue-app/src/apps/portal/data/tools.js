@@ -92,7 +92,7 @@ export const tools = [
     id: 'gem-td',
     name: '甜點守衛戰',
     tagline: '別讓蟲子搬走蛋糕',
-    description: '蓋迷宮 · 合成甜點 · 守住蛋糕\n1～4 人，每人一張地圖的塔防！',
+    description: '蓋迷宮 · 合成甜點 · 守住蛋糕\n1～6 人，每人一張地圖的塔防！',
     emoji: '🍰',
     color: 'blue',
     route: '/gem-td',

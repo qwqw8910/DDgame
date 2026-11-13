@@ -679,17 +679,24 @@ function buildView(game, viewerId, watchId) {
 }
 
 // 波次快照：每張地圖一份；players 是所有人的摘要，讓看別人地圖時也知道自己的進度
-function buildFrames(game) {
+// watched 給定時只組這些玩家的地圖（沒人看的地圖只清掉累積的射擊事件）
+function buildFrames(game, watched = null) {
   const ids = game.playerIds.filter(id => game.players[id].sim);
   const players = Object.fromEntries(ids.map((id) => {
     const p = game.players[id];
     const { earned, killed, leaked, done, damage } = p.sim;
     return [id, { lives: livesPool(game, p).lives, earned, killed, leaked, done, damage: Math.round(damage) }];
   }));
-  return Object.fromEntries(ids.map((id) => {
+  const frames = {};
+  for (const id of ids) {
     const { sim } = game.players[id];
-    return [id, { owner: id, wave: sim.wave, total: sim.def.count + sim.splits, players, ...buildSimFrame(sim) }];
-  }));
+    if (watched && !watched.has(id)) {
+      sim.shots = [];
+      continue;
+    }
+    frames[id] = { owner: id, wave: sim.wave, total: sim.def.count + sim.splits, players, ...buildSimFrame(sim) };
+  }
+  return frames;
 }
 
 module.exports = {
