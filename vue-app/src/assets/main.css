@@ -935,7 +935,7 @@
   /* ── RoomPlayerPanel (shared) ── */
   .rpp-wrap { @apply relative; }
   .rpp__trigger { @apply inline-flex items-center gap-1; }
-  .rpp__count { @apply text-[13px] font-semibold rounded-[20px] leading-[1.6]; color: var(--color-neon-purple-light); background: rgba(139,92,246,0.15); padding: 0 6px; }
+  .rpp__count { @apply text-[13px] font-semibold rounded-[20px] leading-[1.6]; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); padding: 0 6px; }
   .rpp__backdrop { @apply fixed inset-0 z-[200]; }
   .rpp__panel {
     @apply fixed rounded-xl overflow-hidden backdrop-blur-lg z-[201];
@@ -1455,103 +1455,163 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   letter-spacing: 0.04em;
 }
 
-/* 甜點守衛戰：草莓牛奶色；不跟隨明暗主題 */
+/* 甜點守衛戰：草莓牛奶色；不跟隨明暗主題。
+   顏色集中在 .gt-root 的變數，元件裡用 text-(--gt-ink) 這類寫法，不再直接寫 hex。
+   對比（在 --gt-bg #FFF4F2 上）：ink 11.6:1、text 8.6:1、muted 5.8:1、accent-ink 5.8:1；
+   --gt-accent #D6305A 只當底色或圖示（白字在上面 4.7:1），文字要用 --gt-accent-ink。 */
 @layer components {
-  .gt-root { background: #FFF4F2; color: #5E4038; font-family: var(--font-sans); }
-  .gt-root .header-icon-btn { background: #FFFFFF; border-color: #EAC8CF; color: #4A2C2A; }
-  @media (max-width: 400px) { .gt-root .header-icon-btn { padding: 6px 7px; } }
-  .gt-heading { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: #4A2C2A; }
+  .gt-root {
+    --gt-bg: #FFF4F2;
+    --gt-surface: #FFFFFF;
+    --gt-ink: #4A2C2A;
+    --gt-text: #5E4038;
+    --gt-muted: #7A5A50;
+    --gt-faint: #A98A82;
+    --gt-line: #EAC8CF;
+    --gt-line-soft: #F0D5DA;
+    --gt-track: #F6DFE3;
+    --gt-accent: #D6305A;
+    --gt-accent-hover: #BC2149;
+    --gt-accent-ink: #B8244A;
+    --gt-accent-soft: #FDE9ED;
+    --gt-gold: #F2B632;
+    --gt-shadow: 0 8px 24px rgba(74, 44, 42, 0.18);
+    background: var(--gt-bg); color: var(--gt-text); font-family: var(--font-sans);
+  }
+  .gt-root .header-icon-btn {
+    min-width: 44px; min-height: 44px; background: var(--gt-surface); border-color: var(--gt-line); color: var(--gt-ink);
+  }
+  .gt-root .header-icon-btn[aria-pressed="true"] { border-color: var(--gt-accent); background: var(--gt-accent-soft); color: var(--gt-accent-ink); }
+  .gt-heading { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: var(--gt-ink); }
 
   .gt-btn {
-    padding: 10px 16px; border: 2px solid #4A2C2A; border-radius: 10px; background: #FFFFFF;
-    color: #4A2C2A; font-size: 16px; font-weight: 700; cursor: pointer; transition: background-color 0.12s;
+    min-height: 44px; padding: 10px 16px; border: 2px solid var(--gt-ink); border-radius: 10px; background: var(--gt-surface);
+    color: var(--gt-ink); font-size: 16px; font-weight: 700; cursor: pointer;
+    transition: background-color 0.15s, transform 0.15s;
   }
-  .gt-btn:hover:not(:disabled) { background: #FDE9ED; }
-  .gt-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-  .gt-btn:focus-visible, .gt-chip:focus-visible, .gt-gem-slot:focus-visible { outline: 2px solid #D6305A; outline-offset: 2px; }
-  .gt-btn--lamp { background: #D6305A; color: #FFFFFF; }
-  .gt-btn--lamp:hover:not(:disabled) { background: #BC2149; }
-  .gt-btn--small { padding: 5px 10px; white-space: nowrap; }
+  .gt-btn:hover:not(:disabled) { background: var(--gt-accent-soft); }
+  .gt-btn:active:not(:disabled) { transform: scale(0.97); }
+  .gt-btn:disabled { border-color: var(--gt-line); color: var(--gt-faint); cursor: not-allowed; }
+  .gt-btn:focus-visible, .gt-chip:focus-visible, .gt-gem-slot:focus-visible, .gt-tab:focus-visible,
+  .gt-plain:focus-visible, .gt-fold > summary:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
+  .gt-btn--lamp { border-color: var(--gt-ink); background: var(--gt-accent); color: #FFFFFF; }
+  .gt-btn--lamp:hover:not(:disabled) { background: var(--gt-accent-hover); }
+  .gt-btn--lamp:disabled { background: var(--gt-track); color: var(--gt-muted); }
+  .gt-btn--small { padding: 6px 12px; white-space: nowrap; }
 
   .gt-chip {
-    padding: 4px 10px; border: 1px solid #EAC8CF; border-radius: 10px; background: #FFFFFF;
-    color: #5E4038; font-size: 16px; cursor: pointer; white-space: nowrap;
+    display: inline-flex; align-items: center; min-height: 44px; padding: 4px 12px; border: 1px solid var(--gt-line);
+    border-radius: 10px; background: var(--gt-surface); color: var(--gt-text); font-size: 16px; cursor: pointer; white-space: nowrap;
   }
-  .gt-chip:hover { border-color: #D6305A; }
+  .gt-chip:hover { border-color: var(--gt-accent); }
+
+  /* 沒有外框的文字按鈕（塔名）：只要焦點框 */
+  .gt-plain { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 
   .gt-input {
-    box-sizing: border-box; width: 100%; height: 46px; padding: 0 12px; border: 2px solid #EAC8CF; border-radius: 10px;
-    background: #FFFFFF; color: #4A2C2A; font-size: 16px; outline: none;
+    box-sizing: border-box; width: 100%; height: 46px; padding: 0 12px; border: 2px solid var(--gt-line); border-radius: 10px;
+    background: var(--gt-surface); color: var(--gt-ink); font-size: 16px; outline: none;
   }
-  .gt-input::placeholder { color: #A98A82; }
-  .gt-input:focus { border-color: #D6305A; }
+  .gt-input::placeholder { color: var(--gt-faint); }
+  .gt-input:focus { border-color: var(--gt-accent); }
 
-  .gt-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #F0D5DA; border-radius: 10px; background: #FFFFFF; }
-  .gt-row--on { border-color: #D6305A; }
+  .gt-card { padding: 14px; border: 1px solid var(--gt-line-soft); border-radius: 12px; background: var(--gt-surface); }
+  .gt-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--gt-line-soft); border-radius: 10px; background: var(--gt-surface); }
+  .gt-row--on { border-color: var(--gt-accent); }
 
   .gt-gem-slot {
-    display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 0 6px;
-    border: 1px solid #F0D5DA; border-radius: 10px; background: #FFFFFF; color: #5E4038; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 76px; padding: 6px 0;
+    border: 1px solid var(--gt-line-soft); border-radius: 10px; background: var(--gt-surface); color: var(--gt-text); cursor: pointer;
   }
-  .gt-gem-slot--on { border: 2px solid #D6305A; background: #FDE9ED; }
+  .gt-gem-slot--on { border: 2px solid var(--gt-accent); background: var(--gt-accent-soft); }
+
+  /* 快捷鍵提示：只在偵測到實體鍵盤時出現 */
+  .gt-kbd {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 1.5em; height: 1.5em; padding: 0 4px;
+    border: 1px solid var(--gt-line); border-bottom-width: 2px; border-radius: 6px; background: var(--gt-surface);
+    color: var(--gt-muted); font-family: var(--font-sans); font-size: 13px; font-weight: 700; line-height: 1;
+  }
+  .gt-btn--lamp:not(:disabled) .gt-kbd { border-color: rgba(255, 255, 255, 0.6); background: transparent; color: #FFFFFF; }
 
   .gt-install-hint {
     position: fixed; top: 56px; right: 12px; z-index: 60; max-width: 16rem; margin: 0; padding: 10px 14px;
-    border: 1px solid #EAC8CF; border-radius: 10px; background: #FFFFFF; color: #5E4038; font-size: 16px;
+    border: 1px solid var(--gt-line); border-radius: 10px; background: var(--gt-surface); color: var(--gt-text); font-size: 16px;
   }
+
+  /* ── 遊戲版面：電腦三欄（左 戰況與合成表、中 地圖、右 操作）；窄螢幕退回上下堆疊 ── */
+  .gt-game {
+    display: grid; flex: 1; min-height: 0;
+    grid-template-columns: clamp(240px, 20vw, 300px) minmax(0, 1fr) clamp(320px, 26vw, 400px);
+  }
+  .gt-rail, .gt-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding: 12px; }
+  .gt-rail { border-right: 1px solid var(--gt-line); }
+  .gt-side { border-left: 1px solid var(--gt-line); }
+  .gt-stage { position: relative; min-width: 0; min-height: 0; padding: 8px; }
+  @media (max-width: 1023px) {
+    .gt-game { display: flex; flex-direction: column; overflow-y: auto; }
+    .gt-rail, .gt-side { flex-shrink: 0; overflow: visible; border: 0; }
+    .gt-stage { flex-shrink: 0; height: min(100vw, 62dvh); }
+  }
+
+  .gt-stat { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--gt-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .gt-timer { margin: 0; color: var(--gt-ink); font-size: 32px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .gt-timer--low { color: var(--gt-accent-ink); }
 
   .gt-recipes {
     position: fixed; z-index: 50; display: flex; flex-direction: column;
     width: min(340px, calc(100vw - 16px)); max-height: min(62dvh, 560px); overflow: hidden;
-    border: 1px solid #EAC8CF; border-radius: 12px; background: #FFF4F2; color: #5E4038;
-    box-shadow: 0 8px 24px rgba(74, 44, 42, 0.25);
+    border: 1px solid var(--gt-line); border-radius: 12px; background: var(--gt-bg); color: var(--gt-text);
+    box-shadow: var(--gt-shadow);
+  }
+  /* 停靠在左欄：跟著欄位捲動，不浮在地圖上 */
+  .gt-recipes--docked {
+    position: static; flex-shrink: 0; width: auto; max-height: none; overflow: visible;
+    border-color: var(--gt-line-soft); background: var(--gt-surface); box-shadow: none;
   }
   .gt-recipes-handle {
     display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding: 10px 12px;
-    color: #7A5A50; cursor: grab; touch-action: none; user-select: none;
+    color: var(--gt-muted); cursor: grab; touch-action: none; user-select: none;
   }
   .gt-recipes-handle:active { cursor: grabbing; }
-  .gt-recipes-close { padding: 10px 14px; border: 0; background: transparent; color: #5E4038; font-size: 16px; cursor: pointer; }
-  .gt-recipes-close:hover { color: #D6305A; }
-  .gt-recipes-close:focus-visible { outline: 2px solid #D6305A; outline-offset: -2px; }
+  .gt-recipes-close {
+    display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; color: var(--gt-text); cursor: pointer;
+  }
+  .gt-recipes-close:hover { color: var(--gt-accent-ink); }
+  .gt-recipes-close:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: -2px; }
 
-  .gt-need { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border: 1px solid #F0D5DA; border-radius: 8px; background: #FFFFFF; }
+  .gt-need { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border: 1px solid var(--gt-line-soft); border-radius: 8px; background: var(--gt-surface); }
   .gt-need--ready { border-color: #2E9E5B; background: #E9F7EE; color: #1E6B3D; }
   .gt-need--placing { border-color: #E5B400; background: #FFF7DB; color: #6E5600; }
-  .gt-need--missing { border-style: dashed; border-color: #D6305A; color: #B0244A; }
+  .gt-need--missing { border-style: dashed; border-color: var(--gt-accent); color: var(--gt-accent-ink); }
 
   .gt-tab {
-    display: flex; flex: 1 0 104px; flex-direction: column; gap: 1px; min-width: 0; max-width: 200px; padding: 3px 8px;
-    border: 1px solid #F0D5DA; border-radius: 10px; background: #FFFFFF; font-size: 14px; line-height: 1.3; text-align: left; cursor: pointer;
+    display: flex; flex: 1 0 104px; flex-direction: column; justify-content: center; gap: 1px; min-width: 0; max-width: 200px;
+    min-height: 44px; padding: 3px 8px; border: 1px solid var(--gt-line-soft); border-radius: 10px; background: var(--gt-surface);
+    font-size: 14px; line-height: 1.3; text-align: left; cursor: pointer;
   }
-  .gt-tab--on { border: 2px solid #D6305A; background: #FDE9ED; padding: 2px 7px; }
+  .gt-tab--on { border: 2px solid var(--gt-accent); background: var(--gt-accent-soft); padding: 2px 7px; }
   .gt-tab--out { opacity: 0.6; }
-  .gt-tab:focus-visible { outline: 2px solid #D6305A; outline-offset: 1px; }
+  .gt-tabs--vertical .gt-tab { flex: none; max-width: none; padding: 6px 10px; }
+  .gt-tabs--vertical .gt-tab--on { padding: 5px 9px; }
 
-  .gt-watching {
-    position: absolute; top: 4px; left: 50%; z-index: 10; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 16px);
-    margin: 0; padding: 4px 6px 4px 12px; border: 1px solid #EAC8CF; border-radius: 10px; background: #FFFFFF;
-    color: #4A2C2A; white-space: nowrap; transform: translateX(-50%);
+  /* 可合成特殊塔的效果說明：疊在該行下方，不吃滑鼠事件，避免擋住下一行的按鈕 */
+  .gt-tip {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin-top: 4px; padding: 8px 10px;
+    border: 1px solid var(--gt-line); border-radius: 10px; background: var(--gt-surface); color: var(--gt-text);
+    box-shadow: var(--gt-shadow); pointer-events: none;
   }
+
+  /* 可收合區塊（甜點研究）：用原生 details，鍵盤與讀屏都不用另外處理 */
+  .gt-fold > summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; list-style: none; cursor: pointer; border-radius: 8px; }
+  .gt-fold > summary::-webkit-details-marker { display: none; }
+  .gt-fold-arrow { transition: transform 0.15s; }
+  .gt-fold[open] > summary .gt-fold-arrow { transform: rotate(180deg); }
 
   .gt-pop-enter-active, .gt-pop-leave-active { transition: opacity 0.16s, transform 0.16s ease-out; }
   .gt-pop-enter-from, .gt-pop-leave-to { opacity: 0; transform: scale(0.92); }
   @media (prefers-reduced-motion: reduce) {
-    .gt-tab {
-    display: flex; flex: 1 0 104px; flex-direction: column; gap: 1px; min-width: 0; max-width: 200px; padding: 3px 8px;
-    border: 1px solid #F0D5DA; border-radius: 10px; background: #FFFFFF; font-size: 14px; line-height: 1.3; text-align: left; cursor: pointer;
-  }
-  .gt-tab--on { border: 2px solid #D6305A; background: #FDE9ED; padding: 2px 7px; }
-  .gt-tab--out { opacity: 0.6; }
-  .gt-tab:focus-visible { outline: 2px solid #D6305A; outline-offset: 1px; }
-
-  .gt-watching {
-    position: absolute; top: 4px; left: 50%; z-index: 10; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 16px);
-    margin: 0; padding: 4px 6px 4px 12px; border: 1px solid #EAC8CF; border-radius: 10px; background: #FFFFFF;
-    color: #4A2C2A; white-space: nowrap; transform: translateX(-50%);
-  }
-
-  .gt-pop-enter-active, .gt-pop-leave-active { transition: none; }
+    .gt-btn, .gt-fold-arrow, .gt-pop-enter-active, .gt-pop-leave-active { transition: none; }
+    .gt-btn:active:not(:disabled) { transform: none; }
   }
 }
 

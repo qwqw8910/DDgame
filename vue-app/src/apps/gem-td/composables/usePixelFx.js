@@ -50,6 +50,9 @@ export function spawnDeath(x, y) {
     spawn(collectBurst, x, y, { palette: DEATH_PALETTE, seed: (Math.random() * 1000) | 0 })
 }
 
+/** 還有特效在播（地圖要繼續逐幀重畫） */
+export const hasFx = () => live.length > 0
+
 export function clearFx() {
     live.length = 0
 }

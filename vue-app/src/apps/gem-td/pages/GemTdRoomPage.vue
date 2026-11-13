@@ -2,26 +2,30 @@
     <div class="gt-root flex h-[100dvh] w-full flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
         <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
 
-        <header class="flex shrink-0 items-center justify-between gap-2 border-b border-[#EAC8CF] px-3 py-1.5">
+        <header class="flex shrink-0 items-center justify-between gap-2 border-b border-(--gt-line) px-3 py-1.5">
             <div class="flex min-w-0 items-center gap-2">
                 <button class="gt-chip" @click="goHome">離開</button>
-                <span class="truncate font-sans font-bold text-[#4A2C2A] max-[400px]:hidden">甜點守衛戰</span>
-                <span class="hidden text-[#7A5A50] tabular-nums sm:inline">{{ roomState.roomId }}</span>
+                <span class="truncate font-sans font-bold text-(--gt-ink) max-[400px]:hidden">甜點守衛戰</span>
+                <span class="hidden text-(--gt-muted) tabular-nums sm:inline">{{ roomState.roomId }}</span>
             </div>
             <div class="flex shrink-0 items-center gap-1">
+                <button v-if="inGame && roomState.isHost" class="gt-chip mr-1 gap-1.5" title="提早結束這局" @click="handleFinish">
+                    <GemHeaderIcon name="flag" />提早結束
+                </button>
                 <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
                     :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost"
                     @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
                 <PwaInstallButton button-class="header-icon-btn" hint-class="gt-install-hint" />
                 <GemVolumePanel />
-                <button v-if="inGame" class="header-icon-btn" title="合成表" aria-label="合成表" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes"><GemHeaderIcon name="book" /></button>
-                <button class="header-icon-btn" title="怎麼玩" aria-label="怎麼玩" @click="guide.open"><GemHeaderIcon name="help" /></button>
+                <button v-if="inGame" class="header-icon-btn" :title="hasKeyboard ? '合成表（B）' : '合成表'" aria-label="合成表" aria-keyshortcuts="B" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes"><GemHeaderIcon name="book" /></button>
+                <button class="header-icon-btn" :title="hasKeyboard ? '怎麼玩（H）' : '怎麼玩'" aria-label="怎麼玩" aria-keyshortcuts="H" @click="guide.open"><GemHeaderIcon name="help" /></button>
                 <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GemHeaderIcon name="link" /></button>
             </div>
         </header>
 
-        <GemGuide v-model="guide.show.value" :catalog="state.catalog" />
-        <GemRecipes v-if="inGame" v-model="showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
+        <GemGuide v-model="guide.show.value" :catalog="state.catalog" :keys="hasKeyboard" />
+        <!-- 窄螢幕：合成表維持浮動面板；電腦版停靠在左欄（見下方） -->
+        <GemRecipes v-if="inGame && !isWide" v-model="showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
 
         <div v-if="state.loading" class="fullscreen-overlay fullscreen-overlay--blur">
             <span class="spinner mb-3.5"></span>
@@ -48,35 +52,35 @@
         <!-- 等待大廳 -->
         <main v-else-if="view?.phase === 'waiting'" class="mx-auto flex w-full max-w-[520px] flex-1 flex-col gap-6 overflow-y-auto px-4 py-6">
             <div>
-                <h1 class="m-0 font-sans text-3xl font-bold text-[#4A2C2A]">等待玩家</h1>
-                <button class="mt-2 cursor-pointer border-0 bg-transparent p-0 text-3xl font-bold tabular-nums text-[#D6305A]"
+                <h1 class="m-0 font-sans text-3xl font-bold text-(--gt-ink)">等待玩家</h1>
+                <button class="mt-2 cursor-pointer border-0 bg-transparent p-0 text-3xl font-bold tabular-nums text-(--gt-accent-ink)"
                     title="複製邀請連結" @click="handleCopyLink">{{ roomState.roomId }}</button>
-                <p class="mt-1 mb-0 text-[#7A5A50]">點房號複製邀請連結</p>
+                <p class="mt-1 mb-0 text-(--gt-muted)">點房號複製邀請連結</p>
             </div>
 
             <ul class="m-0 flex list-none flex-col gap-2 p-0">
                 <li v-for="(p, i) in roomState.players" :key="p.id" class="gt-row">
-                    <span class="size-2.5 shrink-0 rounded-full" :style="{ background: p.is_online ? PLAYER_MARKS[i % PLAYER_MARKS.length] : '#C9B2AD' }" aria-hidden="true" />
-                    <span class="min-w-0 flex-1 truncate text-[#4A2C2A]">{{ p.nickname }}</span>
-                    <span v-if="p.id === roomState.room?.host_player_id" class="text-[#7A5A50]">房主</span>
-                    <span v-if="p.id === roomState.myPlayerId" class="text-[#7A5A50]">我</span>
+                    <span class="size-2.5 shrink-0 rounded-full" :style="{ background: p.is_online ? PLAYER_MARKS[i % PLAYER_MARKS.length] : 'var(--gt-faint)' }" aria-hidden="true" />
+                    <span class="min-w-0 flex-1 truncate text-(--gt-ink)">{{ p.nickname }}</span>
+                    <span v-if="p.id === roomState.room?.host_player_id" class="text-(--gt-muted)">房主</span>
+                    <span v-if="p.id === roomState.myPlayerId" class="text-(--gt-muted)">我</span>
                 </li>
             </ul>
 
             <fieldset class="m-0 flex flex-col gap-3 border-0 p-0" :disabled="!roomState.isHost">
-                <label class="flex flex-col gap-1 text-[#7A5A50]">
+                <label class="flex flex-col gap-1 text-(--gt-muted)">
                     血量模式{{ roomState.isHost ? '' : '（房主決定）' }}
                     <select class="gt-input cursor-pointer" :value="view.options.livesMode" @change="setOptions({ livesMode: $event.target.value })">
                         <option v-for="c in LIVES_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
                     </select>
                 </label>
-                <label class="flex flex-col gap-1 text-[#7A5A50]">
+                <label class="flex flex-col gap-1 text-(--gt-muted)">
                     波數{{ roomState.isHost ? '' : '（房主決定）' }}
                     <select class="gt-input cursor-pointer" :value="view.options.waves" @change="setOptions({ waves: Number($event.target.value) })">
                         <option v-for="c in WAVE_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
                     </select>
                 </label>
-                <label class="flex flex-col gap-1 text-[#7A5A50]">
+                <label class="flex flex-col gap-1 text-(--gt-muted)">
                     每回合建造時間
                     <select class="gt-input cursor-pointer" :value="view.options.buildSeconds" @change="setOptions({ buildSeconds: Number($event.target.value) })">
                         <option v-for="c in BUILD_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
@@ -85,50 +89,67 @@
             </fieldset>
 
             <button v-if="roomState.isHost" class="gt-btn gt-btn--lamp" @click="startGame">開始遊戲</button>
-            <p v-else-if="roomState.isSpectator" class="m-0 text-[#7A5A50]">你正在觀戰。
+            <p v-else-if="roomState.isSpectator" class="m-0 text-(--gt-muted)">你正在觀戰。
                 <button class="gt-btn gt-btn--small" @click="upgradeFromSpectator">加入遊戲</button></p>
-            <p v-else class="m-0 text-[#7A5A50]">等房主開始遊戲。</p>
+            <p v-else class="m-0 text-(--gt-muted)">等房主開始遊戲。</p>
         </main>
 
-        <!-- 遊戲畫面 -->
-        <main v-else-if="view?.board && state.catalog" class="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-                <div class="flex h-9 shrink-0 items-center gap-x-3 overflow-hidden px-3 text-base whitespace-nowrap" role="status">
-                    <span :title="view.options.livesMode === 'team' ? '隊伍血量' : '我的血量'"><span class="text-[#D6305A]" aria-hidden="true">♥</span> {{ lives }}／{{ view.maxLives }}</span>
-                    <span v-if="view.me" title="金幣"><span class="text-[#D6305A]" aria-hidden="true">●</span> {{ gold }} 金</span>
-                    <span>第 {{ waveNumber }}／{{ view.options.waves }} 波</span>
-                    <span v-if="view.nextWave" class="min-w-0 truncate text-[#7A5A50]">{{ nextWaveLabel }}</span>
-                    <span v-if="secondsLeft !== null" class="ml-auto shrink-0 font-semibold tabular-nums" :class="secondsLeft <= 10 ? 'text-[#D6305A]' : 'text-[#4A2C2A]'">{{ secondsLeft }} 秒</span>
-                </div>
-                <GemPlayerTabs :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
-                <div class="relative min-h-0 flex-1 px-1 pb-1 max-lg:max-h-[58dvh]">
-                    <p v-if="!mine" class="gt-watching" role="status">
-                        <span class="truncate">正在看 {{ watchingName }} 的地圖</span>
-                        <button v-if="view.me" class="gt-btn gt-btn--small" @click="watchMap(roomState.myPlayerId)">回到我的地圖</button>
-                    </p>
-                    <GemBoard :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
-                        :pending-gem="pendingGem" :selected-id="selectedId"
-                        @cell="onCell" @tower="onTower" @clear="clearSelection" />
-                </div>
-            </div>
+        <!-- 遊戲畫面：電腦三欄（左 戰況、中 地圖、右 操作），窄螢幕由 CSS 改成上下堆疊 -->
+        <main v-else-if="view?.board && state.catalog" class="gt-game">
+            <aside class="gt-rail" aria-label="戰況">
+                <section class="gt-card flex flex-col gap-3" aria-label="血量、金幣與波次">
+                    <div class="flex items-end justify-between gap-2">
+                        <p class="m-0 text-lg font-bold text-(--gt-ink)">第 {{ waveNumber }} 波<span class="font-normal text-(--gt-muted)">／{{ view.options.waves }}</span></p>
+                        <p v-if="secondsLeft !== null" class="gt-timer" :class="{ 'gt-timer--low': secondsLeft <= 10 }" role="timer" aria-label="建造剩餘秒數">
+                            {{ secondsLeft }}<span class="ml-0.5 text-base font-bold">秒</span>
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap gap-x-5 gap-y-1">
+                        <p class="gt-stat" :title="view.options.livesMode === 'team' ? '隊伍血量' : '我的血量'">
+                            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--gt-accent)" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.1 1.8-1.9 3.3-3.1 5.4-3.1 3.6 0 5.7 3.7 4.2 7.2C19.5 16.4 12 21 12 21z" /></svg>
+                            <span class="sr-only">{{ view.options.livesMode === 'team' ? '隊伍血量' : '我的血量' }}</span><span>{{ lives }}<span class="font-normal text-(--gt-muted)">／{{ view.maxLives }}</span></span>
+                        </p>
+                        <p v-if="view.me" class="gt-stat" title="金幣">
+                            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="var(--gt-gold)" stroke="var(--gt-ink)" stroke-width="1.6" /><path d="M12 7.5v9M9.5 10h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4" fill="none" stroke="var(--gt-ink)" stroke-width="1.4" stroke-linecap="round" /></svg>
+                            <span class="sr-only">金幣</span><span>{{ gold }} <span class="font-normal text-(--gt-muted)">金</span></span>
+                        </p>
+                    </div>
+                </section>
 
-            <aside class="min-h-0 shrink-0 overflow-y-auto border-t border-[#EAC8CF] p-3 max-lg:flex-1 lg:w-[320px] lg:border-t-0 lg:border-l">
-                <p v-if="roomState.isSpectator" class="mt-0 mb-3 text-[#7A5A50]">你正在觀戰。</p>
-                <GemPanel :view="view" :catalog="state.catalog" :frame="frame" :selected-slot="activeSlot" :selected-id="selectedId"
-                    :swap-from="swapFrom" :is-host="roomState.isHost" :my-id="roomState.myPlayerId"
+                <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
+                <!-- 看別人的地圖：提示放在左欄，不疊在地圖上 -->
+                <div v-if="!mine" class="gt-card flex flex-col gap-2" role="status">
+                    <p class="m-0">正在看 <b class="text-(--gt-ink)">{{ watchingName }}</b> 的地圖，不能操作。</p>
+                    <button v-if="view.me" class="gt-btn gt-btn--small w-full" @click="watchMap(roomState.myPlayerId)">回到我的地圖</button>
+                </div>
+
+                <GemWaveInfo :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
+                    :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
+                <GemRecipes v-if="isWide" v-model="showRecipes" docked :view="view" :catalog="state.catalog" @combine="onCombine" />
+            </aside>
+
+            <section class="gt-stage" aria-label="地圖">
+                <GemBoard :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
+                    :pending-gem="pendingGem" :selected-id="selectedId"
+                    @cell="onCell" @tower="onTower" @clear="clearSelection" />
+            </section>
+
+            <aside class="gt-side" aria-label="操作">
+                <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)">你正在觀戰。</p>
+                <GemPanel :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
+                    :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
-                    @combine="onCombine" @ready="ready" @speed="setSpeed" @upgrade="upgradeQuality" @research="upgradeResearch"
+                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @research="upgradeResearch"
                     @remove="id => { removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
-                <button v-if="roomState.isHost" class="gt-chip mt-5" @click="handleFinish">提早結束這局</button>
             </aside>
         </main>
 
         <!-- 結算 -->
         <div v-if="view?.phase === 'finished' && view.result" class="overlay">
-            <div class="flex w-full max-w-[420px] flex-col gap-4 border border-[#EAC8CF] bg-[#FFFFFF] p-6 text-[#5E4038]">
-                <h2 class="m-0 font-sans text-4xl font-black text-[#4A2C2A]">{{ resultTitle }}</h2>
+            <div class="flex w-full max-w-[420px] flex-col gap-4 border border-(--gt-line) bg-(--gt-surface) p-6 text-(--gt-text)">
+                <h2 class="m-0 font-sans text-4xl font-black text-(--gt-ink)">{{ resultTitle }}</h2>
                 <p class="m-0">{{ resultText }}</p>
                 <ul class="m-0 flex list-none flex-col gap-1 p-0">
                     <li v-for="s in view.result.scores" :key="s.id" class="flex justify-between gap-3">
@@ -141,7 +162,7 @@
                     最強的塔：{{ topTowerName }}，打出 {{ view.result.topTower.damage.toLocaleString() }} 傷害
                 </p>
                 <button v-if="roomState.isHost" class="gt-btn gt-btn--lamp" @click="restart">回大廳再來一局</button>
-                <p v-else class="m-0 text-[#7A5A50]">等房主開新的一局。</p>
+                <p v-else class="m-0 text-(--gt-muted)">等房主開新的一局。</p>
                 <button v-if="roomState.isSpectator && roomState.spectatorCanJoin" class="gt-btn" @click="upgradeFromSpectator">加入下一局</button>
             </div>
         </div>
@@ -162,6 +183,7 @@ import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
 import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
 import { useGemTd } from '../composables/useGemTd.js'
 import { useGemTdCues, useGemTdSfx } from '../composables/useGemTdSfx.js'
+import { useGemTdKeys } from '../composables/useGemTdKeys.js'
 import { WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, PLAYER_MARKS, isSpecial } from '../data/gems.js'
 import GemBoard from '../components/GemBoard.vue'
 import GemPanel from '../components/GemPanel.vue'
@@ -171,6 +193,7 @@ import GemRecipes from '../components/GemRecipes.vue'
 import GemHeaderIcon from '../components/GemHeaderIcon.vue'
 import GemIcon from '../components/GemIcon.vue'
 import GemVolumePanel from '../components/GemVolumePanel.vue'
+import GemWaveInfo from '../components/GemWaveInfo.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -185,7 +208,19 @@ const { playSfx } = useGemTdSfx()
 const guide = useGameGuide('gem-td-guide-seen')
 const view = computed(() => state.view)
 const inGame = computed(() => !!state.catalog && ['build', 'wave'].includes(view.value?.phase))
-const showRecipes = ref(false)
+// 電腦版（≥1024px）合成表停靠在左欄，預設打開；開關狀態記在本機
+const wideQuery = window.matchMedia('(min-width: 1024px)')
+const isWide = ref(wideQuery.matches)
+const onWideChange = (e) => { isWide.value = e.matches }
+wideQuery.addEventListener('change', onWideChange)
+const RECIPES_KEY = 'gem-td-recipes-open'
+const showRecipes = ref((() => {
+    try { return isWide.value && localStorage.getItem(RECIPES_KEY) !== '0' } catch { return isWide.value }
+})())
+watch(showRecipes, (open) => {
+    if (!isWide.value) return
+    try { localStorage.setItem(RECIPES_KEY, open ? '1' : '0') } catch { /* 略過 */ }
+})
 
 const showNickname = ref(false)
 const overlayNickname = ref('')
@@ -244,16 +279,6 @@ const lives = computed(() => frame.value?.players[livesOwner.value]?.lives ?? vi
 const gold = computed(() => (view.value?.me?.gold ?? 0) + (frame.value?.players[roomState.myPlayerId]?.earned ?? 0))
 const waveNumber = computed(() => view.value?.nextWave?.number ?? view.value?.wave ?? 0)
 
-const nextWaveLabel = computed(() => {
-    const next = view.value?.nextWave
-    if (!next || !state.catalog) return ''
-    return next.groups.map((g) => {
-        const info = state.catalog.monsters.find(m => m.id === g.type)
-        const trait = g.trait ? `・${state.catalog.traits[g.trait].name}` : ''
-        return `${info?.name ?? ''} ${g.count} 隻${trait}${info?.flying ? '（會飛）' : ''}`
-    }).join('＋')
-})
-
 const topTowerName = computed(() => {
     const t = view.value?.result?.topTower
     if (!t) return ''
@@ -286,8 +311,9 @@ function scoreText(s) {
     return `${s.out ? `第 ${s.outWave} 波出局` : `♥ ${s.lives}`}，${score}`
 }
 
+// 只在有倒數時更新時間：波次中不必每 250ms 重繪整頁
 const nowTick = ref(Date.now())
-const clock = setInterval(() => { nowTick.value = Date.now() }, 250)
+const clock = setInterval(() => { if (view.value?.buildEndsAt) nowTick.value = Date.now() }, 250)
 const secondsLeft = computed(() => {
     const ends = view.value?.buildEndsAt
     if (!ends) return null
@@ -322,6 +348,101 @@ watch(() => view.value?.phase, (phase, before) => {
     clearSelection()
     if (phase === 'build' && before === 'waiting') guide.autoOpen()
 })
+
+// ── 鍵盤快捷鍵（按鍵表見 useGemTdKeys.js 的 KEY_HELP）────────────
+// 每個按鍵只在對應按鈕看得到、按得下去時才動作，條件跟 GemPanel 一致
+const DIGITS = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3, Numpad5: 4 }
+
+function freshRows() {
+    const me = view.value?.me
+    return (me?.fresh ?? []).map(f => ({ ...f, tower: me.towers.find(t => t.id === f.id) })).filter(f => f.tower)
+}
+
+function handleKey(code) {
+    const v = view.value
+    const me = v.me
+    const catalog = state.catalog
+    const building = v.phase === 'build' && mine.value && me && !me.out
+    const selected = v.towers.find(t => t.id === selectedId.value)
+
+    if (code in DIGITS) {
+        if (!building) return false
+        const i = DIGITS[code]
+        if (me.pending.length) {
+            const g = me.pending[i]
+            if (g) onSelectSlot(g.slot)
+            return true
+        }
+        if (me.choosing) {
+            const f = freshRows()[i]
+            if (f) onTower(f.tower)
+            return true
+        }
+        return false
+    }
+
+    switch (code) {
+    case 'KeyK':
+    case 'KeyM': {
+        if (!building || !me.choosing) return false
+        const f = freshRows().find(r => r.id === selectedId.value)
+        if (!f) return false
+        if (code === 'KeyK') keep(f.id)
+        else if (f.mergeGain) merge(f.id)
+        else return false
+        clearSelection()
+        return true
+    }
+    case 'KeyR':
+        if (!building || !me.resolved || me.ready) return false
+        ready()
+        return true
+    case 'KeyU': {
+        if (!building) return false
+        const cost = catalog.qualityCosts[me.quality - 1]
+        if (cost && me.gold >= cost) upgradeQuality()
+        return true
+    }
+    case 'KeyS':
+        if (swapFrom.value) { swapFrom.value = null; return true }
+        if (!building || !selected || selected.kind === 'stone' || selected.fresh) return false
+        if (me.gold >= catalog.swapCost) swapFrom.value = selected.id
+        return true
+    case 'Delete':
+    case 'Backspace':
+        if (!building || selected?.kind !== 'stone' || swapFrom.value) return false
+        removeStone(selected.id)
+        clearSelection()
+        return true
+    case 'KeyB':
+        if (!inGame.value) return false
+        showRecipes.value = !showRecipes.value
+        return true
+    case 'KeyV': {
+        const ids = v.playerIds ?? []
+        if (ids.length < 2) return false
+        watchMap(ids[(ids.indexOf(v.watching) + 1) % ids.length])
+        return true
+    }
+    case 'KeyF':
+        if (!roomState.isHost || v.phase !== 'wave') return false
+        setSpeed(v.speed === 1 ? 2 : 1)
+        return true
+    case 'KeyH':
+        guide.open()
+        return true
+    case 'Escape':
+        if (showRecipes.value) { showRecipes.value = false; return true }
+        if (swapFrom.value || selectedId.value !== null) { clearSelection(); return true }
+        return false
+    default:
+        return false
+    }
+}
+
+const { hasKeyboard } = useGemTdKeys(handleKey, () => (
+    !guide.show.value && !!state.catalog && ['build', 'wave'].includes(view.value?.phase)
+))
 
 // ── 進出房間 ─────────────────────────────────────────────────────
 function enter(nickname) {
@@ -369,6 +490,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+    wideQuery.removeEventListener('change', onWideChange)
     clearInterval(clock)
     clearTimeout(_toastTimer)
 })

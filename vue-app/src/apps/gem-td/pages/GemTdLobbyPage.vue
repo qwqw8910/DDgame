@@ -12,15 +12,15 @@
         <main class="mx-auto flex w-full max-w-[880px] flex-col gap-10 px-4 pt-6 pb-16 sm:px-8 sm:pt-12">
             <div>
                 <img :src="HERO_IMAGE" alt="一群螞蟻朝草莓蛋糕前進，路上擋著糖果和馬卡龍" class="mb-6 block aspect-[16/7] w-full rounded-lg object-cover object-[50%_30%]" />
-                <h1 class="m-0 font-sans text-[clamp(44px,11vw,84px)] leading-[1.05] font-black tracking-[0.02em] text-[#D6305A]">甜點守衛戰</h1>
-                <p class="mt-4 mb-0 max-w-[32em] text-lg leading-relaxed text-[#7A5A50]">
+                <h1 class="m-0 font-sans text-[clamp(44px,11vw,84px)] leading-[1.05] font-black tracking-[0.02em] text-(--gt-accent)">甜點守衛戰</h1>
+                <p class="mt-4 mb-0 max-w-[32em] text-lg leading-relaxed text-(--gt-muted)">
                     每回合放下五個甜點，只留一個當塔。剩下的變成餅乾牆，把蟲子逼進你蓋的迷宮。最多四人一起守住蛋糕。
                 </p>
             </div>
 
             <div class="grid gap-8 sm:gap-10" :class="hasRoomFromUrl ? 'sm:max-w-[400px]' : 'sm:grid-cols-2'">
                 <section v-if="!hasRoomFromUrl" class="flex flex-col gap-3">
-                    <h2 class="m-0 font-sans text-2xl font-bold text-[#4A2C2A]">開新房間</h2>
+                    <h2 class="m-0 font-sans text-2xl font-bold text-(--gt-ink)">開新房間</h2>
                     <input v-model="createNickname" ref="createRef" class="gt-input" type="text" placeholder="你的暱稱" maxlength="8"
                         aria-label="你的暱稱" @keydown.enter="handleCreate" />
                     <select v-model.number="maxPlayers" class="gt-input cursor-pointer" aria-label="房間人數上限">
@@ -30,7 +30,7 @@
                 </section>
 
                 <section class="flex flex-col gap-3">
-                    <h2 class="m-0 font-sans text-2xl font-bold text-[#4A2C2A]">{{ hasRoomFromUrl ? `加入房間 ${joinCode}` : '加入朋友的房間' }}</h2>
+                    <h2 class="m-0 font-sans text-2xl font-bold text-(--gt-ink)">{{ hasRoomFromUrl ? `加入房間 ${joinCode}` : '加入朋友的房間' }}</h2>
                     <input v-model="joinNickname" ref="joinRef" class="gt-input" type="text" placeholder="你的暱稱" maxlength="8"
                         aria-label="你的暱稱" @keydown.enter="handleJoin" />
                     <input v-if="!hasRoomFromUrl" v-model="joinCode" class="gt-input" type="text" placeholder="6 碼房號" maxlength="6"
