@@ -34,7 +34,8 @@ function blankRun() {
     players: {},
     playerIds: [],
     startCount: 0, // 開局人數；獨立血量多人局剩一人時判定勝負
-    pendingWinners: null, // 打完所有波次時的勝負；傷害測試結束後才結算
+    pendingWinners: null, // 打完所有波次時的勝負；最後的傷害測試結束後才結算
+    testAt: null, // 正在進行（或準備進行）的傷害測試，是打完第幾波之後的加賽；沒有就是 null
     buildEndsAt: null,
     speed: 1,
     result: null,
@@ -104,7 +105,7 @@ const maxLives = game => (isTeam(game) ? C.START_LIVES * Math.max(1, game.startC
 const livesPool = (game, p) => (isTeam(game) ? game : p);
 const activeIds = game => game.playerIds.filter(id => !game.players[id].out);
 // 正式波次都打完之後多出來的那一波：傷害測試
-const isTestWave = game => game.wave >= game.options.waves;
+const isTestWave = game => game.testAt !== null;
 
 function enterBuild(game, { now, rng }) {
   game.phase = 'build';
@@ -132,7 +133,7 @@ function startGame(game, ids, { now, rng = Math.random }) {
     const p = {
       gold: C.START_GOLD, quality: 1, research: { damage: 0, speed: 0, range: 0 }, pending: [], resolved: false, ready: false,
       lives: C.START_LIVES, out: false, outWave: 0,
-      stats: { leaked: 0, peakGold: 0, lifeBought: 0, test: null },
+      stats: { leaked: 0, peakGold: 0, lifeBought: 0, tests: [] },
       towers: [],
       grid: new Map(), // "x,y" → tower
       path: [],
@@ -412,6 +413,7 @@ function startWave(game, { rng = Math.random } = {}) {
       path: p.path,
       wave: game.wave + 1,
       totalWaves: game.options.waves,
+      testAt: game.testAt,
       pool: isTestWave(game) ? { lives: 1 } : livesPool(game, p), // 傷害測試的怪不會扣血
       research: p.research,
     });
@@ -466,12 +468,23 @@ function awardOf(scores, pick) {
   return best;
 }
 
+// 每場傷害測試一份排行，多場時再加一份總傷害榜
 function buildTestResult(game) {
-  const rows = game.playerIds
-    .filter(id => game.players[id].stats.test)
-    .map(id => ({ id, ...game.players[id].stats.test }))
-    .sort((a, b) => b.damage - a.damage);
-  return rows.length ? { maxHp: rows[0].maxHp, rows } : null;
+  const ats = [...new Set(game.playerIds.flatMap(id => game.players[id].stats.tests.map(t => t.at)))].sort((x, y) => x - y);
+  if (!ats.length) return null;
+  const rounds = ats.map((at) => {
+    const rows = game.playerIds
+      .map(id => ({ id, ...game.players[id].stats.tests.find(t => t.at === at) }))
+      .filter(r => r.at === at)
+      .sort((x, y) => y.damage - x.damage);
+    return { at, maxHp: rows[0].maxHp, rows };
+  });
+  const totals = rounds.length > 1
+    ? game.playerIds
+      .map(id => ({ id, damage: game.players[id].stats.tests.reduce((n, t) => n + t.damage, 0), kills: game.players[id].stats.tests.filter(t => t.killed).length }))
+      .sort((x, y) => y.damage - x.damage)
+    : null;
+  return { rounds, totals };
 }
 
 function buildResult(game, winnerIds) {
@@ -524,13 +537,14 @@ function bankWave(game) {
     if (!sim || sim.banked) continue;
     sim.banked = true;
     if (testWave) {
-      p.stats.test = {
+      p.stats.tests.push({
+        at: game.testAt,
         damage: Math.round(sim.damage),
         maxHp: sim.def.hp,
         killed: sim.bossDownAt !== null,
         seconds: sim.bossDownAt === null ? null : Math.round(sim.bossDownAt * 10) / 10,
         escaped: sim.leaked > 0,
-      };
+      });
     } else {
       p.stats.leaked += sim.leaked;
     }
@@ -553,6 +567,18 @@ function lastWaveWinners(game) {
   return alive.filter(id => game.players[id].lives === best);
 }
 
+// 中途的傷害測試依傷害比例發金幣，在進入下一波建造前入帳
+function rewardTest(game) {
+  for (const id of activeIds(game)) {
+    const p = game.players[id];
+    const entry = p.stats.tests.find(t => t.at === game.testAt);
+    if (!entry) continue;
+    entry.reward = C.testReward(entry.at, entry.damage, entry.maxHp);
+    p.gold += entry.reward;
+    p.stats.peakGold = Math.max(p.stats.peakGold, p.gold);
+  }
+}
+
 function finishWave(game, { now, rng = Math.random }) {
   if (game.phase !== 'wave') return { finished: game.phase === 'finished' };
 
@@ -563,10 +589,17 @@ function finishWave(game, { now, rng = Math.random }) {
     return { finished: true };
   }
 
-  // 傷害測試打完：用打完正式波次時就定下來的勝負結算
+  // 傷害測試打完：中途的測試接著回到建造；最後一場用打完正式波次時就定下來的勝負結算
   if (isTestWave(game)) {
-    finishGame(game, game.pendingWinners ?? []);
-    return { finished: true };
+    const last = game.wave >= game.options.waves;
+    if (!last) rewardTest(game);
+    game.testAt = null;
+    if (last) {
+      finishGame(game, game.pendingWinners ?? []);
+      return { finished: true };
+    }
+    enterBuild(game, { now, rng });
+    return { finished: false };
   }
 
   game.wave += 1;
@@ -577,16 +610,14 @@ function finishWave(game, { now, rng = Math.random }) {
     p.stats.peakGold = Math.max(p.stats.peakGold, p.gold);
   }
 
-  if (game.wave >= game.options.waves) {
-    const survivors = lastWaveWinners(game);
-    if (game.options.damageTest) {
-      game.pendingWinners = survivors;
-      enterBuild(game, { now, rng });
-      return { finished: false };
-    }
-    finishGame(game, survivors);
+  const last = game.wave >= game.options.waves;
+  if (last && !game.options.damageTest) {
+    finishGame(game, lastWaveWinners(game));
     return { finished: true };
   }
+  if (last) game.pendingWinners = lastWaveWinners(game);
+  // 每 15 波與最後一波之後，多一個傷害測試
+  if (game.options.damageTest && C.testAfterWave(game.wave, game.options.waves)) game.testAt = game.wave;
   enterBuild(game, { now, rng });
   return { finished: false };
 }
@@ -642,8 +673,9 @@ function resolveWatch(game, viewerId, watchId) {
 
 function buildView(game, viewerId, watchId) {
   const nextWave = game.phase === 'finished' || !game.board ? null : (() => {
-    const number = game.wave + 1;
-    const def = C.waveDef(number, game.options.waves);
+    const test = isTestWave(game);
+    const number = test ? game.testAt : game.wave + 1;
+    const def = test ? C.testWaveDef(game.testAt) : C.waveDef(number, game.options.waves);
     const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: g.hp, armor: Math.round(g.armor), trait: g.trait }));
     return { number, type: def.type, count: def.count, hp: def.hp, armor: Math.round(def.armor), groups, test: !!def.test };
   })();
@@ -665,6 +697,7 @@ function buildView(game, viewerId, watchId) {
     speed: game.speed,
     nextWave,
     result: game.result,
+    testLog: buildTestResult(game), // 已打完的傷害測試紀錄（中途也看得到）
     playerIds: game.playerIds,
     players: Object.fromEntries(game.playerIds.map((id) => {
       const p = game.players[id];

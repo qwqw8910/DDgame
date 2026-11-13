@@ -124,7 +124,7 @@ function run(rounds) {
         const result = playGame({ players, waves, livesMode, seed });
         if (result.win) wins += 1;
         reached += result.wave;
-        for (const row of result.test?.rows ?? []) {
+        for (const row of (result.test?.rounds ?? []).flatMap(r => r.rows)) {
           tested += 1;
           if (row.killed) downs += 1;
           share += Math.min(1, row.damage / row.maxHp);

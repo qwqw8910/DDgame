@@ -2,7 +2,7 @@
     <!-- 建造時：下一波預告；波次中：正在看的地圖的進度與倍速 -->
     <section v-if="phase === 'build' && view.nextWave" class="gt-card" aria-label="下一波預告">
         <h3 class="gt-heading">{{ view.nextWave.test ? '傷害測試預告' : `第 ${view.nextWave.number} 波預告` }}</h3>
-        <p v-if="view.nextWave.test" class="m-0 mb-2 leading-snug text-(--gt-muted)">最後的加賽：巨獸走到終點不會扣血，盡量把傷害打滿，成績會記在結算畫面。</p>
+        <p v-if="view.nextWave.test" class="m-0 mb-2 leading-snug text-(--gt-muted)">加賽：巨獸走到終點不會扣血，盡量把傷害打滿。中途的加賽依傷害比例發金幣（打滿約 5 波收入），最後一場不發；成績記在左側紀錄與結算畫面。</p>
         <ul class="m-0 flex list-none flex-col gap-2 p-0">
             <li v-for="g in waveRows" :key="g.type" class="leading-snug">
                 <p class="m-0">
