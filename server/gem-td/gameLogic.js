@@ -34,6 +34,7 @@ function blankRun() {
     players: {},
     playerIds: [],
     startCount: 0, // 開局人數；獨立血量多人局剩一人時判定勝負
+    pendingWinners: null, // 打完所有波次時的勝負；傷害測試結束後才結算
     buildEndsAt: null,
     speed: 1,
     result: null,
@@ -53,6 +54,7 @@ function resolveOptions(raw = {}) {
     waves: C.WAVE_CHOICES.includes(raw.waves) ? raw.waves : C.DEFAULT_OPTIONS.waves,
     buildSeconds: C.BUILD_SECOND_CHOICES.includes(raw.buildSeconds) ? raw.buildSeconds : C.DEFAULT_OPTIONS.buildSeconds,
     livesMode: C.LIVES_MODES.includes(raw.livesMode) ? raw.livesMode : C.DEFAULT_OPTIONS.livesMode,
+    damageTest: typeof raw.damageTest === 'boolean' ? raw.damageTest : C.DEFAULT_OPTIONS.damageTest,
   };
 }
 
@@ -101,6 +103,8 @@ const isTeam = game => game.options.livesMode === 'team';
 const maxLives = game => (isTeam(game) ? C.START_LIVES * Math.max(1, game.startCount) : C.START_LIVES);
 const livesPool = (game, p) => (isTeam(game) ? game : p);
 const activeIds = game => game.playerIds.filter(id => !game.players[id].out);
+// 正式波次都打完之後多出來的那一波：傷害測試
+const isTestWave = game => game.wave >= game.options.waves;
 
 function enterBuild(game, { now, rng }) {
   game.phase = 'build';
@@ -128,6 +132,7 @@ function startGame(game, ids, { now, rng = Math.random }) {
     const p = {
       gold: C.START_GOLD, quality: 1, research: { damage: 0, speed: 0, range: 0 }, pending: [], resolved: false, ready: false,
       lives: C.START_LIVES, out: false, outWave: 0,
+      stats: { leaked: 0, peakGold: 0, lifeBought: 0, test: null },
       towers: [],
       grid: new Map(), // "x,y" → tower
       path: [],
@@ -167,6 +172,18 @@ function toStone(t) {
 function spend(p, cost) {
   if (p.gold < cost) throw new GameError('NO_GOLD', `金幣不足，需要 ${cost}`);
   p.gold -= cost;
+}
+
+// ── 買命 ────────────────────────────────────────────────────────
+function buyLife(game, playerId) {
+  requireBuild(game);
+  const p = playerOf(game, playerId);
+  if (isTestWave(game)) throw new GameError('BAD_PHASE', '傷害測試不會扣血，不用買命');
+  const pool = livesPool(game, p);
+  if (pool.lives >= maxLives(game)) throw new GameError('MAX_LIVES', '血量已經是滿的');
+  spend(p, C.LIFE_COST);
+  pool.lives += 1;
+  p.stats.lifeBought += 1;
 }
 
 // ── 放置 ────────────────────────────────────────────────────────
@@ -395,7 +412,7 @@ function startWave(game, { rng = Math.random } = {}) {
       path: p.path,
       wave: game.wave + 1,
       totalWaves: game.options.waves,
-      pool: livesPool(game, p),
+      pool: isTestWave(game) ? { lives: 1 } : livesPool(game, p), // 傷害測試的怪不會扣血
       research: p.research,
     });
   }
@@ -439,6 +456,24 @@ function tick(game, dt, rng = Math.random) {
   return { done, out };
 }
 
+// 每個獎項取數值最大的玩家；全部都是 0 就沒有人得獎
+function awardOf(scores, pick) {
+  let best = null;
+  for (const s of scores) {
+    const value = pick(s);
+    if (value > 0 && (!best || value > best.value)) best = { id: s.id, value };
+  }
+  return best;
+}
+
+function buildTestResult(game) {
+  const rows = game.playerIds
+    .filter(id => game.players[id].stats.test)
+    .map(id => ({ id, ...game.players[id].stats.test }))
+    .sort((a, b) => b.damage - a.damage);
+  return rows.length ? { maxHp: rows[0].maxHp, rows } : null;
+}
+
 function buildResult(game, winnerIds) {
   const scores = game.playerIds.map((id) => {
     const p = game.players[id];
@@ -449,6 +484,10 @@ function buildResult(game, winnerIds) {
       outWave: p.outWave,
       kills: p.towers.reduce((n, t) => n + t.kills, 0),
       damage: Math.round(p.towers.reduce((n, t) => n + t.damage, 0)),
+      leaked: p.stats.leaked,
+      gold: p.gold,
+      peakGold: p.stats.peakGold,
+      lifeBought: p.stats.lifeBought,
     };
   }).sort((a, b) => (isTeam(game) ? 0 : b.lives - a.lives || b.outWave - a.outWave) || b.damage - a.damage);
   const top = game.playerIds
@@ -464,10 +503,42 @@ function buildResult(game, winnerIds) {
     topTower: top && top.damage > 0
       ? { kind: top.kind, level: top.level, owner: top.owner, kills: top.kills, damage: Math.round(top.damage) }
       : null,
+    awards: {
+      saver: awardOf(scores, s => s.peakGold),
+      leaker: awardOf(scores, s => s.leaked),
+      killer: awardOf(scores, s => s.kills),
+      dealer: awardOf(scores, s => s.damage),
+      lifeBuyer: awardOf(scores, s => s.lifeBought),
+      perfectIds: game.wave > 0 ? scores.filter(s => s.leaked === 0).map(s => s.id) : [],
+    },
+    test: buildTestResult(game),
   };
 }
 
+// 把這一波的成績記到玩家身上；同一張 sim 只記一次
+function bankWave(game) {
+  const testWave = isTestWave(game);
+  for (const id of game.playerIds) {
+    const p = game.players[id];
+    const sim = p.sim;
+    if (!sim || sim.banked) continue;
+    sim.banked = true;
+    if (testWave) {
+      p.stats.test = {
+        damage: Math.round(sim.damage),
+        maxHp: sim.def.hp,
+        killed: sim.bossDownAt !== null,
+        seconds: sim.bossDownAt === null ? null : Math.round(sim.bossDownAt * 10) / 10,
+        escaped: sim.leaked > 0,
+      };
+    } else {
+      p.stats.leaked += sim.leaked;
+    }
+  }
+}
+
 function finishGame(game, winnerIds) {
+  bankWave(game);
   game.phase = 'finished';
   game.buildEndsAt = null;
   for (const id of game.playerIds) game.players[id].sim = null;
@@ -485,9 +556,16 @@ function lastWaveWinners(game) {
 function finishWave(game, { now, rng = Math.random }) {
   if (game.phase !== 'wave') return { finished: game.phase === 'finished' };
 
+  bankWave(game);
   const winners = decidedWinners(game);
   if (winners) {
     finishGame(game, winners);
+    return { finished: true };
+  }
+
+  // 傷害測試打完：用打完正式波次時就定下來的勝負結算
+  if (isTestWave(game)) {
+    finishGame(game, game.pendingWinners ?? []);
     return { finished: true };
   }
 
@@ -496,10 +574,17 @@ function finishWave(game, { now, rng = Math.random }) {
   for (const id of activeIds(game)) {
     const p = game.players[id];
     p.gold += p.sim.earned + bonus + C.interestOn(p.gold);
+    p.stats.peakGold = Math.max(p.stats.peakGold, p.gold);
   }
 
   if (game.wave >= game.options.waves) {
-    finishGame(game, lastWaveWinners(game));
+    const survivors = lastWaveWinners(game);
+    if (game.options.damageTest) {
+      game.pendingWinners = survivors;
+      enterBuild(game, { now, rng });
+      return { finished: false };
+    }
+    finishGame(game, survivors);
     return { finished: true };
   }
   enterBuild(game, { now, rng });
@@ -560,7 +645,7 @@ function buildView(game, viewerId, watchId) {
     const number = game.wave + 1;
     const def = C.waveDef(number, game.options.waves);
     const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: g.hp, armor: Math.round(g.armor), trait: g.trait }));
-    return { number, type: def.type, count: def.count, hp: def.hp, armor: Math.round(def.armor), groups };
+    return { number, type: def.type, count: def.count, hp: def.hp, armor: Math.round(def.armor), groups, test: !!def.test };
   })();
   const watching = resolveWatch(game, viewerId, watchId);
   const field = game.players[watching];
@@ -598,8 +683,8 @@ function buildFrames(game) {
   const ids = game.playerIds.filter(id => game.players[id].sim);
   const players = Object.fromEntries(ids.map((id) => {
     const p = game.players[id];
-    const { earned, killed, leaked, done } = p.sim;
-    return [id, { lives: livesPool(game, p).lives, earned, killed, leaked, done }];
+    const { earned, killed, leaked, done, damage } = p.sim;
+    return [id, { lives: livesPool(game, p).lives, earned, killed, leaked, done, damage: Math.round(damage) }];
   }));
   return Object.fromEntries(ids.map((id) => {
     const { sim } = game.players[id];
@@ -614,7 +699,7 @@ module.exports = {
   catalog: C.catalog,
   createGame, resetGame, resolveOptions, startGame,
   placeGem, keepGem, mergeGem, combine, availableRecipes,
-  upgradeQuality, upgradeResearch, removeStone, swapWithStone,
+  upgradeQuality, upgradeResearch, removeStone, swapWithStone, buyLife,
   setReady, allReady, autoResolve, startWave, setSpeed, tick, finishWave, finishNow,
   leavePlayer, resolveWatch, buildView, buildFrames,
 };

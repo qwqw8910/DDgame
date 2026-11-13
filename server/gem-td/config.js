@@ -15,7 +15,10 @@ const START_GOLD = 0;
 const WAVE_CHOICES = [15, 30, 50];
 const BUILD_SECOND_CHOICES = [0, 45, 60, 90]; // 0 = 不限時（等全員按準備）
 const LIVES_MODES = ['team', 'solo']; // team = 全隊共用血量；solo = 每人各自的血量
-const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team' };
+const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true };
+
+// 用金幣換血量：建造階段每次換 1 點，最多補到開局血量
+const LIFE_COST = 10;
 
 // 每位玩家各一張地圖，大小固定
 const BOARD_SIZE = 25;
@@ -155,6 +158,8 @@ const MONSTERS = {
   armored: { name: '犀牛甲蟲', hp: 1.1, speed: 2.9, armor: 8, count: 1, leak: 3, gold: 2 },
   air: { name: '胡蜂', hp: 1.4, speed: 2.6, armor: 0, count: 1, leak: 2, gold: 1, flying: true },
   boss: { name: '女王蟻', hp: 16, speed: 2.4, armor: 4, count: 0, leak: 25, gold: 30, boss: true },
+  // 傷害測試關卡的首領：血量是一般首領的 4 倍、走得更慢，走到終點也不扣血，只記錄每個人打了多少
+  titan: { name: '甜點巨獸', hp: 64, speed: 1.6, armor: 4, count: 0, leak: 0, gold: 0, boss: true, test: true },
 };
 const MONSTER_TYPES = Object.keys(MONSTERS);
 
@@ -250,6 +255,11 @@ function waveGroups(type, wave) {
 
 // 每張地圖各打一份完整的波次，血量不隨人數變動
 function waveDef(wave, totalWaves) {
+  if (wave > totalWaves) {
+    // 傷害測試：血量以最後一波為基準，不再往上疊一波的成長
+    const group = monsterGroup('titan', 1, totalWaves);
+    return { ...group, count: 1, interval: SPAWN_INTERVAL, groups: [group], test: true };
+  }
   const type = wave === totalWaves ? 'boss' : WAVE_ROTATION[(wave - 1) % WAVE_ROTATION.length];
   const groups = waveGroups(type, wave);
   const [main] = groups;
@@ -277,7 +287,7 @@ function catalog() {
       name: s.name, trait: s.trait, tier: s.tier, stats: statsOf(k, 1),
     }])),
     recipes: RECIPES,
-    monsters: MONSTER_TYPES.map(id => ({ id, name: MONSTERS[id].name, flying: !!MONSTERS[id].flying, boss: !!MONSTERS[id].boss })),
+    monsters: MONSTER_TYPES.map(id => ({ id, name: MONSTERS[id].name, flying: !!MONSTERS[id].flying, boss: !!MONSTERS[id].boss, test: !!MONSTERS[id].test })),
     qualityRates: QUALITY_RATES,
     qualityCosts: QUALITY_COSTS,
     swapCost: SWAP_COST,
@@ -289,11 +299,12 @@ function catalog() {
     traits: TRAITS,
     traitIds: TRAIT_IDS,
     gemsPerRound: GEMS_PER_ROUND,
+    lifeCost: LIFE_COST,
   };
 }
 
 module.exports = {
-  MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD,
+  MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, LIFE_COST,
   WAVE_CHOICES, BUILD_SECOND_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
   SWAP_COST, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,

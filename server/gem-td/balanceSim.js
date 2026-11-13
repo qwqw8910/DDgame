@@ -96,7 +96,7 @@ function spendGold(game, id) {
 function playGame({ players, waves, livesMode, seed }) {
   const rng = seededRng(seed);
   const game = L.createGame();
-  game.options = { ...game.options, waves, livesMode, buildSeconds: 0 };
+  game.options = { ...game.options, waves, livesMode, buildSeconds: 0, damageTest: true };
   const ids = Array.from({ length: players }, (_, i) => `p${i}`);
   L.startGame(game, ids, { now: 0, rng });
 
@@ -116,16 +116,21 @@ function playGame({ players, waves, livesMode, seed }) {
 }
 
 function run(rounds) {
-  console.log('人數  模式  波數  勝率   平均到達波數');
+  console.log('人數  模式  波數  勝率   平均到達波數  傷害測試(擊殺率 / 平均造成血量比例)');
   for (const waves of C.WAVE_CHOICES) {
     for (const [players, livesMode] of [[1, 'team'], [2, 'team'], [4, 'team'], [2, 'solo'], [4, 'solo']]) {
-      let wins = 0; let reached = 0;
+      let wins = 0; let reached = 0; let tested = 0; let downs = 0; let share = 0;
       for (let seed = 1; seed <= rounds; seed++) {
         const result = playGame({ players, waves, livesMode, seed });
         if (result.win) wins += 1;
         reached += result.wave;
+        for (const row of result.test?.rows ?? []) {
+          tested += 1;
+          if (row.killed) downs += 1;
+          share += Math.min(1, row.damage / row.maxHp);
+        }
       }
-      console.log(`${players}     ${livesMode}  ${waves}    ${String(Math.round((wins / rounds) * 100)).padStart(3)}%   ${(reached / rounds).toFixed(1)}`);
+      console.log(`${players}     ${livesMode}  ${waves}    ${String(Math.round((wins / rounds) * 100)).padStart(3)}%   ${(reached / rounds).toFixed(1)}        ${tested ? `${Math.round((downs / tested) * 100)}% / ${Math.round((share / tested) * 100)}%` : '-'}`);
     }
   }
 }

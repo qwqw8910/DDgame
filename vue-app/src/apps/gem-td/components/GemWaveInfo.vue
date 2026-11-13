@@ -1,7 +1,8 @@
 <template>
     <!-- 建造時：下一波預告；波次中：正在看的地圖的進度與倍速 -->
     <section v-if="phase === 'build' && view.nextWave" class="gt-card" aria-label="下一波預告">
-        <h3 class="gt-heading">第 {{ view.nextWave.number }} 波預告</h3>
+        <h3 class="gt-heading">{{ view.nextWave.test ? '傷害測試預告' : `第 ${view.nextWave.number} 波預告` }}</h3>
+        <p v-if="view.nextWave.test" class="m-0 mb-2 leading-snug text-(--gt-muted)">最後的加賽：巨獸走到終點不會扣血，盡量把傷害打滿，成績會記在結算畫面。</p>
         <ul class="m-0 flex list-none flex-col gap-2 p-0">
             <li v-for="g in waveRows" :key="g.type" class="leading-snug">
                 <p class="m-0">
@@ -16,8 +17,9 @@
     </section>
 
     <section v-else-if="phase === 'wave'" class="gt-card" aria-label="波次進度">
-        <h3 class="gt-heading">第 {{ view.nextWave?.number }} 波進行中</h3>
-        <p class="m-0">{{ watchedLabel }}擊殺 {{ watched?.killed ?? 0 }}／{{ frame?.total ?? view.nextWave?.count }}，漏掉 {{ watched?.leaked ?? 0 }}</p>
+        <h3 class="gt-heading">{{ view.nextWave?.test ? '傷害測試進行中' : `第 ${view.nextWave?.number} 波進行中` }}</h3>
+        <p v-if="view.nextWave?.test" class="m-0">{{ watchedLabel }}已造成 {{ (watched?.damage ?? 0).toLocaleString() }}／{{ view.nextWave.hp.toLocaleString() }} 傷害（{{ Math.min(100, Math.round(((watched?.damage ?? 0) / view.nextWave.hp) * 100)) }}%）</p>
+        <p v-else class="m-0">{{ watchedLabel }}擊殺 {{ watched?.killed ?? 0 }}／{{ frame?.total ?? view.nextWave?.count }}，漏掉 {{ watched?.leaked ?? 0 }}</p>
         <button v-if="isHost" class="gt-btn gt-btn--small mt-2 w-full" aria-keyshortcuts="F" @click="$emit('speed', view.speed === 1 ? 2 : 1)">
             {{ view.speed === 1 ? '切換 2 倍速' : '切回 1 倍速' }}<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">F</kbd>
         </button>
