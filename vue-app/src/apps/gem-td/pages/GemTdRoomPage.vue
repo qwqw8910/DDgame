@@ -101,36 +101,51 @@
         <!-- 遊戲畫面：電腦三欄（左 戰況、中 地圖、右 操作），窄螢幕由 CSS 改成上下堆疊 -->
         <main v-else-if="view?.board && state.catalog" class="gt-game">
             <aside class="gt-rail" aria-label="戰況">
-                <section class="gt-card flex flex-col gap-3" aria-label="血量、金幣與波次">
-                    <div class="flex items-end justify-between gap-2">
-                        <p v-if="view.nextWave?.test" class="m-0 text-lg font-bold text-(--gt-ink)">傷害測試<span class="font-normal text-(--gt-muted)">（第 {{ view.nextWave.number }} 波後）</span></p>
-                        <p v-else class="m-0 text-lg font-bold text-(--gt-ink)">第 {{ waveNumber }} 波<span class="font-normal text-(--gt-muted)">／{{ view.options.waves }}</span></p>
-                        <p v-if="secondsLeft !== null" class="gt-timer" :class="{ 'gt-timer--low': secondsLeft <= 10 }" role="timer" aria-label="建造剩餘秒數">
-                            {{ secondsLeft }}<span class="ml-0.5 text-base font-bold">秒</span>
-                        </p>
-                    </div>
-                    <div class="flex flex-wrap gap-x-5 gap-y-1">
-                        <p class="gt-stat" :title="view.options.livesMode === 'team' ? '隊伍血量' : '我的血量'">
-                            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--gt-accent)" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.1 1.8-1.9 3.3-3.1 5.4-3.1 3.6 0 5.7 3.7 4.2 7.2C19.5 16.4 12 21 12 21z" /></svg>
-                            <span class="sr-only">{{ view.options.livesMode === 'team' ? '隊伍血量' : '我的血量' }}</span><span>{{ lives }}<span class="font-normal text-(--gt-muted)">／{{ view.maxLives }}</span></span>
-                        </p>
-                        <p v-if="view.me" class="gt-stat" title="金幣">
-                            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="var(--gt-gold)" stroke="var(--gt-ink)" stroke-width="1.6" /><path d="M12 7.5v9M9.5 10h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4" fill="none" stroke="var(--gt-ink)" stroke-width="1.4" stroke-linecap="round" /></svg>
-                            <span class="sr-only">金幣</span><span>{{ gold }} <span class="font-normal text-(--gt-muted)">金</span></span>
-                        </p>
-                    </div>
-                </section>
+                <!-- 電腦版：戰況與合成表分成上下兩塊，各自捲動 -->
+                <div class="gt-rail-top">
+                    <section class="gt-card flex flex-col gap-3" aria-label="血量、金幣與波次">
+                        <div class="flex items-end justify-between gap-2">
+                            <!-- 標籤和數字分兩行：兩位數的波次＋秒數也排得下，不會換行跑版 -->
+                            <p class="m-0 min-w-0 whitespace-nowrap">
+                                <template v-if="view.nextWave?.test">
+                                    <span class="block text-xs font-semibold text-(--gt-accent-ink)">傷害測試</span>
+                                    <span class="sr-only">傷害測試，第 {{ view.nextWave.number }} 波後</span>
+                                    <span aria-hidden="true"><span class="text-(--gt-muted)">第 </span><b class="text-2xl leading-none font-extrabold text-(--gt-ink) tabular-nums">{{ view.nextWave.number }}</b><span class="text-(--gt-muted)"> 波後</span></span>
+                                </template>
+                                <template v-else>
+                                    <span class="block text-xs text-(--gt-muted)">波次</span>
+                                    <span class="sr-only">第 {{ waveNumber }} 波，共 {{ view.options.waves }} 波</span>
+                                    <span aria-hidden="true"><b class="text-2xl leading-none font-extrabold text-(--gt-ink) tabular-nums">{{ waveNumber }}</b><span class="text-(--gt-muted) tabular-nums">／{{ view.options.waves }}</span></span>
+                                </template>
+                            </p>
+                            <p v-if="secondsLeft !== null" class="m-0 shrink-0 text-right whitespace-nowrap" role="timer" aria-label="建造剩餘秒數">
+                                <span class="block text-xs text-(--gt-muted)">建造剩餘</span>
+                                <span class="gt-timer" :class="{ 'gt-timer--low': secondsLeft <= 10 }">{{ secondsLeft }}<span class="ml-0.5 text-sm font-bold">秒</span></span>
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap gap-x-5 gap-y-1">
+                            <p class="gt-stat" :title="view.options.livesMode === 'team' ? '隊伍血量' : '我的血量'">
+                                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--gt-accent)" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.1 1.8-1.9 3.3-3.1 5.4-3.1 3.6 0 5.7 3.7 4.2 7.2C19.5 16.4 12 21 12 21z" /></svg>
+                                <span class="sr-only">{{ view.options.livesMode === 'team' ? '隊伍血量' : '我的血量' }}</span><span>{{ lives }}<span class="font-normal text-(--gt-muted)">／{{ view.maxLives }}</span></span>
+                            </p>
+                            <p v-if="view.me" class="gt-stat" title="金幣">
+                                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="var(--gt-gold)" stroke="var(--gt-ink)" stroke-width="1.6" /><path d="M12 7.5v9M9.5 10h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4" fill="none" stroke="var(--gt-ink)" stroke-width="1.4" stroke-linecap="round" /></svg>
+                                <span class="sr-only">金幣</span><span>{{ gold }} <span class="font-normal text-(--gt-muted)">金</span></span>
+                            </p>
+                        </div>
+                    </section>
 
-                <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
-                <!-- 看別人的地圖：提示放在左欄，不疊在地圖上 -->
-                <div v-if="!mine" class="gt-card flex flex-col gap-2" role="status">
-                    <p class="m-0">正在看 <b class="text-(--gt-ink)">{{ watchingName }}</b> 的地圖，不能操作。</p>
-                    <button v-if="view.me" class="gt-btn gt-btn--small w-full" @click="watchMap(roomState.myPlayerId)">回到我的地圖</button>
+                    <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
+                    <!-- 看別人的地圖：提示放在左欄，不疊在地圖上 -->
+                    <div v-if="!mine" class="gt-card flex flex-col gap-2" role="status">
+                        <p class="m-0">正在看 <b class="text-(--gt-ink)">{{ watchingName }}</b> 的地圖，不能操作。</p>
+                        <button v-if="view.me" class="gt-btn gt-btn--small w-full" @click="watchMap(roomState.myPlayerId)">回到我的地圖</button>
+                    </div>
+
+                    <GemWaveInfo :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
+                        :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
+                    <div v-if="view.testLog" class="gt-card"><GemTestBoard :test="view.testLog" :names="view.names" /></div>
                 </div>
-
-                <GemWaveInfo :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
-                    :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
-                <div v-if="view.testLog" class="gt-card"><GemTestBoard :test="view.testLog" :names="view.names" /></div>
                 <GemRecipes v-if="isWide" v-model="showRecipes" docked :view="view" :catalog="state.catalog" @combine="onCombine" />
             </aside>
 
@@ -146,7 +161,7 @@
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
-                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @research="upgradeResearch"
+                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @research="upgradeResearch"
                     @remove="id => { removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
             </aside>
@@ -218,7 +233,7 @@ const route = useRoute()
 const router = useRouter()
 const {
     state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
-    upgradeQuality, buyLife, upgradeResearch, removeStone, swap, ready, setSpeed, finishNow, restart,
+    upgradeQuality, buyLife, reroll, upgradeResearch, removeStone, swap, ready, setSpeed, finishNow, restart,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useGemTd()
@@ -436,6 +451,10 @@ function handleKey(code) {
         if (cost && me.gold >= cost) upgradeQuality()
         return true
     }
+    case 'KeyD':
+        if (!building || !me.canReroll) return false
+        if (me.gold >= me.rerollCost) reroll()
+        return true
     case 'KeyS':
         if (swapFrom.value) { swapFrom.value = null; return true }
         if (!building || !selected || selected.kind === 'stone' || selected.fresh) return false

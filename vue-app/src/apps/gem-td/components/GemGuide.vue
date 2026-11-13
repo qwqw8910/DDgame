@@ -6,6 +6,29 @@
                 <li v-for="t in catalog.traits" :key="t.name"><b class="font-semibold text-heading">{{ t.name }}</b>：{{ t.desc }}。{{ t.tip }}。</li>
             </ul>
         </GameGuideSection>
+        <GameGuideSection title="重骰">
+            <ul class="gg-list">
+                <li>這回合的 5 個甜點<b class="font-semibold text-heading">一個都還沒放</b>時，可以花金幣把整手換新；放下第一個之後就不能再骰。</li>
+                <li>品質越高，重骰底價越貴；同一回合每多骰一次，再加價一次。</li>
+                <li>下一回合重新計算，回到這個品質的底價。</li>
+                <li>重骰會用目前的品質抽，先升品質再骰，抽到高等甜點的機會比較大。</li>
+            </ul>
+            <table v-if="catalog?.rerollBase != null" class="mt-2 w-full border-collapse text-center tabular-nums">
+                <caption class="mb-1 text-left text-(--gt-muted)">重骰費用（金）</caption>
+                <thead>
+                    <tr class="text-(--gt-muted)">
+                        <th scope="col" class="py-1 text-left font-normal">品質</th>
+                        <th v-for="n in 3" :key="n" scope="col" class="py-1 font-normal">第 {{ n }} 骰</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="q in rerollQualities" :key="q" class="border-t border-(--gt-line-soft)">
+                        <th scope="row" class="py-1 text-left font-semibold text-heading">{{ q }}</th>
+                        <td v-for="n in 3" :key="n" class="py-1">{{ rerollCost(q, n - 1) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </GameGuideSection>
         <GameGuideSection v-if="catalog" title="甜點">
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
                 <li v-for="k in GEM_ORDER" :key="k" class="flex items-center gap-2">
@@ -42,6 +65,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import GameGuideModal from '@/shared/components/GameGuideModal.vue'
 import GameGuideSection from '@/shared/components/GameGuideSection.vue'
 import GemIcon from './GemIcon.vue'
@@ -49,10 +73,21 @@ import guideImg from '../assets/guide.webp'
 import { GEM_ORDER, ingredientLabel } from '../data/gems.js'
 import { KEY_HELP } from '../composables/useGemTdKeys.js'
 
-defineProps({
+const props = defineProps({
     modelValue: { type: Boolean, default: false },
     catalog: { type: Object, default: null },
     keys: { type: Boolean, default: false },
 })
 defineEmits(['update:modelValue'])
+
+// 跟伺服器 config.rerollCost 同一條公式，數字由型錄帶來
+const rerollCost = (quality, rerolls) => {
+    const c = props.catalog
+    return c.rerollBase + (quality - 1) * c.rerollPerQuality + rerolls * c.rerollStep
+}
+// 表格挑幾個代表品質，不把 8 列全列出來
+const rerollQualities = computed(() => {
+    const max = props.catalog?.qualityRates.length ?? 0
+    return [...new Set([1, 2, 4, 6, max])].filter(q => q >= 1 && q <= max)
+})
 </script>

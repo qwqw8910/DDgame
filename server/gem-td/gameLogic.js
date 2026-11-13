@@ -114,6 +114,8 @@ function enterBuild(game, { now, rng }) {
   for (const id of activeIds(game)) {
     const p = game.players[id];
     p.pending = rollGems(p.quality, rng);
+    p.rerolls = 0;
+    p.livesBought = 0;
     p.resolved = false;
     p.ready = false;
   }
@@ -131,7 +133,7 @@ function startGame(game, ids, { now, rng = Math.random }) {
   game.board = makeBoard();
   for (const id of ids) {
     const p = {
-      gold: C.START_GOLD, quality: 1, research: { damage: 0, speed: 0, range: 0 }, pending: [], resolved: false, ready: false,
+      gold: C.START_GOLD, quality: 1, research: { damage: 0, speed: 0, range: 0 }, pending: [], rerolls: 0, resolved: false, ready: false,
       lives: C.START_LIVES, out: false, outWave: 0,
       stats: { leaked: 0, peakGold: 0, lifeBought: 0, tests: [] },
       towers: [],
@@ -182,7 +184,8 @@ function buyLife(game, playerId) {
   if (isTestWave(game)) throw new GameError('BAD_PHASE', '傷害測試不會扣血，不用買命');
   const pool = livesPool(game, p);
   if (pool.lives >= maxLives(game)) throw new GameError('MAX_LIVES', '血量已經是滿的');
-  spend(p, C.LIFE_COST);
+  spend(p, C.lifeCost(game.wave, p.livesBought ?? 0));
+  p.livesBought = (p.livesBought ?? 0) + 1;
   pool.lives += 1;
   p.stats.lifeBought += 1;
 }
@@ -320,6 +323,16 @@ function upgradeQuality(game, playerId) {
   if (p.quality >= C.QUALITY_RATES.length) throw new GameError('MAX_QUALITY', '品質已達上限');
   spend(p, C.QUALITY_COSTS[p.quality - 1]);
   p.quality += 1;
+}
+
+// 重骰：五個甜點都還在手上時才能骰，整手換新
+function rerollGems(game, playerId, { rng = Math.random } = {}) {
+  requireBuild(game);
+  const p = playerOf(game, playerId);
+  if (p.pending.length !== C.GEMS_PER_ROUND) throw new GameError('ALREADY_PLACED', '已經放下甜點，這回合不能再骰');
+  spend(p, C.rerollCost(p.quality, p.rerolls ?? 0));
+  p.rerolls = (p.rerolls ?? 0) + 1;
+  p.pending = rollGems(p.quality, rng);
 }
 
 function upgradeResearch(game, playerId, track) {
@@ -650,6 +663,11 @@ function meView(game, playerId) {
     gold: p.gold,
     quality: p.quality,
     research: p.research,
+    rerolls: p.rerolls ?? 0,
+    livesBought: p.livesBought ?? 0,
+    lifeCost: C.lifeCost(game.wave, p.livesBought ?? 0),
+    rerollCost: C.rerollCost(p.quality, p.rerolls ?? 0),
+    canReroll: game.phase === 'build' && !p.out && p.pending.length === C.GEMS_PER_ROUND,
     out: p.out,
     pending: p.pending,
     resolved: p.resolved,
@@ -676,7 +694,7 @@ function buildView(game, viewerId, watchId) {
     const test = isTestWave(game);
     const number = test ? game.testAt : game.wave + 1;
     const def = test ? C.testWaveDef(game.testAt) : C.waveDef(number, game.options.waves);
-    const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: g.hp, armor: Math.round(g.armor), trait: g.trait }));
+    const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: g.hp, armor: Math.round(g.armor), trait: g.trait, leak: g.leak }));
     return { number, type: def.type, count: def.count, hp: def.hp, armor: Math.round(def.armor), groups, test: !!def.test };
   })();
   const watching = resolveWatch(game, viewerId, watchId);
@@ -739,7 +757,7 @@ module.exports = {
   catalog: C.catalog,
   createGame, resetGame, resolveOptions, startGame,
   placeGem, keepGem, mergeGem, combine, availableRecipes,
-  upgradeQuality, upgradeResearch, removeStone, swapWithStone, buyLife,
+  upgradeQuality, rerollGems, upgradeResearch, removeStone, swapWithStone, buyLife,
   setReady, allReady, autoResolve, startWave, setSpeed, tick, finishWave, finishNow,
   leavePlayer, resolveWatch, buildView, buildFrames,
 };

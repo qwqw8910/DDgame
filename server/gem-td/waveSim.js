@@ -43,7 +43,7 @@ function createWave({ board, towers: placed, path, wave, totalWaves, testAt = nu
   const cached = testAt === null ? C.waveDef(wave, totalWaves) : C.testWaveDef(testAt);
   const def = { ...cached, groups: cached.groups.map(g => ({ ...g })) };
   const towers = prepareTowers(placed, research);
-  const { start, end } = board;
+  const air = airRoute(board);
   return {
     wave,
     def,
@@ -58,7 +58,8 @@ function createWave({ board, towers: placed, path, wave, totalWaves, testAt = nu
     towers,
     armorAuras: towers.filter(t => t.stats.armorAura),
     path,
-    airLength: distance(start.x, start.y, end.x, end.y),
+    air,
+    airLength: air.length,
     killed: 0,
     leaked: 0,
     damage: 0, // 這張地圖這一波打出的總傷害（傷害測試用）
@@ -98,10 +99,22 @@ function spawn(sim) {
     poisonDps: 0, poisonUntil: 0, poisonBy: null,
     shredAmount: 0, shredUntil: 0,
     gold: info.gold + Math.floor(sim.wave / 6),
-    leak: info.leak,
+    leak: group.leak ?? info.leak,
     dead: false,
   });
   sim.spawned += 1;
+}
+
+// 飛行怪不受石頭阻擋，但一樣依序飛過 1→5 號路徑點：每段走直線
+function airRoute(board) {
+  const stops = [board.start, ...board.checkpoints, board.end];
+  const cum = [0];
+  for (let i = 1; i < stops.length; i++) {
+    const a = stops[i - 1];
+    const b = stops[i];
+    cum.push(cum[i - 1] + distance(a.x, a.y, b.x, b.y));
+  }
+  return { stops, cum, length: cum[cum.length - 1] };
 }
 
 function pathLength(sim, m) {
@@ -121,10 +134,15 @@ function moveMonster(sim, m, dt) {
   }
 
   if (m.flying) {
-    const { start, end } = sim.board;
-    const t = m.pos / length;
-    m.x = start.x + (end.x - start.x) * t;
-    m.y = start.y + (end.y - start.y) * t;
+    const { stops, cum } = sim.air;
+    let i = 0;
+    while (i < cum.length - 2 && m.pos >= cum[i + 1]) i++;
+    const a = stops[i];
+    const b = stops[i + 1];
+    const seg = cum[i + 1] - cum[i];
+    const t = seg > 0 ? (m.pos - cum[i]) / seg : 1;
+    m.x = a.x + (b.x - a.x) * t;
+    m.y = a.y + (b.y - a.y) * t;
     return;
   }
   const i = Math.floor(m.pos);
@@ -198,12 +216,6 @@ function applyEffects(sim, tower, m) {
   }
 }
 
-function regenerate(sim, m, dt) {
-  if (m.trait !== 'regen' || sim.time < m.poisonUntil) return;
-  const rate = m.boss ? C.BOSS_REGEN_RATE : C.REGEN_RATE;
-  m.hp = Math.min(m.maxHp, m.hp + m.maxHp * rate * dt);
-}
-
 function canHit(stats, m) {
   if (stats.hits === 'air') return m.flying;
   if (stats.hits === 'ground') return !m.flying;
@@ -258,7 +270,6 @@ function stepWave(sim, dt, rng = Math.random) {
   for (const m of sim.monsters) {
     if (sim.time < m.poisonUntil && m.poisonBy) dealDamage(sim, m.poisonBy, m, m.poisonDps * dt);
     if (m.dead) continue;
-    regenerate(sim, m, dt);
     moveMonster(sim, m, dt);
   }
 

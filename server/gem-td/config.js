@@ -18,7 +18,11 @@ const LIVES_MODES = ['team', 'solo']; // team = 全隊共用血量；solo = 每�
 const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true };
 
 // 用金幣換血量：建造階段每次換 1 點，最多補到開局血量
-const LIFE_COST = 10;
+// 底價隨波次上漲（後期收入高，固定價會變成無限補血）；同一回合每多買 1 點再貴 50%，下回合恢復
+const LIFE_BASE = 10;
+const LIFE_PER_WAVE = 2;
+const LIFE_STEP = 0.5;
+const lifeCost = (wave, bought) => Math.round((LIFE_BASE + wave * LIFE_PER_WAVE) * (1 + bought * LIFE_STEP));
 
 // 每位玩家各一張地圖，大小固定
 const BOARD_SIZE = 25;
@@ -83,8 +87,8 @@ const SPECIALS = {
   galaxy: { name: '銀河慕斯', tier: 3, trait: '滿場濺射，蟲群寸步難行', damage: 450, cooldown: 0.7, range: 8,
     splash: { radius: 3, ratio: 0.85 }, slow: { pct: 0.6, duration: 3 } },
   opera: { name: '翡翠歌劇院蛋糕', tier: 3, trait: '同時射擊 12 個目標', damage: 360, cooldown: 0.4, range: 8, targets: 12 },
-  souffle: { name: '火焰舒芙蕾', tier: 3, trait: '焚燒大片區域', damage: 650, cooldown: 1.0, range: 7,
-    splash: { radius: 3.6, ratio: 0.9 }, poison: { dps: 520, duration: 3 } },
+  souffle: { name: '火焰舒芙蕾', tier: 3, trait: '焚燒大片區域', damage: 650, cooldown: 1.0, range: 9,
+    splash: { radius: 4.5, ratio: 0.9 }, poison: { dps: 520, duration: 3 } },
   emperor: { name: '帝王金箔蛋糕', tier: 3, trait: '一擊必殺級爆擊，瓦解護甲', damage: 2100, cooldown: 0.8, range: 8,
     crit: { chance: 0.45, mult: 4 }, armorAura: { amount: 18, radius: 7 } },
   aurora: { name: '極光芭菲', tier: 3, trait: '極寒破甲席捲全場', damage: 2600, cooldown: 1.0, range: 8,
@@ -129,6 +133,11 @@ const QUALITY_RATES = [
 ];
 const QUALITY_COSTS = [30, 70, 130, 220, 350, 520, 750]; // 升到品質 2、3…8 的花費
 const SWAP_COST = 25;
+// 重骰手上的甜點：品質越高底價越貴，同一回合每骰一次再加價，下回合歸零
+const REROLL_BASE = 10;
+const REROLL_PER_QUALITY = 5;
+const REROLL_STEP = 10;
+const rerollCost = (quality, rerolls) => REROLL_BASE + (quality - 1) * REROLL_PER_QUALITY + rerolls * REROLL_STEP;
 const REMOVE_STONE_COST = 0; // 拆餅乾牆免費
 
 // 熟練度：塔累積擊殺數達門檻就升一階，每階加傷害與攻速；合成特殊塔時擊殺數會繼承
@@ -164,23 +173,21 @@ const MONSTERS = {
 const MONSTER_TYPES = Object.keys(MONSTERS);
 
 // 怪物特性：第 MIX_FROM_WAVE 波起掛在主力怪身上，每種都有對應的解法
+// 不做「每秒回血 %」：迷宮越長回越多，等於懲罰蓋迷宮的人
 const TRAITS = {
-  regen: { name: '回血', desc: '每秒回復最大血量的 1.5%', tip: '中毒時不會回血，帶毒傷的塔最有效', color: '#2E9E5B' },
   split: { name: '分裂', desc: '死亡時分裂成 2 隻小蟲', tip: '濺射或多目標的塔能一起清掉', color: '#E08A1E' },
   immune: { name: '免控', desc: '不受緩速與毒傷影響', tip: '靠直接傷害，迷宮也要繞長一點', color: '#9B4FD8' },
   shield: { name: '護盾', desc: '單次受傷上限為最大血量的 20%', tip: '攻速快或多目標的塔比高傷單發有效', color: '#2F7FD1' },
 };
 const TRAIT_IDS = Object.keys(TRAITS);
-const REGEN_RATE = 0.015;
-const BOSS_REGEN_RATE = 0.005;
 const SPLIT_COUNT = 2;
 const SPLIT_HP_RATIO = 0.3;
 const SHIELD_HIT_CAP = 0.2;
 
 const WAVE_ROTATION = ['normal', 'normal', 'fast', 'swarm', 'air', 'armored', 'normal', 'fast', 'air', 'boss'];
 const ESCORT_ROTATION = ['air', 'swarm', 'armored', 'fast'];
-const TRAIT_ROTATION = ['regen', 'split', 'immune', 'shield', null];
-const BOSS_TRAITS = [null, 'regen', 'immune']; // 每 10 波的首領輪流，短局的最後首領沒有特性
+const TRAIT_ROTATION = ['split', 'immune', 'shield', null];
+const BOSS_TRAITS = [null, 'shield', 'immune']; // 每 10 波的首領輪流，短局的最後首領沒有特性
 const MIX_FROM_WAVE = 6; // 前幾波單一怪種，讓新手先學會擺塔
 const ESCORT_RATIO = 0.3;
 const WAVE_BASE_COUNT = 12;
@@ -280,9 +287,16 @@ const TEST_REWARD_MULT = 5;
 const testReward = (at, damage, maxHp) => Math.round(Math.min(1, damage / maxHp) * TEST_REWARD_MULT * waveClearBonus(at));
 const testAfterWave = (wave, totalWaves) => wave === totalWaves || wave % TEST_EVERY_WAVES === 0;
 
+// 女王蟻漏掉扣的血依「在整局的進度」計算：前面的王扣得少，最後一隻扣最多。
+// 跟總波數掛鉤，所以 15／30／50 波的局，最後一隻王都扣一樣多，短局也不會因為王比較少就太輕鬆
+const BOSS_LEAK_MIN = 15;
+const BOSS_LEAK_MAX = 40;
+const bossLeak = (wave, totalWaves) => Math.round(BOSS_LEAK_MIN + (BOSS_LEAK_MAX - BOSS_LEAK_MIN) * Math.min(1, wave / totalWaves));
+
 function buildWaveDef(wave, totalWaves) {
   const type = wave === totalWaves ? 'boss' : WAVE_ROTATION[(wave - 1) % WAVE_ROTATION.length];
-  const groups = waveGroups(type, wave);
+  const groups = waveGroups(type, wave)
+    .map(g => (MONSTERS[g.type].boss ? { ...g, leak: bossLeak(wave, totalWaves) } : g));
   const [main] = groups;
   return {
     ...main,
@@ -312,6 +326,9 @@ function catalog() {
     qualityRates: QUALITY_RATES,
     qualityCosts: QUALITY_COSTS,
     swapCost: SWAP_COST,
+    rerollBase: REROLL_BASE,
+    rerollPerQuality: REROLL_PER_QUALITY,
+    rerollStep: REROLL_STEP,
     removeStoneCost: REMOVE_STONE_COST,
     mastery: { kills: MASTERY_KILLS, damage: MASTERY_DAMAGE, haste: MASTERY_HASTE },
     research: RESEARCH,
@@ -320,15 +337,15 @@ function catalog() {
     traits: TRAITS,
     traitIds: TRAIT_IDS,
     gemsPerRound: GEMS_PER_ROUND,
-    lifeCost: LIFE_COST,
+    lifeStep: LIFE_STEP,
   };
 }
 
 module.exports = {
-  MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, LIFE_COST,
+  MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
   WAVE_CHOICES, BUILD_SECOND_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
-  SWAP_COST, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
-  TRAIT_IDS, REGEN_RATE, BOSS_REGEN_RATE, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,
-  waveClearBonus, interestOn, armorFactor, gemStats, researchBonus, waveDef, testWaveDef, testAfterWave, testReward, catalog,
+  SWAP_COST, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
+  TRAIT_IDS, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,
+  waveClearBonus, bossLeak, interestOn, armorFactor, gemStats, researchBonus, waveDef, testWaveDef, testAfterWave, testReward, catalog,
 };
