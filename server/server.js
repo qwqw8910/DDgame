@@ -86,6 +86,10 @@ registerClocktower(io, db);
 const { registerNamespace: registerSameWord } = require('./same-word');
 registerSameWord(io, db);
 
+// ── 點格棋 namespace ──────────────────────────────────────────
+const { registerNamespace: registerDotsBoxes } = require('./dots-boxes');
+registerDotsBoxes(io, db);
+
 // ── 寶石塔防 namespace ────────────────────────────────────────
 const { registerNamespace: registerGemTd } = require('./gem-td');
 registerGemTd(io, db);

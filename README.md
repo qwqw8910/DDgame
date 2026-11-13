@@ -41,6 +41,7 @@ npm run dev:web                   # 只啟動前端  http://localhost:5173
 | 血染鐘樓 | 真人說書人的線上魔典 | beta |
 | 甜點守衛戰 | 1～4 人塔防：蓋迷宮、合成甜點、守住蛋糕（致敬寶石 TD） | beta |
 | 同詞相遇 | 2–12 人每題同時寫一個詞，同詞人越多分越高，最後有合作終局與默契榜 | beta |
+| 點格棋 | 2 人線上對戰，4×4／5×5 盤面，普通與進階（格內有分數）兩種計分 | beta |
 | 分帳 | 房間記帳、多種分攤、簡化債務；不用註冊，同名即同人 | beta |
 
 ## 各工具技術與文件
@@ -55,6 +56,7 @@ npm run dev:web                   # 只啟動前端  http://localhost:5173
 | 血染鐘樓 | `/clocktower` | `server/clocktower/` | [規格](docs/clocktower-spec.md)（Phase 1、2 已實作，尚未真人多人實測） |
 | 甜點守衛戰 | `/gem-td` | `server/gem-td/`（數值在 `config.js`，含平衡模擬） | [規格](docs/gem-td-spec.md)、[美術計畫](docs/gem-td-art-plan.md) |
 | 同詞相遇 | `/same-word` | `server/same-word/` | [規格](docs/same-word-spec.md)、[UI／素材／動畫](docs/same-word-ui-assets-animation.md)、[生圖提示詞](docs/same-word-image-prompts.md) |
+| 點格棋 | `/dots-boxes` | `server/dots-boxes/` | [規格](docs/dots-boxes-spec.md) |
 | 分帳 | `/split-bill` | `server/split-bill/`（Supabase 持久化） | [規格](docs/ideas/split-bill-spec.md) |
 | 爬樓梯抽籤 | `/ladder` | 純前端 | — |
 | 今晚吃什麼 | `/dinner-picker` | 純前端 | [構想](docs/ideas/dinner-picker.md) |
@@ -64,6 +66,7 @@ npm run dev:web                   # 只啟動前端  http://localhost:5173
 
 ## 近期更新
 
+- 新增「點格棋」（2 人線上對戰，含進階計分與合成音效）。
 - 新增「甜點守衛戰」、「同詞相遇」、「分帳」、「爬樓梯抽籤」。
 - 新增 PWA 支援（可安裝、更新提示）。
 - 新增「血染鐘樓」與「山中別館殺人事件」。
