@@ -8,6 +8,7 @@
                 <p class="m-0">
                     <b class="font-semibold text-(--gt-ink)">{{ g.name }}</b> {{ g.count }} 隻，血量 {{ g.hp }}<span v-if="g.armor">，護甲 {{ g.armor }}</span><span v-if="g.flying">，會飛</span>
                 </p>
+                <p v-if="g.leak" class="m-0 font-semibold text-(--gt-accent-ink)">漏掉會扣 {{ g.leak }} 點血</p>
                 <template v-if="g.trait">
                     <p class="m-0 font-semibold" :style="{ color: g.trait.color }">{{ g.trait.name }}：{{ g.trait.desc }}</p>
                     <p class="m-0 text-(--gt-muted)">對策：{{ g.trait.tip }}</p>

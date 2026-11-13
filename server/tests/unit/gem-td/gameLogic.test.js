@@ -244,6 +244,42 @@ test('商店：升品質、換位置、拆除都要扣金幣', () => {
   assert.equal(game.players.a.gold, 0);
 });
 
+test('女王蟻扣血依整局進度調整：後面的王扣比較多，最後一隻固定最高', () => {
+  const early = C.waveDef(10, 50).groups.find(g => g.type === 'boss');
+  const last = C.waveDef(50, 50).groups.find(g => g.type === 'boss');
+  assert.ok(early.leak < last.leak, '前面的王扣得少');
+  assert.equal(C.waveDef(15, 15).groups[0].leak, last.leak, '不同長度的局，最後一隻王扣一樣多');
+  assert.equal(C.waveDef(3, 30).groups[0].leak, undefined, '一般蟲不受影響');
+});
+
+test('重骰：品質越高越貴、每骰一次加價、放下後不能骰、下回合歸零', () => {
+  const game = newGame();
+  const p = game.players.a;
+  assert.throws(() => L.rerollGems(game, 'a', { rng: seededRng(3) }), { code: 'NO_GOLD' });
+
+  p.gold = 1000;
+  const first = C.rerollCost(1, 0);
+  L.rerollGems(game, 'a', { rng: seededRng(3) });
+  assert.equal(p.gold, 1000 - first);
+  assert.equal(p.pending.length, C.GEMS_PER_ROUND);
+  assert.ok(C.rerollCost(1, 1) > first, '第二骰比較貴');
+  assert.equal(L.buildView(game, 'a').me.rerollCost, C.rerollCost(1, 1));
+
+  L.upgradeQuality(game, 'a');
+  assert.ok(C.rerollCost(2, 1) > C.rerollCost(1, 1), '升品質後比較貴');
+  assert.equal(L.buildView(game, 'a').me.rerollCost, C.rerollCost(2, 1));
+
+  L.placeGem(game, 'a', p.pending[0].slot, 4, 6);
+  assert.throws(() => L.rerollGems(game, 'a'), { code: 'ALREADY_PLACED' });
+  assert.equal(L.buildView(game, 'a').me.canReroll, false);
+
+  placeAll(game, 'a');
+  L.keepGem(game, 'a', p.towers.find(t => t.fresh).id);
+  runWave(game);
+  assert.equal(p.rerolls, 0);
+  assert.equal(L.buildView(game, 'a').me.rerollCost, C.rerollCost(2, 0));
+});
+
 test('熟練度：每階加傷害與攻速，合成特殊塔時擊殺數繼承', () => {
   assert.deepEqual(C.MASTERY_KILLS.map(n => C.masteryRank(n - 1)), [0, 1, 2, 3]);
   assert.equal(C.masteryRank(C.MASTERY_KILLS[3]), 4);
@@ -531,17 +567,13 @@ test('波次：前幾波單一怪種，之後主力帶特性並混入護衛，�
   }
 });
 
-test('回血：沒中毒時回血，中毒時停止', () => {
-  const sim = traitSim({ type: 'normal', count: 1, hp: 1000, armor: 0, speed: 0.01, trait: 'regen' });
-  stepWave(sim, 0.1);
-  const [m] = sim.monsters;
-  m.hp = 500;
-  stepWave(sim, 1);
-  assert.ok(m.hp > 500);
-  const healed = m.hp;
-  m.poisonUntil = sim.time + 10;
-  stepWave(sim, 1);
-  assert.equal(m.hp, healed);
+test('沒有回血特性：任何波次的蟲都不會回血（回血會懲罰蓋迷宮的人）', () => {
+  assert.equal(C.TRAIT_IDS.includes('regen'), false);
+  for (const total of [15, 30, 50]) {
+    for (let wave = 1; wave <= total; wave++) {
+      for (const g of C.waveDef(wave, total).groups) assert.notEqual(g.trait, 'regen', `${total} 波局第 ${wave} 波`);
+    }
+  }
 });
 
 test('分裂：死亡時生出兩隻沒有特性、沒有金幣的小蟲，波次總數跟著增加', () => {
@@ -620,21 +652,26 @@ test('共用血量隨人數增加，獨立血量每人固定', () => {
   assert.equal(L.buildView(solo, 'a').maxLives, C.START_LIVES);
 });
 
-test('買命：10 金幣換 1 點血，不能超過上限、金幣不足會被擋', () => {
+test('買命：價格隨波次上漲、同回合越買越貴，不能超過上限、金幣不足會被擋', () => {
   const game = newGame(['a'], { options: { livesMode: 'solo' } });
   assert.throws(() => L.buyLife(game, 'a'), { code: 'MAX_LIVES' });
   game.players.a.lives = 90;
   assert.throws(() => L.buyLife(game, 'a'), { code: 'NO_GOLD' });
-  game.players.a.gold = 25;
+  const first = C.lifeCost(0, 0);
+  const second = C.lifeCost(0, 1);
+  assert.ok(second > first, '同一回合第二點比較貴');
+  game.players.a.gold = first + second + 5;
   L.buyLife(game, 'a');
+  assert.equal(L.buildView(game, 'a').me.lifeCost, second);
   L.buyLife(game, 'a');
   assert.equal(game.players.a.lives, 92);
   assert.equal(game.players.a.gold, 5);
   assert.equal(game.players.a.stats.lifeBought, 2);
+  assert.ok(C.lifeCost(40, 0) > C.lifeCost(5, 0), '後期底價比較高');
 
   const team = newGame(['a', 'b']);
   team.lives = 150;
-  team.players.b.gold = 10;
+  team.players.b.gold = C.lifeCost(0, 0);
   L.buyLife(team, 'b');
   assert.equal(team.lives, 151, '共用血量加在隊伍身上');
 });

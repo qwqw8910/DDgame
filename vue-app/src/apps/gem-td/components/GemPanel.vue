@@ -21,6 +21,15 @@
             <p v-if="current" class="mt-2 mb-0 leading-snug">
                 <b class="font-semibold text-(--gt-ink)">{{ gemName(current.kind, current.level) }}</b>：{{ catalog.gems[current.kind].trait }}
             </p>
+            <!-- 重骰：一個都還沒放才能骰；品質越高越貴，同回合每骰一次加價 -->
+            <template v-if="me.canReroll">
+                <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="shortOf(me.rerollCost) > 0" aria-keyshortcuts="D" @click="$emit('reroll')">
+                    重骰這手（{{ me.rerollCost }} 金）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">D</kbd>
+                </button>
+                <p class="mt-1 mb-0 text-xs text-(--gt-muted)">
+                    <template v-if="shortOf(me.rerollCost)">還差 {{ shortOf(me.rerollCost) }} 金・</template>本回合已骰 {{ me.rerolls }} 次，每骰一次 +{{ catalog.rerollStep }} 金，下回合恢復
+                </p>
+            </template>
         </section>
 
         <!-- 五顆都放完：選一顆 -->
@@ -83,13 +92,24 @@
             </template>
             <template v-else>
                 <h3 class="gt-heading">{{ gemName(selected.kind, selected.level) }}</h3>
-                <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-                    <dt class="text-(--gt-muted)">傷害</dt><dd class="m-0">{{ selectedStats.damage }}</dd>
-                    <dt class="text-(--gt-muted)">射程</dt><dd class="m-0">{{ selectedStats.range.toFixed(1) }} 格</dd>
-                    <dt class="text-(--gt-muted)">目標</dt><dd class="m-0">{{ HITS[selectedStats.hits] }}</dd>
-                    <dt class="text-(--gt-muted)">戰績</dt><dd class="m-0">擊殺 {{ selected.kills }}，總傷 {{ selected.damage }}</dd>
-                    <dt class="text-(--gt-muted)">熟練度</dt><dd class="m-0">{{ masteryText }}</dd>
+                <!-- 數值排成小方格：長數字縮寫，不會擠成好幾行 -->
+                <dl class="m-0 grid grid-cols-3 gap-1">
+                    <div v-for="s in statTiles" :key="s.label" class="min-w-0 rounded-lg bg-(--gt-bg) px-2 py-1" :title="s.title">
+                        <dt class="text-xs text-(--gt-muted)">{{ s.label }}</dt>
+                        <dd class="m-0 truncate font-semibold text-(--gt-ink) tabular-nums">{{ s.value }}</dd>
+                    </div>
                 </dl>
+                <div class="mt-2">
+                    <div class="flex items-baseline justify-between gap-2">
+                        <span class="text-(--gt-muted)">熟練度 <b class="font-semibold text-(--gt-ink)">{{ mastery.rank }} 階{{ mastery.max ? '（滿）' : '' }}</b></span>
+                        <span v-if="!mastery.max" class="shrink-0 text-xs text-(--gt-muted) tabular-nums">再 {{ mastery.left }} 殺</span>
+                    </div>
+                    <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-(--gt-line-soft)" role="progressbar" aria-label="熟練度進度"
+                        :aria-valuenow="Math.round(mastery.progress * 100)" aria-valuemin="0" aria-valuemax="100">
+                        <div class="h-full rounded-full bg-(--gt-accent)" :style="{ width: `${mastery.progress * 100}%` }" />
+                    </div>
+                    <p v-if="mastery.effect" class="mt-1 mb-0 text-xs text-(--gt-muted)">{{ mastery.effect }}</p>
+                </div>
                 <p class="mt-1 mb-0 leading-snug">{{ selectedTrait }}</p>
                 <template v-if="canMove">
                     <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="!swapFrom && shortOf(catalog.swapCost) > 0" aria-keyshortcuts="S"
@@ -121,10 +141,12 @@
         <section v-if="me && !me.out && phase === 'build' && !view.nextWave?.test" aria-label="買命">
             <h3 class="gt-heading">補血</h3>
             <button class="gt-btn gt-btn--small w-full" :disabled="!canBuyLife" @click="$emit('buy-life')">
-                {{ catalog.lifeCost }} 金換 1 點血（{{ myLives }}／{{ view.maxLives }}）
+                {{ me.lifeCost }} 金換 1 點血（{{ myLives }}／{{ view.maxLives }}）
             </button>
             <p v-if="myLives >= view.maxLives" class="mt-1 mb-0 text-(--gt-muted)">血量已滿</p>
-            <p v-else-if="shortOf(catalog.lifeCost)" class="mt-1 mb-0 text-(--gt-muted)">還差 {{ shortOf(catalog.lifeCost) }} 金</p>
+            <p v-else class="mt-1 mb-0 text-xs text-(--gt-muted)">
+                <template v-if="shortOf(me.lifeCost)">還差 {{ shortOf(me.lifeCost) }} 金・</template>價格隨波次上漲；本回合已買 {{ me.livesBought }} 點，每多買 1 點貴 {{ Math.round(catalog.lifeStep * 100) }}%，下回合恢復
+            </p>
         </section>
 
         <!-- 研究：選項多，可收合 -->
@@ -162,7 +184,7 @@ const props = defineProps({
     myId: { type: String, default: '' },
     keys: { type: Boolean, default: false }, // 有實體鍵盤時顯示快捷鍵提示
 })
-defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'research', 'remove', 'start-swap', 'cancel-swap'])
+defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'research', 'remove', 'start-swap', 'cancel-swap'])
 
 const HITS = { all: '地面與空中', ground: '只打地面', air: '只打空中' }
 const RATE_COLORS = ['#C9B2AD', '#9FB8C9', '#5FA8D3', '#3CCB72', '#F2B233', '#D6305A']
@@ -173,7 +195,7 @@ const mine = computed(() => props.view.watching === props.myId)
 const towerMap = computed(() => new Map(props.view.towers.map(t => [t.id, t])))
 
 const myLives = computed(() => props.view.players[props.myId]?.lives ?? 0)
-const canBuyLife = computed(() => myLives.value < props.view.maxLives && shortOf(props.catalog.lifeCost) === 0)
+const canBuyLife = computed(() => myLives.value < props.view.maxLives && shortOf(props.view.me?.lifeCost ?? Infinity) === 0)
 
 // 買不起時還差多少金（0 表示買得起）
 const shortOf = cost => Math.max(0, cost - (me.value?.gold ?? 0))
@@ -203,12 +225,39 @@ const selectedStats = computed(() => {
     if (!t || t.kind === 'stone') return null
     return isSpecial(t.kind) ? props.catalog.specials[t.kind].stats : props.catalog.gems[t.kind].levels[t.level - 1]
 })
-const masteryText = computed(() => {
+const mastery = computed(() => {
     const { kills: steps, damage, haste } = props.catalog.mastery
     const kills = selected.value?.kills ?? 0
     const rank = steps.filter(n => kills >= n).length
-    const effect = rank ? `傷害 +${Math.round(rank * damage * 100)}%，攻速 +${Math.round(rank * haste * 100)}%` : '尚未升階'
-    return rank < steps.length ? `${rank} 階（${effect}），再 ${steps[rank] - kills} 殺升階` : `${rank} 階滿（${effect}）`
+    const max = rank >= steps.length
+    const from = rank ? steps[rank - 1] : 0
+    return {
+        rank,
+        max,
+        left: max ? 0 : steps[rank] - kills,
+        progress: max ? 1 : (kills - from) / (steps[rank] - from),
+        effect: rank ? `傷害 +${Math.round(rank * damage * 100)}%・攻速 +${Math.round(rank * haste * 100)}%` : '',
+    }
+})
+
+// 大數字縮寫成「12.3萬」「1.2億」，完整數字放在 title
+function compact(n) {
+    if (n >= 1e8) return `${+(n / 1e8).toFixed(1)}億`
+    if (n >= 1e4) return `${+(n / 1e4).toFixed(1)}萬`
+    return String(Math.round(n))
+}
+const HITS_SHORT = { all: '地＋空', ground: '地面', air: '空中' }
+const statTiles = computed(() => {
+    const t = selected.value
+    const s = selectedStats.value
+    return [
+        { label: '傷害', value: compact(s.damage), title: String(s.damage) },
+        { label: '射程', value: `${s.range.toFixed(1)} 格` },
+        { label: '目標', value: HITS_SHORT[s.hits], title: HITS[s.hits] },
+        { label: '擊殺', value: compact(t.kills), title: String(t.kills) },
+        { label: '總傷', value: compact(t.damage), title: Math.round(t.damage).toLocaleString() },
+        { label: 'DPS', value: s.cooldown ? compact(s.damage / s.cooldown) : '—', title: '傷害 ÷ 攻擊間隔（未含加成）' },
+    ]
 })
 const selectedTrait = computed(() => {
     const t = selected.value

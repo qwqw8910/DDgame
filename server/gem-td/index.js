@@ -304,6 +304,7 @@ function registerNamespace(io, db) {
     action('gt:merge', ({ playerId, game }, { towerId }) => L.mergeGem(game, playerId, towerId));
     action('gt:combine', ({ playerId, game }, { recipeId, towerId }) => L.combine(game, playerId, recipeId, towerId));
     action('gt:upgrade-quality', ({ playerId, game }) => L.upgradeQuality(game, playerId));
+    action('gt:reroll', ({ playerId, game }) => L.rerollGems(game, playerId));
     action('gt:research', ({ playerId, game }, { track }) => L.upgradeResearch(game, playerId, track));
     action('gt:buy-life', ({ playerId, game }) => L.buyLife(game, playerId));
     action('gt:remove-stone', ({ playerId, game }, { towerId }) => L.removeStone(game, playerId, towerId));
