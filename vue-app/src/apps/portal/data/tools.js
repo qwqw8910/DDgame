@@ -173,6 +173,18 @@ export const tools = [
     tags: ['多人', '遊戲', '默契'],
   },
   {
+    id: 'dots-boxes',
+    name: '點格棋',
+    tagline: '輪流畫線，圍成一格就是你的',
+    description: '雙人 · 對戰 · 策略\n4×4／5×5，普通與進階計分！',
+    emoji: '🔲',
+    color: 'blue',
+    route: '/dots-boxes',
+    externalUrl: null,
+    status: 'beta',
+    tags: ['雙人', '遊戲', '策略'],
+  },
+  {
     id: 'webp-compress',
     name: '圖片壓縮',
     tagline: '拖進來就壓，圖片不上傳',

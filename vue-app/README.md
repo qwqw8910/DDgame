@@ -27,6 +27,7 @@ src/
 │   ├── clocktower/        ← 血染鐘樓
 │   ├── gem-td/            ← 甜點守衛戰（塔防）
 │   ├── same-word/         ← 同詞相遇
+│   ├── dots-boxes/        ← 點格棋
 │   └── split-bill/        ← 分帳
 ├── shared/                ← 跨 App 共用（api/config、identity、useRoom、RoomPlayerPanel、遊戲說明、PwaPrompt）
 ├── router/index.js        ← 路由設定（唯一可 import 所有 App pages 的地方）

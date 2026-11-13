@@ -21,6 +21,7 @@ const PATHS = {
     ladder: '<path d="M7 3v18M17 3v18M7 7h10M7 12h10M7 17h10"/>',
     'split-bill': '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
     'same-word': '<circle cx="9" cy="12" r="5.5"/><circle cx="15" cy="12" r="5.5"/>',
+    'dots-boxes': '<circle cx="5" cy="5" r="1.2" fill="currentColor"/><circle cx="12" cy="5" r="1.2" fill="currentColor"/><circle cx="19" cy="5" r="1.2" fill="currentColor"/><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/><circle cx="5" cy="19" r="1.2" fill="currentColor"/><circle cx="12" cy="19" r="1.2" fill="currentColor"/><circle cx="19" cy="19" r="1.2" fill="currentColor"/><path d="M5 5h7M12 5v7M5 12h7M5 5v7M12 12h7v7h-7z"/>',
     'webp-compress': '<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M9 9 5.5 5.5M9 9V6M9 9H6M15 15l3.5 3.5M15 15v3M15 15h3"/>',
     fallback: '<path d="m12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.5 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
 }

@@ -63,6 +63,7 @@ vue-app/src/
 │   ├── mountain-lodge/            ← App: 山中別館殺人事件（後端：server/mountain-lodge/）
 │   ├── clocktower/                ← App: 血染鐘樓（後端：server/clocktower/；規格 docs/clocktower-spec.md）
 │   ├── gem-td/                    ← App: 甜點守衛戰（後端：server/gem-td/；規格 docs/gem-td-spec.md）
+│   ├── dots-boxes/                ← App: 點格棋（後端：server/dots-boxes/；規格 docs/dots-boxes-spec.md）
 │   ├── webp-compress/             ← App: 圖片壓縮（WebP/JPEG/PNG；純前端；@jsquash 編碼器跑在 Worker；manifest file_handlers 讓 PWA 可「開啟檔案」，由 main.js 的 registerFileHandler 接手）
 │   │
 │   └── [未來新 App slug]/          ← 遵循相同結構
