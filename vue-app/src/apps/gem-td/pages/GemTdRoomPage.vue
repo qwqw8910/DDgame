@@ -82,7 +82,7 @@
                 </label>
                 <label class="flex items-center gap-2 text-(--gt-muted)">
                     <input type="checkbox" class="size-4 cursor-pointer" :checked="view.options.damageTest" @change="setOptions({ damageTest: $event.target.checked })" />
-                    最後加賽傷害測試（巨獸不扣血，比誰打得多）
+                    傷害測試（每 15 波與最後一波加賽，巨獸不扣血）
                 </label>
                 <label class="flex flex-col gap-1 text-(--gt-muted)">
                     每回合建造時間
@@ -103,7 +103,7 @@
             <aside class="gt-rail" aria-label="戰況">
                 <section class="gt-card flex flex-col gap-3" aria-label="血量、金幣與波次">
                     <div class="flex items-end justify-between gap-2">
-                        <p v-if="view.nextWave?.test" class="m-0 text-lg font-bold text-(--gt-ink)">傷害測試</p>
+                        <p v-if="view.nextWave?.test" class="m-0 text-lg font-bold text-(--gt-ink)">傷害測試<span class="font-normal text-(--gt-muted)">（第 {{ view.nextWave.number }} 波後）</span></p>
                         <p v-else class="m-0 text-lg font-bold text-(--gt-ink)">第 {{ waveNumber }} 波<span class="font-normal text-(--gt-muted)">／{{ view.options.waves }}</span></p>
                         <p v-if="secondsLeft !== null" class="gt-timer" :class="{ 'gt-timer--low': secondsLeft <= 10 }" role="timer" aria-label="建造剩餘秒數">
                             {{ secondsLeft }}<span class="ml-0.5 text-base font-bold">秒</span>
@@ -130,6 +130,7 @@
 
                 <GemWaveInfo :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
                     :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
+                <div v-if="view.testLog" class="gt-card"><GemTestBoard :test="view.testLog" :names="view.names" /></div>
                 <GemRecipes v-if="isWide" v-model="showRecipes" docked :view="view" :catalog="state.catalog" @combine="onCombine" />
             </aside>
 
@@ -167,15 +168,7 @@
                     <span>最強的塔：{{ nameOf(view.result.topTower.owner) }} 的{{ topTowerName }}，打出 {{ view.result.topTower.damage.toLocaleString() }} 傷害</span>
                 </p>
 
-                <section v-if="view.result.test" aria-label="傷害測試成績">
-                    <h3 class="gt-heading">傷害測試（巨獸血量 {{ view.result.test.maxHp.toLocaleString() }}）</h3>
-                    <ol class="m-0 flex list-none flex-col gap-1 p-0">
-                        <li v-for="(t, i) in view.result.test.rows" :key="t.id" class="flex justify-between gap-3">
-                            <span class="truncate">{{ i + 1 }}. {{ nameOf(t.id) }}</span>
-                            <span class="shrink-0 tabular-nums">{{ testText(t, view.result.test.maxHp) }}</span>
-                        </li>
-                    </ol>
-                </section>
+                <GemTestBoard :test="view.result.test" :names="view.names" />
 
                 <section v-if="awardRows.length" aria-label="本局指標">
                     <h3 class="gt-heading">本局指標</h3>
@@ -219,6 +212,7 @@ import GemHeaderIcon from '../components/GemHeaderIcon.vue'
 import GemIcon from '../components/GemIcon.vue'
 import GemVolumePanel from '../components/GemVolumePanel.vue'
 import GemWaveInfo from '../components/GemWaveInfo.vue'
+import GemTestBoard from '../components/GemTestBoard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -343,11 +337,6 @@ const awardRows = computed(() => {
     if (a.perfectIds.length) rows.push({ label: '完美防守', text: `${a.perfectIds.map(nameOf).join('、')}（零漏怪）` })
     return rows
 })
-
-function testText(t, maxHp) {
-    const pct = Math.min(100, Math.round((t.damage / maxHp) * 100))
-    return t.killed ? `${t.damage.toLocaleString()} 傷，擊倒（${t.seconds} 秒）` : `${t.damage.toLocaleString()} 傷（${pct}%）`
-}
 
 function scoreText(s) {
     const score = `${s.kills} 殺，${s.damage.toLocaleString()} 傷，漏 ${s.leaked}`

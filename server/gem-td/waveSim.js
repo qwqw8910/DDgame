@@ -38,9 +38,9 @@ function prepareTowers(towers, research) {
 }
 
 // pool 是這張地圖漏怪時扣血的對象：共用血量是 game，獨立血量是玩家自己
-function createWave({ board, towers: placed, path, wave, totalWaves, pool, research }) {
+function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, pool, research }) {
   // waveDef 有快取；這一波會改動 def 與各組（測試也會），所以複製一份
-  const cached = C.waveDef(wave, totalWaves);
+  const cached = testAt === null ? C.waveDef(wave, totalWaves) : C.testWaveDef(testAt);
   const def = { ...cached, groups: cached.groups.map(g => ({ ...g })) };
   const towers = prepareTowers(placed, research);
   const { start, end } = board;

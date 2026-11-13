@@ -263,12 +263,24 @@ function waveDef(wave, totalWaves) {
   return waveDefCache.get(key);
 }
 
-function buildWaveDef(wave, totalWaves) {
-  if (wave > totalWaves) {
-    // 傷害測試：血量以最後一波為基準，不再往上疊一波的成長
-    const group = monsterGroup('titan', 1, totalWaves);
-    return { ...group, count: 1, interval: SPAWN_INTERVAL, groups: [group], test: true };
+// 傷害測試：打完第 at 波後加賽，巨獸血量以該波為基準（公式不設上限，能活到那裡的隊伍本來就扛得住那樣的血量）
+function testWaveDef(at) {
+  const key = `test/${at}`;
+  if (!waveDefCache.has(key)) {
+    const group = monsterGroup('titan', 1, at);
+    waveDefCache.set(key, { ...group, count: 1, interval: SPAWN_INTERVAL, groups: [group], test: true, at });
   }
+  return waveDefCache.get(key);
+}
+
+// 每打完 15 的倍數波、以及最後一波，都加賽一次傷害測試
+const TEST_EVERY_WAVES = 15;
+// 中途測試的金幣獎勵：傷害佔巨獸血量的比例（最多 100%）× 倍數 × 該波的過關獎勵；最後一場遊戲已結束，不發
+const TEST_REWARD_MULT = 5;
+const testReward = (at, damage, maxHp) => Math.round(Math.min(1, damage / maxHp) * TEST_REWARD_MULT * waveClearBonus(at));
+const testAfterWave = (wave, totalWaves) => wave === totalWaves || wave % TEST_EVERY_WAVES === 0;
+
+function buildWaveDef(wave, totalWaves) {
   const type = wave === totalWaves ? 'boss' : WAVE_ROTATION[(wave - 1) % WAVE_ROTATION.length];
   const groups = waveGroups(type, wave);
   const [main] = groups;
@@ -318,5 +330,5 @@ module.exports = {
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
   SWAP_COST, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
   TRAIT_IDS, REGEN_RATE, BOSS_REGEN_RATE, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,
-  waveClearBonus, interestOn, armorFactor, gemStats, researchBonus, waveDef, catalog,
+  waveClearBonus, interestOn, armorFactor, gemStats, researchBonus, waveDef, testWaveDef, testAfterWave, testReward, catalog,
 };

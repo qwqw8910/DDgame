@@ -664,9 +664,9 @@ test('傷害測試：打完最後一波多一個巨獸關卡，漏怪不扣血�
   L.finishWave(game, { now: 0 });
   assert.equal(game.phase, 'finished');
   assert.equal(game.result.win, true, '勝負沿用正式波次的結果');
-  assert.equal(game.result.test.rows[0].id, 'a');
-  assert.equal(game.result.test.rows[0].escaped, true);
-  assert.ok(game.result.test.rows[0].damage < game.result.test.maxHp, '沒打死的話傷害小於血量');
+  assert.equal(game.result.test.rounds[0].rows[0].id, 'a');
+  assert.equal(game.result.test.rounds[0].rows[0].escaped, true);
+  assert.ok(game.result.test.rounds[0].rows[0].damage < game.result.test.rounds[0].maxHp, '沒打死的話傷害小於血量');
 });
 
 test('關掉傷害測試：打完最後一波直接結算；結算帶漏怪與存錢指標', () => {
@@ -702,4 +702,72 @@ test('最多 6 人：7 人開局會被擋；只組有人在看的地圖快照', 
   assert.deepEqual(Object.keys(some).sort(), ['b', 'e']);
   assert.equal(Object.keys(some.b.players).length, 6, '摘要仍包含所有人');
   assert.deepEqual(game.players.a.sim.shots, [], '沒人看的地圖會清掉射擊事件');
+});
+
+test('每 15 波加賽傷害測試：中途打完回到建造，最後一場才結算，另有總傷害榜', () => {
+  assert.equal(C.testAfterWave(15, 50), true);
+  assert.equal(C.testAfterWave(45, 50), true);
+  assert.equal(C.testAfterWave(50, 50), true);
+  assert.equal(C.testAfterWave(20, 50), false);
+
+  const game = newGame(['a', 'b'], { options: { waves: 30, livesMode: 'solo' } });
+  const finishField = () => {
+    for (const id of ['a', 'b']) emptyField(game, id);
+    L.startWave(game);
+    for (const id of ['a', 'b']) game.players[id].sim.def.count = 0;
+    L.tick(game, 0.1);
+    return L.finishWave(game, { now: 0 });
+  };
+  const runTest = () => {
+    L.startWave(game);
+    for (let i = 0; i < 20000; i++) if (L.tick(game, 0.1).done) break;
+    return L.finishWave(game, { now: 0 });
+  };
+
+  game.wave = 14;
+  assert.equal(finishField().finished, false);
+  assert.equal(game.testAt, 15, '第 15 波之後加賽');
+  assert.equal(L.buildView(game, 'a').nextWave.test, true);
+  const hp15 = C.testWaveDef(15).hp;
+  const goldBefore = game.players.a.gold;
+  assert.equal(runTest().finished, false, '中途測試打完還要繼續');
+  assert.equal(game.testAt, null);
+  const row = L.buildView(game, 'a').testLog.rounds[0].rows.find(r => r.id === 'a');
+  assert.equal(row.reward, C.testReward(15, row.damage, row.maxHp));
+  assert.ok(game.players.a.gold >= goldBefore + row.reward, '獎金入帳');
+  assert.equal(game.wave, 15);
+  assert.equal(L.buildView(game, 'a').nextWave.number, 16);
+  assert.equal(L.buildView(game, 'a').testLog.rounds.length, 1, '中途就看得到紀錄');
+  assert.equal(L.buildView(game, 'a').testLog.rounds[0].maxHp, hp15);
+
+  game.wave = 29;
+  assert.equal(finishField().finished, false);
+  assert.equal(game.testAt, 30);
+  assert.ok(C.testWaveDef(30).hp > hp15);
+  assert.equal(runTest().finished, true);
+  const { test: result } = game.result;
+  assert.deepEqual(result.rounds.map(r => r.at), [15, 30]);
+  assert.equal(result.totals.length, 2, '兩場以上有總傷害榜');
+});
+
+test('傷害測試獎金：依傷害比例，最多打滿，15／30／45 波滿分 190／340／490', () => {
+  assert.equal(C.testReward(15, 1000, 1000), 190);
+  assert.equal(C.testReward(30, 5000, 1000), 340, '超過 100% 也只算打滿');
+  assert.equal(C.testReward(45, 500, 1000), 245);
+  assert.equal(C.testReward(45, 0, 1000), 0);
+  assert.equal(C.testReward(45, 1000, 1000), 490);
+
+  const game = newGame(['a'], { options: { waves: 15 } });
+  game.wave = 14;
+  emptyField(game, 'a');
+  L.startWave(game);
+  game.players.a.sim.def.count = 0;
+  L.tick(game, 0.1);
+  L.finishWave(game, { now: 0 });
+  const gold = game.players.a.gold;
+  L.startWave(game);
+  for (let i = 0; i < 20000; i++) if (L.tick(game, 0.1).done) break;
+  L.finishWave(game, { now: 0 });
+  assert.equal(game.phase, 'finished');
+  assert.equal(game.players.a.gold, gold, '最後一場不發金幣');
 });
