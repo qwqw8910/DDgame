@@ -349,7 +349,7 @@ test('隊伍血量歸零 → 失敗；打完最後一波 → 勝利', () => {
   assert.equal(lose.phase, 'finished');
   assert.equal(lose.result.win, false);
 
-  const win = newGame(['a'], { options: { waves: 15 } });
+  const win = newGame(['a'], { options: { waves: 15, damageTest: false } });
   win.wave = 14;
   win.lives = 100;
   emptyField(win, 'a');
@@ -445,7 +445,7 @@ test('獨立血量：只剩一人立刻獲勝；單人局歸零就輸', () => {
 });
 
 test('獨立血量：打完最後一波比剩餘血量，同分並列', () => {
-  const game = newGame(['a', 'b', 'c'], { options: { waves: 15, livesMode: 'solo' } });
+  const game = newGame(['a', 'b', 'c'], { options: { waves: 15, livesMode: 'solo', damageTest: false } });
   game.wave = 14;
   for (const id of ['a', 'b', 'c']) emptyField(game, id);
   game.players.a.lives = 90;
@@ -618,4 +618,73 @@ test('共用血量隨人數增加，獨立血量每人固定', () => {
   L.startGame(solo, ['a', 'b'], { now: 0, rng: seededRng(1) });
   assert.equal(solo.players.a.lives, C.START_LIVES);
   assert.equal(L.buildView(solo, 'a').maxLives, C.START_LIVES);
+});
+
+test('買命：10 金幣換 1 點血，不能超過上限、金幣不足會被擋', () => {
+  const game = newGame(['a'], { options: { livesMode: 'solo' } });
+  assert.throws(() => L.buyLife(game, 'a'), { code: 'MAX_LIVES' });
+  game.players.a.lives = 90;
+  assert.throws(() => L.buyLife(game, 'a'), { code: 'NO_GOLD' });
+  game.players.a.gold = 25;
+  L.buyLife(game, 'a');
+  L.buyLife(game, 'a');
+  assert.equal(game.players.a.lives, 92);
+  assert.equal(game.players.a.gold, 5);
+  assert.equal(game.players.a.stats.lifeBought, 2);
+
+  const team = newGame(['a', 'b']);
+  team.lives = 150;
+  team.players.b.gold = 10;
+  L.buyLife(team, 'b');
+  assert.equal(team.lives, 151, '共用血量加在隊伍身上');
+});
+
+test('傷害測試：打完最後一波多一個巨獸關卡，漏怪不扣血、結算記錄每人傷害', () => {
+  const game = newGame(['a'], { options: { waves: 15 } });
+  assert.equal(game.options.damageTest, true);
+  game.wave = 14;
+  emptyField(game, 'a');
+  L.startWave(game);
+  game.players.a.sim.def.count = 0;
+  L.tick(game, 0.1);
+  const step = L.finishWave(game, { now: 0 });
+  assert.equal(step.finished, false, '還要打傷害測試');
+  assert.equal(game.phase, 'build');
+  assert.equal(L.buildView(game, 'a').nextWave.test, true);
+  assert.throws(() => L.buyLife(game, 'a'), { code: 'BAD_PHASE' });
+
+  const livesBefore = game.lives;
+  L.startWave(game);
+  const { sim } = game.players.a;
+  assert.equal(sim.def.type, 'titan');
+  const boss = C.waveDef(15, 15).groups[0];
+  assert.ok(sim.def.hp >= boss.hp * 3, '巨獸血量是一般首領的好幾倍');
+  for (let i = 0; i < 20000; i++) if (L.tick(game, 0.1).done) break;
+  assert.equal(game.lives, livesBefore, '巨獸走到終點不扣血');
+  L.finishWave(game, { now: 0 });
+  assert.equal(game.phase, 'finished');
+  assert.equal(game.result.win, true, '勝負沿用正式波次的結果');
+  assert.equal(game.result.test.rows[0].id, 'a');
+  assert.equal(game.result.test.rows[0].escaped, true);
+  assert.ok(game.result.test.rows[0].damage < game.result.test.maxHp, '沒打死的話傷害小於血量');
+});
+
+test('關掉傷害測試：打完最後一波直接結算；結算帶漏怪與存錢指標', () => {
+  const game = newGame(['a', 'b'], { options: { waves: 15, damageTest: false, livesMode: 'solo' } });
+  game.wave = 14;
+  emptyField(game, 'a');
+  emptyField(game, 'b');
+  game.players.a.stats.peakGold = 300;
+  L.startWave(game);
+  game.players.b.sim.def.count = 0;
+  game.players.b.sim.monsters = [];
+  game.players.b.sim.spawned = 0;
+  for (let i = 0; i < 20000; i++) if (L.tick(game, 0.1).done) break;
+  L.finishWave(game, { now: 0 });
+  assert.equal(game.phase, 'finished');
+  const { awards, scores } = game.result;
+  assert.equal(game.result.test, null);
+  assert.equal(awards.saver.id, 'a');
+  assert.ok(scores.find(s => s.id === 'a').leaked >= 1);
+  assert.equal(awards.perfectIds.includes('b'), true);
 });

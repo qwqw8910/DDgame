@@ -59,6 +59,8 @@ function createWave({ board, towers: placed, path, wave, totalWaves, pool, resea
     airLength: distance(start.x, start.y, end.x, end.y),
     killed: 0,
     leaked: 0,
+    damage: 0, // 這張地圖這一波打出的總傷害（傷害測試用）
+    bossDownAt: null,
     earned: 0,
     shots: [],
     done: false,
@@ -158,6 +160,7 @@ function kill(sim, tower, m) {
   sim.killed += 1;
   sim.earned += m.gold;
   tower.ref.kills += 1;
+  if (m.boss) sim.bossDownAt = sim.time;
   if (m.trait === 'split') splitMonster(sim, m);
 }
 
@@ -165,7 +168,9 @@ function dealDamage(sim, tower, m, raw) {
   if (m.dead) return;
   const reduced = raw * C.armorFactor(effectiveArmor(sim, m));
   const dealt = m.trait === 'shield' ? Math.min(reduced, m.maxHp * C.SHIELD_HIT_CAP) : reduced;
-  tower.ref.damage += Math.min(dealt, m.hp);
+  const applied = Math.min(dealt, m.hp);
+  tower.ref.damage += applied;
+  sim.damage += applied;
   m.hp -= dealt;
   if (m.hp <= 0) kill(sim, tower, m);
 }

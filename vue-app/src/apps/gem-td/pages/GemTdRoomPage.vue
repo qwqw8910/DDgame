@@ -80,6 +80,10 @@
                         <option v-for="c in WAVE_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
                     </select>
                 </label>
+                <label class="flex items-center gap-2 text-(--gt-muted)">
+                    <input type="checkbox" class="size-4 cursor-pointer" :checked="view.options.damageTest" @change="setOptions({ damageTest: $event.target.checked })" />
+                    最後加賽傷害測試（巨獸不扣血，比誰打得多）
+                </label>
                 <label class="flex flex-col gap-1 text-(--gt-muted)">
                     每回合建造時間
                     <select class="gt-input cursor-pointer" :value="view.options.buildSeconds" @change="setOptions({ buildSeconds: Number($event.target.value) })">
@@ -99,7 +103,8 @@
             <aside class="gt-rail" aria-label="戰況">
                 <section class="gt-card flex flex-col gap-3" aria-label="血量、金幣與波次">
                     <div class="flex items-end justify-between gap-2">
-                        <p class="m-0 text-lg font-bold text-(--gt-ink)">第 {{ waveNumber }} 波<span class="font-normal text-(--gt-muted)">／{{ view.options.waves }}</span></p>
+                        <p v-if="view.nextWave?.test" class="m-0 text-lg font-bold text-(--gt-ink)">傷害測試</p>
+                        <p v-else class="m-0 text-lg font-bold text-(--gt-ink)">第 {{ waveNumber }} 波<span class="font-normal text-(--gt-muted)">／{{ view.options.waves }}</span></p>
                         <p v-if="secondsLeft !== null" class="gt-timer" :class="{ 'gt-timer--low': secondsLeft <= 10 }" role="timer" aria-label="建造剩餘秒數">
                             {{ secondsLeft }}<span class="ml-0.5 text-base font-bold">秒</span>
                         </p>
@@ -140,7 +145,7 @@
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
-                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @research="upgradeResearch"
+                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @research="upgradeResearch"
                     @remove="id => { removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
             </aside>
@@ -148,7 +153,7 @@
 
         <!-- 結算 -->
         <div v-if="view?.phase === 'finished' && view.result" class="overlay">
-            <div class="flex w-full max-w-[420px] flex-col gap-4 border border-(--gt-line) bg-(--gt-surface) p-6 text-(--gt-text)">
+            <div class="flex max-h-full w-full max-w-[460px] flex-col gap-4 overflow-y-auto border border-(--gt-line) bg-(--gt-surface) p-6 text-(--gt-text)">
                 <h2 class="m-0 font-sans text-4xl font-black text-(--gt-ink)">{{ resultTitle }}</h2>
                 <p class="m-0">{{ resultText }}</p>
                 <ul class="m-0 flex list-none flex-col gap-1 p-0">
@@ -159,8 +164,28 @@
                 </ul>
                 <p v-if="view.result.topTower && state.catalog" class="m-0 flex items-center gap-2">
                     <GemIcon :kind="view.result.topTower.kind" :level="view.result.topTower.level" :size="32" />
-                    最強的塔：{{ topTowerName }}，打出 {{ view.result.topTower.damage.toLocaleString() }} 傷害
+                    <span>最強的塔：{{ nameOf(view.result.topTower.owner) }} 的{{ topTowerName }}，打出 {{ view.result.topTower.damage.toLocaleString() }} 傷害</span>
                 </p>
+
+                <section v-if="view.result.test" aria-label="傷害測試成績">
+                    <h3 class="gt-heading">傷害測試（巨獸血量 {{ view.result.test.maxHp.toLocaleString() }}）</h3>
+                    <ol class="m-0 flex list-none flex-col gap-1 p-0">
+                        <li v-for="(t, i) in view.result.test.rows" :key="t.id" class="flex justify-between gap-3">
+                            <span class="truncate">{{ i + 1 }}. {{ nameOf(t.id) }}</span>
+                            <span class="shrink-0 tabular-nums">{{ testText(t, view.result.test.maxHp) }}</span>
+                        </li>
+                    </ol>
+                </section>
+
+                <section v-if="awardRows.length" aria-label="本局指標">
+                    <h3 class="gt-heading">本局指標</h3>
+                    <ul class="m-0 flex list-none flex-col gap-1 p-0">
+                        <li v-for="a in awardRows" :key="a.label" class="flex justify-between gap-3">
+                            <span class="shrink-0 text-(--gt-muted)">{{ a.label }}</span>
+                            <span class="min-w-0 truncate text-right">{{ a.text }}</span>
+                        </li>
+                    </ul>
+                </section>
                 <button v-if="roomState.isHost" class="gt-btn gt-btn--lamp" @click="restart">回大廳再來一局</button>
                 <p v-else class="m-0 text-(--gt-muted)">等房主開新的一局。</p>
                 <button v-if="roomState.isSpectator && roomState.spectatorCanJoin" class="gt-btn" @click="upgradeFromSpectator">加入下一局</button>
@@ -199,7 +224,7 @@ const route = useRoute()
 const router = useRouter()
 const {
     state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
-    upgradeQuality, upgradeResearch, removeStone, swap, ready, setSpeed, finishNow, restart,
+    upgradeQuality, buyLife, upgradeResearch, removeStone, swap, ready, setSpeed, finishNow, restart,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useGemTd()
@@ -305,8 +330,27 @@ const resultText = computed(() => {
     return r.win ? `撐過全部 ${view.value.options.waves} 波，還剩 ${r.lives} 點血。` : `撐到第 ${r.wave} 波。`
 })
 
+// 結算的本局指標：沒有人得獎的項目不顯示
+const awardRows = computed(() => {
+    const a = view.value?.result?.awards
+    if (!a) return []
+    const rows = []
+    if (a.saver) rows.push({ label: '最會存錢', text: `${nameOf(a.saver.id)}（峰值 ${a.saver.value.toLocaleString()} 金）` })
+    if (a.leaker) rows.push({ label: '漏怪王', text: `${nameOf(a.leaker.id)}（漏 ${a.leaker.value} 隻）` })
+    if (a.killer) rows.push({ label: '擊殺王', text: `${nameOf(a.killer.id)}（${a.killer.value.toLocaleString()} 殺）` })
+    if (a.dealer) rows.push({ label: '輸出王', text: `${nameOf(a.dealer.id)}（${a.dealer.value.toLocaleString()} 傷）` })
+    if (a.lifeBuyer) rows.push({ label: '最愛買命', text: `${nameOf(a.lifeBuyer.id)}（${a.lifeBuyer.value} 次）` })
+    if (a.perfectIds.length) rows.push({ label: '完美防守', text: `${a.perfectIds.map(nameOf).join('、')}（零漏怪）` })
+    return rows
+})
+
+function testText(t, maxHp) {
+    const pct = Math.min(100, Math.round((t.damage / maxHp) * 100))
+    return t.killed ? `${t.damage.toLocaleString()} 傷，擊倒（${t.seconds} 秒）` : `${t.damage.toLocaleString()} 傷（${pct}%）`
+}
+
 function scoreText(s) {
-    const score = `${s.kills} 殺，${s.damage.toLocaleString()} 傷`
+    const score = `${s.kills} 殺，${s.damage.toLocaleString()} 傷，漏 ${s.leaked}`
     if (!view.value?.result?.versus) return score
     return `${s.out ? `第 ${s.outWave} 波出局` : `♥ ${s.lives}`}，${score}`
 }

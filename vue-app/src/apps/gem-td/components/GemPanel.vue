@@ -117,6 +117,16 @@
             <p v-if="qualityCost && shortOf(qualityCost)" class="mt-1 mb-0 text-(--gt-muted)">還差 {{ shortOf(qualityCost) }} 金</p>
         </section>
 
+        <!-- 買命：金幣換血量，血量滿了或傷害測試（不扣血）就不顯示 -->
+        <section v-if="me && !me.out && phase === 'build' && !view.nextWave?.test" aria-label="買命">
+            <h3 class="gt-heading">補血</h3>
+            <button class="gt-btn gt-btn--small w-full" :disabled="!canBuyLife" @click="$emit('buy-life')">
+                {{ catalog.lifeCost }} 金換 1 點血（{{ myLives }}／{{ view.maxLives }}）
+            </button>
+            <p v-if="myLives >= view.maxLives" class="mt-1 mb-0 text-(--gt-muted)">血量已滿</p>
+            <p v-else-if="shortOf(catalog.lifeCost)" class="mt-1 mb-0 text-(--gt-muted)">還差 {{ shortOf(catalog.lifeCost) }} 金</p>
+        </section>
+
         <!-- 研究：選項多，可收合 -->
         <details v-if="me && !me.out && phase === 'build'" class="gt-fold" open aria-label="甜點研究">
             <summary class="gt-heading !mb-1">
@@ -152,7 +162,7 @@ const props = defineProps({
     myId: { type: String, default: '' },
     keys: { type: Boolean, default: false }, // 有實體鍵盤時顯示快捷鍵提示
 })
-defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'research', 'remove', 'start-swap', 'cancel-swap'])
+defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'research', 'remove', 'start-swap', 'cancel-swap'])
 
 const HITS = { all: '地面與空中', ground: '只打地面', air: '只打空中' }
 const RATE_COLORS = ['#C9B2AD', '#9FB8C9', '#5FA8D3', '#3CCB72', '#F2B233', '#D6305A']
@@ -161,6 +171,9 @@ const me = computed(() => props.view.me)
 const phase = computed(() => props.view.phase)
 const mine = computed(() => props.view.watching === props.myId)
 const towerMap = computed(() => new Map(props.view.towers.map(t => [t.id, t])))
+
+const myLives = computed(() => props.view.players[props.myId]?.lives ?? 0)
+const canBuyLife = computed(() => myLives.value < props.view.maxLives && shortOf(props.catalog.lifeCost) === 0)
 
 // 買不起時還差多少金（0 表示買得起）
 const shortOf = cost => Math.max(0, cost - (me.value?.gold ?? 0))

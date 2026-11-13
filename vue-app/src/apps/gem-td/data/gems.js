@@ -41,7 +41,8 @@ export const isSpecial = kind => kind in GEM_LOOK && !GEM_ORDER.includes(kind)
 
 const assetUrl = path => `${import.meta.env.BASE_URL}gem-td/${path}`
 export const towerImage = kind => assetUrl(`towers/${kind}.webp`)
-export const monsterImage = type => assetUrl(`monsters/${type}.webp`)
+// 傷害測試的巨獸沿用首領的圖，只是畫得更大
+export const monsterImage = type => assetUrl(`monsters/${type === 'titan' ? 'boss' : type}.webp`)
 export const HERO_IMAGE = assetUrl('hero.webp')
 
 // 等級越高顆粒越大
@@ -54,6 +55,7 @@ export const MONSTER_LOOK = {
   armored: { color: '#2F3F6B', size: 0.46 },
   air: { color: '#6A4FB5', size: 0.42 },
   boss: { color: '#C4202E', size: 0.85 },
+  titan: { color: '#7A2E8C', size: 1.25 },
 }
 
 export const PLAYER_MARKS = ['#D6305A', '#2F7FD1', '#2E9E5B', '#B8860B']
