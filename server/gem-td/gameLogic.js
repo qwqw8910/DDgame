@@ -403,25 +403,29 @@ function upgradeQuality(game, playerId) {
   p.quality += 1;
 }
 
-// 重骰：五個甜點都還在手上時才能骰，整手換新
-function rerollGems(game, playerId, { rng = Math.random } = {}) {
+// 重骰：五個甜點都還在手上時才能骰，只換掉指定的那一格，其餘照舊（拿來賭湊出合成）
+function rerollGems(game, playerId, slot, { rng = Math.random } = {}) {
   requireBuild(game);
   const p = playerOf(game, playerId);
   if (p.pending.length !== C.GEMS_PER_ROUND) throw new GameError('ALREADY_PLACED', '已經放下甜點，這回合不能再骰');
+  const idx = p.pending.findIndex(g => g.slot === slot);
+  if (idx < 0) throw new GameError('BAD_ARG', '沒有這格甜點');
   spend(p, C.rerollCost(p.quality, p.rerolls ?? 0));
   p.rerolls = (p.rerolls ?? 0) + 1;
-  p.pending = rollGems(p.quality, rng);
+  // 只取新抽的一格的 kind / level，slot 沿用原本的
+  const fresh = rollGems(p.quality, rng)[0];
+  p.pending[idx] = { slot, kind: fresh.kind, level: fresh.level };
 }
 
 // 許願池：預訂下一回合的抽卡風向。每回合一次，下一次 enterBuild 抽牌時套用並清掉
 function makeWish(game, playerId, { category } = {}) {
   requireBuild(game);
   const p = playerOf(game, playerId);
-  if (!Object.hasOwn(C.GEM_CATEGORIES, category)) throw new GameError('BAD_ARG', '沒有這個分類');
+  if (!Object.hasOwn(C.GEM_CATEGORIES, category)) throw new GameError('BAD_ARG', '沒有這種甜點');
   const w = p.wish;
-  if (w && w.category !== category) throw new GameError('WISHED', '這回合已經許了別的分類，只能繼續許同一個分類的願');
+  if (w && w.category !== category) throw new GameError('WISHED', '這回合已經許了別種甜點，只能繼續許同一種的願');
   if (w && w.stacks >= C.WISH_MAX_STACKS) throw new GameError('WISH_MAX', '這回合許願次數已達上限');
-  spend(p, C.wishCost(w?.stacks ?? 0));
+  spend(p, C.wishCost(game.wave, w?.stacks ?? 0));
   if (w) w.stacks += 1;
   else p.wish = { category, stacks: 1 };
 }
@@ -779,6 +783,7 @@ function meView(game, playerId) {
     rerolls: p.rerolls ?? 0,
     livesBought: p.livesBought ?? 0,
     lifeCost: C.lifeCost(game.wave, p.livesBought ?? 0),
+    wishCost: C.wishCost(game.wave, Math.min(p.wish?.stacks ?? 0, C.WISH_MAX_STACKS - 1)),
     rerollCost: C.rerollCost(p.quality, p.rerolls ?? 0),
     canReroll: game.phase === 'build' && !p.out && p.pending.length === C.GEMS_PER_ROUND,
     out: p.out,

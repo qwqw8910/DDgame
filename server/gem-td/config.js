@@ -153,18 +153,19 @@ const QUALITY_RATES = [
 ];
 const QUALITY_COSTS = [30, 70, 130, 220, 350, 520, 750]; // 升到品質 2、3…8 的花費
 // 甜點許願池：建造階段花金幣預訂「下一回合」的 5 選 1 風向，每回合只能許一次，不直接給成品
-const GEM_CATEGORIES = {
-  fruit: { name: '果香系', kinds: ['B', 'Q', 'R'] },
-  candy: { name: '糖果系', kinds: ['D', 'G', 'P'] },
-  bakery: { name: '烘焙系', kinds: ['E', 'O'] },
-};
-const WISH_CATEGORY_COST = 60;
+// 許願直接指定一種基礎甜點（key 就是甜點代號，如 'B'），不再分大類，玩家不用猜分類代表哪幾種
+const GEM_CATEGORIES = Object.fromEntries(Object.entries(GEMS).map(([kind, g]) => [kind, { name: g.name, kinds: [kind] }]));
+// 許願底價隨波數上漲（前期也許得起），封頂 20；同回合疊第 1/2/3 次為底價 ×1/×2/×3，所以單次最貴 60 金
+const WISH_BASE_MIN = 5;
+const WISH_BASE_MAX = 20;
+const WISH_BASE_PER_WAVE = 0.5;
 // 許願：只影響下一回合 5 格中的 1 格（不用選哪格），同一回合可連續許最多 3 次：機率逐次提高、價格逐次加貴，許滿第 3 次連等級也提高
 const WISH_STACK_RATES = [0.6, 0.8, 1]; // 許願只影響 1 格，許越多次該格抽中指定分類的機率越高
 const WISH_LEVEL_STACK = 3; // 許滿這麼多次，該格的等級也改用高一級品質的機率表
-const WISH_STACK_COST_MULT = [1, 2, 3]; // 60 / 120 / 180 金
+const WISH_STACK_COST_MULT = [1, 2, 3];
 const WISH_MAX_STACKS = WISH_STACK_RATES.length;
-const wishCost = (stacks = 0) => WISH_CATEGORY_COST * WISH_STACK_COST_MULT[stacks];
+const wishBase = wave => Math.min(WISH_BASE_MAX, Math.max(WISH_BASE_MIN, Math.round(WISH_BASE_MIN + wave * WISH_BASE_PER_WAVE)));
+const wishCost = (wave, stacks = 0) => wishBase(wave) * WISH_STACK_COST_MULT[stacks];
 // 隨機突變：從第 10 波起每 5 波換一張全局詞綴，持續到下一次抽取。傷害測試不受影響
 // 每張都是取捨（pro 好處、con 代價），沒有純祝福或純詛咒，投票時比的是「哪種風險適合我的塔」
 // 共用血量由全隊投票三選一，獨立血量全場隨機一張
@@ -181,15 +182,16 @@ const MUTATIONS = {
   glaze: { name: '糖衣護甲', pro: '擊殺數以 2 倍計入熟練度', con: '怪物護甲 +4，高單發傷害的塔更有效', killMult: 2, armorAdd: 4 },
   syrup: { name: '糖漿滋補', pro: '擊殺金幣 +50%', con: '怪物血量 +30%', goldMult: 1.5, hpMult: 1.3 },
   honey: { name: '蜜糖地面', pro: '怪物移速 −20%', con: '擊殺金幣 −40%', monsterSpeed: 0.8, goldMult: 0.6 },
+  bullet: { name: '糖衣砲彈', pro: '塔傷害 +60%', con: '塔攻速 −25%，射程 −1 格', damage: 0.6, haste: -0.25, range: -1 },
   harvest: { name: '豐收季', pro: '擊殺金幣 +80%', con: '塔傷害 −20%', goldMult: 1.8, damage: -0.2 },
 };
 const MUTATION_IDS = Object.keys(MUTATIONS);
 const isMutationWave = wave => wave >= MUTATION_FIRST_WAVE && (wave - MUTATION_FIRST_WAVE) % MUTATION_EVERY === 0;
 const SWAP_COST = 25;
-// 重骰手上的甜點：品質越高底價越貴，同一回合每骰一次再加價，下回合歸零
-const REROLL_BASE = 10;
-const REROLL_PER_QUALITY = 5;
-const REROLL_STEP = 10;
+// 重骰手上「一格」甜點（賭合成用）：品質越高底價越貴，同一回合每骰一次再加價，下回合歸零
+const REROLL_BASE = 5;
+const REROLL_PER_QUALITY = 3;
+const REROLL_STEP = 5;
 const rerollCost = (quality, rerolls) => REROLL_BASE + (quality - 1) * REROLL_PER_QUALITY + rerolls * REROLL_STEP;
 const REMOVE_STONE_COST = 0; // 拆餅乾牆免費
 
@@ -404,7 +406,6 @@ function catalog() {
     mutationEvery: MUTATION_EVERY,
     wish: {
       categories: GEM_CATEGORIES,
-      categoryCost: WISH_CATEGORY_COST,
       maxStacks: WISH_MAX_STACKS,
       stackRates: WISH_STACK_RATES,
       levelStack: WISH_LEVEL_STACK,

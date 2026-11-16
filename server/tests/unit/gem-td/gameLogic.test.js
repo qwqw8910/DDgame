@@ -287,16 +287,21 @@ test('女王蟻扣血依整局進度調整：後面的王扣比較多，最後�
   assert.equal(C.waveDef(3, 30).groups[0].leak, undefined, '一般蟲不受影響');
 });
 
-test('重骰：品質越高越貴、每骰一次加價、放下後不能骰、下回合歸零', () => {
+test('重骰：只換指定那一格、品質越高越貴、每骰一次加價、放下後不能骰、下回合歸零', () => {
   const game = newGame();
   const p = game.players.a;
-  assert.throws(() => L.rerollGems(game, 'a', { rng: seededRng(3) }), { code: 'NO_GOLD' });
+  assert.throws(() => L.rerollGems(game, 'a', p.pending[0].slot, { rng: seededRng(3) }), { code: 'NO_GOLD' });
 
   p.gold = 1000;
+  assert.throws(() => L.rerollGems(game, 'a', 99), { code: 'BAD_ARG' });
   const first = C.rerollCost(1, 0);
-  L.rerollGems(game, 'a', { rng: seededRng(3) });
+  const before = p.pending.map(g => ({ ...g }));
+  const target = before[2].slot;
+  L.rerollGems(game, 'a', target, { rng: seededRng(3) });
   assert.equal(p.gold, 1000 - first);
   assert.equal(p.pending.length, C.GEMS_PER_ROUND);
+  assert.deepEqual(p.pending.filter((_, i) => i !== 2), before.filter((_, i) => i !== 2), '其他四格不變');
+  assert.equal(p.pending[2].slot, target);
   assert.ok(C.rerollCost(1, 1) > first, '第二骰比較貴');
   assert.equal(L.buildView(game, 'a').me.rerollCost, C.rerollCost(1, 1));
 
@@ -305,7 +310,7 @@ test('重骰：品質越高越貴、每骰一次加價、放下後不能骰、�
   assert.equal(L.buildView(game, 'a').me.rerollCost, C.rerollCost(2, 1));
 
   L.placeGem(game, 'a', p.pending[0].slot, 4, 6);
-  assert.throws(() => L.rerollGems(game, 'a'), { code: 'ALREADY_PLACED' });
+  assert.throws(() => L.rerollGems(game, 'a', p.pending[0].slot), { code: 'ALREADY_PLACED' });
   assert.equal(L.buildView(game, 'a').me.canReroll, false);
 
   placeAll(game, 'a');
@@ -638,9 +643,9 @@ test('免控：緩速與中毒無效；護盾：單次傷害有上限', () => {
 });
 
 // ── 隨機突變 ────────────────────────────────────────────────────
-test('突變：從第 10 波起每 5 波一次，卡池 10 張，每張都有好處也有代價', () => {
+test('突變：從第 10 波起每 5 波一次，卡池 11 張，每張都有好處也有代價', () => {
   assert.deepEqual([9, 10, 11, 14, 15, 20, 50].map(C.isMutationWave), [false, true, false, false, true, true, true]);
-  assert.equal(C.MUTATION_IDS.length, 10);
+  assert.equal(C.MUTATION_IDS.length, 11);
   for (const id of C.MUTATION_IDS) {
     const m = C.MUTATIONS[id];
     assert.ok(m.name && m.pro && m.con, id);
@@ -731,6 +736,12 @@ test('突變效果：糖漿滋補加怪物血量、疾風加攻速、糖衣護�
   const [quick] = prepareTowers([ref0], undefined, 'swift');
   assert.ok(Math.abs(quick.cooldown - plain0.cooldown / 1.25) < 1e-9);
 
+  // 糖衣砲彈：傷害 +60%，但攻速 −25%、射程 −1
+  const [shot] = prepareTowers([ref0], undefined, 'bullet');
+  assert.ok(Math.abs(shot.stats.damage - plain0.stats.damage * 1.6) < 1e-9);
+  assert.ok(Math.abs(shot.cooldown - plain0.cooldown / 0.75) < 1e-9);
+  assert.equal(shot.stats.range, plain0.stats.range - 1);
+
   const glaze = traitSim({ type: 'normal', count: 1, hp: 1, armor: 0, speed: 0.01, trait: null });
   glaze.mutation = C.MUTATIONS.glaze;
   glaze.towers = [towerAt('D', 6)];
@@ -746,28 +757,40 @@ test('突變效果：糖漿滋補加怪物血量、疾風加攻速、糖衣護�
   assert.ok(Math.abs(ps.stats.damage - pb.stats.damage * 1.5) < 1e-9);
 });
 
+test('許願價格：隨波數上漲、前期便宜、單次最貴 60 金', () => {
+  assert.ok(C.wishCost(1, 0) < C.wishCost(20, 0), '波數越高底價越貴');
+  assert.ok(C.wishCost(1, 2) <= 20, '前期連疊 3 次也不貴');
+  for (const wave of [1, 10, 30, 50, 100]) {
+    for (const s of [0, 1, 2]) assert.ok(C.wishCost(wave, s) <= 60);
+  }
+  assert.equal(C.wishCost(100, 2), 60);
+});
+
 test('許願池：疊加扣金幣、價格遞增、一次只影響一格、只影響下一回合', () => {
   const game = newGame();
   const p = game.players.a;
-  assert.throws(() => L.makeWish(game, 'a', { category: 'fruit' }), { code: 'NO_GOLD' });
+  assert.deepEqual(Object.keys(C.GEM_CATEGORIES).sort(), Object.keys(C.GEMS).sort()); // 直接選 8 種甜點之一
+  assert.throws(() => L.makeWish(game, 'a', { category: 'B' }), { code: 'NO_GOLD' });
   assert.throws(() => L.makeWish(game, 'a', { category: 'nope' }), { code: 'BAD_ARG' });
   p.gold = 1000;
-  L.makeWish(game, 'a', { category: 'fruit' });
-  assert.equal(p.gold, 1000 - 60);
-  assert.throws(() => L.makeWish(game, 'a', { category: 'candy' }), { code: 'WISHED' });
-  L.makeWish(game, 'a', { category: 'fruit' });
-  L.makeWish(game, 'a', { category: 'fruit' });
+  const base = C.wishCost(game.wave, 0);
+  assert.equal(L.buildView(game, 'a').me.wishCost, base);
+  L.makeWish(game, 'a', { category: 'B' });
+  assert.equal(p.gold, 1000 - base);
+  assert.throws(() => L.makeWish(game, 'a', { category: 'D' }), { code: 'WISHED' });
+  L.makeWish(game, 'a', { category: 'B' });
+  L.makeWish(game, 'a', { category: 'B' });
   assert.equal(p.wish.stacks, 3);
-  assert.equal(p.gold, 1000 - 60 - 120 - 180);
-  assert.throws(() => L.makeWish(game, 'a', { category: 'fruit' }), { code: 'WISH_MAX' });
+  assert.equal(p.gold, 1000 - base * (1 + 2 + 3));
+  assert.throws(() => L.makeWish(game, 'a', { category: 'B' }), { code: 'WISH_MAX' });
 
-  // 許願只影響 1 格：該格機率隨層數提高（3 層 100%），其餘 4 格維持原本隨機（約 3/8 為果香）
-  const fruit = C.GEM_CATEGORIES.fruit.kinds;
+  // 許願只影響 1 格：該格機率隨層數提高（3 層 100%），其餘 4 格維持原本隨機（約 1/8 為該甜點）
+  const fruit = C.GEM_CATEGORIES.B.kinds;
   const N = 1500;
   const stats = stacks => {
     let wished = 0, others = 0, wishedLevel = 0;
     for (let i = 0; i < N; i++) {
-      const hand = L.rollGems(1, Math.random, { category: 'fruit', stacks });
+      const hand = L.rollGems(1, Math.random, { category: 'B', stacks });
       assert.equal(hand.length, 5);
       wished += fruit.includes(hand[0].kind) ? 1 : 0;
       wishedLevel += hand[0].level;
@@ -776,8 +799,8 @@ test('許願池：疊加扣金幣、價格遞增、一次只影響一格、只�
     return { wished: wished / N, others: others / (N * 4), level: wishedLevel / N };
   };
   const [s1, s2, s3] = [stats(1), stats(2), stats(3)];
-  assert.ok(s1.wished > 0.65 && s2.wished > s1.wished && s3.wished === 1);
-  assert.ok([s1, s2, s3].every(s => s.others < 0.45)); // 其餘格不受影響
+  assert.ok(s1.wished > 0.55 && s2.wished > s1.wished && s3.wished === 1); // 1 層：0.6 + 0.4 × 1/8 ≈ 0.65
+  assert.ok([s1, s2, s3].every(s => s.others < 0.2)); // 其餘格不受影響（約 1/8）
   assert.ok(s3.level > s2.level); // 第 3 次連等級也提高
 });
 

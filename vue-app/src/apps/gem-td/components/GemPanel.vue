@@ -21,10 +21,10 @@
             <p v-if="current" class="mt-2 mb-0 leading-snug">
                 <b class="font-semibold text-(--gt-ink)">{{ gemName(current.kind, current.level) }}</b>：{{ catalog.gems[current.kind].trait }}
             </p>
-            <!-- 重骰：一個都還沒放才能骰；品質越高越貴，同回合每骰一次加價 -->
-            <template v-if="me.canReroll">
-                <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="shortOf(me.rerollCost) > 0" aria-keyshortcuts="D" @click="$emit('reroll')">
-                    重骰這手（{{ me.rerollCost }} 金）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">D</kbd>
+            <!-- 重骰：一個都還沒放才能骰，只換目前選中的那一格；品質越高越貴，同回合每骰一次加價 -->
+            <template v-if="me.canReroll && current">
+                <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="shortOf(me.rerollCost) > 0" aria-keyshortcuts="D" @click="$emit('reroll', current.slot)">
+                    重骰選中的這顆（{{ me.rerollCost }} 金）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">D</kbd>
                 </button>
                 <p class="mt-1 mb-0 text-xs text-(--gt-muted) max-sm:hidden">
                     <template v-if="shortOf(me.rerollCost)">還差 {{ shortOf(me.rerollCost) }} 金・</template>本回合已骰 {{ me.rerolls }} 次，每骰一次 +{{ catalog.rerollStep }} 金，下回合恢復
@@ -61,9 +61,10 @@
         <!-- 突變：共用血量由全隊投票三選一，獨立血量由伺服器隨機，直接看戰況欄的預告 -->
         <GemDock v-if="phase === 'build' && view.mutationOffer && me && !me.out" id="vote" :title="`第 ${view.mutationOffer.wave} 波突變：全隊三選一${view.mutationOffer.myVote ? '' : '（還沒投票）'}`" :class="tabClass('place')" aria-label="突變投票">
             <h3 class="gt-heading">第 {{ view.mutationOffer.wave }} 波突變：全隊三選一<span v-if="!view.mutationOffer.myVote" class="ml-2 text-(--gt-accent-ink)">還沒投票</span></h3>
-            <div class="flex flex-col gap-2">
+            <!-- 電腦版三張左中右並排；手機維持上下排 -->
+            <div class="flex flex-col gap-2 lg:grid lg:grid-cols-3 lg:items-stretch">
                 <GemMutationCard v-for="id in view.mutationOffer.options" :key="id" :mutation="catalog.mutations[id]" :votes="view.mutationOffer.counts[id]"
-                    interactive :picked="view.mutationOffer.myVote === id" @pick="$emit('vote-mutation', id)" />
+                    column interactive :picked="view.mutationOffer.myVote === id" @pick="$emit('vote-mutation', id)" />
             </div>
             <p class="mt-1.5 mb-0 text-xs leading-snug text-(--gt-muted)">票數最高者生效，持續 {{ catalog.mutationEvery }} 波；同票或沒人投就隨機。開波前都可以改票。</p>
         </GemDock>
@@ -153,12 +154,15 @@
             <p v-if="me.wish" class="m-0 mb-1.5 leading-snug" role="status">
                 已許願 {{ me.wish.stacks }}/{{ catalog.wish.maxStacks }} 次：下回合有 1 格 {{ Math.round(catalog.wish.stackRates[me.wish.stacks - 1] * 100) }}% 機率變成「{{ catalog.wish.categories[me.wish.category].name }}」{{ me.wish.stacks >= catalog.wish.levelStack ? '，且等級提高' : '' }}，其餘格照常隨機
             </p>
-            <div class="flex flex-wrap gap-1.5">
-                <button v-for="(c, id) in catalog.wish.categories" :key="id" class="gt-btn gt-btn--small" :disabled="wishDisabled(id)" @click="$emit('wish', id)">
-                    {{ c.name }}（{{ wishPrice() }} 金）
+            <p class="m-0 mb-1.5 text-xs text-(--gt-muted)">點一種甜點許願，每次 {{ wishPrice() }} 金</p>
+            <div class="grid grid-cols-2 gap-1.5">
+                <button v-for="(c, id) in catalog.wish.categories" :key="id" class="gt-btn gt-btn--small flex items-center gap-1.5 !px-2 text-left"
+                    :class="{ 'gt-gem-slot--on': me.wish?.category === id }" :disabled="wishDisabled(id)" :aria-pressed="me.wish?.category === id" @click="$emit('wish', id)">
+                    <GemIcon :kind="id" :size="24" />
+                    <span class="min-w-0 truncate">{{ c.name }}</span>
                 </button>
             </div>
-            <p class="mt-1.5 mb-0 text-xs leading-snug text-(--gt-muted)">只影響下一回合的 5 選 1，不直接給甜點。只影響其中 1 格，其餘 4 格照常隨機。同回合可連續許同一分類，該格機率 60% → 80% → 100%、價格 60／120／180 金，許滿第 3 次該格等級也提高，最多 {{ catalog.wish.maxStacks }} 層。</p>
+            <p class="mt-1.5 mb-0 text-xs leading-snug text-(--gt-muted)">只影響下一回合的 5 選 1，不直接給甜點。只影響其中 1 格，其餘 4 格照常隨機。同回合可連續許同一種，該格機率 60% → 80% → 100%。價格隨波數上漲、每疊一層加貴（第 1／2／3 次為 ×1／×2／×3，單次最貴 60 金），許滿第 3 次該格等級也提高，最多 {{ catalog.wish.maxStacks }} 層。</p>
         </GemDock>
 
         <!-- 買命：金幣換血量，血量滿了或傷害測試（不扣血）就不顯示 -->
@@ -226,11 +230,7 @@ const canBuyLife = computed(() => myLives.value < props.view.maxLives && shortOf
 const shortOf = cost => Math.max(0, cost - (me.value?.gold ?? 0))
 
 // 許願：只能疊加同一個願；價格依已疊層數遞增，滿層後鎖住
-const wishPrice = () => {
-    const w = props.catalog.wish
-    const stacks = me.value?.wish?.stacks ?? 0
-    return w.categoryCost * w.stackCostMult[Math.min(stacks, w.maxStacks - 1)]
-}
+const wishPrice = () => me.value?.wishCost ?? 0
 const wishDisabled = category => {
     const w = me.value?.wish
     if (w && (w.category !== category || w.stacks >= props.catalog.wish.maxStacks)) return true
