@@ -602,6 +602,43 @@ test('免控：緩速與中毒無效；護盾：單次傷害有上限', () => {
   assert.equal(shielded.monsters[0].hp, 100 * (1 - C.SHIELD_HIT_CAP));
 });
 
+test('許願池：扣金幣、每回合一次、只影響下一回合的抽卡', () => {
+  const game = newGame();
+  const p = game.players.a;
+  assert.throws(() => L.makeWish(game, 'a', { type: 'category', category: 'fruit' }), { code: 'NO_GOLD' });
+  assert.throws(() => L.makeWish(game, 'a', { type: 'bad' }), { code: 'BAD_ARG' });
+  assert.throws(() => L.makeWish(game, 'a', { type: 'category', category: 'nope' }), { code: 'BAD_ARG' });
+  p.gold = 1000;
+  L.makeWish(game, 'a', { type: 'category', category: 'fruit' });
+  assert.equal(p.gold, 1000 - C.wishCost('category'));
+  assert.throws(() => L.makeWish(game, 'a', { type: 'level' }), { code: 'WISHED' });
+
+  // 分類許願：每手至少有 1 顆指定分類，且比例明顯高於不許願
+  const fruit = C.GEM_CATEGORIES.fruit.kinds;
+  let hit = 0;
+  let total = 0;
+  for (let i = 0; i < 300; i++) {
+    const hand = L.rollGems(1, Math.random, { type: 'category', category: 'fruit' });
+    assert.ok(hand.some(g => fruit.includes(g.kind)));
+    hit += hand.filter(g => fruit.includes(g.kind)).length;
+    total += hand.length;
+  }
+  assert.ok(hit / total > 0.55);
+
+  // 等級許願：平均等級高於不許願
+  const avg = wish => Array.from({ length: 400 }, () => L.rollGems(1, Math.random, wish)).flat().reduce((n, g) => n + g.level, 0) / 2000;
+  assert.ok(avg({ type: 'level' }) > avg(null));
+});
+
+test('研究：滿 5 級後進入匠心加給，加成平緩且成本遞增', () => {
+  assert.equal(C.researchValue('damage', 5), 5 * 0.08);
+  assert.ok(Math.abs(C.researchValue('damage', 15) - (0.4 + 0.1)) < 1e-9);
+  assert.ok(Math.abs(C.researchValue('speed', 10) - (0.3 + 0.025)) < 1e-9);
+  assert.ok(C.RESEARCH_COSTS[5] > C.RESEARCH_COSTS[4]);
+  assert.ok(C.RESEARCH_COSTS.every((c, i, a) => i === 0 || c > a[i - 1]));
+  assert.equal(C.catalog().researchBaseLevels, 5);
+});
+
 test('研究：扣金幣、加成生效、有上限；利息依存款發放且有上限', () => {
   const game = newGame();
   assert.throws(() => L.upgradeResearch(game, 'a', 'damage'), { code: 'NO_GOLD' });
@@ -835,4 +872,11 @@ test('暫停：單人建造階段凍結倒數，恢復後接續；多人不能�
   L.setPaused(game, false, { now: 50000 });
   assert.equal(game.buildEndsAt, 90000);
   assert.throws(() => L.setPaused(newGame(['a', 'b']), true, { now: 0 }), /單人/);
+});
+
+test('combineNotice 只公告第二階以上的特殊塔', () => {
+  const game = { names: { a: '小明' } };
+  assert.equal(L.combineNotice(game, 'a', { kind: 'silver' }), null);
+  assert.match(L.combineNotice(game, 'a', { kind: 'starsilver' }), /小明 合成了/);
+  assert.match(L.combineNotice(game, 'a', { kind: 'galaxy' }), /最高階的銀河慕斯/);
 });

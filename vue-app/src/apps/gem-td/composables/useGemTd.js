@@ -128,6 +128,7 @@ export function useGemTd() {
     upgradeQuality: () => emit('gt:upgrade-quality'),
     buyLife:        () => emit('gt:buy-life'),
     reroll:         () => emit('gt:reroll'),
+    makeWish:       (type, category) => emit('gt:wish', { type, category }),
     upgradeResearch: (track) => emit('gt:research', { track }),
     removeStone:    (towerId) => emit('gt:remove-stone', { towerId }),
     swap:           (towerId, stoneId) => emit('gt:swap', { towerId, stoneId }),

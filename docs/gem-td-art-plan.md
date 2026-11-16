@@ -44,6 +44,10 @@
 | `towers-extra.jpg` | `towers/`：mintchoc 薄荷巧克力餅、mintking 薄荷巧克力聖代、rainbow 彩虹馬卡龍塔、prism 彩虹千層酥 |
 | `towers-t3.jpg` | `towers/`：galaxy 銀河慕斯、opera 翡翠歌劇院蛋糕、souffle 火焰舒芙蕾、emperor 帝王金箔蛋糕、aurora 極光芭菲 |
 | `hero.jpg` | `hero.webp` |
+| `titan-cake.jpg` | `monsters/titan.webp` 甜點巨獸、`map/cake.webp` 出口蛋糕 |
+| `nest.jpg` | `map/nest.webp` 入口蟻窩（餅乾碎屑堆） |
+| `checkpoint.jpg` | `map/checkpoint.webp` 檢查點糖果底圖（編號由程式疊上） |
+| `result.jpg` | `map/result-win.webp`、`map/result-lose.webp` 結算插圖（320px） |
 
 未採用：`style-mine.jpg`、`style-sea.jpg`（風格候選）。
 
@@ -72,3 +76,7 @@
 | 2026-10-31 | 5 種特殊塔（第二階） | gemini-3.1-flash-lite-image | 1024 | 未確認 | 採用 |
 | 2026-10-31 | 4 種新路線特殊塔 | gemini-3.1-flash-lite-image | 1024 | 未確認 | 採用 |
 | 2026-10-31 | 5 種第三階特殊塔 | gemini-3.1-flash-lite-image | 1024 | 未確認 | 採用 |
+| 2026-11-16 | 甜點巨獸＋出口蛋糕（同一張，1024×512） | gemini-3.1-flash-lite-image | 1376×768 | 約 6 | 採用 |
+| 2026-11-16 | 入口蟻窩 | gemini-3.1-flash-lite-image | 1024 | 約 6 | 採用 |
+| 2026-11-16 | 檢查點糖果底圖 | gemini-3.1-flash-lite-image | 1024 | 約 6 | 採用 |
+| 2026-11-16 | 結算勝利＋失敗插圖（同一張） | gemini-3.1-flash-lite-image | 1376×768 | 約 6 | 採用 |

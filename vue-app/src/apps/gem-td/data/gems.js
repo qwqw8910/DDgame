@@ -50,8 +50,12 @@ export const isSpecial = kind => kind in GEM_LOOK && !GEM_ORDER.includes(kind)
 
 const assetUrl = path => `${import.meta.env.BASE_URL}gem-td/${path}`
 export const towerImage = kind => assetUrl(`towers/${kind}.webp`)
-// 傷害測試的巨獸沿用首領的圖，只是畫得更大
-export const monsterImage = type => assetUrl(`monsters/${type === 'titan' ? 'boss' : type}.webp`)
+export const monsterImage = type => assetUrl(`monsters/${type}.webp`)
+export const NEST_IMAGE = assetUrl('map/nest.webp')
+export const CHECKPOINT_IMAGE = assetUrl('map/checkpoint.webp')
+export const RESULT_WIN_IMAGE = assetUrl('map/result-win.webp')
+export const RESULT_LOSE_IMAGE = assetUrl('map/result-lose.webp')
+export const CAKE_IMAGE = assetUrl('map/cake.webp')
 export const HERO_IMAGE = assetUrl('hero.webp')
 
 // 等級越高顆粒越大

@@ -128,6 +128,7 @@ function registerNamespace(io, db) {
         console.error('[GemTD tick]', err);
         return endWave(roomId, game);
       }
+      for (const msg of L.bossDownNotices(game)) notice(roomId, msg);
       if (out.length) {
         announceOut(roomId, game, out);
         pushState(roomId);
@@ -302,9 +303,14 @@ function registerNamespace(io, db) {
     action('gt:place', ({ playerId, game }, { slot, x, y }) => L.placeGem(game, playerId, slot, x, y));
     action('gt:keep', ({ playerId, game }, { towerId }) => L.keepGem(game, playerId, towerId));
     action('gt:merge', ({ playerId, game }, { towerId }) => L.mergeGem(game, playerId, towerId));
-    action('gt:combine', ({ playerId, game }, { recipeId, towerId }) => L.combine(game, playerId, recipeId, towerId));
+    action('gt:combine', ({ playerId, game }, { roomId, recipeId, towerId }) => {
+      const tower = L.combine(game, playerId, recipeId, towerId);
+      const msg = L.combineNotice(game, playerId, tower);
+      if (msg) notice(roomId, msg);
+    });
     action('gt:upgrade-quality', ({ playerId, game }) => L.upgradeQuality(game, playerId));
     action('gt:reroll', ({ playerId, game }) => L.rerollGems(game, playerId));
+    action('gt:wish', ({ playerId, game }, { type, category } = {}) => L.makeWish(game, playerId, { type, category }));
     action('gt:research', ({ playerId, game }, { track }) => L.upgradeResearch(game, playerId, track));
     action('gt:buy-life', ({ playerId, game }) => L.buyLife(game, playerId));
     action('gt:remove-stone', ({ playerId, game }, { towerId }) => L.removeStone(game, playerId, towerId));
