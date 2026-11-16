@@ -1,6 +1,6 @@
 <template>
     <div ref="wrapRef" class="relative flex h-full w-full items-center justify-center overflow-hidden">
-        <canvas ref="canvasRef" class="block touch-none select-none rounded-sm" :class="placing ? 'cursor-crosshair' : 'cursor-default'"
+        <canvas ref="canvasRef" class="block touch-none select-none max-sm:rounded-none rounded-sm" :class="placing ? 'cursor-crosshair' : 'cursor-default'"
             role="img" aria-label="遊戲地圖"
             @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp"
             @pointerleave="hover = null" @wheel.prevent="onWheel" />
@@ -184,11 +184,31 @@ let curAt = 0
 let frameGap = 200
 const shots = []
 
+// ── 打擊感（Juice）：受擊閃白、暴擊數字、螢幕震動 ───────────────
+const FLASH_MS = 90
+const POP_MS = 700
+const MAX_POPS = 24
+const flashes = new Map() // monsterId → 閃白結束時間
+const pops = [] // 傷害數字 { x, y, text, born, big }
+let shakeAmp = 0 // 格；每幀衰減
+const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+function shake(amount) {
+    if (!reducedMotion) shakeAmp = Math.min(0.5, Math.max(shakeAmp, amount))
+}
+
+function resetJuice() {
+    flashes.clear()
+    pops.length = 0
+    shakeAmp = 0
+}
+
 watch(() => props.frame, (frame) => {
     if (!frame) {
         prevMap = new Map()
         curMap = new Map()
         shots.length = 0
+        resetJuice()
         clearFx()
         return
     }
@@ -203,20 +223,43 @@ watch(() => props.frame, (frame) => {
     const end = view.board?.end
     for (const [id, m] of prevMap) {
         if (curMap.has(id)) continue
-        if (!end || Math.hypot(m.x - end.x, m.y - end.y) > 1.5) spawnDeath(m.x, m.y)
+        flashes.delete(id)
+        const reachedEnd = end && Math.hypot(m.x - end.x, m.y - end.y) <= 1.5
+        if (!reachedEnd) {
+            spawnDeath(m.x, m.y)
+            // 大型怪倒下要有份量
+            const type = catalogRaw()?.monsters?.[m.type]?.id
+            if (type === 'boss' || type === 'titan') shake(0.3)
+        } else {
+            shake(0.22) // 蟲子搬走蛋糕
+        }
     }
 
     const towers = new Map(view.towers.map(t => [t.id, t]))
-    for (const [towerId, monsterId] of frame.s) {
+    for (const [towerId, monsterId, crit, dealt] of frame.s) {
         const tower = towers.get(towerId)
         if (!tower) continue
         shots.push({ tower, monsterId, born: now })
-        const target = curMap.get(monsterId)
-        if (target) {
-            spawnHit(target.x, target.y, Math.atan2(target.y - tower.y, target.x - tower.x), GEM_LOOK[tower.kind]?.color ?? '#ffffff')
+        // 這一幀就被打死的蟲子已不在 curMap，退回用上一幀的位置
+        const target = curMap.get(monsterId) ?? prevMap.get(monsterId)
+        if (!target) continue
+        flashes.set(monsterId, now + FLASH_MS)
+        spawnHit(target.x, target.y, Math.atan2(target.y - tower.y, target.x - tower.x), GEM_LOOK[tower.kind]?.color ?? '#ffffff')
+        if (crit) {
+            if (pops.length >= MAX_POPS) pops.shift()
+            pops.push({ x: target.x, y: target.y, text: `${compactDamage(dealt)}!`, born: now })
+            shake(0.1)
         }
     }
 }, { flush: 'sync' })
+
+const catalogRaw = () => toRaw(props.catalog)
+
+function compactDamage(n) {
+    if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+    if (n >= 1e4) return `${Math.round(n / 1e3)}K`
+    return String(n)
+}
 
 function monsterPos(id, m, t) {
     const prev = prevMap.get(id)
@@ -252,6 +295,28 @@ function drawGem(kind, level, cx, cy, cell, alpha = 1) {
         ctx.arc(cx, cy, drawn / 2.4, 0, Math.PI * 2)
         ctx.fill()
     }
+    ctx.globalAlpha = 1
+}
+
+// 受擊閃白：把圖片的不透明部分染成白色，疊在原圖上
+let flashCanvas = null
+function drawFlash(img, x, y, w, h, alpha) {
+    if (!flashCanvas) flashCanvas = document.createElement('canvas')
+    const fw = Math.max(1, Math.ceil(w))
+    const fh = Math.max(1, Math.ceil(h))
+    if (flashCanvas.width !== fw || flashCanvas.height !== fh) {
+        flashCanvas.width = fw
+        flashCanvas.height = fh
+    }
+    const c = flashCanvas.getContext('2d')
+    c.globalCompositeOperation = 'source-over'
+    c.clearRect(0, 0, fw, fh)
+    c.drawImage(img, 0, 0, fw, fh)
+    c.globalCompositeOperation = 'source-atop'
+    c.fillStyle = '#FFFFFF'
+    c.fillRect(0, 0, fw, fh)
+    ctx.globalAlpha = alpha
+    ctx.drawImage(flashCanvas, x, y, w, h)
     ctx.globalAlpha = 1
 }
 
@@ -421,6 +486,8 @@ function drawMonsters(catalog, cell, now) {
         const img = imageOf(monsterImage(type))
         if (img) {
             ctx.drawImage(img, cx - r * 1.25, cy - r * 1.25, r * 2.5, r * 2.5)
+            const left = (flashes.get(id) ?? 0) - now
+            if (left > 0) drawFlash(img, cx - r * 1.25, cy - r * 1.25, r * 2.5, r * 2.5, 0.75 * (left / FLASH_MS))
         } else {
             ctx.fillStyle = look.color
             ctx.beginPath()
@@ -485,6 +552,34 @@ function drawShots(cell, now) {
     }
 }
 
+function drawPops(cell, now) {
+    if (!pops.length) return
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.lineJoin = 'round'
+    for (let i = pops.length - 1; i >= 0; i--) {
+        const p = pops[i]
+        const k = (now - p.born) / POP_MS
+        if (k >= 1) {
+            pops.splice(i, 1)
+            continue
+        }
+        // 先彈大再回到正常大小，往上飄並淡出
+        const pop = k < 0.15 ? 1 + (1 - k / 0.15) * 0.5 : 1
+        const size = cell * 0.62 * pop
+        const x = (p.x + 0.5) * cell
+        const y = (p.y + 0.5) * cell - cell * (0.5 + k * 0.9)
+        ctx.globalAlpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4
+        ctx.font = `800 ${size}px 'Noto Sans TC', sans-serif`
+        ctx.lineWidth = Math.max(2, size * 0.2)
+        ctx.strokeStyle = COLOR.ink
+        ctx.strokeText(p.text, x, y)
+        ctx.fillStyle = '#FFD23F'
+        ctx.fillText(p.text, x, y)
+    }
+    ctx.globalAlpha = 1
+}
+
 function drawOverlays(view, cell) {
     const selected = view.towers.find(t => t.id === props.selectedId)
     if (selected) {
@@ -517,7 +612,7 @@ function draw(now) {
     const view = toRaw(props.view)
     const catalog = toRaw(props.catalog)
     if (!ctx || !size || !view?.board) return
-    const animating = view.phase === 'wave' || shots.length > 0 || hasFx()
+    const animating = view.phase === 'wave' || shots.length > 0 || hasFx() || pops.length > 0 || shakeAmp > 0.002
         || view.towers.some(t => t.fresh && t.owner === props.myId) // 剛放下的塔外框會閃
     if (!animating && !dirty) return
     dirty = false
@@ -525,13 +620,24 @@ function draw(now) {
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, size, size)
-    ctx.setTransform(dpr * zoom.value, 0, 0, dpr * zoom.value, dpr * panX, dpr * panY)
+    // 震動：整張地圖隨機偏移，幅度每幀衰減
+    let sx = 0
+    let sy = 0
+    if (shakeAmp > 0.002) {
+        sx = (Math.random() * 2 - 1) * shakeAmp * cell
+        sy = (Math.random() * 2 - 1) * shakeAmp * cell
+        shakeAmp *= Math.pow(0.001, dt) // 約 0.33 秒衰減到千分之一以下
+    } else {
+        shakeAmp = 0
+    }
+    ctx.setTransform(dpr * zoom.value, 0, 0, dpr * zoom.value, dpr * (panX + sx), dpr * (panY + sy))
 
     drawBoard(view, cell)
     drawTowers(view, catalog, cell, now)
     drawShots(cell, now)
     drawMonsters(catalog, cell, now)
     drawFx(ctx, cell, dt)
+    drawPops(cell, now)
     drawOverlays(view, cell)
 }
 
