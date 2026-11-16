@@ -9,7 +9,7 @@
                 <span class="hidden text-(--gt-muted) tabular-nums sm:inline">{{ roomState.roomId }}</span>
             </div>
             <div class="flex shrink-0 items-center gap-1">
-                <button v-if="inGame && roomState.isHost" class="gt-chip mr-1 gap-1.5" title="提早結束這局" @click="handleFinish">
+                <button v-if="inGame && roomState.isHost" class="gt-chip mr-1 gap-1.5 max-sm:hidden" title="提早結束這局" @click="handleFinish">
                     <GemHeaderIcon name="flag" />提早結束
                 </button>
                 <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
@@ -17,15 +17,29 @@
                     @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
                 <PwaInstallButton button-class="header-icon-btn" hint-class="gt-install-hint" />
                 <GemVolumePanel />
-                <button v-if="inGame" class="header-icon-btn" :title="hasKeyboard ? '合成表（B）' : '合成表'" aria-label="合成表" aria-keyshortcuts="B" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes"><GemHeaderIcon name="book" /></button>
-                <button class="header-icon-btn" :title="hasKeyboard ? '怎麼玩（H）' : '怎麼玩'" aria-label="怎麼玩" aria-keyshortcuts="H" @click="guide.open"><GemHeaderIcon name="help" /></button>
-                <button class="header-icon-btn" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GemHeaderIcon name="link" /></button>
+                <button v-if="inGame" class="header-icon-btn max-sm:hidden" :title="hasKeyboard ? '合成表（B）' : '合成表'" aria-label="合成表" aria-keyshortcuts="B" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes"><GemHeaderIcon name="book" /></button>
+                <button class="header-icon-btn max-sm:hidden" :title="hasKeyboard ? '怎麼玩（H）' : '怎麼玩'" aria-label="怎麼玩" aria-keyshortcuts="H" @click="guide.open"><GemHeaderIcon name="help" /></button>
+                <button class="header-icon-btn max-sm:hidden" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GemHeaderIcon name="link" /></button>
+
+                <!-- 手機：怎麼玩、邀請連結、提早結束收進「更多」，標題列才排得下 -->
+                <div class="relative hidden max-sm:block">
+                    <button class="header-icon-btn" aria-label="更多選項" aria-haspopup="menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"><GemHeaderIcon name="more" /></button>
+                    <template v-if="menuOpen">
+                        <div class="fixed inset-0 z-40" aria-hidden="true" @click="menuOpen = false" />
+                        <div role="menu" aria-label="更多選項"
+                            class="absolute right-0 top-full z-50 mt-2 flex w-56 flex-col gap-1 rounded-[10px] border border-(--gt-line) bg-(--gt-surface) p-2 shadow-(--gt-shadow)">
+                            <button role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(guide.open)">怎麼玩</button>
+                            <button role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(handleCopyLink)">複製邀請連結</button>
+                            <button v-if="inGame && roomState.isHost" role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(handleFinish)">提早結束這局</button>
+                        </div>
+                    </template>
+                </div>
             </div>
         </header>
 
         <GemGuide v-model="guide.show.value" :catalog="state.catalog" :keys="hasKeyboard" />
-        <!-- 窄螢幕：合成表維持浮動面板；電腦版停靠在左欄（見下方） -->
-        <GemRecipes v-if="inGame && !isWide" v-model="showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
+        <!-- 平板：合成表維持浮動面板；電腦版停靠在左欄、手機是「合成表」分頁（見下方） -->
+        <GemRecipes v-if="inGame && !isWide && !isPhone" v-model="showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
 
         <div v-if="state.loading" class="fullscreen-overlay fullscreen-overlay--blur">
             <span class="spinner mb-3.5"></span>
@@ -109,8 +123,8 @@
             <aside class="gt-rail" aria-label="戰況">
                 <!-- 電腦版：戰況與合成表分成上下兩塊，各自捲動 -->
                 <div class="gt-rail-top">
-                    <section class="gt-card flex flex-col gap-3" aria-label="血量、金幣與波次">
-                        <div class="flex items-end justify-between gap-2">
+                    <section class="gt-card gt-hud flex flex-col gap-3 max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2" aria-label="血量、金幣與波次">
+                        <div class="flex items-end justify-between gap-2 max-sm:contents">
                             <!-- 標籤和數字分兩行：兩位數的波次＋秒數也排得下，不會換行跑版 -->
                             <p class="m-0 min-w-0 whitespace-nowrap">
                                 <template v-if="view.nextWave?.test">
@@ -129,7 +143,7 @@
                                 <span class="gt-timer" :class="{ 'gt-timer--low': secondsLeft <= 10 }">{{ secondsLeft }}<span class="ml-0.5 text-sm font-bold">秒</span></span>
                             </p>
                         </div>
-                        <div class="flex flex-wrap gap-x-5 gap-y-1">
+                        <div class="flex flex-wrap gap-x-5 gap-y-1 max-sm:order-first max-sm:flex-nowrap max-sm:gap-x-3">
                             <p class="gt-stat" :title="view.options.livesMode === 'team' ? '隊伍血量' : '我的血量'">
                                 <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--gt-accent)" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.1 1.8-1.9 3.3-3.1 5.4-3.1 3.6 0 5.7 3.7 4.2 7.2C19.5 16.4 12 21 12 21z" /></svg>
                                 <span class="sr-only">{{ view.options.livesMode === 'team' ? '隊伍血量' : '我的血量' }}</span><span>{{ lives }}<span class="font-normal text-(--gt-muted)">／{{ view.maxLives }}</span></span>
@@ -141,19 +155,21 @@
                         </div>
                     </section>
 
-                    <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
+                    <GemPlayerTabs vertical :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
                     <!-- 看別人的地圖：提示放在左欄，不疊在地圖上 -->
-                    <div v-if="!mine" class="gt-card flex flex-col gap-2" role="status">
+                    <div v-if="!mine" class="gt-card flex flex-col gap-2" :class="phoneShow('place', 'tower')" role="status">
                         <p class="m-0">正在看 <b class="text-(--gt-ink)">{{ watchingName }}</b> 的地圖，不能操作。</p>
                         <button v-if="view.me" class="gt-btn gt-btn--small w-full" @click="watchMap(roomState.myPlayerId)">回到我的地圖</button>
                     </div>
 
-                    <GemWaveInfo :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
+                    <GemWaveInfo :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
-                    <button v-if="isSolo && (view.phase === 'build' || view.phase === 'wave')" class="gt-btn gt-btn--small w-full" aria-keyshortcuts="P" @click="setPaused(true)">
+                    <button v-if="isSolo && (view.phase === 'build' || view.phase === 'wave')" class="gt-btn gt-btn--small w-full" :class="phoneShow('status')" aria-keyshortcuts="P" @click="setPaused(true)">
                         暫停<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">P</kbd>
                     </button>
-                    <div v-if="view.testLog" class="gt-card"><GemTestBoard :test="view.testLog" :names="view.names" /></div>
+                    <div v-if="view.testLog" class="gt-card" :class="phoneShow('status')"><GemTestBoard :test="view.testLog" :names="view.names" /></div>
+                    <!-- 手機：合成表是一個分頁，直接排在內容區，不再浮在地圖上 -->
+                    <GemRecipes v-if="inGame && isPhone && phoneTab === 'recipes'" :model-value="true" inline :view="view" :catalog="state.catalog" @combine="onCombine" />
                 </div>
                 <GemRecipes v-if="isWide" v-model="showRecipes" docked :view="view" :catalog="state.catalog" @combine="onCombine" />
             </aside>
@@ -164,9 +180,14 @@
                     @cell="onCell" @tower="onTower" @clear="clearSelection" />
             </section>
 
+            <!-- 手機專用分頁列：電腦與平板不顯示 -->
+            <nav class="gt-tabbar hidden max-sm:flex" aria-label="操作分頁">
+                <button v-for="t in PHONE_TABS" :key="t.id" class="gt-phonetab" :aria-pressed="phoneTab === t.id" @click="phoneTab = t.id">{{ t.label }}</button>
+            </nav>
+
             <aside class="gt-side" aria-label="操作">
-                <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)">你正在觀戰。</p>
-                <GemPanel :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
+                <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
+                <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
@@ -273,6 +294,27 @@ watch(showRecipes, (open) => {
     if (!isWide.value) return
     try { localStorage.setItem(RECIPES_KEY, open ? '1' : '0') } catch { /* 略過 */ }
 })
+
+// 手機（<640px，同 Tailwind 的 max-sm）：地圖固定在上方，下面用分頁切換操作區。
+// 分頁只靠 max-sm: 的 class 隱藏，電腦與平板的畫面不受影響
+const phoneQuery = window.matchMedia('(max-width: 639px)')
+const isPhone = ref(phoneQuery.matches)
+const onPhoneChange = (e) => { isPhone.value = e.matches }
+phoneQuery.addEventListener('change', onPhoneChange)
+const PHONE_TABS = [
+    { id: 'place', label: '放置' },
+    { id: 'tower', label: '塔' },
+    { id: 'recipes', label: '合成表' },
+    { id: 'shop', label: '商店' },
+    { id: 'status', label: '戰況' },
+]
+const phoneTab = ref('place')
+const phoneShow = (...tabs) => (tabs.includes(phoneTab.value) ? '' : 'max-sm:hidden')
+const menuOpen = ref(false)
+function menuAction(fn) {
+    menuOpen.value = false
+    fn()
+}
 
 const showNickname = ref(false)
 const overlayNickname = ref('')
@@ -410,7 +452,17 @@ watch(() => state.notice, (message) => {
     clearNotice()
 })
 watch(() => view.value?.watching, clearSelection)
+// 手機：點到塔就切到「塔」分頁，取消選取就回「放置」；挑選保留的甜點時留在「放置」
+watch(selectedId, (id) => {
+    if (!isPhone.value) return
+    if (id !== null && !view.value?.me?.choosing) phoneTab.value = 'tower'
+    else if (id === null && phoneTab.value === 'tower') phoneTab.value = 'place'
+})
 watch(() => view.value?.phase, (phase, before) => {
+    if (isPhone.value) {
+        if (phase === 'build') phoneTab.value = 'place'
+        else if (phase === 'wave') phoneTab.value = 'status'
+    }
     clearSelection()
     if (phase === 'build' && before === 'waiting') guide.autoOpen()
 })
@@ -486,7 +538,8 @@ function handleKey(code) {
         return true
     case 'KeyB':
         if (!inGame.value) return false
-        showRecipes.value = !showRecipes.value
+        if (isPhone.value) phoneTab.value = phoneTab.value === 'recipes' ? 'place' : 'recipes'
+        else showRecipes.value = !showRecipes.value
         return true
     case 'KeyV': {
         const ids = v.playerIds ?? []
@@ -565,6 +618,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     wideQuery.removeEventListener('change', onWideChange)
+    phoneQuery.removeEventListener('change', onPhoneChange)
     clearInterval(clock)
     clearTimeout(_toastTimer)
 })

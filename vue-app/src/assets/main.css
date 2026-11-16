@@ -1554,6 +1554,37 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     .gt-stage { flex-shrink: 0; height: min(100vw, 62dvh); }
   }
 
+  /* ── 手機（<640px）：整頁固定一屏。狀態列、地圖、分頁列用 sticky 釘在上方，
+     只有下面的內容區在 .gt-game 裡捲動。三塊的高度寫死，sticky 的偏移才算得準。
+     rail / side 改 display: contents，讓裡面的區塊直接排進 .gt-game，再用 order 排順序。 ── */
+  @media (max-width: 639px) {
+    .gt-game {
+      --gt-hud: 56px; --gt-stage: min(100vw, 44dvh); --gt-tabbar: 48px;
+      flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 16px;
+    }
+    .gt-rail, .gt-rail-top, .gt-side { display: contents; }
+    .gt-rail-top > *, .gt-side > * { order: 5; margin: 12px 12px 0; }
+    .gt-hud {
+      order: 1; position: sticky; top: 0; z-index: 3; flex: none; height: var(--gt-hud); margin: 0;
+      padding: 0 12px; border-width: 0 0 1px; border-radius: 0; overflow: hidden;
+    }
+    .gt-stage {
+      order: 2; position: sticky; top: var(--gt-hud); z-index: 3; flex: none; height: var(--gt-stage); padding: 4px;
+      background: var(--gt-bg); border-bottom: 1px solid var(--gt-line);
+    }
+    .gt-tabbar {
+      order: 3; position: sticky; top: calc(var(--gt-hud) + var(--gt-stage)); z-index: 3; flex: none; height: var(--gt-tabbar);
+      gap: 4px; padding: 2px 8px; background: var(--gt-bg); border-bottom: 1px solid var(--gt-line);
+    }
+    .gt-phonetab {
+      flex: 1; min-width: 0; min-height: 44px; border: 1px solid var(--gt-line-soft); border-radius: 10px;
+      background: var(--gt-surface); color: var(--gt-text); font-size: 16px; cursor: pointer; white-space: nowrap;
+    }
+    .gt-phonetab[aria-pressed="true"] { border: 2px solid var(--gt-accent); background: var(--gt-accent-soft); color: var(--gt-accent-ink); font-weight: 700; }
+    .gt-phonetab:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
+    .gt-recipes.gt-recipes--inline { position: static; width: auto; max-height: none; overflow: visible; background: var(--gt-surface); box-shadow: none; border-color: var(--gt-line-soft); }
+  }
+
   .gt-stat { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--gt-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
   .gt-timer { margin: 0; color: var(--gt-ink); font-size: 26px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
   .gt-timer--low { color: var(--gt-accent-ink); }

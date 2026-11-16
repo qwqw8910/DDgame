@@ -1,10 +1,11 @@
 <template>
     <Transition name="gt-pop">
         <!-- docked：電腦版停靠在左欄；否則是可拖曳的浮動面板 -->
-        <section v-if="modelValue" ref="panel" class="gt-recipes" :class="{ 'gt-recipes--docked': docked }"
-            :role="docked ? 'region' : 'dialog'" aria-label="合成表"
-            :style="docked ? null : { left: `${pos.x}px`, top: `${pos.y}px` }">
-            <header class="flex items-center border-b border-(--gt-line-soft)">
+        <section v-if="modelValue" ref="panel" class="gt-recipes" :class="{ 'gt-recipes--docked': docked, 'gt-recipes--inline': inline }"
+            :role="docked || inline ? 'region' : 'dialog'" aria-label="合成表"
+            :style="docked || inline ? null : { left: `${pos.x}px`, top: `${pos.y}px` }">
+            <!-- inline（手機分頁）：由分頁列切換，不需要標題列與關閉鈕 -->
+            <header v-if="!inline" class="flex items-center border-b border-(--gt-line-soft)">
                 <h2 v-if="docked" class="m-0 flex-1 px-3 text-base font-bold text-(--gt-ink)">合成表</h2>
                 <div v-else class="gt-recipes-handle" title="按住拖曳" @pointerdown="onDragStart" @pointermove="onDragMove"
                     @pointerup="onDragEnd" @pointercancel="onDragEnd">
@@ -71,6 +72,7 @@ const props = defineProps({
     view: { type: Object, required: true },
     catalog: { type: Object, required: true },
     docked: { type: Boolean, default: false },
+    inline: { type: Boolean, default: false }, // 手機：排在分頁內容裡，跟著頁面捲動
 })
 defineEmits(['update:modelValue', 'combine'])
 
@@ -143,7 +145,7 @@ function moveTo(x, y) {
 }
 
 function keepInView() {
-    if (props.docked) return
+    if (props.docked || props.inline) return
     if (dragged) moveTo(pos.x, pos.y)
     else placeDefault()
 }
