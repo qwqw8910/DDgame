@@ -78,8 +78,11 @@ function isWaypoint(board, x, y) {
   return [board.start, board.end, ...board.checkpoints].some(p => p.x === x && p.y === y);
 }
 
-function rollLevel(quality, rng) {
-  const weights = C.QUALITY_RATES[quality - 1];
+// 許願的等級偏好：這一手改用高一級品質的權重表（已是最高就維持）
+const rollLevel = (quality, rng, wish = null) => rollLevelWith(
+  C.QUALITY_RATES[Math.min(quality + (wish?.type === 'level' ? 1 : 0), C.QUALITY_RATES.length) - 1], rng);
+
+function rollLevelWith(weights, rng) {
   const total = weights.reduce((a, b) => a + b, 0);
   let r = rng() * total;
   for (let i = 0; i < weights.length; i++) {
@@ -89,13 +92,21 @@ function rollLevel(quality, rng) {
   return weights.findLastIndex(w => w > 0) + 1;
 }
 
-function rollGems(quality, rng) {
+function rollGems(quality, rng, wish = null) {
   const kinds = Object.keys(C.GEMS);
-  return Array.from({ length: C.GEMS_PER_ROUND }, (_, slot) => ({
+  const favored = wish?.type === 'category' ? C.GEM_CATEGORIES[wish.category]?.kinds : null;
+  const pick = () => kinds[Math.floor(rng() * kinds.length)];
+  const pickFrom = list => list[Math.floor(rng() * list.length)];
+  const gems = Array.from({ length: C.GEMS_PER_ROUND }, (_, slot) => ({
     slot,
-    kind: kinds[Math.floor(rng() * kinds.length)],
-    level: rollLevel(quality, rng),
+    kind: favored && rng() < C.WISH_CATEGORY_RATE ? pickFrom(favored) : pick(),
+    level: rollLevel(quality, rng, wish),
   }));
+  // 保底：整手沒有任何指定分類時，隨機換一格
+  if (favored && !gems.some(g => favored.includes(g.kind))) {
+    gems[Math.floor(rng() * gems.length)].kind = pickFrom(favored);
+  }
+  return gems;
 }
 
 function refreshPath(game, p) {
@@ -118,7 +129,8 @@ function enterBuild(game, { now, rng }) {
   for (const id of game.playerIds) game.players[id].sim = null;
   for (const id of activeIds(game)) {
     const p = game.players[id];
-    p.pending = rollGems(p.quality, rng);
+    p.pending = rollGems(p.quality, rng, p.wish);
+    p.wish = null; // 許願只管這一回合
     p.rerolls = 0;
     p.livesBought = 0;
     p.resolved = false;
@@ -321,6 +333,27 @@ function combine(game, playerId, recipeId, atTowerId) {
   return base;
 }
 
+// 合成公告：第二階以上才公告，避免洗版
+function combineNotice(game, playerId, tower) {
+  const def = C.SPECIALS[tower.kind];
+  if (!def || def.tier < 2) return null;
+  const name = game.names?.[playerId] ?? '玩家';
+  return `${name} 合成了${def.tier >= 3 ? '最高階的' : ''}${def.name}`;
+}
+
+// 傷害測試首領倒下的公告；每張 sim 只公告一次
+function bossDownNotices(game) {
+  if (!isTestWave(game)) return [];
+  const out = [];
+  for (const id of game.playerIds) {
+    const sim = game.players[id].sim;
+    if (!sim || sim.bossDownAt === null || sim.bossAnnounced) continue;
+    sim.bossAnnounced = true;
+    out.push(`${game.names?.[id] ?? '玩家'} 打倒了${C.MONSTERS?.titan?.name ?? '甜點巨獸'}，用了 ${Math.round(sim.bossDownAt * 10) / 10} 秒`);
+  }
+  return out;
+}
+
 // ── 商店 ────────────────────────────────────────────────────────
 function upgradeQuality(game, playerId) {
   requireBuild(game);
@@ -338,6 +371,17 @@ function rerollGems(game, playerId, { rng = Math.random } = {}) {
   spend(p, C.rerollCost(p.quality, p.rerolls ?? 0));
   p.rerolls = (p.rerolls ?? 0) + 1;
   p.pending = rollGems(p.quality, rng);
+}
+
+// 許願池：預訂下一回合的抽卡風向。每回合一次，下一次 enterBuild 抽牌時套用並清掉
+function makeWish(game, playerId, { type, category } = {}) {
+  requireBuild(game);
+  const p = playerOf(game, playerId);
+  if (type !== 'category' && type !== 'level') throw new GameError('BAD_ARG', '沒有這種許願');
+  if (type === 'category' && !Object.hasOwn(C.GEM_CATEGORIES, category)) throw new GameError('BAD_ARG', '沒有這個分類');
+  if (p.wish) throw new GameError('WISHED', '這回合已經許過願了');
+  spend(p, C.wishCost(type));
+  p.wish = type === 'category' ? { type, category } : { type };
 }
 
 function upgradeResearch(game, playerId, track) {
@@ -687,6 +731,7 @@ function meView(game, playerId) {
     gold: p.gold,
     quality: p.quality,
     research: p.research,
+    wish: p.wish ?? null,
     rerolls: p.rerolls ?? 0,
     livesBought: p.livesBought ?? 0,
     lifeCost: C.lifeCost(game.wave, p.livesBought ?? 0),
@@ -781,8 +826,8 @@ module.exports = {
   MAX_PLAYERS: C.MAX_PLAYERS,
   catalog: C.catalog,
   createGame, resetGame, resolveOptions, startGame,
-  placeGem, keepGem, mergeGem, combine, availableRecipes,
-  upgradeQuality, rerollGems, upgradeResearch, removeStone, swapWithStone, buyLife,
+  placeGem, keepGem, mergeGem, combine, combineNotice, bossDownNotices, availableRecipes,
+  upgradeQuality, rerollGems, rollGems, makeWish, upgradeResearch, removeStone, swapWithStone, buyLife,
   setReady, allReady, autoResolve, startWave, setSpeed, setPaused, tick, finishWave, finishNow,
   leavePlayer, resolveWatch, buildView, buildFrames,
 };

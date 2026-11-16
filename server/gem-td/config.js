@@ -15,9 +15,9 @@ const START_GOLD = 0;
 const WAVE_CHOICES = [15, 30, 50];
 const BUILD_SECOND_CHOICES = [0, 45, 60, 90]; // 0 = 不限時（等全員按準備）
 const LIVES_MODES = ['team', 'solo']; // team = 全隊共用血量；solo = 每人各自的血量
-// 難度：簡單 = 原本的數值，給還不會蓋塔與迷宮的人；普通、困難給會迷宮的老手。倍率套在怪物血量與護甲上
+// 難度：簡單 = 原本的數值，血量 ×1.2，給還不會蓋塔與迷宮的人；普通、困難給會迷宮的老手。倍率套在怪物血量與護甲上
 const DIFFICULTIES = {
-  easy: { name: '簡單', hp: 1, armor: 1, desc: '基準數值，適合還不熟悉蓋塔與迷宮的人' },
+  easy: { name: '簡單', hp: 1.2, armor: 1, desc: '怪物血量稍高於基準，適合還不熟悉蓋塔與迷宮的人' },
   normal: { name: '普通', hp: 1.6, armor: 1.3, desc: '怪物明顯更硬，需要像樣的迷宮與合成' },
   hard: { name: '困難', hp: 2.5, armor: 1.7, desc: '怪物非常硬，需要完整的迷宮與合成規劃' },
 };
@@ -140,6 +140,16 @@ const QUALITY_RATES = [
   [0, 0, 5, 30, 45, 20],
 ];
 const QUALITY_COSTS = [30, 70, 130, 220, 350, 520, 750]; // 升到品質 2、3…8 的花費
+// 甜點許願池：建造階段花金幣預訂「下一回合」的 5 選 1 風向，每回合只能許一次，不直接給成品
+const GEM_CATEGORIES = {
+  fruit: { name: '果香系', kinds: ['B', 'Q', 'R'] },
+  candy: { name: '糖果系', kinds: ['D', 'G', 'P'] },
+  bakery: { name: '烘焙系', kinds: ['E', 'O'] },
+};
+const WISH_CATEGORY_COST = 150;
+const WISH_LEVEL_COST = 300;
+const WISH_CATEGORY_RATE = 0.6; // 每格抽中指定分類的機率（本來約 3/8），並保底至少 1 顆
+const wishCost = type => (type === 'level' ? WISH_LEVEL_COST : WISH_CATEGORY_COST);
 const SWAP_COST = 25;
 // 重骰手上的甜點：品質越高底價越貴，同一回合每骰一次再加價，下回合歸零
 const REROLL_BASE = 10;
@@ -155,11 +165,22 @@ const MASTERY_HASTE = 0.05;
 const masteryRank = kills => MASTERY_KILLS.filter(n => kills >= n).length;
 
 // 甜點研究：每個項目 5 級，對自己所有的塔生效，跟品質搶同一筆金幣
-const RESEARCH_COSTS = [60, 120, 200, 300, 450];
+// 前 5 級是正式研究；之後是「匠心加給」，每級成本遞增、加成平緩，給後期金幣一個出口
+const RESEARCH_BASE_LEVELS = 5;
+const MASTERY_BONUS_LEVELS = 20;
+const RESEARCH_COSTS = [
+  60, 120, 200, 300, 450,
+  ...Array.from({ length: MASTERY_BONUS_LEVELS }, (_, i) => 500 + i * 25),
+];
 const RESEARCH = {
-  damage: { name: '濃縮風味', desc: '所有塔傷害 +8%', perLevel: 0.08 },
-  speed: { name: '快速出爐', desc: '所有塔攻速 +6%', perLevel: 0.06 },
-  range: { name: '香氣飄散', desc: '所有塔射程 +0.2 格', perLevel: 0.2 },
+  damage: { name: '濃縮風味', desc: '所有塔傷害 +8%（匠心加給每級 +1%）', perLevel: 0.08, bonusPerLevel: 0.01 },
+  speed: { name: '快速出爐', desc: '所有塔攻速 +6%（匠心加給每級 +0.5%）', perLevel: 0.06, bonusPerLevel: 0.005 },
+  range: { name: '香氣飄散', desc: '所有塔射程 +0.2 格（匠心加給每級 +0.05）', perLevel: 0.2, bonusPerLevel: 0.05 },
+};
+// 研究等級換算成加成：前 5 級走 perLevel，超出的走 bonusPerLevel
+const researchValue = (track, level = 0) => {
+  const r = RESEARCH[track];
+  return Math.min(level, RESEARCH_BASE_LEVELS) * r.perLevel + Math.max(0, level - RESEARCH_BASE_LEVELS) * r.bonusPerLevel;
 };
 
 // 利息：過關時依結算前的存款發放，留錢也是一種選擇
@@ -229,9 +250,9 @@ function gemStats(kind, level) {
 }
 
 const researchBonus = (research = {}) => ({
-  damage: 1 + (research.damage ?? 0) * RESEARCH.damage.perLevel,
-  haste: (research.speed ?? 0) * RESEARCH.speed.perLevel,
-  range: (research.range ?? 0) * RESEARCH.range.perLevel,
+  damage: 1 + researchValue('damage', research.damage ?? 0),
+  haste: researchValue('speed', research.speed ?? 0),
+  range: researchValue('range', research.range ?? 0),
 });
 
 function monsterGroup(type, count, wave, trait = null, difficulty = 'easy') {
@@ -342,6 +363,13 @@ function catalog() {
     mastery: { kills: MASTERY_KILLS, damage: MASTERY_DAMAGE, haste: MASTERY_HASTE },
     research: RESEARCH,
     researchCosts: RESEARCH_COSTS,
+    researchBaseLevels: RESEARCH_BASE_LEVELS,
+    wish: {
+      categories: GEM_CATEGORIES,
+      categoryCost: WISH_CATEGORY_COST,
+      levelCost: WISH_LEVEL_COST,
+      categoryRate: WISH_CATEGORY_RATE,
+    },
     interest: { rate: INTEREST_RATE, cap: INTEREST_CAP },
     traits: TRAITS,
     traitIds: TRAIT_IDS,
@@ -356,7 +384,7 @@ module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
   WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
-  SWAP_COST, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
+  SWAP_COST, GEM_CATEGORIES, WISH_CATEGORY_RATE, wishCost, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, RESEARCH_BASE_LEVELS, researchValue, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
   TRAIT_IDS, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,
   waveClearBonus, bossLeak, interestOn, armorFactor, gemStats, researchBonus, waveDef, testWaveDef, testAfterWave, testReward, catalog,
 };

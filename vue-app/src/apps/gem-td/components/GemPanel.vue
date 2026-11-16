@@ -137,6 +137,25 @@
             <p v-if="qualityCost && shortOf(qualityCost)" class="mt-1 mb-0 text-(--gt-muted)">還差 {{ shortOf(qualityCost) }} 金</p>
         </section>
 
+        <!-- 許願池：預訂下一回合 5 選 1 的風向，每回合一次 -->
+        <section v-if="me && !me.out && phase === 'build' && catalog.wish" :class="tabClass('shop')" aria-label="甜點許願池">
+            <h3 class="gt-heading">甜點許願池</h3>
+            <p v-if="me.wish" class="m-0 leading-snug" role="status">
+                已許願：下回合{{ me.wish.type === 'level' ? '抽到高等級甜點的機率提高' : `「${catalog.wish.categories[me.wish.category].name}」出現機率大增，至少 1 顆` }}
+            </p>
+            <template v-else>
+                <div class="flex flex-wrap gap-1.5">
+                    <button v-for="(c, id) in catalog.wish.categories" :key="id" class="gt-btn gt-btn--small" :disabled="shortOf(catalog.wish.categoryCost) > 0" @click="$emit('wish', 'category', id)">
+                        {{ c.name }}（{{ catalog.wish.categoryCost }} 金）
+                    </button>
+                    <button class="gt-btn gt-btn--small" :disabled="shortOf(catalog.wish.levelCost) > 0" @click="$emit('wish', 'level')">
+                        高等級（{{ catalog.wish.levelCost }} 金）
+                    </button>
+                </div>
+                <p class="mt-1.5 mb-0 text-xs leading-snug text-(--gt-muted)">只影響下一回合的 5 選 1，不直接給甜點；每回合限許一次。</p>
+            </template>
+        </section>
+
         <!-- 買命：金幣換血量，血量滿了或傷害測試（不扣血）就不顯示 -->
         <section v-if="me && !me.out && phase === 'build' && !view.nextWave?.test" :class="tabClass('shop')" aria-label="買命">
             <h3 class="gt-heading">補血</h3>
@@ -158,7 +177,7 @@
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
                 <li v-for="r in researchRows" :key="r.id" class="gt-row">
                     <span class="min-w-0 flex-1 leading-snug">
-                        <b class="font-semibold text-(--gt-ink)">{{ r.name }} Lv{{ r.level }}／{{ catalog.researchCosts.length }}</b><br />{{ r.desc }}
+                        <b class="font-semibold text-(--gt-ink)">{{ r.name }} Lv{{ r.level }}／{{ catalog.researchCosts.length }}<span v-if="r.level > catalog.researchBaseLevels" class="ml-1 text-(--gt-muted)">匠心 +{{ r.level - catalog.researchBaseLevels }}</span></b><br />{{ r.desc }}
                         <template v-if="r.cost && shortOf(r.cost)"><br /><span class="text-(--gt-muted)">還差 {{ shortOf(r.cost) }} 金</span></template>
                     </span>
                     <button v-if="r.cost" class="gt-btn gt-btn--small shrink-0" :disabled="shortOf(r.cost) > 0" @click="$emit('research', r.id)">{{ r.cost }} 金</button>
@@ -188,7 +207,7 @@ const props = defineProps({
 
 // 手機只顯示目前分頁的區塊；沒傳分頁（空字串）時全部顯示
 const tabClass = (...tabs) => (props.phoneTab && !tabs.includes(props.phoneTab) ? 'max-sm:hidden' : '')
-defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'research', 'remove', 'start-swap', 'cancel-swap'])
+defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'wish', 'research', 'remove', 'start-swap', 'cancel-swap'])
 
 const HITS = { all: '地面與空中', ground: '只打地面', air: '只打空中' }
 const RATE_COLORS = ['#C9B2AD', '#9FB8C9', '#5FA8D3', '#3CCB72', '#F2B233', '#D6305A']

@@ -12,7 +12,7 @@
 // 地圖畫布：只負責畫面與輸入。座標以「格」為單位，格子中心是 (x + .5, y + .5)。
 // 手機點一下先預覽、同一格再點一下才放；滑鼠直接放。雙指或滾輪縮放，放大後拖曳平移。
 import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
-import { GEM_LOOK, MONSTER_LOOK, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
+import { CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
 import { spawnHit, spawnDeath, clearFx, drawFx, hasFx } from '../composables/usePixelFx.js'
 
 const props = defineProps({
@@ -188,6 +188,10 @@ const shots = []
 const FLASH_MS = 90
 const POP_MS = 700
 const MAX_POPS = 24
+const MAX_GHOSTS = 30 // 同時播放的輕量退場上限
+const MAX_BURSTS = 4 // 同一幀最多幾個 pixelfx 爆點
+const GHOST_MS = 280
+const ghosts = [] // 輕量退場 { type, x, y, born }
 const flashes = new Map() // monsterId → 閃白結束時間
 const pops = [] // 傷害數字 { x, y, text, born, big }
 let shakeAmp = 0 // 格；每幀衰減
@@ -200,6 +204,7 @@ function shake(amount) {
 function resetJuice() {
     flashes.clear()
     pops.length = 0
+    ghosts.length = 0
     shakeAmp = 0
 }
 
@@ -221,15 +226,27 @@ watch(() => props.frame, (frame) => {
     // 消失的蟲子：離出口夠遠就是被打死的，放爆點（走到出口的不算）
     const view = toRaw(props.view)
     const end = view.board?.end
+    let bursts = 0
     for (const [id, m] of prevMap) {
         if (curMap.has(id)) continue
         flashes.delete(id)
         const reachedEnd = end && Math.hypot(m.x - end.x, m.y - end.y) <= 1.5
         if (!reachedEnd) {
-            spawnDeath(m.x, m.y)
+            const type = catalogRaw()?.monsters?.[m.type]?.id ?? 'normal'
+            const big = type === 'boss' || type === 'titan'
+            // 退場分級：大怪與甲蟲才用 pixelfx 爆點（同一幀最多 MAX_BURSTS 個），
+            // 其餘走便宜的 canvas 小動畫；偏好減少動態時一律不播
+            if (!reducedMotion) {
+                if (big || (type === 'armored' && bursts < MAX_BURSTS)) {
+                    spawnDeath(m.x, m.y)
+                    bursts++
+                } else {
+                    if (ghosts.length >= MAX_GHOSTS) ghosts.shift()
+                    ghosts.push({ type, x: m.x, y: m.y, born: now })
+                }
+            }
             // 大型怪倒下要有份量
-            const type = catalogRaw()?.monsters?.[m.type]?.id
-            if (type === 'boss' || type === 'titan') shake(0.3)
+            if (big) shake(0.3)
         } else {
             shake(0.22) // 蟲子搬走蛋糕
         }
@@ -379,21 +396,42 @@ function drawBoard(view, cell) {
     }
 
     const stops = [
-        { p: board.start, label: '入', color: '#2E9E5B' },
         ...board.checkpoints.map((p, i) => ({ p, label: String(i + 1), color: COLOR.path })),
-        { p: board.end, label: '出', color: '#4A2C2A' },
     ]
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
+    for (const [pt, url, fallback] of [[board.start, NEST_IMAGE, '#2E9E5B'], [board.end, CAKE_IMAGE, '#E8541E']]) {
+        const img = imageOf(url)
+        const cx = (pt.x + 0.5) * cell
+        const cy = (pt.y + 0.5) * cell
+        if (img) {
+            const d = cell * 1.25
+            ctx.drawImage(img, cx - d / 2, cy - d / 2, d, d)
+        } else {
+            ctx.beginPath()
+            ctx.arc(cx, cy, cell * 0.5, 0, Math.PI * 2)
+            ctx.fillStyle = fallback
+            ctx.fill()
+        }
+    }
     for (const { p, label, color } of stops) {
         const cx = (p.x + 0.5) * cell
         const cy = (p.y + 0.5) * cell
-        ctx.beginPath()
-        ctx.arc(cx, cy, cell * 0.5, 0, Math.PI * 2)
-        ctx.fillStyle = color
-        ctx.fill()
+        const candy = imageOf(CHECKPOINT_IMAGE)
+        if (candy) {
+            ctx.drawImage(candy, cx - cell * 0.55, cy - cell * 0.55, cell * 1.1, cell * 1.1)
+        } else {
+            ctx.beginPath()
+            ctx.arc(cx, cy, cell * 0.5, 0, Math.PI * 2)
+            ctx.fillStyle = color
+            ctx.fill()
+        }
         ctx.fillStyle = '#FFFFFF'
-        ctx.font = `700 ${cell * 0.68}px 'Noto Sans TC', sans-serif`
+        ctx.strokeStyle = '#7A1530'
+        ctx.lineWidth = Math.max(2, cell * 0.12)
+        ctx.lineJoin = 'round'
+        ctx.font = `700 ${cell * 0.62}px 'Noto Sans TC', sans-serif`
+        ctx.strokeText(label, cx, cy + cell * 0.04)
         ctx.fillText(label, cx, cy + cell * 0.04)
     }
 }
@@ -432,7 +470,9 @@ function drawTowers(view, catalog, cell, now) {
             ctx.strokeRect(x + cell * 0.05, y + cell * 0.05, cell * 0.9, cell * 0.9)
             ctx.globalAlpha = 1
         }
-        drawGem(t.kind, t.level, cx, cy, cell)
+        const rank = showRank ? countReached(steps, t.kills) : 0
+        if (rank) drawRankGlow(cx, cy, cell, rank, steps.length)
+        drawGem(t.kind, t.level, cx, cy, cell * (1 + 0.025 * rank))
         if (showLevel && !isSpecial(t.kind)) {
             const badge = cell * 0.2
             const bx = x + badge
@@ -445,17 +485,67 @@ function drawTowers(view, catalog, cell, now) {
             ctx.font = `700 ${cell * 0.3}px 'Noto Sans TC', sans-serif`
             ctx.fillText(String(t.level), bx, by + cell * 0.01)
         }
-        const rank = showRank ? countReached(steps, t.kills) : 0
-        if (rank) {
-            // 右上角的熟練度標籤：金底，內容是 ★ 加階數
-            const w = cell * 0.5
-            const h = cell * 0.28
-            ctx.fillStyle = '#F2B632'
-            ctx.fillRect(x + cell - w, y, w, h)
-            ctx.fillStyle = COLOR.ink
-            ctx.font = `700 ${cell * 0.24}px 'Noto Sans TC', sans-serif`
-            ctx.fillText(`★${rank}`, x + cell - w / 2, y + h / 2 + cell * 0.01)
+        if (rank) drawRankPips(x, y, cell, rank, steps.length)
+    }
+}
+
+// 熟練度外觀：階數越高，光暈越亮；頂端的星依階數增加，滿階換成皇冠
+function drawRankGlow(cx, cy, cell, rank, max) {
+    const t = rank / max
+    const r = cell * (0.5 + 0.12 * t)
+    const g = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r)
+    g.addColorStop(0, `rgba(255, 214, 79, ${0.25 + 0.4 * t})`)
+    g.addColorStop(1, 'rgba(255, 214, 79, 0)')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.fill()
+}
+
+function drawRankPips(x, y, cell, rank, max) {
+    const cx = x + cell / 2
+    if (rank >= max) {
+        // 皇冠
+        const w = cell * 0.46
+        const h = cell * 0.26
+        const left = cx - w / 2
+        const top = y - cell * 0.02
+        ctx.beginPath()
+        ctx.moveTo(left, top + h)
+        ctx.lineTo(left, top + h * 0.25)
+        ctx.lineTo(left + w * 0.25, top + h * 0.6)
+        ctx.lineTo(cx, top)
+        ctx.lineTo(left + w * 0.75, top + h * 0.6)
+        ctx.lineTo(left + w, top + h * 0.25)
+        ctx.lineTo(left + w, top + h)
+        ctx.closePath()
+        ctx.fillStyle = '#F2B632'
+        ctx.fill()
+        ctx.strokeStyle = COLOR.ink
+        ctx.lineWidth = Math.max(1, cell * 0.05)
+        ctx.lineJoin = 'round'
+        ctx.stroke()
+        return
+    }
+    const r = cell * 0.09
+    const gap = r * 2.3
+    const startX = cx - ((rank - 1) * gap) / 2
+    const cy = y + r + cell * 0.02
+    ctx.fillStyle = '#F2B632'
+    ctx.strokeStyle = COLOR.ink
+    ctx.lineWidth = Math.max(1, cell * 0.04)
+    ctx.lineJoin = 'round'
+    for (let i = 0; i < rank; i++) {
+        const px = startX + i * gap
+        ctx.beginPath()
+        for (let k = 0; k < 10; k++) {
+            const rr = k % 2 ? r * 0.45 : r
+            const a = -Math.PI / 2 + (k * Math.PI) / 5
+            ctx.lineTo(px + Math.cos(a) * rr, cy + Math.sin(a) * rr)
         }
+        ctx.closePath()
+        ctx.fill()
+        ctx.stroke()
     }
 }
 
@@ -526,6 +616,47 @@ function drawMonsters(catalog, cell, now) {
         ctx.fillRect(cx - w / 2, by, w, h)
         ctx.fillStyle = m.hp > 50 ? '#3CCB72' : m.hp > 25 ? '#F2B233' : '#F0506E'
         ctx.fillRect(cx - w / 2, by, (w * m.hp) / 100, h)
+    }
+}
+
+// 輕量退場：依怪物種類換不同收尾，只用 canvas 變形，不產生新節點
+//   工蟻縮小淡出、疾行甲蟲旋轉縮小、碎屑蟲膨脹破掉、胡蜂墜落
+function drawGhosts(cell, now) {
+    for (let i = ghosts.length - 1; i >= 0; i--) {
+        const g = ghosts[i]
+        const k = (now - g.born) / GHOST_MS
+        if (k >= 1) {
+            ghosts.splice(i, 1)
+            continue
+        }
+        const look = MONSTER_LOOK[g.type] ?? MONSTER_LOOK.normal
+        const r = cell * look.size
+        let scale = 1 - k * 0.8
+        let rot = 0
+        let dy = 0
+        if (g.type === 'fast') {
+            rot = k * Math.PI * 3
+        } else if (g.type === 'swarm') {
+            scale = 1 + k * 0.6
+        } else if (g.type === 'air') {
+            dy = k * k * cell * 0.9
+            rot = k * 0.8
+        }
+        ctx.save()
+        ctx.globalAlpha = 1 - k
+        ctx.translate((g.x + 0.5) * cell, (g.y + 0.5) * cell + dy)
+        ctx.rotate(rot)
+        ctx.scale(scale, scale)
+        const img = imageOf(monsterImage(g.type))
+        if (img) {
+            ctx.drawImage(img, -r * 1.25, -r * 1.25, r * 2.5, r * 2.5)
+        } else {
+            ctx.fillStyle = look.color
+            ctx.beginPath()
+            ctx.arc(0, 0, r, 0, Math.PI * 2)
+            ctx.fill()
+        }
+        ctx.restore()
     }
 }
 
@@ -612,7 +743,7 @@ function draw(now) {
     const view = toRaw(props.view)
     const catalog = toRaw(props.catalog)
     if (!ctx || !size || !view?.board) return
-    const animating = view.phase === 'wave' || shots.length > 0 || hasFx() || pops.length > 0 || shakeAmp > 0.002
+    const animating = view.phase === 'wave' || shots.length > 0 || hasFx() || pops.length > 0 || ghosts.length > 0 || shakeAmp > 0.002
         || view.towers.some(t => t.fresh && t.owner === props.myId) // 剛放下的塔外框會閃
     if (!animating && !dirty) return
     dirty = false
@@ -636,6 +767,7 @@ function draw(now) {
     drawTowers(view, catalog, cell, now)
     drawShots(cell, now)
     drawMonsters(catalog, cell, now)
+    drawGhosts(cell, now)
     drawFx(ctx, cell, dt)
     drawPops(cell, now)
     drawOverlays(view, cell)

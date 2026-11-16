@@ -209,7 +209,7 @@
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
-                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @research="upgradeResearch"
+                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
                     @remove="id => { removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
             </aside>
@@ -226,6 +226,7 @@
         <!-- 結算 -->
         <div v-if="view?.phase === 'finished' && view.result" class="overlay">
             <div class="flex max-h-full w-full max-w-[460px] flex-col gap-4 overflow-y-auto border border-(--gt-line) bg-(--gt-surface) p-6 text-(--gt-text)">
+                <img :src="view.result.win ? RESULT_WIN_IMAGE : RESULT_LOSE_IMAGE" alt="" class="mx-auto block h-auto max-h-36 w-auto max-w-full object-contain" />
                 <h2 class="m-0 font-sans text-4xl font-black text-(--gt-ink)">{{ resultTitle }}</h2>
                 <p class="m-0">{{ resultText }}</p>
                 <ul class="m-0 flex list-none flex-col gap-1 p-0">
@@ -273,7 +274,7 @@ import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
 import { useGemTd } from '../composables/useGemTd.js'
 import { useGemTdCues, useGemTdSfx } from '../composables/useGemTdSfx.js'
 import { useGemTdKeys } from '../composables/useGemTdKeys.js'
-import { WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, nextSpeed, PLAYER_MARKS, isSpecial } from '../data/gems.js'
+import { WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, nextSpeed, PLAYER_MARKS, isSpecial, RESULT_WIN_IMAGE, RESULT_LOSE_IMAGE } from '../data/gems.js'
 import GemBoard from '../components/GemBoard.vue'
 import GemPanel from '../components/GemPanel.vue'
 import GemPlayerTabs from '../components/GemPlayerTabs.vue'
@@ -289,7 +290,7 @@ const route = useRoute()
 const router = useRouter()
 const {
     state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
-    upgradeQuality, buyLife, reroll, upgradeResearch, removeStone, swap, ready, setSpeed, setPaused, finishNow, restart,
+    upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, ready, setSpeed, setPaused, finishNow, restart,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useGemTd()
