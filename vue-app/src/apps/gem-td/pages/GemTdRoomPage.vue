@@ -488,11 +488,11 @@ const awardRows = computed(() => {
     if (!a) return []
     const rows = []
     if (a.saver) rows.push({ label: '最會存錢', text: `${nameOf(a.saver.id)}（峰值 ${a.saver.value.toLocaleString()} 金）` })
-    if (a.leaker) rows.push({ label: '漏怪王', text: `${nameOf(a.leaker.id)}（漏 ${a.leaker.value} 隻）` })
     if (a.killer) rows.push({ label: '擊殺王', text: `${nameOf(a.killer.id)}（${a.killer.value.toLocaleString()} 殺）` })
     if (a.dealer) rows.push({ label: '輸出王', text: `${nameOf(a.dealer.id)}（${a.dealer.value.toLocaleString()} 傷）` })
     if (a.lifeBuyer) rows.push({ label: '最愛買命', text: `${nameOf(a.lifeBuyer.id)}（${a.lifeBuyer.value} 次）` })
     if (a.perfectIds.length) rows.push({ label: '完美防守', text: `${a.perfectIds.map(nameOf).join('、')}（零漏怪）` })
+    if (a.leaker) rows.push({ label: '漏怪王', text: `${nameOf(a.leaker.id)}（漏 ${a.leaker.value} 隻）` })
     return rows
 })
 
@@ -606,7 +606,7 @@ function handleKey(code) {
     }
     case 'KeyD':
         if (!building || !me.canReroll) return false
-        if (me.gold >= me.rerollCost) reroll()
+        if (me.gold >= me.rerollCost && activeSlot.value != null) reroll(activeSlot.value)
         return true
     case 'KeyS':
         if (swapFrom.value) { swapFrom.value = null; return true }

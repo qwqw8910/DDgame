@@ -1,5 +1,5 @@
 <template>
-    <component :is="interactive ? 'button' : 'div'" class="gt-mut" :class="{ 'gt-mut--picked': picked }"
+    <component :is="interactive ? 'button' : 'div'" class="gt-mut" :class="{ 'gt-mut--picked': picked, 'gt-mut--column': column }"
         :type="interactive ? 'button' : undefined" :aria-pressed="interactive ? picked : undefined" @click="interactive && $emit('pick')">
         <span class="gt-mut__art" aria-hidden="true">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></svg>
@@ -25,6 +25,7 @@ defineProps({
     votes: { type: Number, default: null },
     interactive: { type: Boolean, default: false },
     picked: { type: Boolean, default: false },
+    column: { type: Boolean, default: false }, // 電腦版並排用的直式排版；手機不受影響
 })
 defineEmits(['pick'])
 </script>
@@ -76,6 +77,15 @@ button.gt-mut:focus-visible { outline: 3px solid var(--mut); outline-offset: 2px
 .gt-mut__title { font-size: 16px; font-weight: 700; line-height: 1.3; }
 .gt-mut__line { display: flex; gap: 6px; font-size: 13px; line-height: 1.45; }
 .gt-mut__line b { flex: none; font-weight: 700; }
+/* column：電腦版三張並排（左中右）時，卡片改成直式，圖示在上、文字在下 */
+@media (min-width: 1024px) {
+    .gt-mut--column { flex-direction: column; gap: 6px; padding: 8px; border-radius: 12px; }
+    .gt-mut--column .gt-mut__art { width: 32px; height: 32px; }
+    .gt-mut--column .gt-mut__art svg { width: 20px; height: 20px; }
+    .gt-mut--column .gt-mut__body { width: 100%; gap: 3px; }
+    .gt-mut--column .gt-mut__title { font-size: 14px; }
+    .gt-mut--column .gt-mut__line { font-size: 12px; line-height: 1.4; }
+}
 .gt-mut__line--pro b { color: #2e9e77; }
 .gt-mut__line--con b { color: #6b3f8c; }
 </style>

@@ -309,7 +309,7 @@ function registerNamespace(io, db) {
       if (msg) notice(roomId, msg);
     });
     action('gt:upgrade-quality', ({ playerId, game }) => L.upgradeQuality(game, playerId));
-    action('gt:reroll', ({ playerId, game }) => L.rerollGems(game, playerId));
+    action('gt:reroll', ({ playerId, game }, { slot } = {}) => L.rerollGems(game, playerId, slot));
     action('gt:wish', ({ playerId, game }, { category } = {}) => L.makeWish(game, playerId, { category }));
     action('gt:vote-mutation', ({ playerId, game }, { id } = {}) => L.voteMutation(game, playerId, id));
     action('gt:research', ({ playerId, game }, { track }) => L.upgradeResearch(game, playerId, track));
