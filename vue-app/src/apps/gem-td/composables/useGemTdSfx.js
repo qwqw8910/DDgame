@@ -205,6 +205,13 @@ const SOUNDS = {
     const freq = 1100 + Math.random() * 500
     tone(t, { freq, to: freq * 0.6, dur: 0.05, gain: 0.03 })
   },
+  // 暴擊：亮亮的叮聲疊一記低頻重擊，跟一般的啵聲分得出來
+  crit(t) {
+    tone(t, { freq: E6, to: G6, dur: 0.1, gain: 0.07, type: 'triangle' })
+    tone(t + 0.04, { freq: G6 * 1.5, dur: 0.18, gain: 0.04, type: 'triangle' })
+    tone(t, { freq: 180, to: 70, dur: 0.12, gain: 0.2 })
+    noise(t, { dur: 0.05, gain: 0.1, type: 'highpass', freq: 4500 })
+  },
   // 打死蟲子：啪嘰
   kill(t) {
     const freq = 240 + Math.random() * 120
@@ -307,6 +314,8 @@ function actionCue(before, after) {
 function playFrame(next, prev) {
   const shots = Math.min(next.s.length, MAX_SHOTS_PER_FRAME)
   for (let i = 0; i < shots; i++) playSfx('shot', Math.random() * FRAME_MS / 1000)
+  // 暴擊每幀只響一次，波次後段暴擊塔很多時才不會糊成一團
+  if (next.s.some(shot => shot[2])) playSfx('crit', Math.random() * FRAME_MS / 1000 * 0.5)
 
   // 換視角的第一幀沒有可比對的進度
   if (next.owner !== prev?.owner) return

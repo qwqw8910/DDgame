@@ -26,7 +26,7 @@
                 <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="shortOf(me.rerollCost) > 0" aria-keyshortcuts="D" @click="$emit('reroll')">
                     重骰這手（{{ me.rerollCost }} 金）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">D</kbd>
                 </button>
-                <p class="mt-1 mb-0 text-xs text-(--gt-muted)">
+                <p class="mt-1 mb-0 text-xs text-(--gt-muted) max-sm:hidden">
                     <template v-if="shortOf(me.rerollCost)">還差 {{ shortOf(me.rerollCost) }} 金・</template>本回合已骰 {{ me.rerolls }} 次，每骰一次 +{{ catalog.rerollStep }} 金，下回合恢復
                 </p>
             </template>

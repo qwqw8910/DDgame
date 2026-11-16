@@ -1560,13 +1560,13 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
      rail / side 改 display: contents，讓裡面的區塊直接排進 .gt-game，再用 order 排順序。 ── */
   @media (max-width: 639px) {
     .gt-game {
-      --gt-stage: min(100vw, 42dvh); --gt-tabbar: 48px;
+      --gt-stage: min(100vw, calc(100dvh - 57px - 48px - 240px)); --gt-tabbar: 48px;
       flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 16px;
     }
     .gt-rail, .gt-rail-top, .gt-side { display: contents; }
     .gt-rail-top > *, .gt-side > * { order: 5; margin: 12px 12px 0; max-width: calc(100% - 24px); }
     .gt-stage {
-      order: 2; position: sticky; top: 0; z-index: 3; flex: none; height: var(--gt-stage); padding: 4px;
+      order: 2; position: sticky; top: 0; z-index: 3; flex: none; height: var(--gt-stage); padding: 0;
       background: var(--gt-bg); border-bottom: 1px solid var(--gt-line);
     }
     .gt-tabbar {
