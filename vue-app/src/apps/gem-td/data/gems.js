@@ -44,6 +44,8 @@ export const GEM_LOOK = {
 
   galaxy: { color: '#5A5FD8' }, opera: { color: '#2E9E5B' }, souffle: { color: '#E8541E' },
   emperor: { color: '#E0A800' }, aurora: { color: '#38C7E0' },
+
+  godsweet: { color: '#FF5FA8' },
 }
 
 export const isSpecial = kind => kind in GEM_LOOK && !GEM_ORDER.includes(kind)
@@ -59,7 +61,7 @@ export const CAKE_IMAGE = assetUrl('map/cake.webp')
 export const HERO_IMAGE = assetUrl('hero.webp')
 
 // 等級越高顆粒越大
-export const gemScale = level => 0.56 + Math.min(level, 6) * 0.065
+export const gemScale = level => 0.56 + Math.min(level, 7) * 0.065
 
 export const MONSTER_LOOK = {
   normal: { color: '#8A4B2A', size: 0.42 },

@@ -43,6 +43,7 @@
 | `towers-t2.jpg` | `towers/`：starsilver 星星銀蛋糕、peacock 開心果千層、crimson 雙層紅絲絨、royalgold 皇家巧克力塔、paraibaheart 汽水聖代 |
 | `towers-extra.jpg` | `towers/`：mintchoc 薄荷巧克力餅、mintking 薄荷巧克力聖代、rainbow 彩虹馬卡龍塔、prism 彩虹千層酥 |
 | `towers-t3.jpg` | `towers/`：galaxy 銀河慕斯、opera 翡翠歌劇院蛋糕、souffle 火焰舒芙蕾、emperor 帝王金箔蛋糕、aurora 極光芭菲 |
+| `towers-godsweet.jpg` | `towers/godsweet.webp`：隱藏塔甜點之神（2026-11-16 補，用掉約 6 額度） |
 | `hero.jpg` | `hero.webp` |
 | `titan-cake.jpg` | `monsters/titan.webp` 甜點巨獸、`map/cake.webp` 出口蛋糕 |
 | `nest.jpg` | `map/nest.webp` 入口蟻窩（餅乾碎屑堆） |

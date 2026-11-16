@@ -42,9 +42,10 @@ const WAYPOINTS = {
   end: [0.92, 0.92],
 };
 
-const LEVEL_NAMES = ['碎屑', '迷你', '小份', '標準', '精緻', '巨型'];
+// 至尊（Lv7）不會直接抽到，只能由兩顆巨型合成而來；8 種基礎甜點各一顆至尊可合成隱藏塔
+const LEVEL_NAMES = ['碎屑', '迷你', '小份', '標準', '精緻', '巨型', '至尊'];
 const MAX_LEVEL = LEVEL_NAMES.length;
-const LEVEL_DAMAGE = [1, 2.3, 5.5, 13, 30, 72];
+const LEVEL_DAMAGE = [1, 2.3, 5.5, 13, 30, 72, 170];
 
 // 基礎寶石：hits 省略時對空對地都可攻擊
 const GEMS = {
@@ -101,6 +102,13 @@ const SPECIALS = {
     crit: { chance: 0.45, mult: 4 }, armorAura: { amount: 18, radius: 7 } },
   aurora: { name: '極光芭菲', tier: 3, trait: '極寒破甲席捲全場', damage: 2600, cooldown: 1.0, range: 8,
     splash: { radius: 3.2, ratio: 0.85 }, slow: { pct: 0.65, duration: 3 }, shred: { amount: 20, duration: 3 } },
+
+  // 隱藏塔：集 8 種基礎甜點的特性於一身，合成表平常不顯示，湊齊材料才會出現
+  godsweet: { name: '甜點之神', tier: 4, trait: '集八種甜點之力：十二目標連射、濺射、灼燒、爆擊、極寒破甲，並大幅加速周圍的塔',
+    damage: 4500, cooldown: 0.5, range: 10, targets: 12,
+    splash: { radius: 3.5, ratio: 0.9 }, slow: { pct: 0.7, duration: 3 }, poison: { dps: 1500, duration: 3 },
+    crit: { chance: 0.5, mult: 4 }, shred: { amount: 20, duration: 3 }, armorAura: { amount: 20, radius: 8 },
+    aura: { haste: 0.6, radius: 6 } },
 };
 
 // 配方：minLevel 是「至少幾級」；同種寶石要兩顆時會分別配對
@@ -126,6 +134,10 @@ const RECIPES = [
   { id: 'souffle', result: 'souffle', ingredients: [{ kind: 'crimson' }, { kind: 'R', minLevel: 6 }, { kind: 'P', minLevel: 5 }] },
   { id: 'emperor', result: 'emperor', ingredients: [{ kind: 'royalgold' }, { kind: 'D', minLevel: 6 }, { kind: 'P', minLevel: 6 }] },
   { id: 'aurora', result: 'aurora', ingredients: [{ kind: 'paraibaheart' }, { kind: 'Q', minLevel: 6 }, { kind: 'O', minLevel: 6 }] },
+
+  // 隱藏配方：8 種基礎甜點各一顆至尊（Lv7）
+  { id: 'godsweet', result: 'godsweet', hidden: true,
+    ingredients: ['B', 'D', 'E', 'G', 'O', 'Q', 'R', 'P'].map(kind => ({ kind, minLevel: 7 })) },
 ];
 
 // 寶石品質：抽到 L1~L6 的權重（第 n 列 = 品質 n）
@@ -146,10 +158,33 @@ const GEM_CATEGORIES = {
   candy: { name: '糖果系', kinds: ['D', 'G', 'P'] },
   bakery: { name: '烘焙系', kinds: ['E', 'O'] },
 };
-const WISH_CATEGORY_COST = 150;
-const WISH_LEVEL_COST = 300;
-const WISH_CATEGORY_RATE = 0.6; // 每格抽中指定分類的機率（本來約 3/8），並保底至少 1 顆
-const wishCost = type => (type === 'level' ? WISH_LEVEL_COST : WISH_CATEGORY_COST);
+const WISH_CATEGORY_COST = 60;
+// 許願：只影響下一回合 5 格中的 1 格（不用選哪格），同一回合可連續許最多 3 次：機率逐次提高、價格逐次加貴，許滿第 3 次連等級也提高
+const WISH_STACK_RATES = [0.6, 0.8, 1]; // 許願只影響 1 格，許越多次該格抽中指定分類的機率越高
+const WISH_LEVEL_STACK = 3; // 許滿這麼多次，該格的等級也改用高一級品質的機率表
+const WISH_STACK_COST_MULT = [1, 2, 3]; // 60 / 120 / 180 金
+const WISH_MAX_STACKS = WISH_STACK_RATES.length;
+const wishCost = (stacks = 0) => WISH_CATEGORY_COST * WISH_STACK_COST_MULT[stacks];
+// 隨機突變：從第 10 波起每 5 波換一張全局詞綴，持續到下一次抽取。傷害測試不受影響
+// 每張都是取捨（pro 好處、con 代價），沒有純祝福或純詛咒，投票時比的是「哪種風險適合我的塔」
+// 共用血量由全隊投票三選一，獨立血量全場隨機一張
+const MUTATION_FIRST_WAVE = 10;
+const MUTATION_EVERY = 5;
+const MUTATION_OFFERS = 3;
+const MUTATIONS = {
+  frenzy: { name: '甜食狂熱', pro: '擊殺金幣 +50%', con: '怪物血量低於 30% 時移速翻倍', goldMult: 1.5, frenzy: { hp: 0.3, speed: 2 } },
+  glass: { name: '玻璃大炮', pro: '塔傷害 +40%', con: '怪物血量 +40%', damage: 0.4, hpMult: 1.4 },
+  sniper: { name: '狙擊手', pro: '射程 6 以上的塔傷害 +50%', con: '射程 4 以下的塔傷害 −30%', long: { min: 6, damage: 0.5 }, short: { max: 4, damage: -0.3 } },
+  fog: { name: '濃霧', pro: '塔傷害 +25%', con: '所有塔射程 −1 格，要把塔換到更貼近路線的位置', damage: 0.25, range: -1 },
+  shell: { name: '厚重甲殼', pro: '擊殺金幣 +50%', con: '每隻怪物免疫前 3 次受到的攻擊，快攻速與多目標的塔更有效', goldMult: 1.5, shellHits: 3 },
+  swift: { name: '疾風', pro: '塔攻速 +25%', con: '怪物移速 +25%', haste: 0.25, monsterSpeed: 1.25 },
+  glaze: { name: '糖衣護甲', pro: '擊殺數以 2 倍計入熟練度', con: '怪物護甲 +4，高單發傷害的塔更有效', killMult: 2, armorAdd: 4 },
+  syrup: { name: '糖漿滋補', pro: '擊殺金幣 +50%', con: '怪物血量 +30%', goldMult: 1.5, hpMult: 1.3 },
+  honey: { name: '蜜糖地面', pro: '怪物移速 −20%', con: '擊殺金幣 −40%', monsterSpeed: 0.8, goldMult: 0.6 },
+  harvest: { name: '豐收季', pro: '擊殺金幣 +80%', con: '塔傷害 −20%', goldMult: 1.8, damage: -0.2 },
+};
+const MUTATION_IDS = Object.keys(MUTATIONS);
+const isMutationWave = wave => wave >= MUTATION_FIRST_WAVE && (wave - MUTATION_FIRST_WAVE) % MUTATION_EVERY === 0;
 const SWAP_COST = 25;
 // 重骰手上的甜點：品質越高底價越貴，同一回合每骰一次再加價，下回合歸零
 const REROLL_BASE = 10;
@@ -364,11 +399,16 @@ function catalog() {
     research: RESEARCH,
     researchCosts: RESEARCH_COSTS,
     researchBaseLevels: RESEARCH_BASE_LEVELS,
+    mutations: Object.fromEntries(MUTATION_IDS.map(id => [id, { name: MUTATIONS[id].name, pro: MUTATIONS[id].pro, con: MUTATIONS[id].con }])),
+    mutationFirstWave: MUTATION_FIRST_WAVE,
+    mutationEvery: MUTATION_EVERY,
     wish: {
       categories: GEM_CATEGORIES,
       categoryCost: WISH_CATEGORY_COST,
-      levelCost: WISH_LEVEL_COST,
-      categoryRate: WISH_CATEGORY_RATE,
+      maxStacks: WISH_MAX_STACKS,
+      stackRates: WISH_STACK_RATES,
+      levelStack: WISH_LEVEL_STACK,
+      stackCostMult: WISH_STACK_COST_MULT,
     },
     interest: { rate: INTEREST_RATE, cap: INTEREST_CAP },
     traits: TRAITS,
@@ -384,7 +424,8 @@ module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
   WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
-  SWAP_COST, GEM_CATEGORIES, WISH_CATEGORY_RATE, wishCost, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, RESEARCH_BASE_LEVELS, researchValue, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
+  MUTATIONS, MUTATION_IDS, MUTATION_OFFERS, isMutationWave,
+  SWAP_COST, GEM_CATEGORIES, WISH_STACK_RATES, WISH_LEVEL_STACK, WISH_MAX_STACKS, wishCost, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, RESEARCH_BASE_LEVELS, researchValue, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
   TRAIT_IDS, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,
   waveClearBonus, bossLeak, interestOn, armorFactor, gemStats, researchBonus, waveDef, testWaveDef, testAfterWave, testReward, catalog,
 };

@@ -34,7 +34,7 @@
                     </li>
                 </ul>
 
-                <template v-for="group in groups" :key="group.title">
+                <template v-for="group in groups.filter(g => g.rows.length)" :key="group.title">
                     <h3 class="gt-heading">{{ group.title }}</h3>
                     <ul class="m-0 mb-3 flex list-none flex-col gap-1.5 p-0 last:mb-0">
                         <li v-for="r in group.rows" :key="r.id" class="gt-row flex-col !items-stretch !gap-1" :class="{ 'gt-row--on': r.canCombine }">
@@ -85,7 +85,8 @@ const STATUS = {
 
 const rows = computed(() => {
     const me = props.view.me
-    return props.catalog.recipes.map((recipe) => {
+    // 隱藏配方：材料湊齊（可以合成）前不顯示
+    return props.catalog.recipes.filter(recipe => !recipe.hidden || props.view.me?.recipes.some(r => r.id === recipe.id)).map((recipe) => {
         // 觀戰者沒有材料可比對，只顯示配方
         const statuses = me ? recipeProgress(recipe, me) : recipe.ingredients.map(() => 'unknown')
         const missing = statuses.filter(s => s === 'missing').length
@@ -114,6 +115,7 @@ const groups = computed(() => [
     { title: '特殊塔', rows: rows.value.filter(r => r.tier === 1) },
     { title: '進階特殊塔', rows: rows.value.filter(r => r.tier === 2) },
     { title: '極致特殊塔', rows: rows.value.filter(r => r.tier === 3) },
+    { title: '隱藏塔', rows: rows.value.filter(r => r.tier === 4) },
 ])
 
 const merges = computed(() => (props.view.me ? mergeOptions(props.view.me, props.catalog.levelNames.length) : []))

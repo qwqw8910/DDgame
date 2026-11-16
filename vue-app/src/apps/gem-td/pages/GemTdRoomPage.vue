@@ -8,7 +8,7 @@
                 <span class="truncate font-sans font-bold text-(--gt-ink) max-[400px]:hidden" :class="showGame && 'max-sm:hidden'">甜點守衛戰</span>
                 <span class="hidden text-(--gt-muted) tabular-nums sm:inline">{{ roomState.roomId }}</span>
                 <!-- 手機：血量、金幣、波次、倒數併進標題列，整個畫面最上面只有這一排 -->
-                <div v-if="showGame" class="hidden min-w-0 items-center gap-3 font-bold text-(--gt-ink) tabular-nums max-sm:flex">
+                <div v-if="showGame" class="hidden min-w-0 items-center gap-3 font-bold text-(--gt-ink) tabular-nums max-sm:flex max-[360px]:gap-2 max-[360px]:text-sm">
                     <span class="inline-flex items-center gap-1" :title="view.options.livesMode === 'team' ? '隊伍血量' : '我的血量'">
                         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--gt-accent)" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.1 1.8-1.9 3.3-3.1 5.4-3.1 3.6 0 5.7 3.7 4.2 7.2C19.5 16.4 12 21 12 21z" /></svg>
                         <span class="sr-only">血量</span>{{ lives }}
@@ -209,7 +209,7 @@
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
-                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
+                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @vote-mutation="voteMutation" @research="upgradeResearch"
                     @remove="id => { removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
             </aside>
@@ -290,7 +290,7 @@ const route = useRoute()
 const router = useRouter()
 const {
     state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
-    upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, ready, setSpeed, setPaused, finishNow, restart,
+    upgradeQuality, buyLife, reroll, makeWish, voteMutation, upgradeResearch, removeStone, swap, ready, setSpeed, setPaused, finishNow, restart,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useGemTd()

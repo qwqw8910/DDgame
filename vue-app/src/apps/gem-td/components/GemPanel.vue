@@ -58,6 +58,16 @@
         </section>
 
         <!-- 特殊塔 -->
+        <!-- 突變：共用血量由全隊投票三選一，獨立血量由伺服器隨機，直接看戰況欄的預告 -->
+        <section v-if="phase === 'build' && view.mutationOffer && me && !me.out" :class="tabClass('place')" aria-label="突變投票">
+            <h3 class="gt-heading">第 {{ view.mutationOffer.wave }} 波突變：全隊三選一<span v-if="!view.mutationOffer.myVote" class="ml-2 text-(--gt-accent-ink)">還沒投票</span></h3>
+            <div class="flex flex-col gap-2">
+                <GemMutationCard v-for="id in view.mutationOffer.options" :key="id" :mutation="catalog.mutations[id]" :votes="view.mutationOffer.counts[id]"
+                    interactive :picked="view.mutationOffer.myVote === id" @pick="$emit('vote-mutation', id)" />
+            </div>
+            <p class="mt-1.5 mb-0 text-xs leading-snug text-(--gt-muted)">票數最高者生效，持續 {{ catalog.mutationEvery }} 波；同票或沒人投就隨機。開波前都可以改票。</p>
+        </section>
+
         <section v-if="recipes.length" :class="tabClass('place')" aria-label="可合成的特殊塔">
             <h3 class="gt-heading">可以合成</h3>
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
@@ -140,20 +150,15 @@
         <!-- 許願池：預訂下一回合 5 選 1 的風向，每回合一次 -->
         <section v-if="me && !me.out && phase === 'build' && catalog.wish" :class="tabClass('shop')" aria-label="甜點許願池">
             <h3 class="gt-heading">甜點許願池</h3>
-            <p v-if="me.wish" class="m-0 leading-snug" role="status">
-                已許願：下回合{{ me.wish.type === 'level' ? '抽到高等級甜點的機率提高' : `「${catalog.wish.categories[me.wish.category].name}」出現機率大增，至少 1 顆` }}
+            <p v-if="me.wish" class="m-0 mb-1.5 leading-snug" role="status">
+                已許願 {{ me.wish.stacks }}/{{ catalog.wish.maxStacks }} 次：下回合有 1 格 {{ Math.round(catalog.wish.stackRates[me.wish.stacks - 1] * 100) }}% 機率變成「{{ catalog.wish.categories[me.wish.category].name }}」{{ me.wish.stacks >= catalog.wish.levelStack ? '，且等級提高' : '' }}，其餘格照常隨機
             </p>
-            <template v-else>
-                <div class="flex flex-wrap gap-1.5">
-                    <button v-for="(c, id) in catalog.wish.categories" :key="id" class="gt-btn gt-btn--small" :disabled="shortOf(catalog.wish.categoryCost) > 0" @click="$emit('wish', 'category', id)">
-                        {{ c.name }}（{{ catalog.wish.categoryCost }} 金）
-                    </button>
-                    <button class="gt-btn gt-btn--small" :disabled="shortOf(catalog.wish.levelCost) > 0" @click="$emit('wish', 'level')">
-                        高等級（{{ catalog.wish.levelCost }} 金）
-                    </button>
-                </div>
-                <p class="mt-1.5 mb-0 text-xs leading-snug text-(--gt-muted)">只影響下一回合的 5 選 1，不直接給甜點；每回合限許一次。</p>
-            </template>
+            <div class="flex flex-wrap gap-1.5">
+                <button v-for="(c, id) in catalog.wish.categories" :key="id" class="gt-btn gt-btn--small" :disabled="wishDisabled(id)" @click="$emit('wish', id)">
+                    {{ c.name }}（{{ wishPrice() }} 金）
+                </button>
+            </div>
+            <p class="mt-1.5 mb-0 text-xs leading-snug text-(--gt-muted)">只影響下一回合的 5 選 1，不直接給甜點。只影響其中 1 格，其餘 4 格照常隨機。同回合可連續許同一分類，該格機率 60% → 80% → 100%、價格 60／120／180 金，許滿第 3 次該格等級也提高，最多 {{ catalog.wish.maxStacks }} 層。</p>
         </section>
 
         <!-- 買命：金幣換血量，血量滿了或傷害測試（不扣血）就不顯示 -->
@@ -192,6 +197,7 @@
 import { computed, ref } from 'vue'
 import { isSpecial } from '../data/gems.js'
 import GemIcon from './GemIcon.vue'
+import GemMutationCard from './GemMutationCard.vue'
 import GemHeaderIcon from './GemHeaderIcon.vue'
 
 const props = defineProps({
@@ -207,7 +213,7 @@ const props = defineProps({
 
 // 手機只顯示目前分頁的區塊；沒傳分頁（空字串）時全部顯示
 const tabClass = (...tabs) => (props.phoneTab && !tabs.includes(props.phoneTab) ? 'max-sm:hidden' : '')
-defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'wish', 'research', 'remove', 'start-swap', 'cancel-swap'])
+defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'wish', 'vote-mutation', 'research', 'remove', 'start-swap', 'cancel-swap'])
 
 const HITS = { all: '地面與空中', ground: '只打地面', air: '只打空中' }
 const RATE_COLORS = ['#C9B2AD', '#9FB8C9', '#5FA8D3', '#3CCB72', '#F2B233', '#D6305A']
@@ -222,6 +228,18 @@ const canBuyLife = computed(() => myLives.value < props.view.maxLives && shortOf
 
 // 買不起時還差多少金（0 表示買得起）
 const shortOf = cost => Math.max(0, cost - (me.value?.gold ?? 0))
+
+// 許願：只能疊加同一個願；價格依已疊層數遞增，滿層後鎖住
+const wishPrice = () => {
+    const w = props.catalog.wish
+    const stacks = me.value?.wish?.stacks ?? 0
+    return w.categoryCost * w.stackCostMult[Math.min(stacks, w.maxStacks - 1)]
+}
+const wishDisabled = category => {
+    const w = me.value?.wish
+    if (w && (w.category !== category || w.stacks >= props.catalog.wish.maxStacks)) return true
+    return shortOf(wishPrice()) > 0
+}
 
 function gemName(kind, level) {
     const c = props.catalog

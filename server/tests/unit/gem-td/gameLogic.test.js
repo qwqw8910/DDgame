@@ -151,9 +151,15 @@ test('同級合成：2 顆 +1、4 顆 +2，不同級不算', () => {
   assert.equal(p4[1].level, 3);
 
   const cap = newGame();
-  setPending(cap, 'a', [['Q', 6], ['Q', 6], ['Q', 1], ['G', 1], ['O', 3]]);
-  const p6 = placeAll(cap, 'a');
-  assert.throws(() => L.mergeGem(cap, 'a', p6[0].id), { code: 'CANNOT_MERGE' });
+  setPending(cap, 'a', [['Q', 7], ['Q', 7], ['Q', 1], ['G', 1], ['O', 3]]);
+  const p7 = placeAll(cap, 'a');
+  assert.throws(() => L.mergeGem(cap, 'a', p7[0].id), { code: 'CANNOT_MERGE' }, '至尊是最高等級');
+
+  const top = newGame();
+  setPending(top, 'a', [['Q', 6], ['Q', 6], ['Q', 1], ['G', 1], ['O', 3]]);
+  const p6 = placeAll(top, 'a');
+  L.mergeGem(top, 'a', p6[0].id);
+  assert.equal(p6[0].level, 7, '兩顆巨型合成至尊');
 });
 
 test('特殊塔：用本回合材料合成，其餘全變石頭', () => {
@@ -180,6 +186,35 @@ test('特殊塔：只用場上保留的寶石時，本回合繼續', () => {
   assert.equal(tower.kind, 'malachite');
   assert.equal(game.players.a.resolved, false);
   assert.equal(game.players.a.pending.length, before);
+});
+
+test('至尊（Lv7）：只能合成不能抽到；8 種各一顆至尊合成隱藏塔甜點之神', () => {
+  assert.equal(C.MAX_LEVEL, 7);
+  assert.equal(C.catalog().levelNames[6], '至尊');
+  assert.ok(C.catalog().gems.B.levels[6].damage > C.catalog().gems.B.levels[5].damage);
+  for (const row of C.QUALITY_RATES) assert.ok(row.length <= 6 && row.every((w, i) => i < 6 || w === 0));
+  for (let i = 0; i < 300; i++) assert.ok(L.rollGems(8, Math.random).every(g => g.level <= 6));
+
+  const game = newGame();
+  const p = game.players.a;
+  p.pending = [];
+  const kinds = ['B', 'D', 'E', 'G', 'O', 'Q', 'R', 'P'];
+  const add = (kind, level, x, y) => {
+    const t = { id: game.nextTowerId++, x, y, kind, level, owner: 'a', fresh: false, kills: 10, damage: 100 };
+    p.towers.push(t);
+    p.grid.set(`${x},${y}`, t);
+  };
+  kinds.slice(0, 7).forEach((k, i) => add(k, 7, 2 + i, 3));
+  add('P', 6, 2, 5);
+  assert.ok(!L.availableRecipes(game, 'a').some(r => r.id === 'godsweet'), '少一顆或等級不夠都不能合成');
+  p.towers.find(t => t.kind === 'P').level = 7;
+  assert.ok(L.availableRecipes(game, 'a').some(r => r.id === 'godsweet'));
+  const tower = L.combine(game, 'a', 'godsweet');
+  assert.equal(tower.kind, 'godsweet');
+  assert.equal(tower.kills, 80);
+  assert.equal(p.towers.filter(t => t.kind !== 'godsweet' && t.kind !== 'stone').length, 0, '8 顆材料都變石頭');
+  assert.ok(L.combineNotice(game, 'a', tower).includes('甜點之神'));
+  assert.ok(C.catalog().recipes.find(r => r.id === 'godsweet').hidden);
 });
 
 test('特殊塔：同種兩顆的配方分別配對，且不偷用別人的寶石', () => {
@@ -602,32 +637,148 @@ test('免控：緩速與中毒無效；護盾：單次傷害有上限', () => {
   assert.equal(shielded.monsters[0].hp, 100 * (1 - C.SHIELD_HIT_CAP));
 });
 
-test('許願池：扣金幣、每回合一次、只影響下一回合的抽卡', () => {
+// ── 隨機突變 ────────────────────────────────────────────────────
+test('突變：從第 10 波起每 5 波一次，卡池 10 張，每張都有好處也有代價', () => {
+  assert.deepEqual([9, 10, 11, 14, 15, 20, 50].map(C.isMutationWave), [false, true, false, false, true, true, true]);
+  assert.equal(C.MUTATION_IDS.length, 10);
+  for (const id of C.MUTATION_IDS) {
+    const m = C.MUTATIONS[id];
+    assert.ok(m.name && m.pro && m.con, id);
+    assert.equal(C.catalog().mutations[id].pro, m.pro);
+  }
+});
+
+test('突變：共用血量三選一（三張不重複），投票最高者勝出，開波時結算', () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    const game = newGame(['a', 'b'], { rng: seededRng(seed) });
+    game.wave = 9;
+    L.drawMutation(game, seededRng(seed));
+    const { options } = game.mutationOffer;
+    assert.equal(new Set(options).size, 3);
+  }
+  const game = newGame(['a', 'b', 'c']);
+  game.wave = 9;
+  L.drawMutation(game, seededRng(3));
+  const [first, second] = game.mutationOffer.options;
+  assert.throws(() => L.voteMutation(game, 'a', 'nope'), { code: 'BAD_ARG' });
+  L.voteMutation(game, 'a', first);
+  L.voteMutation(game, 'b', second);
+  L.voteMutation(game, 'c', second);
+  L.voteMutation(game, 'a', second); // 可以改票
+  assert.equal(L.buildView(game, 'a').mutationOffer.myVote, second);
+  assert.equal(L.buildView(game, 'a').mutationOffer.counts[second], 3);
+  L.startWave(game, { rng: seededRng(1) });
+  assert.equal(game.mutation, second);
+  assert.equal(game.mutationOffer, null);
+});
+
+test('突變：獨立血量直接隨機一張，沒有投票；傷害測試與非突變波不抽', () => {
+  const solo = newGame(['a', 'b'], { options: { livesMode: 'solo' } });
+  solo.wave = 14;
+  L.drawMutation(solo, seededRng(2));
+  assert.ok(C.MUTATION_IDS.includes(solo.mutation));
+  assert.equal(solo.mutationOffer, null);
+
+  const none = newGame(['a']);
+  none.wave = 10;
+  L.drawMutation(none, seededRng(2));
+  assert.equal(none.mutation, null);
+  assert.equal(none.mutationOffer, null);
+
+  const test = newGame(['a'], { options: { livesMode: 'solo' } });
+  test.wave = 14;
+  test.testAt = 14;
+  L.drawMutation(test, seededRng(2));
+  assert.equal(test.mutation, null);
+});
+
+test('突變效果：厚重甲殼擋前 3 次、疾風加速、玻璃大炮加傷與血量、濃霧縮射程', () => {
+  const sim = traitSim({ type: 'normal', count: 1, hp: 1e6, armor: 0, speed: 1, trait: null });
+  sim.mutation = C.MUTATIONS.shell;
+  sim.towers = [towerAt('D', 6)];
+  stepWave(sim, 0.1);
+  assert.equal(sim.monsters[0].shell, 2, '第一次攻擊被擋掉');
+  assert.equal(sim.monsters[0].hp, 1e6);
+  for (let i = 0; i < 40; i++) { sim.towers[0].wait = 0; stepWave(sim, 0.1); }
+  assert.ok(sim.monsters[0].hp < 1e6, '擋完 3 次後吃得到傷害');
+
+  const swift = traitSim({ type: 'normal', count: 1, hp: 100, armor: 0, speed: 2, trait: null });
+  swift.mutation = C.MUTATIONS.swift;
+  stepWave(swift, 0.1);
+  assert.equal(swift.monsters[0].speed, 2.5);
+
+  const glass = traitSim({ type: 'normal', count: 1, hp: 100, armor: 0, speed: 1, trait: null });
+  glass.mutation = C.MUTATIONS.glass;
+  stepWave(glass, 0.1);
+  assert.equal(glass.monsters[0].maxHp, 140);
+
+  const ref = { id: 1, x: 1, y: 1, kind: 'D', level: 1, kills: 0, damage: 0 };
+  const [plain] = prepareTowers([ref]);
+  const [boosted] = prepareTowers([ref], undefined, 'glass');
+  const [foggy] = prepareTowers([ref], undefined, 'fog');
+  assert.equal(boosted.stats.damage, plain.stats.damage * 1.4);
+  assert.equal(foggy.stats.range, plain.stats.range - 1);
+});
+
+test('突變效果：糖漿滋補加怪物血量、疾風加攻速、糖衣護甲讓擊殺數加倍；狙擊手依射程分高低', () => {
+  const syrup = traitSim({ type: 'normal', count: 1, hp: 100, armor: 0, speed: 1, trait: null });
+  syrup.mutation = C.MUTATIONS.syrup;
+  stepWave(syrup, 0.1);
+  assert.equal(syrup.monsters[0].maxHp, 130);
+
+  const ref0 = { id: 1, x: 1, y: 1, kind: 'D', level: 1, kills: 0, damage: 0 };
+  const [plain0] = prepareTowers([ref0]);
+  const [quick] = prepareTowers([ref0], undefined, 'swift');
+  assert.ok(Math.abs(quick.cooldown - plain0.cooldown / 1.25) < 1e-9);
+
+  const glaze = traitSim({ type: 'normal', count: 1, hp: 1, armor: 0, speed: 0.01, trait: null });
+  glaze.mutation = C.MUTATIONS.glaze;
+  glaze.towers = [towerAt('D', 6)];
+  stepWave(glaze, 0.1);
+  assert.equal(glaze.towers[0].ref.kills, 2);
+
+  const short = { id: 3, x: 1, y: 1, kind: 'G', level: 1, kills: 0, damage: 0 }; // 射程 3.5
+  const long = { id: 4, x: 1, y: 1, kind: 'P', level: 1, kills: 0, damage: 0 }; // 射程 7.5
+  const [gb] = prepareTowers([short]);
+  const [pb] = prepareTowers([long]);
+  const [gs, ps] = prepareTowers([short, long], undefined, 'sniper');
+  assert.ok(Math.abs(gs.stats.damage - gb.stats.damage * 0.7) < 1e-9);
+  assert.ok(Math.abs(ps.stats.damage - pb.stats.damage * 1.5) < 1e-9);
+});
+
+test('許願池：疊加扣金幣、價格遞增、一次只影響一格、只影響下一回合', () => {
   const game = newGame();
   const p = game.players.a;
-  assert.throws(() => L.makeWish(game, 'a', { type: 'category', category: 'fruit' }), { code: 'NO_GOLD' });
-  assert.throws(() => L.makeWish(game, 'a', { type: 'bad' }), { code: 'BAD_ARG' });
-  assert.throws(() => L.makeWish(game, 'a', { type: 'category', category: 'nope' }), { code: 'BAD_ARG' });
+  assert.throws(() => L.makeWish(game, 'a', { category: 'fruit' }), { code: 'NO_GOLD' });
+  assert.throws(() => L.makeWish(game, 'a', { category: 'nope' }), { code: 'BAD_ARG' });
   p.gold = 1000;
-  L.makeWish(game, 'a', { type: 'category', category: 'fruit' });
-  assert.equal(p.gold, 1000 - C.wishCost('category'));
-  assert.throws(() => L.makeWish(game, 'a', { type: 'level' }), { code: 'WISHED' });
+  L.makeWish(game, 'a', { category: 'fruit' });
+  assert.equal(p.gold, 1000 - 60);
+  assert.throws(() => L.makeWish(game, 'a', { category: 'candy' }), { code: 'WISHED' });
+  L.makeWish(game, 'a', { category: 'fruit' });
+  L.makeWish(game, 'a', { category: 'fruit' });
+  assert.equal(p.wish.stacks, 3);
+  assert.equal(p.gold, 1000 - 60 - 120 - 180);
+  assert.throws(() => L.makeWish(game, 'a', { category: 'fruit' }), { code: 'WISH_MAX' });
 
-  // 分類許願：每手至少有 1 顆指定分類，且比例明顯高於不許願
+  // 許願只影響 1 格：該格機率隨層數提高（3 層 100%），其餘 4 格維持原本隨機（約 3/8 為果香）
   const fruit = C.GEM_CATEGORIES.fruit.kinds;
-  let hit = 0;
-  let total = 0;
-  for (let i = 0; i < 300; i++) {
-    const hand = L.rollGems(1, Math.random, { type: 'category', category: 'fruit' });
-    assert.ok(hand.some(g => fruit.includes(g.kind)));
-    hit += hand.filter(g => fruit.includes(g.kind)).length;
-    total += hand.length;
-  }
-  assert.ok(hit / total > 0.55);
-
-  // 等級許願：平均等級高於不許願
-  const avg = wish => Array.from({ length: 400 }, () => L.rollGems(1, Math.random, wish)).flat().reduce((n, g) => n + g.level, 0) / 2000;
-  assert.ok(avg({ type: 'level' }) > avg(null));
+  const N = 1500;
+  const stats = stacks => {
+    let wished = 0, others = 0, wishedLevel = 0;
+    for (let i = 0; i < N; i++) {
+      const hand = L.rollGems(1, Math.random, { category: 'fruit', stacks });
+      assert.equal(hand.length, 5);
+      wished += fruit.includes(hand[0].kind) ? 1 : 0;
+      wishedLevel += hand[0].level;
+      others += hand.slice(1).filter(g => fruit.includes(g.kind)).length;
+    }
+    return { wished: wished / N, others: others / (N * 4), level: wishedLevel / N };
+  };
+  const [s1, s2, s3] = [stats(1), stats(2), stats(3)];
+  assert.ok(s1.wished > 0.65 && s2.wished > s1.wished && s3.wished === 1);
+  assert.ok([s1, s2, s3].every(s => s.others < 0.45)); // 其餘格不受影響
+  assert.ok(s3.level > s2.level); // 第 3 次連等級也提高
 });
 
 test('研究：滿 5 級後進入匠心加給，加成平緩且成本遞增', () => {
