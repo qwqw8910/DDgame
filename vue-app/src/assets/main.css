@@ -1554,26 +1554,23 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     .gt-stage { flex-shrink: 0; height: min(100vw, 62dvh); }
   }
 
-  /* ── 手機（<640px）：整頁固定一屏。狀態列、地圖、分頁列用 sticky 釘在上方，
-     只有下面的內容區在 .gt-game 裡捲動。三塊的高度寫死，sticky 的偏移才算得準。
+  /* ── 手機（<640px）：畫面最上面只有標題列一排（血量、金幣、波次、倒數都併進去）。
+     地圖與分頁列用 sticky 釘在標題列下方，只有下面的內容區在 .gt-game 裡捲動。
+     地圖與分頁列的高度寫死，sticky 的偏移才算得準。
      rail / side 改 display: contents，讓裡面的區塊直接排進 .gt-game，再用 order 排順序。 ── */
   @media (max-width: 639px) {
     .gt-game {
-      --gt-hud: 56px; --gt-stage: min(100vw, 44dvh); --gt-tabbar: 48px;
+      --gt-stage: min(100vw, 42dvh); --gt-tabbar: 48px;
       flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 16px;
     }
     .gt-rail, .gt-rail-top, .gt-side { display: contents; }
-    .gt-rail-top > *, .gt-side > * { order: 5; margin: 12px 12px 0; }
-    .gt-hud {
-      order: 1; position: sticky; top: 0; z-index: 3; flex: none; height: var(--gt-hud); margin: 0;
-      padding: 0 12px; border-width: 0 0 1px; border-radius: 0; overflow: hidden;
-    }
+    .gt-rail-top > *, .gt-side > * { order: 5; margin: 12px 12px 0; max-width: calc(100% - 24px); }
     .gt-stage {
-      order: 2; position: sticky; top: var(--gt-hud); z-index: 3; flex: none; height: var(--gt-stage); padding: 4px;
+      order: 2; position: sticky; top: 0; z-index: 3; flex: none; height: var(--gt-stage); padding: 4px;
       background: var(--gt-bg); border-bottom: 1px solid var(--gt-line);
     }
     .gt-tabbar {
-      order: 3; position: sticky; top: calc(var(--gt-hud) + var(--gt-stage)); z-index: 3; flex: none; height: var(--gt-tabbar);
+      order: 3; position: sticky; top: var(--gt-stage); z-index: 3; flex: none; height: var(--gt-tabbar);
       gap: 4px; padding: 2px 8px; background: var(--gt-bg); border-bottom: 1px solid var(--gt-line);
     }
     .gt-phonetab {
