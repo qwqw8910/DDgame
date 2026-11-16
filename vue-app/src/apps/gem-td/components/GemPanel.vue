@@ -1,11 +1,11 @@
 <template>
     <!-- 右欄只放「現在要做的事」；戰況與波次預告在左欄 -->
     <div class="flex flex-col gap-4 text-base text-(--gt-text)">
-        <p v-if="me?.out" class="m-0 font-semibold text-(--gt-accent-ink)">你已出局，可以切換看其他人的地圖。</p>
-        <p v-else-if="me && !mine && (me.pending.length || me.choosing)" class="m-0 text-(--gt-accent-ink)">回到自己的地圖才能放置和選擇甜點。</p>
+        <p v-if="me?.out" class="m-0 font-semibold text-(--gt-accent-ink)" :class="tabClass('place')">你已出局，可以切換看其他人的地圖。</p>
+        <p v-else-if="me && !mine && (me.pending.length || me.choosing)" class="m-0 text-(--gt-accent-ink)" :class="tabClass('place')">回到自己的地圖才能放置和選擇甜點。</p>
 
         <!-- 手上的甜點 -->
-        <section v-if="mine && me?.pending.length" aria-label="本回合甜點">
+        <section v-if="mine && me?.pending.length" :class="tabClass('place')" aria-label="本回合甜點">
             <h3 class="gt-heading">點地圖放下甜點（還有 {{ me.pending.length }} 個）</h3>
             <div class="grid grid-cols-5 gap-1.5">
                 <button v-for="(g, i) in me.pending" :key="g.slot" class="gt-gem-slot"
@@ -33,7 +33,7 @@
         </section>
 
         <!-- 五顆都放完：選一顆 -->
-        <section v-else-if="mine && me?.choosing" aria-label="選擇保留的甜點">
+        <section v-else-if="mine && me?.choosing" :class="tabClass('place')" aria-label="選擇保留的甜點">
             <h3 class="gt-heading">留下一個，其餘變成餅乾牆</h3>
             <p v-if="keys" class="mt-0 mb-2 text-(--gt-muted)">按 <kbd class="gt-kbd">1</kbd>～<kbd class="gt-kbd">5</kbd> 選，<kbd class="gt-kbd">K</kbd> 保留，<kbd class="gt-kbd">M</kbd> 合成</p>
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
@@ -51,14 +51,14 @@
         </section>
 
         <!-- 準備：放完、選完之後最重要的一步，放在最上面 -->
-        <section v-if="phase === 'build' && me?.resolved && !me.out">
+        <section v-if="phase === 'build' && me?.resolved && !me.out" :class="tabClass('place')">
             <button class="gt-btn gt-btn--lamp w-full" :disabled="me.ready" aria-keyshortcuts="R" @click="$emit('ready')">
                 {{ me.ready ? '已準備，等待隊友' : '準備好了，開始出怪' }}<kbd v-if="keys && !me.ready" class="gt-kbd ml-2" aria-hidden="true">R</kbd>
             </button>
         </section>
 
         <!-- 特殊塔 -->
-        <section v-if="recipes.length" aria-label="可合成的特殊塔">
+        <section v-if="recipes.length" :class="tabClass('place')" aria-label="可合成的特殊塔">
             <h3 class="gt-heading">可以合成</h3>
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
                 <li v-for="r in recipes" :key="r.id" class="gt-row group relative">
@@ -81,7 +81,7 @@
         </section>
 
         <!-- 選中的塔 -->
-        <section v-if="selected" class="gt-card" aria-label="選取的塔">
+        <section v-if="selected" class="gt-card" :class="tabClass('tower', ...(me?.choosing ? ['place'] : []))" aria-label="選取的塔">
             <template v-if="selected.kind === 'stone'">
                 <h3 class="gt-heading">餅乾牆</h3>
                 <template v-if="phase === 'build' && me && mine">
@@ -120,12 +120,12 @@
                 </template>
             </template>
         </section>
-        <p v-if="swapFrom" class="m-0 text-(--gt-accent-ink)" role="status">點一塊餅乾牆，塔會移到那裡。</p>
+        <p v-if="swapFrom" class="m-0 text-(--gt-accent-ink)" :class="tabClass('place', 'tower')" role="status">點一塊餅乾牆，塔會移到那裡。</p>
         <!-- 出怪中沒有能做的事：告訴玩家右欄現在的用途，不留一整欄空白 -->
-        <p v-if="phase === 'wave' && !selected && !recipes.length" class="m-0 text-(--gt-muted)">出怪中。點地圖上的塔，可以在這裡看它的傷害、射程和戰績。</p>
+        <p v-if="phase === 'wave' && !selected && !recipes.length" class="m-0 text-(--gt-muted)" :class="tabClass('place', 'tower')">出怪中。點地圖上的塔，可以在這裡看它的傷害、射程和戰績。</p>
 
         <!-- 品質 -->
-        <section v-if="me && !me.out && phase === 'build'" aria-label="甜點品質">
+        <section v-if="me && !me.out && phase === 'build'" :class="tabClass('shop')" aria-label="甜點品質">
             <h3 class="gt-heading">甜點品質 {{ me.quality }}／{{ catalog.qualityRates.length }}</h3>
             <div class="flex h-2.5 overflow-hidden rounded-sm bg-(--gt-track)" role="img" :aria-label="`目前機率：${rateText}`">
                 <span v-for="(r, i) in rates" :key="i" :style="{ width: `${r}%`, background: RATE_COLORS[i] }" />
@@ -138,7 +138,7 @@
         </section>
 
         <!-- 買命：金幣換血量，血量滿了或傷害測試（不扣血）就不顯示 -->
-        <section v-if="me && !me.out && phase === 'build' && !view.nextWave?.test" aria-label="買命">
+        <section v-if="me && !me.out && phase === 'build' && !view.nextWave?.test" :class="tabClass('shop')" aria-label="買命">
             <h3 class="gt-heading">補血</h3>
             <button class="gt-btn gt-btn--small w-full" :disabled="!canBuyLife" @click="$emit('buy-life')">
                 {{ me.lifeCost }} 金換 1 點血（{{ myLives }}／{{ view.maxLives }}）
@@ -150,7 +150,7 @@
         </section>
 
         <!-- 研究：選項多，可收合 -->
-        <details v-if="me && !me.out && phase === 'build'" class="gt-fold" open aria-label="甜點研究">
+        <details v-if="me && !me.out && phase === 'build'" class="gt-fold" :class="tabClass('shop')" open aria-label="甜點研究">
             <summary class="gt-heading !mb-1">
                 甜點研究
                 <GemHeaderIcon name="chevron" class="gt-fold-arrow text-(--gt-muted)" />
@@ -183,7 +183,11 @@ const props = defineProps({
     swapFrom: { type: Number, default: null },
     myId: { type: String, default: '' },
     keys: { type: Boolean, default: false }, // 有實體鍵盤時顯示快捷鍵提示
+    phoneTab: { type: String, default: '' }, // 手機分頁；只用 max-sm: 隱藏，電腦與平板不受影響
 })
+
+// 手機只顯示目前分頁的區塊；沒傳分頁（空字串）時全部顯示
+const tabClass = (...tabs) => (props.phoneTab && !tabs.includes(props.phoneTab) ? 'max-sm:hidden' : '')
 defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'research', 'remove', 'start-swap', 'cancel-swap'])
 
 const HITS = { all: '地面與空中', ground: '只打地面', air: '只打空中' }
