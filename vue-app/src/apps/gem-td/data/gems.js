@@ -15,6 +15,15 @@ export const BUILD_CHOICES = [
   { value: 0, label: '不限時' },
 ]
 
+export const DIFFICULTY_CHOICES = [
+  { value: 'easy', label: '簡單（適合新手）' },
+  { value: 'normal', label: '普通（怪物較硬）' },
+  { value: 'hard', label: '困難（怪物非常硬，適合迷宮高手）' },
+]
+
+export const SPEEDS = [1, 2, 4]
+export const nextSpeed = cur => SPEEDS[(SPEEDS.indexOf(cur) + 1) % SPEEDS.length]
+
 export const LIVES_CHOICES = [
   { value: 'team', label: '共用血量（全隊一條命）' },
   { value: 'solo', label: '獨立血量（各自比存活）' },

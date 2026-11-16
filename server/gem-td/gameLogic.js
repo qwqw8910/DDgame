@@ -38,6 +38,8 @@ function blankRun() {
     testAt: null, // 正在進行（或準備進行）的傷害測試，是打完第幾波之後的加賽；沒有就是 null
     buildEndsAt: null,
     speed: 1,
+    paused: false, // 單人遊戲可暫停
+    pausedLeft: null, // 暫停時建造階段剩下的毫秒數
     result: null,
   };
 }
@@ -55,6 +57,7 @@ function resolveOptions(raw = {}) {
     waves: C.WAVE_CHOICES.includes(raw.waves) ? raw.waves : C.DEFAULT_OPTIONS.waves,
     buildSeconds: C.BUILD_SECOND_CHOICES.includes(raw.buildSeconds) ? raw.buildSeconds : C.DEFAULT_OPTIONS.buildSeconds,
     livesMode: C.LIVES_MODES.includes(raw.livesMode) ? raw.livesMode : C.DEFAULT_OPTIONS.livesMode,
+    difficulty: C.DIFFICULTY_IDS.includes(raw.difficulty) ? raw.difficulty : C.DEFAULT_OPTIONS.difficulty,
     damageTest: typeof raw.damageTest === 'boolean' ? raw.damageTest : C.DEFAULT_OPTIONS.damageTest,
   };
 }
@@ -109,6 +112,8 @@ const isTestWave = game => game.testAt !== null;
 
 function enterBuild(game, { now, rng }) {
   game.phase = 'build';
+  game.paused = false;
+  game.pausedLeft = null;
   game.buildEndsAt = game.options.buildSeconds ? now + game.options.buildSeconds * 1000 : null;
   for (const id of game.playerIds) game.players[id].sim = null;
   for (const id of activeIds(game)) {
@@ -374,6 +379,7 @@ function swapWithStone(game, playerId, towerId, stoneId) {
 // ── 準備 / 開波 ─────────────────────────────────────────────────
 function setReady(game, playerId) {
   requireBuild(game);
+  if (game.paused) throw new GameError('PAUSED', '遊戲暫停中');
   const p = playerOf(game, playerId);
   if (!p.resolved) throw new GameError('NOT_RESOLVED', '請先決定要保留哪個甜點');
   p.ready = true;
@@ -427,6 +433,7 @@ function startWave(game, { rng = Math.random } = {}) {
       wave: game.wave + 1,
       totalWaves: game.options.waves,
       testAt: game.testAt,
+      difficulty: game.options.difficulty,
       pool: isTestWave(game) ? { lives: 1 } : livesPool(game, p), // 傷害測試的怪不會扣血
       research: p.research,
     });
@@ -434,8 +441,25 @@ function startWave(game, { rng = Math.random } = {}) {
 }
 
 function setSpeed(game, speed) {
-  if (speed !== 1 && speed !== 2) throw new GameError('BAD_ARG', '不支援的速度');
+  if (!C.SPEED_CHOICES.includes(speed)) throw new GameError('BAD_ARG', '不支援的速度');
   game.speed = speed;
+}
+
+// 暫停只開放單人遊戲；建造階段會凍結倒數，恢復時從剩下的時間繼續
+function setPaused(game, paused, { now }) {
+  if (game.startCount !== 1) throw new GameError('FORBIDDEN', '只有單人遊戲可以暫停');
+  if (game.phase !== 'build' && game.phase !== 'wave') throw new GameError('BAD_PHASE', '現在不能暫停');
+  paused = !!paused;
+  if (paused === game.paused) return;
+  game.paused = paused;
+  if (game.phase !== 'build') return;
+  if (paused) {
+    game.pausedLeft = game.buildEndsAt === null ? null : Math.max(0, game.buildEndsAt - now);
+    game.buildEndsAt = null;
+  } else {
+    game.buildEndsAt = game.pausedLeft === null ? null : now + game.pausedLeft;
+    game.pausedLeft = null;
+  }
 }
 
 // 勝負是否已定：回傳贏家名單，還沒分出來回傳 null
@@ -693,7 +717,7 @@ function buildView(game, viewerId, watchId) {
   const nextWave = game.phase === 'finished' || !game.board ? null : (() => {
     const test = isTestWave(game);
     const number = test ? game.testAt : game.wave + 1;
-    const def = test ? C.testWaveDef(game.testAt) : C.waveDef(number, game.options.waves);
+    const def = test ? C.testWaveDef(game.testAt, game.options.difficulty) : C.waveDef(number, game.options.waves, game.options.difficulty);
     const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: g.hp, armor: Math.round(g.armor), trait: g.trait, leak: g.leak }));
     return { number, type: def.type, count: def.count, hp: def.hp, armor: Math.round(def.armor), groups, test: !!def.test };
   })();
@@ -713,6 +737,7 @@ function buildView(game, viewerId, watchId) {
     buildEndsAt: game.buildEndsAt,
     serverNow: null, // index.js 填入
     speed: game.speed,
+    paused: game.paused,
     nextWave,
     result: game.result,
     testLog: buildTestResult(game), // 已打完的傷害測試紀錄（中途也看得到）
@@ -758,6 +783,6 @@ module.exports = {
   createGame, resetGame, resolveOptions, startGame,
   placeGem, keepGem, mergeGem, combine, availableRecipes,
   upgradeQuality, rerollGems, upgradeResearch, removeStone, swapWithStone, buyLife,
-  setReady, allReady, autoResolve, startWave, setSpeed, tick, finishWave, finishNow,
+  setReady, allReady, autoResolve, startWave, setSpeed, setPaused, tick, finishWave, finishNow,
   leavePlayer, resolveWatch, buildView, buildFrames,
 };

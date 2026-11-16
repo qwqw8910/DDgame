@@ -69,6 +69,12 @@
 
             <fieldset class="m-0 flex flex-col gap-3 border-0 p-0" :disabled="!roomState.isHost">
                 <label class="flex flex-col gap-1 text-(--gt-muted)">
+                    難度{{ roomState.isHost ? '' : '（房主決定）' }}
+                    <select class="gt-input cursor-pointer" :value="view.options.difficulty" @change="setOptions({ difficulty: $event.target.value })">
+                        <option v-for="c in DIFFICULTY_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
+                    </select>
+                </label>
+                <label class="flex flex-col gap-1 text-(--gt-muted)">
                     血量模式{{ roomState.isHost ? '' : '（房主決定）' }}
                     <select class="gt-input cursor-pointer" :value="view.options.livesMode" @change="setOptions({ livesMode: $event.target.value })">
                         <option v-for="c in LIVES_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
@@ -144,6 +150,9 @@
 
                     <GemWaveInfo :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
+                    <button v-if="isSolo && (view.phase === 'build' || view.phase === 'wave')" class="gt-btn gt-btn--small w-full" aria-keyshortcuts="P" @click="setPaused(true)">
+                        暫停<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">P</kbd>
+                    </button>
                     <div v-if="view.testLog" class="gt-card"><GemTestBoard :test="view.testLog" :names="view.names" /></div>
                 </div>
                 <GemRecipes v-if="isWide" v-model="showRecipes" docked :view="view" :catalog="state.catalog" @combine="onCombine" />
@@ -166,6 +175,14 @@
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
             </aside>
         </main>
+
+        <!-- 暫停（單人） -->
+        <div v-if="view?.paused && view.phase !== 'finished'" class="overlay">
+            <div class="flex w-full max-w-[360px] flex-col gap-4 border border-(--gt-line) bg-(--gt-surface) p-6 text-center text-(--gt-text)">
+                <h2 class="m-0 font-sans text-3xl font-black text-(--gt-ink)">已暫停</h2>
+                <button class="gt-btn gt-btn--lamp" @click="setPaused(false)">繼續遊戲<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">P</kbd></button>
+            </div>
+        </div>
 
         <!-- 結算 -->
         <div v-if="view?.phase === 'finished' && view.result" class="overlay">
@@ -217,7 +234,7 @@ import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
 import { useGemTd } from '../composables/useGemTd.js'
 import { useGemTdCues, useGemTdSfx } from '../composables/useGemTdSfx.js'
 import { useGemTdKeys } from '../composables/useGemTdKeys.js'
-import { WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, PLAYER_MARKS, isSpecial } from '../data/gems.js'
+import { WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, nextSpeed, PLAYER_MARKS, isSpecial } from '../data/gems.js'
 import GemBoard from '../components/GemBoard.vue'
 import GemPanel from '../components/GemPanel.vue'
 import GemPlayerTabs from '../components/GemPlayerTabs.vue'
@@ -233,7 +250,7 @@ const route = useRoute()
 const router = useRouter()
 const {
     state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
-    upgradeQuality, buyLife, reroll, upgradeResearch, removeStone, swap, ready, setSpeed, finishNow, restart,
+    upgradeQuality, buyLife, reroll, upgradeResearch, removeStone, swap, ready, setSpeed, setPaused, finishNow, restart,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useGemTd()
@@ -245,6 +262,7 @@ const inGame = computed(() => !!state.catalog && ['build', 'wave'].includes(view
 // 電腦版（≥1024px）合成表停靠在左欄，預設打開；開關狀態記在本機
 const wideQuery = window.matchMedia('(min-width: 1024px)')
 const isWide = ref(wideQuery.matches)
+const isSolo = computed(() => (view.value?.playerIds?.length ?? 0) === 1 && !roomState.isSpectator)
 const onWideChange = (e) => { isWide.value = e.matches }
 wideQuery.addEventListener('change', onWideChange)
 const RECIPES_KEY = 'gem-td-recipes-open'
@@ -478,7 +496,11 @@ function handleKey(code) {
     }
     case 'KeyF':
         if (!roomState.isHost || v.phase !== 'wave') return false
-        setSpeed(v.speed === 1 ? 2 : 1)
+        setSpeed(nextSpeed(v.speed))
+        return true
+    case 'KeyP':
+        if (!isSolo.value || (v.phase !== 'build' && v.phase !== 'wave')) return false
+        setPaused(!v.paused)
         return true
     case 'KeyH':
         guide.open()

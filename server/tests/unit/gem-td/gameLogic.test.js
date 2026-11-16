@@ -808,3 +808,31 @@ test('傷害測試獎金：依傷害比例，最多打滿，15／30／45 波滿�
   assert.equal(game.phase, 'finished');
   assert.equal(game.players.a.gold, gold, '最後一場不發金幣');
 });
+
+test('難度：簡單最弱、困難最硬，未知值回到簡單', () => {
+  const easy = C.waveDef(10, 30, 'easy');
+  const normal = C.waveDef(10, 30, 'normal');
+  const hard = C.waveDef(10, 30, 'hard');
+  assert.ok(easy.hp < normal.hp && normal.hp < hard.hp);
+  assert.ok(easy.armor < normal.armor && normal.armor < hard.armor);
+  assert.equal(L.resolveOptions({ difficulty: 'nope' }).difficulty, 'easy');
+  assert.equal(newGame(['a'], { options: { difficulty: 'hard' } }).options.difficulty, 'hard');
+});
+
+test('倍速：支援 1、2、4，其他拒絕', () => {
+  const game = newGame();
+  L.setSpeed(game, 4);
+  assert.equal(game.speed, 4);
+  assert.throws(() => L.setSpeed(game, 3), /不支援/);
+});
+
+test('暫停：單人建造階段凍結倒數，恢復後接續；多人不能暫停', () => {
+  const game = newGame(['a'], { options: { buildSeconds: 60 } });
+  L.setPaused(game, true, { now: 20000 });
+  assert.equal(game.paused, true);
+  assert.equal(game.buildEndsAt, null);
+  assert.throws(() => L.setReady(game, 'a'), /暫停/);
+  L.setPaused(game, false, { now: 50000 });
+  assert.equal(game.buildEndsAt, 90000);
+  assert.throws(() => L.setPaused(newGame(['a', 'b']), true, { now: 0 }), /單人/);
+});

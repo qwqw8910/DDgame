@@ -133,6 +133,7 @@ export function useGemTd() {
     swap:           (towerId, stoneId) => emit('gt:swap', { towerId, stoneId }),
     ready:          () => emit('gt:ready'),
     setSpeed:       (speed) => emit('gt:set-speed', { speed }),
+    setPaused:      (paused) => emit('gt:set-paused', { paused }),
     finishNow:      () => emit('gt:finish-now'),
     restart:        () => emit('gt:restart'),
     clearError()  { gem.error = ''; gem.errorCode = '' },
