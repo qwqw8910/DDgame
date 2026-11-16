@@ -33,6 +33,7 @@
                     @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
                 <PwaInstallButton :button-class="showGame ? 'header-icon-btn max-sm:hidden' : 'header-icon-btn'" hint-class="gt-install-hint" />
                 <GemVolumePanel :class="showGame && 'max-sm:hidden'" />
+                <GemDockMenu v-if="inGame && isWide" />
                 <button v-if="inGame" class="header-icon-btn max-sm:hidden" :title="hasKeyboard ? '合成表（B）' : '合成表'" aria-label="合成表" aria-keyshortcuts="B" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes"><GemHeaderIcon name="book" /></button>
                 <button class="header-icon-btn max-sm:hidden" :title="hasKeyboard ? '怎麼玩（H）' : '怎麼玩'" aria-label="怎麼玩" aria-keyshortcuts="H" @click="guide.open"><GemHeaderIcon name="help" /></button>
                 <button class="header-icon-btn max-sm:hidden" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GemHeaderIcon name="link" /></button>
@@ -56,6 +57,8 @@
         </header>
 
         <GemGuide v-model="guide.show.value" :catalog="state.catalog" :keys="hasKeyboard" />
+        <!-- 電腦版：彈出成浮動視窗的區塊會送到這一層 -->
+        <div :ref="el => dockTargets.float = el" class="gt-float-host" />
         <!-- 平板：合成表維持浮動面板；電腦版停靠在左欄、手機是「合成表」分頁（見下方） -->
         <GemRecipes v-if="inGame && !isWide && !isPhone" v-model="showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
 
@@ -137,11 +140,13 @@
         </main>
 
         <!-- 遊戲畫面：電腦三欄（左 戰況、中 地圖、右 操作），窄螢幕由 CSS 改成上下堆疊 -->
-        <main v-else-if="view?.board && state.catalog" class="gt-game">
+        <main v-else-if="view?.board && state.catalog" class="gt-game" :style="colStyle">
             <aside class="gt-rail" aria-label="戰況">
+                <div class="gt-resizer gt-resizer--rail" role="separator" aria-orientation="vertical" aria-label="拖拉調整左欄寬度（雙擊還原）" @pointerdown="startCol($event, 'rail')" @dblclick="resetCol('rail')" />
                 <!-- 電腦版：戰況與合成表分成上下兩塊，各自捲動 -->
-                <div class="gt-rail-top">
-                    <section class="gt-card flex flex-col gap-3 max-sm:hidden" aria-label="血量、金幣與波次">
+                <div :ref="el => dockTargets.left = el" class="gt-rail-top">
+                    <GemDock id="status" title="血量與波次" class="gt-card max-sm:hidden" aria-label="血量、金幣與波次">
+                      <div class="flex flex-col gap-3">
                         <div class="flex items-end justify-between gap-2">
                             <!-- 標籤和數字分兩行：兩位數的波次＋秒數也排得下，不會換行跑版 -->
                             <p class="m-0 min-w-0 whitespace-nowrap">
@@ -171,9 +176,12 @@
                                 <span class="sr-only">金幣</span><span>{{ gold }} <span class="font-normal text-(--gt-muted)">金</span></span>
                             </p>
                         </div>
-                    </section>
+                      </div>
+                    </GemDock>
 
-                    <GemPlayerTabs vertical :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
+                    <GemDock v-if="view.playerIds.length > 1" id="players" title="玩家" :class="phoneShow('status')" aria-label="玩家">
+                        <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
+                    </GemDock>
                     <!-- 看別人的地圖：提示放在左欄，不疊在地圖上 -->
                     <div v-if="!mine" class="gt-card flex flex-col gap-2" :class="phoneShow('place', 'tower')" role="status">
                         <p class="m-0">正在看 <b class="text-(--gt-ink)">{{ watchingName }}</b> 的地圖，不能操作。</p>
@@ -185,11 +193,13 @@
                     <button v-if="isSolo && (view.phase === 'build' || view.phase === 'wave')" class="gt-btn gt-btn--small w-full" :class="phoneShow('status')" aria-keyshortcuts="P" @click="setPaused(true)">
                         暫停<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">P</kbd>
                     </button>
-                    <div v-if="view.testLog" class="gt-card" :class="phoneShow('status')"><GemTestBoard :test="view.testLog" :names="view.names" /></div>
+                    <GemDock v-if="view.testLog" id="testlog" title="傷害測試紀錄" class="gt-card" :class="phoneShow('status')"><GemTestBoard :test="view.testLog" :names="view.names" /></GemDock>
                     <!-- 手機：合成表是一個分頁，直接排在內容區，不再浮在地圖上 -->
                     <GemRecipes v-if="inGame && isPhone && phoneTab === 'recipes'" :model-value="true" inline :view="view" :catalog="state.catalog" @combine="onCombine" />
                 </div>
-                <GemRecipes v-if="isWide" v-model="showRecipes" docked :view="view" :catalog="state.catalog" @combine="onCombine" />
+                <GemDock v-if="isWide && showRecipes" id="recipes" title="合成表" external-close aria-label="合成表" @close="showRecipes = false">
+                    <GemRecipes :model-value="true" inline :view="view" :catalog="state.catalog" @combine="onCombine" />
+                </GemDock>
             </aside>
 
             <section class="gt-stage" aria-label="地圖">
@@ -203,7 +213,8 @@
                 <button v-for="t in PHONE_TABS" :key="t.id" class="gt-phonetab" :aria-pressed="phoneTab === t.id" @click="phoneTab = t.id">{{ t.label }}</button>
             </nav>
 
-            <aside class="gt-side" aria-label="操作">
+            <aside :ref="el => dockTargets.right = el" class="gt-side" aria-label="操作">
+                <div class="gt-resizer gt-resizer--side" role="separator" aria-orientation="vertical" aria-label="拖拉調整右欄寬度（雙擊還原）" @pointerdown="startCol($event, 'side')" @dblclick="resetCol('side')" />
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
                 <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
@@ -285,6 +296,9 @@ import GemIcon from '../components/GemIcon.vue'
 import GemVolumePanel from '../components/GemVolumePanel.vue'
 import GemWaveInfo from '../components/GemWaveInfo.vue'
 import GemTestBoard from '../components/GemTestBoard.vue'
+import GemDock from '../components/GemDock.vue'
+import GemDockMenu from '../components/GemDockMenu.vue'
+import { targets as dockTargets, desktop as dockDesktop } from '../composables/useGemDock.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -303,7 +317,8 @@ const inGame = computed(() => !!state.catalog && ['build', 'wave'].includes(view
 const wideQuery = window.matchMedia('(min-width: 1024px)')
 const isWide = ref(wideQuery.matches)
 const isSolo = computed(() => (view.value?.playerIds?.length ?? 0) === 1 && !roomState.isSpectator)
-const onWideChange = (e) => { isWide.value = e.matches }
+dockDesktop.value = isWide.value
+const onWideChange = (e) => { isWide.value = e.matches; dockDesktop.value = e.matches }
 wideQuery.addEventListener('change', onWideChange)
 const RECIPES_KEY = 'gem-td-recipes-open'
 const showRecipes = ref((() => {
@@ -330,6 +345,52 @@ const PHONE_TABS = [
 const phoneTab = ref('place')
 const phoneShow = (...tabs) => (tabs.includes(phoneTab.value) ? '' : 'max-sm:hidden')
 const menuOpen = ref(false)
+
+// 左右欄寬度：拖把手調整，雙擊還原，記在本機（只影響電腦版的三欄格線）
+const COLS_KEY = 'gem-td-col-widths'
+const COL_RANGE = { rail: [200, 480], side: [280, 560] }
+const MIN_MAP = 320
+const colW = ref((() => {
+    try {
+        const v = JSON.parse(localStorage.getItem(COLS_KEY))
+        return { rail: Number.isFinite(v?.rail) ? v.rail : null, side: Number.isFinite(v?.side) ? v.side : null }
+    } catch { return { rail: null, side: null } }
+})())
+const colStyle = computed(() => ({
+    ...(colW.value.rail ? { '--gt-rail-w': `${colW.value.rail}px` } : {}),
+    ...(colW.value.side ? { '--gt-side-w': `${colW.value.side}px` } : {}),
+}))
+function saveCols() {
+    try { localStorage.setItem(COLS_KEY, JSON.stringify(colW.value)) } catch { /* 略過 */ }
+}
+function resetCol(which) {
+    colW.value = { ...colW.value, [which]: null }
+    saveCols()
+}
+function startCol(e, which) {
+    e.preventDefault()
+    const el = e.currentTarget.parentElement
+    const game = el.parentElement
+    const sx = e.clientX
+    const w0 = el.offsetWidth
+    const other = (which === 'rail' ? game.querySelector('.gt-side') : game.querySelector('.gt-rail')).offsetWidth
+    const [lo, hi] = COL_RANGE[which]
+    const max = Math.max(lo, Math.min(hi, game.clientWidth - other - MIN_MAP))
+    const move = (ev) => {
+        const dx = ev.clientX - sx
+        const w = Math.round(Math.min(max, Math.max(lo, w0 + (which === 'rail' ? dx : -dx))))
+        colW.value = { ...colW.value, [which]: w }
+    }
+    const up = () => {
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+        document.body.style.userSelect = ''
+        saveCols()
+    }
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+}
 // 遊戲畫面（地圖）是否正在顯示；條件跟 template 的 <main class="gt-game"> 一致
 const showGame = computed(() => !state.loading && !state.kicked && !(state.error && !roomState.room)
     && !showNickname.value && view.value?.phase !== 'waiting' && !!view.value?.board && !!state.catalog)
