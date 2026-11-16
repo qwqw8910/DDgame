@@ -1541,15 +1541,22 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   /* ── 遊戲版面：電腦三欄（左 戰況與合成表、中 地圖、右 操作）；窄螢幕退回上下堆疊 ── */
   .gt-game {
     display: grid; flex: 1; min-height: 0;
-    grid-template-columns: clamp(240px, 20vw, 300px) minmax(0, 1fr) clamp(320px, 26vw, 400px);
+    grid-template-columns: var(--gt-rail-w, clamp(240px, 20vw, 300px)) minmax(0, 1fr) var(--gt-side-w, clamp(320px, 26vw, 400px));
   }
+  .gt-rail, .gt-side { position: relative; }
+  /* 欄寬拖拉把手：貼在欄的內側邊緣 */
+  .gt-resizer { position: absolute; top: 0; bottom: 0; z-index: 5; width: 8px; cursor: col-resize; touch-action: none; }
+  .gt-resizer--rail { right: 0; }
+  .gt-resizer--side { left: 0; }
+  .gt-resizer:hover, .gt-resizer:active { background: var(--gt-accent); opacity: .35; }
   .gt-rail, .gt-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding: 12px; }
   .gt-rail { border-right: 1px solid var(--gt-line); overflow: hidden; }
-  .gt-rail-top { display: flex; flex: 0 1 auto; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .gt-rail-top { display: flex; flex: 1 1 auto; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .gt-side { border-left: 1px solid var(--gt-line); }
   .gt-stage { position: relative; min-width: 0; min-height: 0; padding: 8px; }
   @media (max-width: 1023px) {
     .gt-game { display: flex; flex-direction: column; overflow-y: auto; }
+    .gt-resizer { display: none; }
     .gt-rail, .gt-side, .gt-rail-top { flex-shrink: 0; overflow: visible; border: 0; }
     .gt-stage { flex-shrink: 0; height: min(100vw, 62dvh); }
   }
@@ -1564,6 +1571,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
       flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 16px;
     }
     .gt-rail, .gt-rail-top, .gt-side { display: contents; }
+    .gt-resizer { display: none; }
     .gt-rail-top > *, .gt-side > * { order: 5; margin: 12px 12px 0; max-width: calc(100% - 24px); }
     .gt-stage {
       order: 2; position: sticky; top: 0; z-index: 3; flex: none; height: var(--gt-stage); padding: 0;
@@ -1607,6 +1615,38 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   }
   .gt-recipes-close:hover { color: var(--gt-accent-ink); }
   .gt-recipes-close:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: -2px; }
+  /* 放進停靠區塊裡的合成表：沒有自己的外框，跟著區塊本體捲動 */
+  .gt-recipes--inline { position: static; width: auto; max-height: none; overflow: visible; border: 0; background: transparent; box-shadow: none; }
+  .gt-recipes--inline > div { overflow: visible; padding: 0; }
+
+  /* ── 電腦版區塊停靠（GemDock）：標題列可收折、拖曳排序、彈出浮動、調高度 ── */
+  .gt-float-host { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+  .gt-dock {
+    position: relative; display: flex; flex-direction: column; flex-shrink: 0; min-width: 0; overflow: hidden;
+    border: 1px solid var(--gt-line-soft); border-radius: 12px; background: var(--gt-surface);
+  }
+  .gt-dock.gt-card { padding: 0; }
+  .gt-dock--float { position: absolute; pointer-events: auto; border-color: var(--gt-line); box-shadow: var(--gt-shadow); }
+  .gt-dock--drag { opacity: .75; box-shadow: var(--gt-shadow); }
+  .gt-dock-head {
+    display: flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 4px 0 10px;
+    border-bottom: 1px solid var(--gt-line-soft); cursor: grab; touch-action: none; user-select: none;
+  }
+  .gt-dock--collapsed .gt-dock-head { border-bottom: 0; }
+  .gt-dock--drag .gt-dock-head { cursor: grabbing; }
+  .gt-dock-btn {
+    display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border: 0; border-radius: 6px;
+    background: transparent; color: var(--gt-muted); font-size: 14px; line-height: 1; cursor: pointer;
+  }
+  .gt-dock-btn:hover { background: var(--gt-line-soft); color: var(--gt-accent-ink); }
+  .gt-dock-btn:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: -2px; }
+  .gt-dock-body { flex: 1 1 auto; min-height: 0; padding: 12px; overflow-y: auto; overscroll-behavior: contain; }
+  /* 標題列已經有名稱，內容裡第一個標題就不重複顯示 */
+  .gt-dock-body > .gt-heading:first-child, .gt-dock-body > section[aria-label] > .gt-heading:first-child { display: none; }
+  .gt-dock-grip--bar { flex-shrink: 0; height: 8px; cursor: row-resize; touch-action: none; }
+  .gt-dock-grip--bar:hover, .gt-dock-grip--bar:active { background: var(--gt-accent); opacity: .35; }
+  .gt-dock-grip--corner { position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; cursor: nwse-resize; touch-action: none; }
+  .gt-dock-grip--corner::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 8px; height: 8px; border-right: 2px solid var(--gt-faint); border-bottom: 2px solid var(--gt-faint); }
 
   .gt-need { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border: 1px solid var(--gt-line-soft); border-radius: 8px; background: var(--gt-surface); }
   .gt-need--ready { border-color: #2E9E5B; background: #E9F7EE; color: #1E6B3D; }

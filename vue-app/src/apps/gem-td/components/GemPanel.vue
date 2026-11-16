@@ -5,7 +5,7 @@
         <p v-else-if="me && !mine && (me.pending.length || me.choosing)" class="m-0 text-(--gt-accent-ink)" :class="tabClass('place')">回到自己的地圖才能放置和選擇甜點。</p>
 
         <!-- 手上的甜點 -->
-        <section v-if="mine && me?.pending.length" :class="tabClass('place')" aria-label="本回合甜點">
+        <GemDock v-if="mine && me?.pending.length" id="pending" :title="`點地圖放下甜點（還有 ${me.pending.length} 個）`" :class="tabClass('place')" aria-label="本回合甜點">
             <h3 class="gt-heading">點地圖放下甜點（還有 {{ me.pending.length }} 個）</h3>
             <div class="grid grid-cols-5 gap-1.5">
                 <button v-for="(g, i) in me.pending" :key="g.slot" class="gt-gem-slot"
@@ -30,10 +30,10 @@
                     <template v-if="shortOf(me.rerollCost)">還差 {{ shortOf(me.rerollCost) }} 金・</template>本回合已骰 {{ me.rerolls }} 次，每骰一次 +{{ catalog.rerollStep }} 金，下回合恢復
                 </p>
             </template>
-        </section>
+        </GemDock>
 
         <!-- 五顆都放完：選一顆 -->
-        <section v-else-if="mine && me?.choosing" :class="tabClass('place')" aria-label="選擇保留的甜點">
+        <GemDock v-else-if="mine && me?.choosing" id="choosing" title="留下一個，其餘變成餅乾牆" :class="tabClass('place')" aria-label="選擇保留的甜點">
             <h3 class="gt-heading">留下一個，其餘變成餅乾牆</h3>
             <p v-if="keys" class="mt-0 mb-2 text-(--gt-muted)">按 <kbd class="gt-kbd">1</kbd>～<kbd class="gt-kbd">5</kbd> 選，<kbd class="gt-kbd">K</kbd> 保留，<kbd class="gt-kbd">M</kbd> 合成</p>
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
@@ -48,27 +48,27 @@
                     <button class="gt-btn gt-btn--small" @click="$emit('keep', f.id)">保留</button>
                 </li>
             </ul>
-        </section>
+        </GemDock>
 
         <!-- 準備：放完、選完之後最重要的一步，放在最上面 -->
-        <section v-if="phase === 'build' && me?.resolved && !me.out" :class="tabClass('place')">
+        <GemDock v-if="phase === 'build' && me?.resolved && !me.out" id="ready" title="準備" :class="tabClass('place')">
             <button class="gt-btn gt-btn--lamp w-full" :disabled="me.ready" aria-keyshortcuts="R" @click="$emit('ready')">
                 {{ me.ready ? '已準備，等待隊友' : '準備好了，開始出怪' }}<kbd v-if="keys && !me.ready" class="gt-kbd ml-2" aria-hidden="true">R</kbd>
             </button>
-        </section>
+        </GemDock>
 
         <!-- 特殊塔 -->
         <!-- 突變：共用血量由全隊投票三選一，獨立血量由伺服器隨機，直接看戰況欄的預告 -->
-        <section v-if="phase === 'build' && view.mutationOffer && me && !me.out" :class="tabClass('place')" aria-label="突變投票">
+        <GemDock v-if="phase === 'build' && view.mutationOffer && me && !me.out" id="vote" :title="`第 ${view.mutationOffer.wave} 波突變：全隊三選一${view.mutationOffer.myVote ? '' : '（還沒投票）'}`" :class="tabClass('place')" aria-label="突變投票">
             <h3 class="gt-heading">第 {{ view.mutationOffer.wave }} 波突變：全隊三選一<span v-if="!view.mutationOffer.myVote" class="ml-2 text-(--gt-accent-ink)">還沒投票</span></h3>
             <div class="flex flex-col gap-2">
                 <GemMutationCard v-for="id in view.mutationOffer.options" :key="id" :mutation="catalog.mutations[id]" :votes="view.mutationOffer.counts[id]"
                     interactive :picked="view.mutationOffer.myVote === id" @pick="$emit('vote-mutation', id)" />
             </div>
             <p class="mt-1.5 mb-0 text-xs leading-snug text-(--gt-muted)">票數最高者生效，持續 {{ catalog.mutationEvery }} 波；同票或沒人投就隨機。開波前都可以改票。</p>
-        </section>
+        </GemDock>
 
-        <section v-if="recipes.length" :class="tabClass('place')" aria-label="可合成的特殊塔">
+        <GemDock v-if="recipes.length" id="combine" title="可以合成" :class="tabClass('place')" aria-label="可合成的特殊塔">
             <h3 class="gt-heading">可以合成</h3>
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
                 <li v-for="r in recipes" :key="r.id" class="gt-row group relative">
@@ -88,10 +88,10 @@
                     </div>
                 </li>
             </ul>
-        </section>
+        </GemDock>
 
         <!-- 選中的塔 -->
-        <section v-if="selected" class="gt-card" :class="tabClass('tower', ...(me?.choosing ? ['place'] : []))" aria-label="選取的塔">
+        <GemDock v-if="selected" id="selected" :title="selectedTitle" class="gt-card" :class="tabClass('tower', ...(me?.choosing ? ['place'] : []))" aria-label="選取的塔">
             <template v-if="selected.kind === 'stone'">
                 <h3 class="gt-heading">餅乾牆</h3>
                 <template v-if="phase === 'build' && me && mine">
@@ -129,13 +129,13 @@
                     <p v-if="!swapFrom && shortOf(catalog.swapCost)" class="mt-1 mb-0 text-(--gt-muted)">還差 {{ shortOf(catalog.swapCost) }} 金</p>
                 </template>
             </template>
-        </section>
+        </GemDock>
         <p v-if="swapFrom" class="m-0 text-(--gt-accent-ink)" :class="tabClass('place', 'tower')" role="status">點一塊餅乾牆，塔會移到那裡。</p>
         <!-- 出怪中沒有能做的事：告訴玩家右欄現在的用途，不留一整欄空白 -->
         <p v-if="phase === 'wave' && !selected && !recipes.length" class="m-0 text-(--gt-muted)" :class="tabClass('place', 'tower')">出怪中。點地圖上的塔，可以在這裡看它的傷害、射程和戰績。</p>
 
         <!-- 品質 -->
-        <section v-if="me && !me.out && phase === 'build'" :class="tabClass('shop')" aria-label="甜點品質">
+        <GemDock v-if="me && !me.out && phase === 'build'" id="quality" :title="`甜點品質 ${me.quality}／${catalog.qualityRates.length}`" :class="tabClass('shop')" aria-label="甜點品質">
             <h3 class="gt-heading">甜點品質 {{ me.quality }}／{{ catalog.qualityRates.length }}</h3>
             <div class="flex h-2.5 overflow-hidden rounded-sm bg-(--gt-track)" role="img" :aria-label="`目前機率：${rateText}`">
                 <span v-for="(r, i) in rates" :key="i" :style="{ width: `${r}%`, background: RATE_COLORS[i] }" />
@@ -145,10 +145,10 @@
                 提升品質（{{ qualityCost }} 金）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">U</kbd>
             </button>
             <p v-if="qualityCost && shortOf(qualityCost)" class="mt-1 mb-0 text-(--gt-muted)">還差 {{ shortOf(qualityCost) }} 金</p>
-        </section>
+        </GemDock>
 
         <!-- 許願池：預訂下一回合 5 選 1 的風向，每回合一次 -->
-        <section v-if="me && !me.out && phase === 'build' && catalog.wish" :class="tabClass('shop')" aria-label="甜點許願池">
+        <GemDock v-if="me && !me.out && phase === 'build' && catalog.wish" id="wish" title="甜點許願池" :class="tabClass('shop')" aria-label="甜點許願池">
             <h3 class="gt-heading">甜點許願池</h3>
             <p v-if="me.wish" class="m-0 mb-1.5 leading-snug" role="status">
                 已許願 {{ me.wish.stacks }}/{{ catalog.wish.maxStacks }} 次：下回合有 1 格 {{ Math.round(catalog.wish.stackRates[me.wish.stacks - 1] * 100) }}% 機率變成「{{ catalog.wish.categories[me.wish.category].name }}」{{ me.wish.stacks >= catalog.wish.levelStack ? '，且等級提高' : '' }}，其餘格照常隨機
@@ -159,10 +159,10 @@
                 </button>
             </div>
             <p class="mt-1.5 mb-0 text-xs leading-snug text-(--gt-muted)">只影響下一回合的 5 選 1，不直接給甜點。只影響其中 1 格，其餘 4 格照常隨機。同回合可連續許同一分類，該格機率 60% → 80% → 100%、價格 60／120／180 金，許滿第 3 次該格等級也提高，最多 {{ catalog.wish.maxStacks }} 層。</p>
-        </section>
+        </GemDock>
 
         <!-- 買命：金幣換血量，血量滿了或傷害測試（不扣血）就不顯示 -->
-        <section v-if="me && !me.out && phase === 'build' && !view.nextWave?.test" :class="tabClass('shop')" aria-label="買命">
+        <GemDock v-if="me && !me.out && phase === 'build' && !view.nextWave?.test" id="life" title="補血" :class="tabClass('shop')" aria-label="買命">
             <h3 class="gt-heading">補血</h3>
             <button class="gt-btn gt-btn--small w-full" :disabled="!canBuyLife" @click="$emit('buy-life')">
                 {{ me.lifeCost }} 金換 1 點血（{{ myLives }}／{{ view.maxLives }}）
@@ -171,14 +171,10 @@
             <p v-else class="mt-1 mb-0 text-xs text-(--gt-muted)">
                 <template v-if="shortOf(me.lifeCost)">還差 {{ shortOf(me.lifeCost) }} 金・</template>價格隨波次上漲；本回合已買 {{ me.livesBought }} 點，每多買 1 點貴 {{ Math.round(catalog.lifeStep * 100) }}%，下回合恢復
             </p>
-        </section>
+        </GemDock>
 
         <!-- 研究：選項多，可收合 -->
-        <details v-if="me && !me.out && phase === 'build'" class="gt-fold" :class="tabClass('shop')" open aria-label="甜點研究">
-            <summary class="gt-heading !mb-1">
-                甜點研究
-                <GemHeaderIcon name="chevron" class="gt-fold-arrow text-(--gt-muted)" />
-            </summary>
+        <GemDock v-if="me && !me.out && phase === 'build'" id="research" title="甜點研究" fold :class="tabClass('shop')" aria-label="甜點研究">
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
                 <li v-for="r in researchRows" :key="r.id" class="gt-row">
                     <span class="min-w-0 flex-1 leading-snug">
@@ -189,7 +185,7 @@
                 </li>
             </ul>
             <p class="mt-1.5 mb-0 leading-snug text-(--gt-muted)">過關利息：存款的 {{ catalog.interest.rate * 100 }}%，最多 {{ catalog.interest.cap }} 金</p>
-        </details>
+        </GemDock>
     </div>
 </template>
 
@@ -198,7 +194,7 @@ import { computed, ref } from 'vue'
 import { isSpecial } from '../data/gems.js'
 import GemIcon from './GemIcon.vue'
 import GemMutationCard from './GemMutationCard.vue'
-import GemHeaderIcon from './GemHeaderIcon.vue'
+import GemDock from './GemDock.vue'
 
 const props = defineProps({
     view: { type: Object, required: true },
@@ -261,6 +257,7 @@ const recipes = computed(() => (me.value?.recipes ?? []).map((r) => {
 const tipId = ref(null) // 手機點名字時打開的效果說明
 
 const selected = computed(() => towerMap.value.get(props.selectedId) ?? null)
+const selectedTitle = computed(() => (!selected.value ? '' : selected.value.kind === 'stone' ? '餅乾牆' : gemName(selected.value.kind, selected.value.level)))
 const selectedStats = computed(() => {
     const t = selected.value
     if (!t || t.kind === 'stone') return null
