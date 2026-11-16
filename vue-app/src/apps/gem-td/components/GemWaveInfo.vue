@@ -21,14 +21,15 @@
         <h3 class="gt-heading">{{ view.nextWave?.test ? '傷害測試進行中' : `第 ${view.nextWave?.number} 波進行中` }}</h3>
         <p v-if="view.nextWave?.test" class="m-0">{{ watchedLabel }}已造成 {{ (watched?.damage ?? 0).toLocaleString() }}／{{ view.nextWave.hp.toLocaleString() }} 傷害（{{ Math.min(100, Math.round(((watched?.damage ?? 0) / view.nextWave.hp) * 100)) }}%）</p>
         <p v-else class="m-0">{{ watchedLabel }}擊殺 {{ watched?.killed ?? 0 }}／{{ frame?.total ?? view.nextWave?.count }}，漏掉 {{ watched?.leaked ?? 0 }}</p>
-        <button v-if="isHost" class="gt-btn gt-btn--small mt-2 w-full" aria-keyshortcuts="F" @click="$emit('speed', view.speed === 1 ? 2 : 1)">
-            {{ view.speed === 1 ? '切換 2 倍速' : '切回 1 倍速' }}<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">F</kbd>
+        <button v-if="isHost" class="gt-btn gt-btn--small mt-2 w-full" aria-keyshortcuts="F" @click="$emit('speed', nextSpeed(view.speed))">
+            目前 {{ view.speed }} 倍速，切換為 {{ nextSpeed(view.speed) }} 倍<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">F</kbd>
         </button>
     </section>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { nextSpeed } from '../data/gems.js'
 
 const props = defineProps({
     view: { type: Object, required: true },

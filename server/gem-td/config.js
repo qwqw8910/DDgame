@@ -15,7 +15,15 @@ const START_GOLD = 0;
 const WAVE_CHOICES = [15, 30, 50];
 const BUILD_SECOND_CHOICES = [0, 45, 60, 90]; // 0 = 不限時（等全員按準備）
 const LIVES_MODES = ['team', 'solo']; // team = 全隊共用血量；solo = 每人各自的血量
-const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true };
+// 難度：簡單 = 原本的數值，給還不會蓋塔與迷宮的人；普通、困難給會迷宮的老手。倍率套在怪物血量與護甲上
+const DIFFICULTIES = {
+  easy: { name: '簡單', hp: 1, armor: 1, desc: '基準數值，適合還不熟悉蓋塔與迷宮的人' },
+  normal: { name: '普通', hp: 1.6, armor: 1.3, desc: '怪物明顯更硬，需要像樣的迷宮與合成' },
+  hard: { name: '困難', hp: 2.5, armor: 1.7, desc: '怪物非常硬，需要完整的迷宮與合成規劃' },
+};
+const DIFFICULTY_IDS = Object.keys(DIFFICULTIES);
+const SPEED_CHOICES = [1, 2, 4];
+const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true, difficulty: 'easy' };
 
 // 用金幣換血量：建造階段每次換 1 點，最多補到開局血量
 // 底價隨波次上漲（後期收入高，固定價會變成無限補血）；同一回合每多買 1 點再貴 50%，下回合恢復
@@ -63,7 +71,7 @@ const SPECIALS = {
   malachite: { name: '開心果泡芙', tier: 1, trait: '同時射擊 5 個目標', damage: 38, cooldown: 0.5, range: 6, targets: 5 },
   bloodstone: { name: '紅絲絨杯子蛋糕', tier: 1, trait: '範圍灼燒', damage: 70, cooldown: 1.0, range: 5,
     splash: { radius: 2.2, ratio: 0.8 }, poison: { dps: 40, duration: 3 } },
-  gold: { name: '金箔松露巧克力', tier: 1, trait: '爆擊，並削弱範圍內敵人護甲', damage: 220, cooldown: 1.0, range: 6,
+  gold: { name: '金箔松露巧克力', tier: 1, trait: '爆擊，並削弱範圍內敵人護甲', damage: 198, cooldown: 1.0, range: 6,
     crit: { chance: 0.25, mult: 3 }, armorAura: { amount: 6, radius: 5 } },
   paraiba: { name: '汽水冰棒', tier: 1, trait: '範圍破甲加冰凍', damage: 260, cooldown: 1.2, range: 6,
     splash: { radius: 2, ratio: 0.7 }, slow: { pct: 0.4, duration: 2 }, shred: { amount: 8, duration: 3 } },
@@ -76,7 +84,7 @@ const SPECIALS = {
   peacock: { name: '開心果千層', tier: 2, trait: '同時射擊 8 個目標', damage: 120, cooldown: 0.45, range: 7, targets: 8 },
   crimson: { name: '雙層紅絲絨', tier: 2, trait: '灼燒整片區域', damage: 220, cooldown: 1.0, range: 6,
     splash: { radius: 3, ratio: 0.9 }, poison: { dps: 160, duration: 3 } },
-  royalgold: { name: '皇家巧克力塔', tier: 2, trait: '必殺爆擊，大幅削甲', damage: 700, cooldown: 0.9, range: 7,
+  royalgold: { name: '皇家巧克力塔', tier: 2, trait: '必殺爆擊，大幅削甲', damage: 630, cooldown: 0.9, range: 7,
     crit: { chance: 0.35, mult: 3.5 }, armorAura: { amount: 12, radius: 6 } },
   paraibaheart: { name: '汽水聖代', tier: 2, trait: '全面破甲與極寒冰凍', damage: 850, cooldown: 1.1, range: 7,
     splash: { radius: 2.8, ratio: 0.8 }, slow: { pct: 0.55, duration: 2.5 }, shred: { amount: 14, duration: 3 } },
@@ -89,7 +97,7 @@ const SPECIALS = {
   opera: { name: '翡翠歌劇院蛋糕', tier: 3, trait: '同時射擊 12 個目標', damage: 360, cooldown: 0.4, range: 8, targets: 12 },
   souffle: { name: '火焰舒芙蕾', tier: 3, trait: '焚燒大片區域', damage: 650, cooldown: 1.0, range: 9,
     splash: { radius: 4.5, ratio: 0.9 }, poison: { dps: 520, duration: 3 } },
-  emperor: { name: '帝王金箔蛋糕', tier: 3, trait: '一擊必殺級爆擊，瓦解護甲', damage: 2100, cooldown: 0.8, range: 8,
+  emperor: { name: '帝王金箔蛋糕', tier: 3, trait: '一擊必殺級爆擊，瓦解護甲', damage: 1890, cooldown: 0.8, range: 8,
     crit: { chance: 0.45, mult: 4 }, armorAura: { amount: 18, radius: 7 } },
   aurora: { name: '極光芭菲', tier: 3, trait: '極寒破甲席捲全場', damage: 2600, cooldown: 1.0, range: 8,
     splash: { radius: 3.2, ratio: 0.85 }, slow: { pct: 0.65, duration: 3 }, shred: { amount: 20, duration: 3 } },
@@ -226,16 +234,17 @@ const researchBonus = (research = {}) => ({
   range: (research.range ?? 0) * RESEARCH.range.perLevel,
 });
 
-function monsterGroup(type, count, wave, trait = null) {
+function monsterGroup(type, count, wave, trait = null, difficulty = 'easy') {
   const def = MONSTERS[type];
+  const diff = DIFFICULTIES[difficulty] ?? DIFFICULTIES.easy;
   // 前幾波場上只有一兩顆寶石，血量給緩坡
   const earlyRamp = Math.min(1, 0.4 + 0.2 * (wave - 1));
   return {
     type,
     count,
     trait,
-    hp: Math.round(WAVE_BASE_HP * Math.pow(WAVE_HP_GROWTH, wave - 1) * earlyRamp * def.hp),
-    armor: def.armor + wave * WAVE_ARMOR_GROWTH,
+    hp: Math.max(1, Math.round(WAVE_BASE_HP * Math.pow(WAVE_HP_GROWTH, wave - 1) * earlyRamp * def.hp * diff.hp)),
+    armor: (def.armor + wave * WAVE_ARMOR_GROWTH) * diff.armor,
     speed: def.speed,
   };
 }
@@ -246,17 +255,17 @@ function escortType(wave, main) {
 }
 
 // 主力加護衛，總隻數不變；蟲群會把護衛再乘上 count
-function waveGroups(type, wave) {
+function waveGroups(type, wave, difficulty) {
   const size = Math.min(5 + 2 * wave, WAVE_BASE_COUNT + Math.floor(wave / 4));
   if (MONSTERS[type].boss) {
-    return [monsterGroup(type, 1, wave, BOSS_TRAITS[(Math.floor(wave / 10) + BOSS_TRAITS.length - 1) % BOSS_TRAITS.length])];
+    return [monsterGroup(type, 1, wave, BOSS_TRAITS[(Math.floor(wave / 10) + BOSS_TRAITS.length - 1) % BOSS_TRAITS.length], difficulty)];
   }
-  if (wave < MIX_FROM_WAVE) return [monsterGroup(type, MONSTERS[type].count * size, wave)];
+  if (wave < MIX_FROM_WAVE) return [monsterGroup(type, MONSTERS[type].count * size, wave, null, difficulty)];
   const escort = escortType(wave, type);
   const escorts = Math.ceil(size * ESCORT_RATIO);
   return [
-    monsterGroup(type, MONSTERS[type].count * (size - escorts), wave, TRAIT_ROTATION[(wave - MIX_FROM_WAVE) % TRAIT_ROTATION.length]),
-    monsterGroup(escort, MONSTERS[escort].count * escorts, wave),
+    monsterGroup(type, MONSTERS[type].count * (size - escorts), wave, TRAIT_ROTATION[(wave - MIX_FROM_WAVE) % TRAIT_ROTATION.length], difficulty),
+    monsterGroup(escort, MONSTERS[escort].count * escorts, wave, null, difficulty),
   ];
 }
 
@@ -264,17 +273,17 @@ function waveGroups(type, wave) {
 const waveDefCache = new Map();
 
 // 波次內容只由 (wave, totalWaves) 決定，每次推送狀態都會問一次，所以記起來
-function waveDef(wave, totalWaves) {
-  const key = `${wave}/${totalWaves}`;
-  if (!waveDefCache.has(key)) waveDefCache.set(key, buildWaveDef(wave, totalWaves));
+function waveDef(wave, totalWaves, difficulty = 'easy') {
+  const key = `${wave}/${totalWaves}/${difficulty}`;
+  if (!waveDefCache.has(key)) waveDefCache.set(key, buildWaveDef(wave, totalWaves, difficulty));
   return waveDefCache.get(key);
 }
 
 // 傷害測試：打完第 at 波後加賽，巨獸血量以該波為基準（公式不設上限，能活到那裡的隊伍本來就扛得住那樣的血量）
-function testWaveDef(at) {
-  const key = `test/${at}`;
+function testWaveDef(at, difficulty = 'easy') {
+  const key = `test/${at}/${difficulty}`;
   if (!waveDefCache.has(key)) {
-    const group = monsterGroup('titan', 1, at);
+    const group = monsterGroup('titan', 1, at, null, difficulty);
     waveDefCache.set(key, { ...group, count: 1, interval: SPAWN_INTERVAL, groups: [group], test: true, at });
   }
   return waveDefCache.get(key);
@@ -293,9 +302,9 @@ const BOSS_LEAK_MIN = 15;
 const BOSS_LEAK_MAX = 40;
 const bossLeak = (wave, totalWaves) => Math.round(BOSS_LEAK_MIN + (BOSS_LEAK_MAX - BOSS_LEAK_MIN) * Math.min(1, wave / totalWaves));
 
-function buildWaveDef(wave, totalWaves) {
+function buildWaveDef(wave, totalWaves, difficulty) {
   const type = wave === totalWaves ? 'boss' : WAVE_ROTATION[(wave - 1) % WAVE_ROTATION.length];
-  const groups = waveGroups(type, wave)
+  const groups = waveGroups(type, wave, difficulty)
     .map(g => (MONSTERS[g.type].boss ? { ...g, leak: bossLeak(wave, totalWaves) } : g));
   const [main] = groups;
   return {
@@ -338,12 +347,14 @@ function catalog() {
     traitIds: TRAIT_IDS,
     gemsPerRound: GEMS_PER_ROUND,
     lifeStep: LIFE_STEP,
+    difficulties: DIFFICULTIES,
+    speedChoices: SPEED_CHOICES,
   };
 }
 
 module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
-  WAVE_CHOICES, BUILD_SECOND_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
+  WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
   SWAP_COST, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
   TRAIT_IDS, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,

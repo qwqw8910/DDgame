@@ -90,7 +90,7 @@ function registerNamespace(io, db) {
   // ── 計時 ─────────────────────────────────────────────────────
   function scheduleBuild(roomId, game) {
     clearTimers(game);
-    if (game.buildEndsAt === null) return;
+    if (game.buildEndsAt === null || game.paused) return;
     game._timer = setTimeout(() => {
       game._timer = null;
       if (getGame(roomId) !== game || game.phase !== 'build') return;
@@ -112,7 +112,7 @@ function registerNamespace(io, db) {
     let ticks = 0;
     game._ticker = setInterval(() => {
       if (getGame(roomId) !== game || game.phase !== 'wave') return clearTimers(game);
-      if (!onlineIds(roomId).length) return; // 全員離線：暫停
+      if (game.paused || !onlineIds(roomId).length) return; // 暫停或全員離線
 
       const out = [];
       try {
@@ -167,7 +167,7 @@ function registerNamespace(io, db) {
 
   // 線上玩家都準備好：縮短倒數，稍後開波
   function checkReady(roomId, game) {
-    if (game.phase !== 'build' || !L.allReady(game, onlineIds(roomId))) return;
+    if (game.phase !== 'build' || game.paused || !L.allReady(game, onlineIds(roomId))) return;
     const target = Date.now() + READY_COUNTDOWN_MS;
     if (game.buildEndsAt === null || game.buildEndsAt > target) {
       game.buildEndsAt = target;
@@ -323,6 +323,18 @@ function registerNamespace(io, db) {
       try {
         const c = asHost(roomId); if (!c) return;
         L.setSpeed(c.game, speed);
+        pushState(roomId);
+      } catch (err) { fail(socket, err); }
+    });
+
+    socket.on('gt:set-paused', ({ roomId, paused } = {}) => {
+      try {
+        const c = ctx(roomId); if (!c) return;
+        L.setPaused(c.game, paused, { now: Date.now() });
+        if (c.game.phase === 'build') {
+          if (c.game.paused) clearTimers(c.game);
+          else scheduleBuild(roomId, c.game);
+        }
         pushState(roomId);
       } catch (err) { fail(socket, err); }
     });
