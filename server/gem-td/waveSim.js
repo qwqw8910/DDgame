@@ -184,8 +184,9 @@ function kill(sim, tower, m) {
   if (m.trait === 'split') splitMonster(sim, m);
 }
 
+// 回傳實際扣掉的血量（套過護甲與護盾上限），給前端顯示傷害數字
 function dealDamage(sim, tower, m, raw) {
-  if (m.dead) return;
+  if (m.dead) return 0;
   const reduced = raw * C.armorFactor(effectiveArmor(sim, m));
   const dealt = m.trait === 'shield' ? Math.min(reduced, m.maxHp * C.SHIELD_HIT_CAP) : reduced;
   const applied = Math.min(dealt, m.hp);
@@ -193,6 +194,7 @@ function dealDamage(sim, tower, m, raw) {
   sim.damage += applied;
   m.hp -= dealt;
   if (m.hp <= 0) kill(sim, tower, m);
+  return dealt;
 }
 
 function applyEffects(sim, tower, m) {
@@ -244,10 +246,12 @@ function fire(sim, tower, rng) {
   const { stats, ref } = tower;
 
   for (const target of targets) {
-    if (sim.shots.length < MAX_FRAME_SHOTS) sim.shots.push([ref.id, target.id]);
-    const raw = stats.crit && rng() < stats.crit.chance ? stats.damage * stats.crit.mult : stats.damage;
+    const crit = !!stats.crit && rng() < stats.crit.chance;
+    const raw = crit ? stats.damage * stats.crit.mult : stats.damage;
     applyEffects(sim, tower, target);
-    dealDamage(sim, tower, target, raw);
+    const dealt = dealDamage(sim, tower, target, raw);
+    // [塔, 目標, 是否暴擊, 實際傷害]：前端用來閃白、跳傷害數字、震動
+    if (sim.shots.length < MAX_FRAME_SHOTS) sim.shots.push([ref.id, target.id, crit ? 1 : 0, Math.round(dealt)]);
 
     if (!stats.splash) continue;
     const { radius, ratio } = stats.splash;
