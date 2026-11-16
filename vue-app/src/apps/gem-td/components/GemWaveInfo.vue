@@ -1,4 +1,11 @@
 <template>
+  <div class="contents">
+    <!-- 目前生效的突變：傷害測試不套用，投票中的候選在右欄 -->
+    <section v-if="activeMutation" class="gt-card" aria-label="目前突變">
+        <h3 class="gt-heading">目前突變</h3>
+        <GemMutationCard :mutation="activeMutation" />
+    </section>
+
     <!-- 建造時：下一波預告；波次中：正在看的地圖的進度與倍速 -->
     <section v-if="phase === 'build' && view.nextWave" class="gt-card" aria-label="下一波預告">
         <h3 class="gt-heading">{{ view.nextWave.test ? '傷害測試預告' : `第 ${view.nextWave.number} 波預告` }}</h3>
@@ -25,11 +32,13 @@
             目前 {{ view.speed }} 倍速，切換為 {{ nextSpeed(view.speed) }} 倍<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">F</kbd>
         </button>
     </section>
+  </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { nextSpeed } from '../data/gems.js'
+import GemMutationCard from './GemMutationCard.vue'
 
 const props = defineProps({
     view: { type: Object, required: true },
@@ -42,6 +51,12 @@ const props = defineProps({
 defineEmits(['speed'])
 
 const phase = computed(() => props.view.phase)
+// 投票中還沒決定，不顯示；傷害測試不套用突變
+const activeMutation = computed(() => {
+    const id = props.view.mutation
+    if (!id || props.view.mutationOffer || props.view.nextWave?.test) return null
+    return props.catalog.mutations?.[id] ?? null
+})
 const watched = computed(() => props.frame?.players[props.view.watching] ?? null)
 const watchedLabel = computed(() => (props.view.watching === props.myId ? '' : `${props.view.names?.[props.view.watching] ?? '玩家'}：`))
 

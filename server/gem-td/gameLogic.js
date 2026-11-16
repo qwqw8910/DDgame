@@ -36,6 +36,8 @@ function blankRun() {
     startCount: 0, // 開局人數；獨立血量多人局剩一人時判定勝負
     pendingWinners: null, // 打完所有波次時的勝負；最後的傷害測試結束後才結算
     testAt: null, // 正在進行（或準備進行）的傷害測試，是打完第幾波之後的加賽；沒有就是 null
+    mutation: null, // 目前生效的突變 id（從第 10 波起每 5 波換一次）
+    mutationOffer: null, // 共用血量的三選一：{ wave, options: [id], votes: { playerId: id } }
     buildEndsAt: null,
     speed: 1,
     paused: false, // 單人遊戲可暫停
@@ -78,9 +80,7 @@ function isWaypoint(board, x, y) {
   return [board.start, board.end, ...board.checkpoints].some(p => p.x === x && p.y === y);
 }
 
-// 許願的等級偏好：這一手改用高一級品質的權重表（已是最高就維持）
-const rollLevel = (quality, rng, wish = null) => rollLevelWith(
-  C.QUALITY_RATES[Math.min(quality + (wish?.type === 'level' ? 1 : 0), C.QUALITY_RATES.length) - 1], rng);
+const rollLevel = (quality, rng, boost = 0) => rollLevelWith(C.QUALITY_RATES[Math.min(quality + boost, C.QUALITY_RATES.length) - 1], rng);
 
 function rollLevelWith(weights, rng) {
   const total = weights.reduce((a, b) => a + b, 0);
@@ -94,18 +94,15 @@ function rollLevelWith(weights, rng) {
 
 function rollGems(quality, rng, wish = null) {
   const kinds = Object.keys(C.GEMS);
-  const favored = wish?.type === 'category' ? C.GEM_CATEGORIES[wish.category]?.kinds : null;
+  const favored = wish ? C.GEM_CATEGORIES[wish.category]?.kinds : null;
   const pick = () => kinds[Math.floor(rng() * kinds.length)];
   const pickFrom = list => list[Math.floor(rng() * list.length)];
   const gems = Array.from({ length: C.GEMS_PER_ROUND }, (_, slot) => ({
     slot,
-    kind: favored && rng() < C.WISH_CATEGORY_RATE ? pickFrom(favored) : pick(),
-    level: rollLevel(quality, rng, wish),
+    // 許願只影響第 0 格（格子本來就是隨機的），其餘格照原本抽
+    kind: favored && slot === 0 && rng() < C.WISH_STACK_RATES[wish.stacks - 1] ? pickFrom(favored) : pick(),
+    level: rollLevel(quality, rng, favored && slot === 0 && wish.stacks >= C.WISH_LEVEL_STACK ? 1 : 0),
   }));
-  // 保底：整手沒有任何指定分類時，隨機換一格
-  if (favored && !gems.some(g => favored.includes(g.kind))) {
-    gems[Math.floor(rng() * gems.length)].kind = pickFrom(favored);
-  }
   return gems;
 }
 
@@ -121,8 +118,50 @@ const activeIds = game => game.playerIds.filter(id => !game.players[id].out);
 // 正式波次都打完之後多出來的那一波：傷害測試
 const isTestWave = game => game.testAt !== null;
 
+const pickOne = (list, rng) => list[Math.floor(rng() * list.length)];
+
+// 突變波的建造階段：共用血量出三選一（至少 1 張祝福、1 張詛咒），獨立血量直接隨機一張
+function drawMutation(game, rng) {
+  game.mutationOffer = null;
+  const wave = game.wave + 1;
+  if (isTestWave(game) || !C.isMutationWave(wave)) return;
+  if (!isTeam(game)) {
+    game.mutation = pickOne(C.MUTATION_IDS, rng);
+    return;
+  }
+  // 隨機抽 3 張不重複的取捨
+  const pool = [...C.MUTATION_IDS];
+  const options = [];
+  while (options.length < C.MUTATION_OFFERS) options.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  game.mutationOffer = { wave, options, votes: {} };
+}
+
+function voteMutation(game, playerId, id) {
+  requireBuild(game);
+  const p = playerOf(game, playerId);
+  const offer = game.mutationOffer;
+  if (!offer) throw new GameError('NO_OFFER', '這一波沒有突變可以投票');
+  if (p.out) throw new GameError('OUT', '已出局，不能投票');
+  if (!offer.options.includes(id)) throw new GameError('BAD_ARG', '不在候選裡的突變');
+  offer.votes[playerId] = id;
+}
+
+// 開波時結算投票：最高票勝出，同票或沒人投就在最高票裡隨機
+function resolveMutation(game, rng) {
+  const offer = game.mutationOffer;
+  if (!offer) return;
+  const tally = Object.fromEntries(offer.options.map(id => [id, 0]));
+  for (const [pid, id] of Object.entries(offer.votes)) {
+    if (game.playerIds.includes(pid) && tally[id] !== undefined) tally[id] += 1;
+  }
+  const top = Math.max(...Object.values(tally));
+  game.mutation = pickOne(offer.options.filter(id => tally[id] === top), rng);
+  game.mutationOffer = null;
+}
+
 function enterBuild(game, { now, rng }) {
   game.phase = 'build';
+  drawMutation(game, rng);
   game.paused = false;
   game.pausedLeft = null;
   game.buildEndsAt = game.options.buildSeconds ? now + game.options.buildSeconds * 1000 : null;
@@ -338,6 +377,7 @@ function combineNotice(game, playerId, tower) {
   const def = C.SPECIALS[tower.kind];
   if (!def || def.tier < 2) return null;
   const name = game.names?.[playerId] ?? '玩家';
+  if (def.tier >= 4) return `${name} 合成了隱藏塔「${def.name}」！`;
   return `${name} 合成了${def.tier >= 3 ? '最高階的' : ''}${def.name}`;
 }
 
@@ -374,14 +414,16 @@ function rerollGems(game, playerId, { rng = Math.random } = {}) {
 }
 
 // 許願池：預訂下一回合的抽卡風向。每回合一次，下一次 enterBuild 抽牌時套用並清掉
-function makeWish(game, playerId, { type, category } = {}) {
+function makeWish(game, playerId, { category } = {}) {
   requireBuild(game);
   const p = playerOf(game, playerId);
-  if (type !== 'category' && type !== 'level') throw new GameError('BAD_ARG', '沒有這種許願');
-  if (type === 'category' && !Object.hasOwn(C.GEM_CATEGORIES, category)) throw new GameError('BAD_ARG', '沒有這個分類');
-  if (p.wish) throw new GameError('WISHED', '這回合已經許過願了');
-  spend(p, C.wishCost(type));
-  p.wish = type === 'category' ? { type, category } : { type };
+  if (!Object.hasOwn(C.GEM_CATEGORIES, category)) throw new GameError('BAD_ARG', '沒有這個分類');
+  const w = p.wish;
+  if (w && w.category !== category) throw new GameError('WISHED', '這回合已經許了別的分類，只能繼續許同一個分類的願');
+  if (w && w.stacks >= C.WISH_MAX_STACKS) throw new GameError('WISH_MAX', '這回合許願次數已達上限');
+  spend(p, C.wishCost(w?.stacks ?? 0));
+  if (w) w.stacks += 1;
+  else p.wish = { category, stacks: 1 };
 }
 
 function upgradeResearch(game, playerId, track) {
@@ -466,6 +508,7 @@ function autoResolve(game, playerId, rng = Math.random) {
 function startWave(game, { rng = Math.random } = {}) {
   requireBuild(game);
   for (const id of activeIds(game)) autoResolve(game, id, rng);
+  resolveMutation(game, rng);
   game.phase = 'wave';
   game.buildEndsAt = null;
   for (const id of activeIds(game)) {
@@ -480,6 +523,7 @@ function startWave(game, { rng = Math.random } = {}) {
       difficulty: game.options.difficulty,
       pool: isTestWave(game) ? { lives: 1 } : livesPool(game, p), // 傷害測試的怪不會扣血
       research: p.research,
+      mutation: isTestWave(game) ? null : game.mutation, // 傷害測試不套用突變
     });
   }
 }
@@ -784,6 +828,13 @@ function buildView(game, viewerId, watchId) {
     speed: game.speed,
     paused: game.paused,
     nextWave,
+    mutation: game.mutation,
+    mutationOffer: game.mutationOffer && {
+      wave: game.mutationOffer.wave,
+      options: game.mutationOffer.options,
+      counts: Object.fromEntries(game.mutationOffer.options.map(id => [id, Object.values(game.mutationOffer.votes).filter(v => v === id).length])),
+      myVote: viewerId ? game.mutationOffer.votes[viewerId] ?? null : null,
+    },
     result: game.result,
     testLog: buildTestResult(game), // 已打完的傷害測試紀錄（中途也看得到）
     playerIds: game.playerIds,
@@ -827,7 +878,7 @@ module.exports = {
   catalog: C.catalog,
   createGame, resetGame, resolveOptions, startGame,
   placeGem, keepGem, mergeGem, combine, combineNotice, bossDownNotices, availableRecipes,
-  upgradeQuality, rerollGems, rollGems, makeWish, upgradeResearch, removeStone, swapWithStone, buyLife,
+  upgradeQuality, rerollGems, rollGems, makeWish, voteMutation, drawMutation, upgradeResearch, removeStone, swapWithStone, buyLife,
   setReady, allReady, autoResolve, startWave, setSpeed, setPaused, tick, finishWave, finishNow,
   leavePlayer, resolveWatch, buildView, buildFrames,
 };
