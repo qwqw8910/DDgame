@@ -803,7 +803,7 @@ function buildView(game, viewerId, watchId) {
       return [id, {
         quality: p.quality, resolved: p.resolved, ready: p.ready,
         placed: C.GEMS_PER_ROUND - p.pending.length,
-        lives: livesPool(game, p).lives, out: p.out,
+        lives: livesPool(game, p).lives, out: p.out, gold: p.gold,
       }];
     })),
     me: viewerId ? meView(game, viewerId) : null,

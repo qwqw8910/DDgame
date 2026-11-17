@@ -1575,6 +1575,17 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     display: grid; flex: 1; min-height: 0;
     grid-template-columns: var(--gt-rail-w, clamp(240px, 20vw, 300px)) minmax(0, 1fr) var(--gt-side-w, clamp(320px, 26vw, 400px));
   }
+  /* 地圖是正方形：中欄寬度等於可用高度（100cqh），剩下的寬度平分給左右欄，地圖兩側就不會留白。
+     拖拉設定的欄寬變成「最小寬度」；空間不夠時中欄最小縮到 320px。 */
+  @media (min-width: 1024px) {
+    .gt-game {
+      container-type: size;
+      grid-template-columns:
+        minmax(var(--gt-rail-w, clamp(240px, 20vw, 300px)), 1fr)
+        minmax(320px, 100cqh)
+        minmax(var(--gt-side-w, clamp(320px, 26vw, 400px)), 1fr);
+    }
+  }
   .gt-rail, .gt-side { position: relative; }
   /* 欄寬拖拉把手：貼在欄的內側邊緣 */
   .gt-resizer { position: absolute; top: 0; bottom: 0; z-index: 5; width: 8px; cursor: col-resize; touch-action: none; }
