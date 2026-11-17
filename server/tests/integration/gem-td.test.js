@@ -10,6 +10,7 @@ const http = require('node:http');
 const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
 const { registerNamespace } = require('../../gem-td/index');
+const { MAX_LEVEL } = require('../../gem-td/config');
 
 // ── Mock DB（rooms / players 兩張表）────────────────────────────
 function makeMockDb() {
@@ -120,7 +121,7 @@ function shortenWave(roomId) {
 test('完整回合：放置 → 保留 → 準備 → 出怪收幀 → 下一回合 → 重開', async () => {
   const roomId = 'GT0001';
   const [a, b] = await makeRoom(roomId, ['a', 'b']);
-  assert.ok(a.catalog.gems.D.levels.length === 6, '加入時收到型錄');
+  assert.ok(a.catalog.gems.D.levels.length === MAX_LEVEL, '加入時收到型錄（每種甜點都有完整等級）');
 
   emit(roomId, b, 'gt:set-options', { options: { waves: 15 } });
   await until(() => b.errors.length === 1, 'non-host options rejected');

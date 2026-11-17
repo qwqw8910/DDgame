@@ -6,7 +6,7 @@ const L = require('../../../same-word/gameLogic');
 
 const T0 = 1_000_000;
 const ids = n => Array.from({ length: n }, (_, i) => `p${i + 1}`);
-const BANK = Array.from({ length: 20 }, (_, i) => `題目${i + 1}`);
+const BANK = Array.from({ length: 20 }, (_, i) => `題目${i + 1}號`); // 加「號」：避免「題目1」是「題目12」的子字串，讓不外洩檢查誤判
 
 function newGame(n, options = {}) {
   const g = L.createGame(options);
