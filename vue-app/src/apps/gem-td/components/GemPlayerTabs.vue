@@ -43,12 +43,16 @@ const tabs = computed(() => props.view.playerIds.map((id, i) => {
     const lives = props.frame?.players[id]?.lives ?? props.view.players[id].lives
     const { status, alert } = statusOf(id)
     const solo = props.view.options.livesMode === 'solo'
+    const p = props.view.players[id]
+    // 波次中本波收入還沒入帳，跟標題列一樣把即時收入加上去
+    const gold = (p.gold ?? 0) + (props.frame?.players[id]?.earned ?? 0)
+    const money = p.out ? '' : `💰${gold}`
     return {
         id,
-        out: props.view.players[id].out,
+        out: p.out,
         mark: PLAYER_MARKS[i % PLAYER_MARKS.length],
         name: `${props.view.names?.[id] ?? '玩家'}${id === props.myId ? '（我）' : ''}`,
-        status: solo && !props.view.players[id].out ? `♥ ${lives}・${status}` : status,
+        status: [solo && !p.out ? `♥ ${lives}` : '', money, status].filter(Boolean).join('・'),
         alert,
     }
 }))
