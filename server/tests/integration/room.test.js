@@ -30,6 +30,12 @@ function waitFor(socket, event, timeout = 4000) {
   });
 }
 
+// 等連線完成：同時建立多個 client 時，後面那個可能在掛上監聽前就已經連上，
+// 只用 once('connect') 會錯過事件而逾時，所以已連上就直接 resolve
+function connected(socket, timeout = 4000) {
+  return socket.connected ? Promise.resolve() : waitFor(socket, 'connect', timeout);
+}
+
 function waitForEither(socket, eventA, eventB, timeout = 4000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
@@ -191,7 +197,7 @@ function makeClient() {
 
 async function connectClient() {
   const c = makeClient();
-  await waitFor(c, 'connect');
+  await connected(c);
   return c;
 }
 
@@ -364,8 +370,8 @@ describe('room:join — 觀戰', () => {
     const later = mkClient();
 
     try {
-      await waitFor(host, 'connect');
-      await waitFor(later, 'connect');
+      await connected(host);
+      await connected(later);
 
       const roomId = uuid().slice(0, 6).toUpperCase();
       const hostId = uuid();
@@ -721,8 +727,8 @@ describe('room:join-ack — gameState', () => {
     const c2 = mkC();
 
     try {
-      await waitFor(c1, 'connect');
-      await waitFor(c2, 'connect');
+      await connected(c1);
+      await connected(c2);
 
       const roomId = uuid().slice(0, 6).toUpperCase();
       c1.emit('room:create', { roomId, nickname: 'H', playerId: uuid(), maxPlayers: 4, appId: 'test' });
@@ -765,8 +771,8 @@ describe('spectator upgrade (room:spectator-join)', () => {
     const spec = mkC();
 
     try {
-      await waitFor(host, 'connect');
-      await waitFor(spec, 'connect');
+      await connected(host);
+      await connected(spec);
 
       const roomId = uuid().slice(0, 6).toUpperCase();
       host.emit('room:create', { roomId, nickname: 'Host', playerId: uuid(), maxPlayers: 4, appId: 'test' });
@@ -912,7 +918,7 @@ describe('連線狀態恢復（connectionStateRecovery）', () => {
       const ackP   = waitFor(c2, 'room:join-ack');
       const reconP = waitFor(c1, 'room:player-reconnected');
       c2.connect();
-      await waitFor(c2, 'connect');
+      await connected(c2);
       assert.equal(c2.recovered, true, '應走連線恢復');
 
       const ack = await ackP;
@@ -951,7 +957,7 @@ describe('連線狀態恢復（connectionStateRecovery）', () => {
 
       const kickedP = waitFor(c2, 'room:kicked');
       c2.connect();
-      await waitFor(c2, 'connect');
+      await connected(c2);
       assert.equal(c2.recovered, true);
       await kickedP;
       assert.ok(!roomCache.getPlayers(roomId).some(p => p.id === id2), '不應被加回名單');
