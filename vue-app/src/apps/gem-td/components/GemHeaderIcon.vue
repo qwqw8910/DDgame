@@ -27,5 +27,10 @@ const PATHS = {
     chevron: ['M6 9l6 6 6-6'],
     more: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'],
     flag: ['M5 21V4', 'M5 4h11l-2 4 2 4H5'],
+    layout: ['M4 4h16v16H4z', 'M9 4v16', 'M15 4v16'],
+    pause: ['M9 5v14', 'M15 5v14'],
+    play: ['M7 4.5v15l12-7.5z'],
+    speed: ['M4 6l7 6-7 6z', 'M13 6l7 6-7 6z'],
+    exit: ['M15 4h4v16h-4', 'M10 8l-4 4 4 4', 'M6 12h10'],
 }
 </script>

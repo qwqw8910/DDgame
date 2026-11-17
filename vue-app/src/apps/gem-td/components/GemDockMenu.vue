@@ -2,7 +2,7 @@
     <!-- 電腦版標題列的「面板」選單：列出目前有的區塊，可顯示／隱藏，並重設版面 -->
     <div class="relative max-lg:hidden">
         <button class="header-icon-btn" title="面板（顯示、隱藏、重設版面）" aria-label="面板選單" aria-haspopup="menu" :aria-expanded="open" @click="open = !open">
-            <GemHeaderIcon name="more" />
+            <GemHeaderIcon name="layout" />
         </button>
         <template v-if="open">
             <div class="fixed inset-0 z-40" aria-hidden="true" @click="open = false" />

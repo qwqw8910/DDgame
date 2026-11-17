@@ -2,54 +2,68 @@
     <div class="gt-root flex h-[100dvh] w-full flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
         <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
 
-        <header class="flex shrink-0 items-center justify-between gap-2 border-b border-(--gt-line) px-3 py-1.5">
-            <div class="flex min-w-0 items-center gap-2">
-                <button class="gt-chip" :class="showGame && 'max-sm:hidden'" @click="goHome">離開</button>
-                <span class="truncate font-sans font-bold text-(--gt-ink) max-[400px]:hidden" :class="showGame && 'max-sm:hidden'">甜點守衛戰</span>
-                <span class="hidden text-(--gt-muted) tabular-nums sm:inline">{{ roomState.roomId }}</span>
-                <!-- 手機：血量、金幣、波次、倒數併進標題列，整個畫面最上面只有這一排 -->
-                <div v-if="showGame" class="hidden min-w-0 items-center gap-3 font-bold text-(--gt-ink) tabular-nums max-sm:flex max-[360px]:gap-2 max-[360px]:text-sm">
-                    <span class="inline-flex items-center gap-1" :title="view.options.livesMode === 'team' ? '隊伍血量' : '我的血量'">
-                        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--gt-accent)" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.1 1.8-1.9 3.3-3.1 5.4-3.1 3.6 0 5.7 3.7 4.2 7.2C19.5 16.4 12 21 12 21z" /></svg>
-                        <span class="sr-only">血量</span>{{ lives }}
-                    </span>
-                    <span v-if="view.me" class="inline-flex items-center gap-1">
-                        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="var(--gt-gold)" stroke="var(--gt-ink)" stroke-width="1.6" /><path d="M12 7.5v9M9.5 10h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4" fill="none" stroke="var(--gt-ink)" stroke-width="1.4" stroke-linecap="round" /></svg>
-                        <span class="sr-only">金幣</span>{{ gold }}
-                    </span>
-                    <span class="whitespace-nowrap">
-                        <span class="sr-only">{{ view.nextWave?.test ? '傷害測試，' : '' }}第 {{ waveNumber }} 波，共 {{ view.options.waves }} 波</span>
-                        <span aria-hidden="true">{{ view.nextWave?.test ? '加賽' : `${waveNumber}/${view.options.waves}` }}</span>
-                    </span>
-                    <span v-if="secondsLeft !== null" class="whitespace-nowrap" :class="secondsLeft <= 10 && 'text-(--gt-accent-ink)'" role="timer" aria-label="建造剩餘秒數">{{ secondsLeft }}秒</span>
-                </div>
+        <header class="flex shrink-0 items-center justify-between gap-3 border-b border-(--gt-line) px-3 py-1.5">
+            <!-- 遊戲中：標題列左邊只放自己的血量、金幣、波次、倒數；離開與房號收進「更多」 -->
+            <div v-if="showGame" class="gt-hud min-w-0">
+                <span class="gt-hud-item" :title="view.options.livesMode === 'team' ? '隊伍血量' : '我的血量'">
+                    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--gt-accent)" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.1 1.8-1.9 3.3-3.1 5.4-3.1 3.6 0 5.7 3.7 4.2 7.2C19.5 16.4 12 21 12 21z" /></svg>
+                    <span class="sr-only">{{ view.options.livesMode === 'team' ? '隊伍血量' : '我的血量' }}</span>{{ lives }}<span class="gt-hud-sub max-sm:hidden">／{{ view.maxLives }}</span>
+                </span>
+                <span v-if="view.me" class="gt-hud-item" title="金幣">
+                    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="var(--gt-gold)" stroke="var(--gt-ink)" stroke-width="1.6" /><path d="M12 7.5v9M9.5 10h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4" fill="none" stroke="var(--gt-ink)" stroke-width="1.4" stroke-linecap="round" /></svg>
+                    <span class="sr-only">金幣</span>{{ gold }}
+                </span>
+                <span class="gt-hud-item">
+                    <span class="sr-only">{{ view.nextWave?.test ? '傷害測試，' : '' }}第 {{ waveNumber }} 波，共 {{ view.options.waves }} 波</span>
+                    <span v-if="view.nextWave?.test" class="text-(--gt-accent-ink)" aria-hidden="true">加賽</span>
+                    <span v-else aria-hidden="true"><span class="gt-hud-sub max-sm:hidden">第 </span>{{ waveNumber }}<span class="gt-hud-sub">／{{ view.options.waves }}</span><span class="gt-hud-sub max-sm:hidden"> 波</span></span>
+                </span>
+                <span v-if="secondsLeft !== null" class="gt-hud-item" :class="secondsLeft <= 10 && 'text-(--gt-accent-ink)'" role="timer" aria-label="建造剩餘秒數">
+                    <span class="gt-hud-sub max-sm:hidden">建造 </span>{{ secondsLeft }}<span class="gt-hud-sub">秒</span>
+                </span>
             </div>
+            <div v-else class="flex min-w-0 items-center gap-2">
+                <button class="gt-chip" @click="goHome">離開</button>
+                <span class="truncate font-sans font-bold text-(--gt-ink) max-[400px]:hidden">甜點守衛戰</span>
+                <span class="hidden text-(--gt-muted) tabular-nums sm:inline">{{ roomState.roomId }}</span>
+            </div>
+
             <div class="flex shrink-0 items-center gap-1">
-                <button v-if="inGame && roomState.isHost" class="gt-chip mr-1 gap-1.5 max-sm:hidden" title="提早結束這局" @click="handleFinish">
-                    <GemHeaderIcon name="flag" />提早結束
-                </button>
+                <!-- 單人的暫停、房主的倍速：電腦與平板在標題列；手機在「戰況」分頁 -->
+                <template v-if="inGame">
+                    <button v-if="isSolo" class="gt-hud-btn max-sm:hidden" :title="hasKeyboard ? '暫停（P）' : '暫停'" aria-keyshortcuts="P" @click="setPaused(true)">
+                        <GemHeaderIcon name="pause" />暫停
+                    </button>
+                    <button v-if="roomState.isHost" class="gt-hud-btn mr-1 max-sm:hidden" :title="hasKeyboard ? '切換倍速（F）' : '切換倍速'"
+                        :aria-label="`目前 ${view.speed} 倍速，切換為 ${nextSpeed(view.speed)} 倍`" aria-keyshortcuts="F" @click="setSpeed(nextSpeed(view.speed))">
+                        <GemHeaderIcon name="speed" /><span class="tabular-nums">{{ view.speed }}×</span>
+                    </button>
+                </template>
                 <RoomPlayerPanel :players="roomState.players" :my-id="roomState.myPlayerId"
                     :host-id="roomState.room?.host_player_id" :is-host="roomState.isHost"
                     @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
-                <PwaInstallButton :button-class="showGame ? 'header-icon-btn max-sm:hidden' : 'header-icon-btn'" hint-class="gt-install-hint" />
+                <PwaInstallButton v-if="!showGame" button-class="header-icon-btn" hint-class="gt-install-hint" />
                 <GemVolumePanel :class="showGame && 'max-sm:hidden'" />
-                <GemDockMenu v-if="inGame && isWide" />
                 <button v-if="inGame" class="header-icon-btn max-sm:hidden" :title="hasKeyboard ? '合成表（B）' : '合成表'" aria-label="合成表" aria-keyshortcuts="B" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes"><GemHeaderIcon name="book" /></button>
-                <button class="header-icon-btn max-sm:hidden" :title="hasKeyboard ? '怎麼玩（H）' : '怎麼玩'" aria-label="怎麼玩" aria-keyshortcuts="H" @click="guide.open"><GemHeaderIcon name="help" /></button>
-                <button class="header-icon-btn max-sm:hidden" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GemHeaderIcon name="link" /></button>
+                <GemDockMenu v-if="inGame && isWide" />
+                <template v-if="!showGame">
+                    <button class="header-icon-btn max-sm:hidden" :title="hasKeyboard ? '怎麼玩（H）' : '怎麼玩'" aria-label="怎麼玩" aria-keyshortcuts="H" @click="guide.open"><GemHeaderIcon name="help" /></button>
+                    <button class="header-icon-btn max-sm:hidden" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GemHeaderIcon name="link" /></button>
+                </template>
 
-                <!-- 手機：怎麼玩、邀請連結、提早結束收進「更多」，標題列才排得下 -->
-                <div class="relative hidden max-sm:block">
-                    <button class="header-icon-btn" aria-label="更多選項" aria-haspopup="menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"><GemHeaderIcon name="more" /></button>
+                <!-- 「更多」：遊戲中所有寬度都有（怎麼玩、邀請、提早結束、離開）；遊戲外只有手機才收進來 -->
+                <div class="relative" :class="!showGame && 'hidden max-sm:block'">
+                    <button class="header-icon-btn" aria-label="更多選項" title="更多選項" aria-haspopup="menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"><GemHeaderIcon name="more" /></button>
                     <template v-if="menuOpen">
                         <div class="fixed inset-0 z-40" aria-hidden="true" @click="menuOpen = false" />
                         <div role="menu" aria-label="更多選項"
-                            class="absolute right-0 top-full z-50 mt-2 flex w-56 flex-col gap-1 rounded-[10px] border border-(--gt-line) bg-(--gt-surface) p-2 shadow-(--gt-shadow)">
-                            <button v-if="showGame" role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(toggleSfxMute)">音效：{{ isSfxMuted ? '關' : '開' }}</button>
-                            <button role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(guide.open)">怎麼玩</button>
-                            <button role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(handleCopyLink)">複製邀請連結</button>
+                            class="absolute right-0 top-full z-50 mt-2 flex w-60 flex-col gap-1 rounded-[10px] border border-(--gt-line) bg-(--gt-surface) p-2 shadow-(--gt-shadow)">
+                            <button v-if="showGame" role="menuitem" class="gt-btn border-0 text-left sm:hidden" @click="menuAction(toggleSfxMute)">音效：{{ isSfxMuted ? '關' : '開' }}</button>
+                            <button role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(guide.open)">怎麼玩<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">H</kbd></button>
+                            <button role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(handleCopyLink)">複製邀請連結<span class="ml-2 font-normal text-(--gt-muted) tabular-nums">{{ roomState.roomId }}</span></button>
+                            <button v-if="showGame && view.testLog" role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(() => showTestLog = true)">傷害測試紀錄</button>
                             <button v-if="inGame && roomState.isHost" role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(handleFinish)">提早結束這局</button>
-                            <button v-if="showGame" role="menuitem" class="gt-btn border-0 text-left" @click="menuAction(goHome)">離開房間</button>
+                            <button v-if="showGame" role="menuitem" class="gt-btn border-0 text-left text-(--gt-accent-ink)" @click="menuAction(goHome)">離開房間</button>
                         </div>
                     </template>
                 </div>
@@ -57,6 +71,10 @@
         </header>
 
         <GemGuide v-model="guide.show.value" :catalog="state.catalog" :keys="hasKeyboard" />
+        <!-- 傷害測試紀錄：每場加賽打完自動跳出，看完關掉；之後要看從「更多」打開 -->
+        <GameGuideModal v-model="showTestLog" title="傷害測試紀錄" confirm-text="關閉">
+            <GemTestBoard :test="view?.testLog" :names="view?.names" :heading="false" />
+        </GameGuideModal>
         <!-- 電腦版：彈出成浮動視窗的區塊會送到這一層 -->
         <div :ref="el => dockTargets.float = el" class="gt-float-host" />
         <!-- 平板：合成表維持浮動面板；電腦版停靠在左欄、手機是「合成表」分頁（見下方） -->
@@ -145,39 +163,6 @@
                 <div class="gt-resizer gt-resizer--rail" role="separator" aria-orientation="vertical" aria-label="拖拉調整左欄寬度（雙擊還原）" @pointerdown="startCol($event, 'rail')" @dblclick="resetCol('rail')" />
                 <!-- 電腦版：戰況與合成表分成上下兩塊，各自捲動 -->
                 <div :ref="el => dockTargets.left = el" class="gt-rail-top">
-                    <GemDock id="status" title="血量與波次" class="gt-card max-sm:hidden" aria-label="血量、金幣與波次">
-                      <div class="flex flex-col gap-3">
-                        <div class="flex items-end justify-between gap-2">
-                            <!-- 標籤和數字分兩行：兩位數的波次＋秒數也排得下，不會換行跑版 -->
-                            <p class="m-0 min-w-0 whitespace-nowrap">
-                                <template v-if="view.nextWave?.test">
-                                    <span class="block text-xs font-semibold text-(--gt-accent-ink)">傷害測試</span>
-                                    <span class="sr-only">傷害測試，第 {{ view.nextWave.number }} 波後</span>
-                                    <span aria-hidden="true"><span class="text-(--gt-muted)">第 </span><b class="text-2xl leading-none font-extrabold text-(--gt-ink) tabular-nums">{{ view.nextWave.number }}</b><span class="text-(--gt-muted)"> 波後</span></span>
-                                </template>
-                                <template v-else>
-                                    <span class="block text-xs text-(--gt-muted)">波次</span>
-                                    <span class="sr-only">第 {{ waveNumber }} 波，共 {{ view.options.waves }} 波</span>
-                                    <span aria-hidden="true"><b class="text-2xl leading-none font-extrabold text-(--gt-ink) tabular-nums">{{ waveNumber }}</b><span class="text-(--gt-muted) tabular-nums">／{{ view.options.waves }}</span></span>
-                                </template>
-                            </p>
-                            <p v-if="secondsLeft !== null" class="m-0 shrink-0 text-right whitespace-nowrap" role="timer" aria-label="建造剩餘秒數">
-                                <span class="block text-xs text-(--gt-muted)">建造剩餘</span>
-                                <span class="gt-timer" :class="{ 'gt-timer--low': secondsLeft <= 10 }">{{ secondsLeft }}<span class="ml-0.5 text-sm font-bold">秒</span></span>
-                            </p>
-                        </div>
-                        <div class="flex flex-wrap gap-x-5 gap-y-1">
-                            <p class="gt-stat" :title="view.options.livesMode === 'team' ? '隊伍血量' : '我的血量'">
-                                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--gt-accent)" d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.1 1.8-1.9 3.3-3.1 5.4-3.1 3.6 0 5.7 3.7 4.2 7.2C19.5 16.4 12 21 12 21z" /></svg>
-                                <span class="sr-only">{{ view.options.livesMode === 'team' ? '隊伍血量' : '我的血量' }}</span><span>{{ lives }}<span class="font-normal text-(--gt-muted)">／{{ view.maxLives }}</span></span>
-                            </p>
-                            <p v-if="view.me" class="gt-stat" title="金幣">
-                                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="var(--gt-gold)" stroke="var(--gt-ink)" stroke-width="1.6" /><path d="M12 7.5v9M9.5 10h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4" fill="none" stroke="var(--gt-ink)" stroke-width="1.4" stroke-linecap="round" /></svg>
-                                <span class="sr-only">金幣</span><span>{{ gold }} <span class="font-normal text-(--gt-muted)">金</span></span>
-                            </p>
-                        </div>
-                      </div>
-                    </GemDock>
 
                     <GemDock v-if="view.playerIds.length > 1" id="players" title="玩家" :class="phoneShow('status')" aria-label="玩家">
                         <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
@@ -190,10 +175,10 @@
 
                     <GemWaveInfo :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
-                    <button v-if="isSolo && (view.phase === 'build' || view.phase === 'wave')" class="gt-btn gt-btn--small w-full" :class="phoneShow('status')" aria-keyshortcuts="P" @click="setPaused(true)">
+                    <!-- 手機標題列放不下暫停，留在「戰況」分頁；電腦與平板在標題列 -->
+                    <button v-if="isSolo && (view.phase === 'build' || view.phase === 'wave')" class="gt-btn gt-btn--small w-full sm:hidden" :class="phoneShow('status')" aria-keyshortcuts="P" @click="setPaused(true)">
                         暫停<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">P</kbd>
                     </button>
-                    <GemDock v-if="view.testLog" id="testlog" title="傷害測試紀錄" class="gt-card" :class="phoneShow('status')"><GemTestBoard :test="view.testLog" :names="view.names" /></GemDock>
                     <!-- 手機：合成表是一個分頁，直接排在內容區，不再浮在地圖上 -->
                     <GemRecipes v-if="inGame && isPhone && phoneTab === 'recipes'" :model-value="true" inline :view="view" :catalog="state.catalog" @combine="onCombine" />
                 </div>
@@ -220,7 +205,7 @@
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
-                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @vote-mutation="voteMutation" @research="upgradeResearch"
+                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
                     @remove="id => { removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
             </aside>
@@ -282,6 +267,7 @@ import { useGameGuide } from '@/shared/composables/useGameGuide.js'
 import ConnectionBanner from '@/shared/components/ConnectionBanner.vue'
 import RoomPlayerPanel from '@/shared/components/RoomPlayerPanel.vue'
 import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
+import GameGuideModal from '@/shared/components/GameGuideModal.vue'
 import { useGemTd } from '../composables/useGemTd.js'
 import { useGemTdCues, useGemTdSfx } from '../composables/useGemTdSfx.js'
 import { useGemTdKeys } from '../composables/useGemTdKeys.js'
@@ -304,7 +290,7 @@ const route = useRoute()
 const router = useRouter()
 const {
     state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
-    upgradeQuality, buyLife, reroll, makeWish, voteMutation, upgradeResearch, removeStone, swap, ready, setSpeed, setPaused, finishNow, restart,
+    upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, ready, setSpeed, setPaused, finishNow, restart,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useGemTd()
@@ -345,6 +331,16 @@ const PHONE_TABS = [
 const phoneTab = ref('place')
 const phoneShow = (...tabs) => (tabs.includes(phoneTab.value) ? '' : 'max-sm:hidden')
 const menuOpen = ref(false)
+
+// 傷害測試紀錄彈窗：加賽打完、回到建造階段時，有新的紀錄就自動打開一次
+// （最後一場直接看結算畫面，不另外跳）。中途加入的人不補跳已經打完的紀錄
+const showTestLog = ref(false)
+let testLogSeen = null
+watch(() => [view.value?.testLog?.rounds?.length ?? 0, view.value?.phase], ([count, phase]) => {
+    if (testLogSeen === null && phase) testLogSeen = count
+    if (phase === 'build' && count > testLogSeen) showTestLog.value = true
+    if (phase === 'build' || phase === 'finished') testLogSeen = Math.max(testLogSeen ?? 0, count)
+})
 
 // 左右欄寬度：拖把手調整，雙擊還原，記在本機（只影響電腦版的三欄格線）
 const COLS_KEY = 'gem-td-col-widths'
@@ -631,7 +627,7 @@ function handleKey(code) {
         return true
     }
     case 'KeyF':
-        if (!roomState.isHost || v.phase !== 'wave') return false
+        if (!roomState.isHost) return false
         setSpeed(nextSpeed(v.speed))
         return true
     case 'KeyP':
@@ -651,7 +647,7 @@ function handleKey(code) {
 }
 
 const { hasKeyboard } = useGemTdKeys(handleKey, () => (
-    !guide.show.value && !!state.catalog && ['build', 'wave'].includes(view.value?.phase)
+    !guide.show.value && !showTestLog.value && !!state.catalog && ['build', 'wave'].includes(view.value?.phase)
 ))
 
 // ── 進出房間 ─────────────────────────────────────────────────────
