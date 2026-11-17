@@ -5,8 +5,8 @@ import { reactive, shallowReactive, ref } from 'vue'
 const KEY = 'gem-td-dock-v1'
 
 // 預設所在的欄與順序（沒列到的區塊放右欄最後）
-const LEFT = ['status', 'players', 'mutation', 'wave', 'testlog', 'recipes']
-const RIGHT = ['ready', 'pending', 'choosing', 'vote', 'combine', 'selected', 'quality', 'wish', 'life', 'research']
+const LEFT = ['players', 'wave', 'recipes']
+const RIGHT = ['ready', 'pending', 'choosing', 'combine', 'selected', 'quality', 'wish', 'life', 'research']
 // 預設高度（沒列到的依內容自動）
 const DEFAULT_H = { recipes: 420 }
 

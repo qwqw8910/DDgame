@@ -642,121 +642,6 @@ test('免控：緩速與中毒無效；護盾：單次傷害有上限', () => {
   assert.equal(shielded.monsters[0].hp, 100 * (1 - C.SHIELD_HIT_CAP));
 });
 
-// ── 隨機突變 ────────────────────────────────────────────────────
-test('突變：從第 10 波起每 5 波一次，卡池 11 張，每張都有好處也有代價', () => {
-  assert.deepEqual([9, 10, 11, 14, 15, 20, 50].map(C.isMutationWave), [false, true, false, false, true, true, true]);
-  assert.equal(C.MUTATION_IDS.length, 11);
-  for (const id of C.MUTATION_IDS) {
-    const m = C.MUTATIONS[id];
-    assert.ok(m.name && m.pro && m.con, id);
-    assert.equal(C.catalog().mutations[id].pro, m.pro);
-  }
-});
-
-test('突變：共用血量三選一（三張不重複），投票最高者勝出，開波時結算', () => {
-  for (let seed = 1; seed <= 30; seed++) {
-    const game = newGame(['a', 'b'], { rng: seededRng(seed) });
-    game.wave = 9;
-    L.drawMutation(game, seededRng(seed));
-    const { options } = game.mutationOffer;
-    assert.equal(new Set(options).size, 3);
-  }
-  const game = newGame(['a', 'b', 'c']);
-  game.wave = 9;
-  L.drawMutation(game, seededRng(3));
-  const [first, second] = game.mutationOffer.options;
-  assert.throws(() => L.voteMutation(game, 'a', 'nope'), { code: 'BAD_ARG' });
-  L.voteMutation(game, 'a', first);
-  L.voteMutation(game, 'b', second);
-  L.voteMutation(game, 'c', second);
-  L.voteMutation(game, 'a', second); // 可以改票
-  assert.equal(L.buildView(game, 'a').mutationOffer.myVote, second);
-  assert.equal(L.buildView(game, 'a').mutationOffer.counts[second], 3);
-  L.startWave(game, { rng: seededRng(1) });
-  assert.equal(game.mutation, second);
-  assert.equal(game.mutationOffer, null);
-});
-
-test('突變：獨立血量直接隨機一張，沒有投票；傷害測試與非突變波不抽', () => {
-  const solo = newGame(['a', 'b'], { options: { livesMode: 'solo' } });
-  solo.wave = 14;
-  L.drawMutation(solo, seededRng(2));
-  assert.ok(C.MUTATION_IDS.includes(solo.mutation));
-  assert.equal(solo.mutationOffer, null);
-
-  const none = newGame(['a']);
-  none.wave = 10;
-  L.drawMutation(none, seededRng(2));
-  assert.equal(none.mutation, null);
-  assert.equal(none.mutationOffer, null);
-
-  const test = newGame(['a'], { options: { livesMode: 'solo' } });
-  test.wave = 14;
-  test.testAt = 14;
-  L.drawMutation(test, seededRng(2));
-  assert.equal(test.mutation, null);
-});
-
-test('突變效果：厚重甲殼擋前 3 次、疾風加速、玻璃大炮加傷與血量、濃霧縮射程', () => {
-  const sim = traitSim({ type: 'normal', count: 1, hp: 1e6, armor: 0, speed: 1, trait: null });
-  sim.mutation = C.MUTATIONS.shell;
-  sim.towers = [towerAt('D', 6)];
-  stepWave(sim, 0.1);
-  assert.equal(sim.monsters[0].shell, 2, '第一次攻擊被擋掉');
-  assert.equal(sim.monsters[0].hp, 1e6);
-  for (let i = 0; i < 40; i++) { sim.towers[0].wait = 0; stepWave(sim, 0.1); }
-  assert.ok(sim.monsters[0].hp < 1e6, '擋完 3 次後吃得到傷害');
-
-  const swift = traitSim({ type: 'normal', count: 1, hp: 100, armor: 0, speed: 2, trait: null });
-  swift.mutation = C.MUTATIONS.swift;
-  stepWave(swift, 0.1);
-  assert.equal(swift.monsters[0].speed, 2.5);
-
-  const glass = traitSim({ type: 'normal', count: 1, hp: 100, armor: 0, speed: 1, trait: null });
-  glass.mutation = C.MUTATIONS.glass;
-  stepWave(glass, 0.1);
-  assert.equal(glass.monsters[0].maxHp, 140);
-
-  const ref = { id: 1, x: 1, y: 1, kind: 'D', level: 1, kills: 0, damage: 0 };
-  const [plain] = prepareTowers([ref]);
-  const [boosted] = prepareTowers([ref], undefined, 'glass');
-  const [foggy] = prepareTowers([ref], undefined, 'fog');
-  assert.equal(boosted.stats.damage, plain.stats.damage * 1.4);
-  assert.equal(foggy.stats.range, plain.stats.range - 1);
-});
-
-test('突變效果：糖漿滋補加怪物血量、疾風加攻速、糖衣護甲讓擊殺數加倍；狙擊手依射程分高低', () => {
-  const syrup = traitSim({ type: 'normal', count: 1, hp: 100, armor: 0, speed: 1, trait: null });
-  syrup.mutation = C.MUTATIONS.syrup;
-  stepWave(syrup, 0.1);
-  assert.equal(syrup.monsters[0].maxHp, 130);
-
-  const ref0 = { id: 1, x: 1, y: 1, kind: 'D', level: 1, kills: 0, damage: 0 };
-  const [plain0] = prepareTowers([ref0]);
-  const [quick] = prepareTowers([ref0], undefined, 'swift');
-  assert.ok(Math.abs(quick.cooldown - plain0.cooldown / 1.25) < 1e-9);
-
-  // 糖衣砲彈：傷害 +60%，但攻速 −25%、射程 −1
-  const [shot] = prepareTowers([ref0], undefined, 'bullet');
-  assert.ok(Math.abs(shot.stats.damage - plain0.stats.damage * 1.6) < 1e-9);
-  assert.ok(Math.abs(shot.cooldown - plain0.cooldown / 0.75) < 1e-9);
-  assert.equal(shot.stats.range, plain0.stats.range - 1);
-
-  const glaze = traitSim({ type: 'normal', count: 1, hp: 1, armor: 0, speed: 0.01, trait: null });
-  glaze.mutation = C.MUTATIONS.glaze;
-  glaze.towers = [towerAt('D', 6)];
-  stepWave(glaze, 0.1);
-  assert.equal(glaze.towers[0].ref.kills, 2);
-
-  const short = { id: 3, x: 1, y: 1, kind: 'G', level: 1, kills: 0, damage: 0 }; // 射程 3.5
-  const long = { id: 4, x: 1, y: 1, kind: 'P', level: 1, kills: 0, damage: 0 }; // 射程 7.5
-  const [gb] = prepareTowers([short]);
-  const [pb] = prepareTowers([long]);
-  const [gs, ps] = prepareTowers([short, long], undefined, 'sniper');
-  assert.ok(Math.abs(gs.stats.damage - gb.stats.damage * 0.7) < 1e-9);
-  assert.ok(Math.abs(ps.stats.damage - pb.stats.damage * 1.5) < 1e-9);
-});
-
 test('許願價格：隨波數上漲、前期便宜、單次最貴 60 金', () => {
   assert.ok(C.wishCost(1, 0) < C.wishCost(20, 0), '波數越高底價越貴');
   assert.ok(C.wishCost(1, 2) <= 20, '前期連疊 3 次也不貴');
@@ -783,6 +668,22 @@ test('許願池：疊加扣金幣、價格遞增、一次只影響一格、只�
   assert.equal(p.wish.stacks, 3);
   assert.equal(p.gold, 1000 - base * (1 + 2 + 3));
   assert.throws(() => L.makeWish(game, 'a', { category: 'B' }), { code: 'WISH_MAX' });
+
+  // 一次許到指定層數：付清中間每一層，不用按三次
+  const quick = newGame();
+  const q = quick.players.a;
+  q.gold = 1000;
+  assert.deepEqual(L.buildView(quick, 'a').me.wishCosts, [0, 1, 2].map(s => C.wishCost(quick.wave, s)));
+  L.makeWish(quick, 'a', { category: 'D', stacks: 2 });
+  assert.deepEqual(q.wish, { category: 'D', stacks: 2 });
+  assert.equal(q.gold, 1000 - base * 3);
+  assert.throws(() => L.makeWish(quick, 'a', { category: 'D', stacks: 2 }), { code: 'BAD_ARG' }); // 不能往回
+  L.makeWish(quick, 'a', { category: 'D', stacks: 3 });
+  assert.equal(q.gold, 1000 - base * 6);
+  const poor = newGame();
+  poor.players.a.gold = base * 2;
+  assert.throws(() => L.makeWish(poor, 'a', { category: 'B', stacks: 3 }), { code: 'NO_GOLD' });
+  assert.equal(poor.players.a.wish ?? null, null);
 
   // 許願只影響 1 格：該格機率隨層數提高（3 層 100%），其餘 4 格維持原本隨機（約 1/8 為該甜點）
   const fruit = C.GEM_CATEGORIES.B.kinds;

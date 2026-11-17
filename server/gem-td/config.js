@@ -166,27 +166,6 @@ const WISH_STACK_COST_MULT = [1, 2, 3];
 const WISH_MAX_STACKS = WISH_STACK_RATES.length;
 const wishBase = wave => Math.min(WISH_BASE_MAX, Math.max(WISH_BASE_MIN, Math.round(WISH_BASE_MIN + wave * WISH_BASE_PER_WAVE)));
 const wishCost = (wave, stacks = 0) => wishBase(wave) * WISH_STACK_COST_MULT[stacks];
-// 隨機突變：從第 10 波起每 5 波換一張全局詞綴，持續到下一次抽取。傷害測試不受影響
-// 每張都是取捨（pro 好處、con 代價），沒有純祝福或純詛咒，投票時比的是「哪種風險適合我的塔」
-// 共用血量由全隊投票三選一，獨立血量全場隨機一張
-const MUTATION_FIRST_WAVE = 10;
-const MUTATION_EVERY = 5;
-const MUTATION_OFFERS = 3;
-const MUTATIONS = {
-  frenzy: { name: '甜食狂熱', pro: '擊殺金幣 +50%', con: '怪物血量低於 30% 時移速翻倍', goldMult: 1.5, frenzy: { hp: 0.3, speed: 2 } },
-  glass: { name: '玻璃大炮', pro: '塔傷害 +40%', con: '怪物血量 +40%', damage: 0.4, hpMult: 1.4 },
-  sniper: { name: '狙擊手', pro: '射程 6 以上的塔傷害 +50%', con: '射程 4 以下的塔傷害 −30%', long: { min: 6, damage: 0.5 }, short: { max: 4, damage: -0.3 } },
-  fog: { name: '濃霧', pro: '塔傷害 +25%', con: '所有塔射程 −1 格，要把塔換到更貼近路線的位置', damage: 0.25, range: -1 },
-  shell: { name: '厚重甲殼', pro: '擊殺金幣 +50%', con: '每隻怪物免疫前 3 次受到的攻擊，快攻速與多目標的塔更有效', goldMult: 1.5, shellHits: 3 },
-  swift: { name: '疾風', pro: '塔攻速 +25%', con: '怪物移速 +25%', haste: 0.25, monsterSpeed: 1.25 },
-  glaze: { name: '糖衣護甲', pro: '擊殺數以 2 倍計入熟練度', con: '怪物護甲 +4，高單發傷害的塔更有效', killMult: 2, armorAdd: 4 },
-  syrup: { name: '糖漿滋補', pro: '擊殺金幣 +50%', con: '怪物血量 +30%', goldMult: 1.5, hpMult: 1.3 },
-  honey: { name: '蜜糖地面', pro: '怪物移速 −20%', con: '擊殺金幣 −40%', monsterSpeed: 0.8, goldMult: 0.6 },
-  bullet: { name: '糖衣砲彈', pro: '塔傷害 +60%', con: '塔攻速 −25%，射程 −1 格', damage: 0.6, haste: -0.25, range: -1 },
-  harvest: { name: '豐收季', pro: '擊殺金幣 +80%', con: '塔傷害 −20%', goldMult: 1.8, damage: -0.2 },
-};
-const MUTATION_IDS = Object.keys(MUTATIONS);
-const isMutationWave = wave => wave >= MUTATION_FIRST_WAVE && (wave - MUTATION_FIRST_WAVE) % MUTATION_EVERY === 0;
 const SWAP_COST = 25;
 // 重骰手上「一格」甜點（賭合成用）：品質越高底價越貴，同一回合每骰一次再加價，下回合歸零
 const REROLL_BASE = 5;
@@ -401,9 +380,6 @@ function catalog() {
     research: RESEARCH,
     researchCosts: RESEARCH_COSTS,
     researchBaseLevels: RESEARCH_BASE_LEVELS,
-    mutations: Object.fromEntries(MUTATION_IDS.map(id => [id, { name: MUTATIONS[id].name, pro: MUTATIONS[id].pro, con: MUTATIONS[id].con }])),
-    mutationFirstWave: MUTATION_FIRST_WAVE,
-    mutationEvery: MUTATION_EVERY,
     wish: {
       categories: GEM_CATEGORIES,
       maxStacks: WISH_MAX_STACKS,
@@ -425,7 +401,7 @@ module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
   WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
-  MUTATIONS, MUTATION_IDS, MUTATION_OFFERS, isMutationWave,
+
   SWAP_COST, GEM_CATEGORIES, WISH_STACK_RATES, WISH_LEVEL_STACK, WISH_MAX_STACKS, wishCost, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, RESEARCH_BASE_LEVELS, researchValue, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
   TRAIT_IDS, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,
   waveClearBonus, bossLeak, interestOn, armorFactor, gemStats, researchBonus, waveDef, testWaveDef, testAfterWave, testReward, catalog,

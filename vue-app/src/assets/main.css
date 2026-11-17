@@ -1525,6 +1525,38 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   }
   .gt-gem-slot--on { border: 2px solid var(--gt-accent); background: var(--gt-accent-soft); }
 
+  /* 許願池：上排選甜點（只有圖示），下排選機率（一次付清，已許的打勾） */
+  .gt-wish-pick, .gt-wish-tier {
+    display: flex; align-items: center; justify-content: center; min-height: 48px;
+    border: 1px solid var(--gt-line-soft); border-radius: 10px; background: var(--gt-surface); color: var(--gt-text); cursor: pointer;
+    transition: background-color 0.15s, transform 0.15s;
+  }
+  .gt-wish-tier { flex-direction: column; gap: 2px; min-height: 56px; padding: 4px; border-color: var(--gt-line); line-height: 1.2; }
+  .gt-wish-pick:hover:not(:disabled), .gt-wish-tier:hover:not(:disabled) { background: var(--gt-accent-soft); }
+  .gt-wish-pick:active:not(:disabled), .gt-wish-tier:active:not(:disabled) { transform: scale(0.97); }
+  .gt-wish-pick--on { border: 2px solid var(--gt-accent); background: var(--gt-accent-soft); }
+  .gt-wish-pick:disabled { opacity: 0.35; cursor: not-allowed; }
+  .gt-wish-tier:disabled { cursor: not-allowed; }
+  .gt-wish-tier:disabled:not(.gt-wish-tier--done) { opacity: 0.5; }
+  .gt-wish-tier--done { border: 2px solid var(--gt-accent); background: var(--gt-accent-soft); }
+  .gt-wish-pick:focus-visible, .gt-wish-tier:focus-visible, .gt-hud-btn:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
+
+  /* 遊戲中的標題列：自己的血量、金幣、波次、倒數 */
+  .gt-hud { display: flex; align-items: center; gap: 20px; color: var(--gt-ink); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .gt-hud-item { display: inline-flex; align-items: center; gap: 6px; font-size: 20px; line-height: 1; }
+  .gt-hud-sub { color: var(--gt-muted); font-size: 16px; font-weight: 400; }
+  .gt-hud-btn {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 2px solid var(--gt-ink); border-radius: 10px;
+    background: var(--gt-surface); color: var(--gt-ink); font-size: 16px; font-weight: 700; cursor: pointer; white-space: nowrap;
+    transition: background-color 0.15s, transform 0.15s;
+  }
+  .gt-hud-btn:hover { background: var(--gt-accent-soft); }
+  .gt-hud-btn:active { transform: scale(0.97); }
+  @media (max-width: 639px) {
+    .gt-hud { gap: 12px; }
+    .gt-hud-item { gap: 4px; font-size: 16px; }
+  }
+
   /* 快捷鍵提示：只在偵測到實體鍵盤時出現 */
   .gt-kbd {
     display: inline-flex; align-items: center; justify-content: center; min-width: 1.5em; height: 1.5em; padding: 0 4px;
@@ -1590,9 +1622,6 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     .gt-recipes.gt-recipes--inline { position: static; width: auto; max-height: none; overflow: visible; background: var(--gt-surface); box-shadow: none; border-color: var(--gt-line-soft); }
   }
 
-  .gt-stat { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--gt-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-  .gt-timer { margin: 0; color: var(--gt-ink); font-size: 26px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-  .gt-timer--low { color: var(--gt-accent-ink); }
 
   .gt-recipes {
     position: fixed; z-index: 50; display: flex; flex-direction: column;
@@ -1679,8 +1708,8 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-pop-enter-active, .gt-pop-leave-active { transition: opacity 0.16s, transform 0.16s ease-out; }
   .gt-pop-enter-from, .gt-pop-leave-to { opacity: 0; transform: scale(0.92); }
   @media (prefers-reduced-motion: reduce) {
-    .gt-btn, .gt-fold-arrow, .gt-pop-enter-active, .gt-pop-leave-active { transition: none; }
-    .gt-btn:active:not(:disabled) { transform: none; }
+    .gt-btn, .gt-fold-arrow, .gt-pop-enter-active, .gt-pop-leave-active, .gt-wish-pick, .gt-wish-tier, .gt-hud-btn { transition: none; }
+    .gt-btn:active:not(:disabled), .gt-wish-pick:active, .gt-wish-tier:active, .gt-hud-btn:active { transform: none; }
   }
 }
 

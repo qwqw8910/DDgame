@@ -18,9 +18,8 @@ const FLAG_TRAIT_SHIFT = 2; // 特性佔後面的位元，順序同 C.TRAIT_IDS
 const distance = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 
 // 塔的戰鬥數值在開波時算好（包含蛋白石光環），波次中不再變動
-function prepareTowers(towers, research, mutation = null) {
+function prepareTowers(towers, research) {
   const bonus = C.researchBonus(research);
-  const mut = mutation ? C.MUTATIONS[mutation] : null;
   const armed = towers.filter(t => t.kind !== 'stone');
   const auras = armed
     .map(t => ({ t, aura: C.gemStats(t.kind, t.level).aura }))
@@ -30,31 +29,23 @@ function prepareTowers(towers, research, mutation = null) {
     const base = C.gemStats(ref.kind, ref.level);
     const rank = C.masteryRank(ref.kills);
     const stats = { ...base, damage: base.damage * (bonus.damage + rank * C.MASTERY_DAMAGE), range: base.range + bonus.range };
-    if (mut) {
-      if (mut.range) stats.range = Math.max(1, stats.range + mut.range);
-      let boost = mut.damage ?? 0;
-      if (mut.long && stats.range >= mut.long.min) boost += mut.long.damage;
-      if (mut.short && stats.range <= mut.short.max) boost += mut.short.damage;
-      stats.damage *= 1 + boost;
-    }
     // 同區光環不疊加，取最強的一道
     const haste = auras.reduce((best, { t, aura }) => (
       t !== ref && distance(t.x, t.y, ref.x, ref.y) <= aura.radius ? Math.max(best, aura.haste) : best
     ), 0);
-    return { ref, stats, cooldown: stats.cooldown / (1 + haste + bonus.haste + rank * C.MASTERY_HASTE + (mut?.haste ?? 0)), wait: 0 };
+    return { ref, stats, cooldown: stats.cooldown / (1 + haste + bonus.haste + rank * C.MASTERY_HASTE), wait: 0 };
   });
 }
 
 // pool 是這張地圖漏怪時扣血的對象：共用血量是 game，獨立血量是玩家自己
-function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research, mutation = null }) {
+function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research }) {
   // waveDef 有快取；這一波會改動 def 與各組（測試也會），所以複製一份
   const cached = testAt === null ? C.waveDef(wave, totalWaves, difficulty) : C.testWaveDef(testAt, difficulty);
   const def = { ...cached, groups: cached.groups.map(g => ({ ...g })) };
-  const towers = prepareTowers(placed, research, mutation);
+  const towers = prepareTowers(placed, research);
   const air = airRoute(board);
   return {
     wave,
-    mutation: mutation ? C.MUTATIONS[mutation] : null,
     def,
     board,
     pool,
@@ -91,8 +82,7 @@ function spawn(sim) {
   const group = sim.queue[sim.spawned];
   const { start } = sim.board;
   const info = C.MONSTERS[group.type];
-  const mut = sim.mutation;
-  const hp = group.hp * (mut?.hpMult ?? 1);
+  const hp = group.hp;
   const baseGold = info.gold + Math.floor(sim.wave / 6);
   sim.monsters.push({
     id: sim.nextId++,
@@ -102,16 +92,15 @@ function spawn(sim) {
     boss: !!info.boss,
     hp,
     maxHp: hp,
-    armor: group.armor + (mut?.armorAdd ?? 0),
-    speed: group.speed * (mut?.monsterSpeed ?? 1),
-    shell: mut?.shellHits ?? 0, // 厚重甲殼：還能無效化幾次攻擊
+    armor: group.armor,
+    speed: group.speed,
     pos: 0,
     x: start.x,
     y: start.y,
     slowPct: 0, slowUntil: 0,
     poisonDps: 0, poisonUntil: 0, poisonBy: null,
     shredAmount: 0, shredUntil: 0,
-    gold: mut?.goldMult ? Math.round(baseGold * mut.goldMult) : baseGold,
+    gold: baseGold,
     leak: group.leak ?? info.leak,
     dead: false,
   });
@@ -136,9 +125,7 @@ function pathLength(sim, m) {
 
 function moveMonster(sim, m, dt) {
   const slowed = sim.time < m.slowUntil ? m.slowPct : 0;
-  const frenzy = sim.mutation?.frenzy;
-  const rush = frenzy && m.hp / m.maxHp < frenzy.hp ? frenzy.speed : 1;
-  m.pos += m.speed * rush * (1 - slowed) * dt;
+  m.pos += m.speed * (1 - slowed) * dt;
 
   const length = pathLength(sim, m);
   if (m.pos >= length) {
@@ -184,7 +171,7 @@ function splitMonster(sim, m) {
   const hp = m.maxHp * C.SPLIT_HP_RATIO;
   for (let i = 0; i < C.SPLIT_COUNT; i++) {
     sim.monsters.push({
-      ...m, id: sim.nextId++, trait: null, hp, maxHp: hp, gold: 0, leak: 1, dead: false, shell: 0, pos: Math.max(0, m.pos - i * 0.3),
+      ...m, id: sim.nextId++, trait: null, hp, maxHp: hp, gold: 0, leak: 1, dead: false, pos: Math.max(0, m.pos - i * 0.3),
     });
   }
   sim.splits += C.SPLIT_COUNT;
@@ -194,7 +181,7 @@ function kill(sim, tower, m) {
   m.dead = true;
   sim.killed += 1;
   sim.earned += m.gold;
-  tower.ref.kills += sim.mutation?.killMult ?? 1; // 糖衣護甲：擊殺數加倍計入熟練度
+  tower.ref.kills += 1;
   if (m.boss) sim.bossDownAt = sim.time;
   if (m.trait === 'split') splitMonster(sim, m);
 }
@@ -202,11 +189,6 @@ function kill(sim, tower, m) {
 // 回傳實際扣掉的血量（套過護甲與護盾上限），給前端顯示傷害數字
 function dealDamage(sim, tower, m, raw, dot = false) {
   if (m.dead) return 0;
-  // 厚重甲殼：前幾次直接攻擊無效（毒傷不算攻擊）
-  if (!dot && m.shell > 0) {
-    m.shell -= 1;
-    return 0;
-  }
   const reduced = raw * C.armorFactor(effectiveArmor(sim, m));
   const dealt = m.trait === 'shield' ? Math.min(reduced, m.maxHp * C.SHIELD_HIT_CAP) : reduced;
   const applied = Math.min(dealt, m.hp);

@@ -2,7 +2,7 @@
     <!-- 傷害測試紀錄：每場一份排行，兩場以上再加總傷害榜。
          左欄很窄：每人兩行，第一行名字＋縮寫傷害，第二行進度條與細節，不會擠爆 -->
     <section v-if="test" aria-label="傷害測試紀錄">
-        <h3 class="gt-heading">傷害測試紀錄</h3>
+        <h3 v-if="heading" class="gt-heading">傷害測試紀錄</h3>
         <div v-for="r in test.rounds" :key="r.at" class="mb-3 last:mb-0">
             <p class="m-0 mb-1.5 flex flex-wrap justify-between gap-x-2 text-xs text-(--gt-muted)">
                 <span>第 {{ r.at }} 波後</span>
@@ -43,6 +43,7 @@
 const props = defineProps({
     test: { type: Object, default: null },
     names: { type: Object, default: () => ({}) },
+    heading: { type: Boolean, default: true }, // 放進有標題的彈窗時不再重複標題
 })
 
 const nameOf = id => props.names?.[id] ?? '玩家'
