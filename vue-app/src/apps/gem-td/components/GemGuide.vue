@@ -1,5 +1,5 @@
 <template>
-    <GameGuideModal :model-value="modelValue" title="甜點守衛戰怎麼玩" confirm-text="知道了" @update:model-value="$emit('update:modelValue', $event)">
+    <GameGuideModal root-class="gt-modal" :model-value="modelValue" title="甜點守衛戰怎麼玩" confirm-text="知道了" @update:model-value="$emit('update:modelValue', $event)">
         <img :src="guideImg" alt="甜點守衛戰玩法：每回合抽 5 個甜點、排迷宮繞路、留 1 座塔其餘變餅乾牆、打蟲賺金幣、2 個同款升 1 級；蟲子走到出口會扣血" class="block h-auto w-full rounded-xl" width="1024" height="1536" />
         <GameGuideSection v-if="catalog" title="蟲子特性">
             <ul class="gg-list">
