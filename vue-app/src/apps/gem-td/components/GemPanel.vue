@@ -165,7 +165,7 @@
             </button>
             <p v-if="myLives >= view.maxLives" class="mt-1 mb-0 text-(--gt-muted)">血量已滿</p>
             <p v-else class="mt-1 mb-0 text-xs text-(--gt-muted)">
-                <template v-if="shortOf(me.lifeCost)">還差 {{ shortOf(me.lifeCost) }} 金・</template>價格隨波次上漲；本回合已買 {{ me.livesBought }} 點，每多買 1 點貴 {{ Math.round(catalog.lifeStep * 100) }}%，下回合恢復
+                <template v-if="shortOf(me.lifeCost)">還差 {{ shortOf(me.lifeCost) }} 金・</template>價格隨波次上漲，最多 30 金，連續購買不會變貴
             </p>
         </GemDock>
 

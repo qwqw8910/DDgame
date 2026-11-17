@@ -40,6 +40,12 @@ function blankRun() {
     speed: 1,
     paused: false, // 單人遊戲可暫停
     pausedLeft: null, // 暫停時建造階段剩下的毫秒數
+    startedAt: null, // 開局時間（毫秒），算通關時間用
+    pausedMs: 0, // 累計暫停的毫秒數，不計入通關時間
+    pausedSince: null,
+    aborted: false, // 房主提早結束：不列入排行榜
+    finishedAt: null,
+    records: null,
     result: null,
   };
 }
@@ -143,6 +149,7 @@ function startGame(game, ids, { now, rng = Math.random }) {
   Object.assign(game, blankRun());
   game.playerIds = [...ids];
   game.startCount = ids.length;
+  game.startedAt = now;
   game.lives = maxLives(game);
   game.board = makeBoard();
   for (const id of ids) {
@@ -198,7 +205,7 @@ function buyLife(game, playerId) {
   if (isTestWave(game)) throw new GameError('BAD_PHASE', '傷害測試不會扣血，不用買命');
   const pool = livesPool(game, p);
   if (pool.lives >= maxLives(game)) throw new GameError('MAX_LIVES', '血量已經是滿的');
-  spend(p, C.lifeCost(game.wave, p.livesBought ?? 0));
+  spend(p, C.lifeCost(game.wave));
   p.livesBought = (p.livesBought ?? 0) + 1;
   pool.lives += 1;
   p.stats.lifeBought += 1;
@@ -505,6 +512,8 @@ function setPaused(game, paused, { now }) {
   paused = !!paused;
   if (paused === game.paused) return;
   game.paused = paused;
+  if (paused) game.pausedSince = now;
+  else if (game.pausedSince !== null) { game.pausedMs += now - game.pausedSince; game.pausedSince = null; }
   if (game.phase !== 'build') return;
   if (paused) {
     game.pausedLeft = game.buildEndsAt === null ? null : Math.max(0, game.buildEndsAt - now);
@@ -646,7 +655,35 @@ function finishGame(game, winnerIds) {
   game.phase = 'finished';
   game.buildEndsAt = null;
   for (const id of game.playerIds) game.players[id].sim = null;
+  game.finishedAt = Date.now();
   game.result = buildResult(game, winnerIds);
+  game.records = buildRecords(game, winnerIds); // 給排行榜用，不送給前端
+}
+
+// 排行榜紀錄：每位玩家一筆。到達波數 = 實際打到（或倒下）的那一波；通關 = 撐過最後一波且沒出局
+// 通關時間是實際經過的秒數，扣掉暫停；最終傷害是 N 波局最後那場傷害測試的結果
+function buildRecords(game, winnerIds) {
+  if (game.aborted || !game.startedAt) return [];
+  const { waves, difficulty, livesMode } = game.options;
+  const lastCleared = game.wave >= waves;
+  const seconds = Math.max(0, Math.round((game.finishedAt - game.startedAt - game.pausedMs) / 1000));
+  return game.playerIds.map((id) => {
+    const p = game.players[id];
+    const cleared = lastCleared && !p.out && (isTeam(game) ? winnerIds.length > 0 : true);
+    const final = p.stats.tests.find(t => t.at === waves);
+    return {
+      playerId: id,
+      waves,
+      difficulty,
+      livesMode,
+      playerCount: game.startCount,
+      reachedWave: cleared ? waves : Math.min(waves, p.out ? p.outWave : game.wave + 1),
+      cleared,
+      clearSeconds: cleared ? seconds : null,
+      finalDamage: final ? final.damage : null,
+      finalKilled: final ? final.killed : null,
+    };
+  });
 }
 
 // 打完最後一波：共用血量全隊贏；獨立血量比剩餘血量，同分並列
@@ -714,6 +751,7 @@ function finishWave(game, { now, rng = Math.random }) {
 
 function finishNow(game) {
   if (game.phase !== 'build' && game.phase !== 'wave') throw new GameError('BAD_PHASE', '目前沒有進行中的遊戲');
+  game.aborted = true;
   finishGame(game, []);
 }
 
@@ -743,7 +781,7 @@ function meView(game, playerId) {
     wish: p.wish ?? null,
     rerolls: p.rerolls ?? 0,
     livesBought: p.livesBought ?? 0,
-    lifeCost: C.lifeCost(game.wave, p.livesBought ?? 0),
+    lifeCost: C.lifeCost(game.wave),
     wishCost: C.wishCost(game.wave, Math.min(p.wish?.stacks ?? 0, C.WISH_MAX_STACKS - 1)),
     wishCosts: Array.from({ length: C.WISH_MAX_STACKS }, (_, s) => C.wishCost(game.wave, s)), // 第 1／2／3 層各自的價格
     rerollCost: C.rerollCost(p.quality, p.rerolls ?? 0),
@@ -773,7 +811,7 @@ function buildView(game, viewerId, watchId) {
   const nextWave = game.phase === 'finished' || !game.board ? null : (() => {
     const test = isTestWave(game);
     const number = test ? game.testAt : game.wave + 1;
-    const def = test ? C.testWaveDef(game.testAt, game.options.difficulty) : C.waveDef(number, game.options.waves, game.options.difficulty);
+    const def = test ? C.testWaveDef(game.testAt, game.options.difficulty, game.options.waves) : C.waveDef(number, game.options.waves, game.options.difficulty);
     const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: g.hp, armor: Math.round(g.armor), trait: g.trait, leak: g.leak }));
     return { number, type: def.type, count: def.count, hp: def.hp, armor: Math.round(def.armor), groups, test: !!def.test };
   })();

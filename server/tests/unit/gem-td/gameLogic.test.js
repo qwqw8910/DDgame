@@ -764,26 +764,25 @@ test('共用血量隨人數增加，獨立血量每人固定', () => {
   assert.equal(L.buildView(solo, 'a').maxLives, C.START_LIVES);
 });
 
-test('買命：價格隨波次上漲、同回合越買越貴，不能超過上限、金幣不足會被擋', () => {
+test('買命：價格隨波次上漲、封頂 30 金且連買不加價，不能超過上限、金幣不足會被擋', () => {
   const game = newGame(['a'], { options: { livesMode: 'solo' } });
   assert.throws(() => L.buyLife(game, 'a'), { code: 'MAX_LIVES' });
   game.players.a.lives = 90;
   assert.throws(() => L.buyLife(game, 'a'), { code: 'NO_GOLD' });
-  const first = C.lifeCost(0, 0);
-  const second = C.lifeCost(0, 1);
-  assert.ok(second > first, '同一回合第二點比較貴');
-  game.players.a.gold = first + second + 5;
+  const price = C.lifeCost(0);
+  game.players.a.gold = price * 2 + 5;
   L.buyLife(game, 'a');
-  assert.equal(L.buildView(game, 'a').me.lifeCost, second);
+  assert.equal(L.buildView(game, 'a').me.lifeCost, price, '連買不加價');
   L.buyLife(game, 'a');
   assert.equal(game.players.a.lives, 92);
   assert.equal(game.players.a.gold, 5);
   assert.equal(game.players.a.stats.lifeBought, 2);
-  assert.ok(C.lifeCost(40, 0) > C.lifeCost(5, 0), '後期底價比較高');
+  assert.ok(C.lifeCost(10) > C.lifeCost(1), '後期價格比較高');
+  assert.equal(C.lifeCost(40), 30, '單價最多 30 金');
 
   const team = newGame(['a', 'b']);
   team.lives = 150;
-  team.players.b.gold = C.lifeCost(0, 0);
+  team.players.b.gold = C.lifeCost(0);
   L.buyLife(team, 'b');
   assert.equal(team.lives, 151, '共用血量加在隊伍身上');
 });
@@ -954,4 +953,51 @@ test('combineNotice 只公告第二階以上的特殊塔', () => {
   assert.equal(L.combineNotice(game, 'a', { kind: 'silver' }), null);
   assert.match(L.combineNotice(game, 'a', { kind: 'starsilver' }), /小明 合成了/);
   assert.match(L.combineNotice(game, 'a', { kind: 'galaxy' }), /最高階的銀河慕斯/);
+});
+
+test('50 波最終傷害測試：巨獸血量 ×4、護甲 ×2，只限 50 波局的最後一場', () => {
+  const base = C.testWaveDef(30, 'easy', 30).hp;
+  assert.equal(C.testWaveDef(30, 'easy', 50).hp, base, '50 波局的中途測試不加強');
+  const final = C.testWaveDef(50, 'easy', 50).hp;
+  const mid = C.testWaveDef(50, 'easy', 100).hp;
+  assert.equal(final, mid * C.FINAL_TEST_HP_MULT);
+  assert.equal(C.testWaveDef(50, 'easy', 50).armor, C.testWaveDef(50, 'easy', 100).armor * C.FINAL_TEST_ARMOR_MULT);
+  assert.equal(C.testWaveDef(30, 'easy', 30).hp, C.testWaveDef(30, 'easy').hp, '15／30 波局不變');
+});
+
+test('排行榜紀錄：通關、倒下、提早結束', () => {
+  const lb = require('../../../gem-td/leaderboard');
+  const game = newGame(['a'], { options: { livesMode: 'solo', waves: 15, damageTest: false } });
+  game.startedAt = 1000;
+  game.pausedMs = 20000;
+  game.wave = 7;
+  game.players.a.lives = 0;
+  game.players.a.out = true;
+  game.players.a.outWave = 8;
+  game.phase = 'wave';
+  L.finishNow(game);
+  assert.deepEqual(game.records, [], '房主提早結束不列入');
+
+  const g2 = newGame(['a'], { options: { waves: 15, damageTest: false } });
+  g2.wave = 14;
+  g2.lives = 100;
+  emptyField(g2, 'a');
+  g2.startedAt = Date.now() - 100000;
+  g2.pausedMs = 40000;
+  L.startWave(g2);
+  g2.players.a.sim.def.count = 0;
+  L.tick(g2, 0.1);
+  L.finishWave(g2, { now: 0 });
+  assert.equal(g2.records.length, 1);
+  const rec = g2.records[0];
+  assert.equal(rec.cleared, true);
+  assert.equal(rec.reachedWave, 15);
+  assert.ok(Math.abs(rec.clearSeconds - 60) <= 1, '扣掉暫停');
+  assert.equal(rec.finalDamage, null, '沒開傷害測試沒有最終傷害');
+
+  const mk = (name, reached, cleared, sec, dmg) => ({ player_name: name, reached_wave: reached, cleared, clear_seconds: sec, final_damage: dmg });
+  const data = [mk('A', 30, true, 900, 100), mk('B', 30, true, 800, 50), mk('C', 20, false, null, null), mk('D', 30, true, 800, 70)];
+  assert.deepEqual(lb.rank(data, 'reach').map(r => r.name), ['D', 'B', 'A', 'C']);
+  assert.deepEqual(lb.rank(data, 'time').map(r => r.name), ['D', 'B', 'A']);
+  assert.deepEqual(lb.rank(data, 'damage').map(r => r.name), ['A', 'D', 'B']);
 });

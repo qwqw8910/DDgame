@@ -26,11 +26,11 @@ const SPEED_CHOICES = [1, 2, 4];
 const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true, difficulty: 'easy' };
 
 // 用金幣換血量：建造階段每次換 1 點，最多補到開局血量
-// 底價隨波次上漲（後期收入高，固定價會變成無限補血）；同一回合每多買 1 點再貴 50%，下回合恢復
+// 單價隨波次上漲，上限 30 金；連續購買不會變貴
 const LIFE_BASE = 10;
 const LIFE_PER_WAVE = 2;
-const LIFE_STEP = 0.5;
-const lifeCost = (wave, bought) => Math.round((LIFE_BASE + wave * LIFE_PER_WAVE) * (1 + bought * LIFE_STEP));
+const LIFE_MAX = 30;
+const lifeCost = wave => Math.min(LIFE_MAX, LIFE_BASE + wave * LIFE_PER_WAVE);
 
 // 每位玩家各一張地圖，大小固定
 const BOARD_SIZE = 25;
@@ -317,10 +317,18 @@ function waveDef(wave, totalWaves, difficulty = 'easy') {
 }
 
 // 傷害測試：打完第 at 波後加賽，巨獸血量以該波為基準（公式不設上限，能活到那裡的隊伍本來就扛得住那樣的血量）
-function testWaveDef(at, difficulty = 'easy') {
-  const key = `test/${at}/${difficulty}`;
+// 50 波局的最終測試：巨獸血量 ×4、護甲 ×2，用來檢驗迷宮完整度與整體輸出，也是排行榜的傷害榜
+const FINAL_TEST_MIN_WAVES = 50;
+const FINAL_TEST_HP_MULT = 4;
+const FINAL_TEST_ARMOR_MULT = 2;
+const isFinalTest = (at, totalWaves) => totalWaves !== null && totalWaves >= FINAL_TEST_MIN_WAVES && at === totalWaves;
+
+function testWaveDef(at, difficulty = 'easy', totalWaves = null) {
+  const final = isFinalTest(at, totalWaves);
+  const key = `test/${at}/${difficulty}/${final ? 'final' : 'mid'}`;
   if (!waveDefCache.has(key)) {
-    const group = monsterGroup('titan', 1, at, null, difficulty);
+    const base = monsterGroup('titan', 1, at, null, difficulty);
+    const group = final ? { ...base, hp: base.hp * FINAL_TEST_HP_MULT, armor: base.armor * FINAL_TEST_ARMOR_MULT } : base;
     waveDefCache.set(key, { ...group, count: 1, interval: SPAWN_INTERVAL, groups: [group], test: true, at });
   }
   return waveDefCache.get(key);
@@ -391,7 +399,6 @@ function catalog() {
     traits: TRAITS,
     traitIds: TRAIT_IDS,
     gemsPerRound: GEMS_PER_ROUND,
-    lifeStep: LIFE_STEP,
     difficulties: DIFFICULTIES,
     speedChoices: SPEED_CHOICES,
   };
@@ -404,5 +411,5 @@ module.exports = {
 
   SWAP_COST, GEM_CATEGORIES, WISH_STACK_RATES, WISH_LEVEL_STACK, WISH_MAX_STACKS, wishCost, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, RESEARCH_BASE_LEVELS, researchValue, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
   TRAIT_IDS, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,
-  waveClearBonus, bossLeak, interestOn, armorFactor, gemStats, researchBonus, waveDef, testWaveDef, testAfterWave, testReward, catalog,
+  waveClearBonus, bossLeak, interestOn, armorFactor, gemStats, researchBonus, waveDef, testWaveDef, isFinalTest, FINAL_TEST_HP_MULT, FINAL_TEST_ARMOR_MULT, testAfterWave, testReward, catalog,
 };

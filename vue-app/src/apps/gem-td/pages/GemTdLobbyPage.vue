@@ -38,6 +38,8 @@
                     <button class="gt-btn" @click="handleJoin">加入房間</button>
                 </section>
             </div>
+
+            <GemLeaderboard v-if="!hasRoomFromUrl" />
         </main>
 
         <Transition name="toast">
@@ -54,6 +56,7 @@ import { warmUpServer } from '@/shared/api/config.js'
 import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
 import { MIN_PLAYERS, MAX_PLAYERS, HERO_IMAGE } from '../data/gems.js'
 import GemGuide from '../components/GemGuide.vue'
+import GemLeaderboard from '../components/GemLeaderboard.vue'
 
 const router = useRouter()
 

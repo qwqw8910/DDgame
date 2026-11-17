@@ -15,6 +15,7 @@
 const { registerRoomHandlers } = require('../room');
 const EV = require('../room/events');
 const L = require('./gameLogic');
+const { saveRecords } = require('./leaderboard');
 
 const APP_ID = 'gem-td';
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -153,6 +154,11 @@ function registerNamespace(io, db) {
 
   function closeFinished(roomId, game) {
     clearTimers(game);
+    if (game.records) {
+      refreshNames(roomId, game);
+      saveRecords(db, roomId, game.records, game.names);
+      game.records = null; // 同一場只寫一次
+    }
     _roomCache.updateRoom(roomId, { status: 'finished' });
     pushState(roomId);
     for (const s of socketsInRoom(roomId)) if (s.data.isSpectator) s.emit(EV.ROOM_SPECTATOR_CAN_JOIN);

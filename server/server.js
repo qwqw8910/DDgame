@@ -93,6 +93,7 @@ registerDotsBoxes(io, db);
 // ── 寶石塔防 namespace ────────────────────────────────────────
 const { registerNamespace: registerGemTd } = require('./gem-td');
 registerGemTd(io, db);
+app.use('/api/gem-td', require('./gem-td/leaderboard').createRouter(db));
 
 // ── 分帳系統 namespace ────────────────────────────────────────
 const { registerNamespace: registerSplitBill } = require('./split-bill');
