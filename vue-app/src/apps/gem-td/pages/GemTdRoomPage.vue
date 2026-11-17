@@ -72,7 +72,7 @@
 
         <GemGuide v-model="guide.show.value" :catalog="state.catalog" :keys="hasKeyboard" />
         <!-- 傷害測試紀錄：每場加賽打完自動跳出，看完關掉；之後要看從「更多」打開 -->
-        <GameGuideModal v-model="showTestLog" title="傷害測試紀錄" confirm-text="關閉">
+        <GameGuideModal v-model="showTestLog" root-class="gt-modal" title="傷害測試紀錄" confirm-text="關閉">
             <GemTestBoard :test="view?.testLog" :names="view?.names" :heading="false" />
         </GameGuideModal>
         <!-- 電腦版：彈出成浮動視窗的區塊會送到這一層 -->
@@ -80,23 +80,23 @@
         <!-- 平板：合成表維持浮動面板；電腦版停靠在左欄、手機是「合成表」分頁（見下方） -->
         <GemRecipes v-if="inGame && !isWide && !isPhone" v-model="showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
 
-        <div v-if="state.loading" class="fullscreen-overlay fullscreen-overlay--blur">
+        <div v-if="state.loading" class="fullscreen-overlay fullscreen-overlay--blur gt-modal">
             <span class="spinner mb-3.5"></span>
-            <p class="text-body text-base">{{ state.loadingText || '連線中…' }}</p>
+            <p class="text-base text-(--gt-muted)">{{ state.loadingText || '連線中…' }}</p>
         </div>
 
-        <div v-else-if="state.kicked || (state.error && !roomState.room)" class="overlay">
+        <div v-else-if="state.kicked || (state.error && !roomState.room)" class="overlay gt-modal">
             <div class="overlay-card text-center">
-                <p class="mb-1 text-lg font-semibold text-heading">{{ state.kicked ? '你已離開房間' : '無法進入房間' }}</p>
-                <p class="mb-4 text-body">{{ state.kicked || state.error }}</p>
+                <p class="mb-1 text-lg font-bold text-(--gt-ink)">{{ state.kicked ? '你已離開房間' : '無法進入房間' }}</p>
+                <p class="mb-4 text-(--gt-muted)">{{ state.kicked || state.error }}</p>
                 <button class="btn-primary" @click="goLobby">回到入口</button>
             </div>
         </div>
 
-        <div v-else-if="showNickname" class="overlay">
+        <div v-else-if="showNickname" class="overlay gt-modal">
             <div class="overlay-card">
                 <h2 class="neon-heading mb-3 text-xl">輸入暱稱</h2>
-                <input v-model="overlayNickname" class="game-input mb-3" type="text" placeholder="你的暱稱" maxlength="8"
+                <input v-model="overlayNickname" class="gt-input mb-3" type="text" placeholder="你的暱稱" maxlength="8"
                     aria-label="暱稱" autocomplete="off" @keydown.enter="joinWithNickname" />
                 <button class="btn-primary" @click="joinWithNickname">加入房間</button>
             </div>
@@ -212,7 +212,7 @@
         </main>
 
         <!-- 暫停（單人） -->
-        <div v-if="view?.paused && view.phase !== 'finished'" class="overlay">
+        <div v-if="view?.paused && view.phase !== 'finished'" class="overlay gt-modal">
             <div class="flex w-full max-w-[360px] flex-col gap-4 border border-(--gt-line) bg-(--gt-surface) p-6 text-center text-(--gt-text)">
                 <h2 class="m-0 font-sans text-3xl font-black text-(--gt-ink)">已暫停</h2>
                 <button class="gt-btn gt-btn--lamp" @click="setPaused(false)">繼續遊戲<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">P</kbd></button>
@@ -220,7 +220,7 @@
         </div>
 
         <!-- 結算 -->
-        <div v-if="view?.phase === 'finished' && view.result" class="overlay">
+        <div v-if="view?.phase === 'finished' && view.result" class="overlay gt-modal">
             <div class="flex max-h-full w-full max-w-[460px] flex-col gap-4 overflow-y-auto border border-(--gt-line) bg-(--gt-surface) p-6 text-(--gt-text)">
                 <img :src="view.result.win ? RESULT_WIN_IMAGE : RESULT_LOSE_IMAGE" alt="" class="mx-auto block h-auto max-h-36 w-auto max-w-full object-contain" />
                 <h2 class="m-0 font-sans text-4xl font-black text-(--gt-ink)">{{ resultTitle }}</h2>

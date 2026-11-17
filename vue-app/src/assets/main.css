@@ -1460,7 +1460,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
    對比（在 --gt-bg #FFF4F2 上）：ink 11.6:1、text 8.6:1、muted 5.8:1、accent-ink 5.8:1；
    --gt-accent #D6305A 只當底色或圖示（白字在上面 4.7:1），文字要用 --gt-accent-ink。 */
 @layer components {
-  .gt-root {
+  .gt-root, .gt-modal {
     --gt-bg: #FFF4F2;
     --gt-surface: #FFFFFF;
     --gt-ink: #4A2C2A;
@@ -1476,8 +1476,30 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     --gt-accent-soft: #FDE9ED;
     --gt-gold: #F2B632;
     --gt-shadow: 0 8px 24px rgba(74, 44, 42, 0.18);
-    background: var(--gt-bg); color: var(--gt-text); font-family: var(--font-sans);
   }
+  .gt-root {
+    background: var(--gt-bg); color: var(--gt-text); font-family: var(--font-sans);
+    accent-color: var(--gt-accent);
+  }
+  /* 教學、暫停等彈窗是 Teleport 到 body 的共用元件，不在 .gt-root 底下：
+     加上 .gt-modal 拿到同一組變數，再把舊的霓虹底色換成草莓牛奶色 */
+  .gt-modal.overlay { background: rgba(74, 44, 42, 0.55); color: var(--gt-text); font-family: var(--font-sans); accent-color: var(--gt-accent); }
+  .gt-modal .overlay-card { border-color: var(--gt-line); background: var(--gt-surface); box-shadow: var(--gt-shadow); color: var(--gt-text); }
+  .gt-modal .neon-heading { color: var(--gt-ink); text-shadow: none; }
+  .gt-modal .text-heading, .gt-modal .gg-body b { color: var(--gt-ink); }
+  .gt-modal .overlay-card > div { border-color: var(--gt-line-soft) !important; }
+  .gt-modal .header-icon-btn { min-width: 44px; min-height: 44px; border-color: var(--gt-line); background: var(--gt-surface); color: var(--gt-ink); }
+  .gt-modal .btn-primary {
+    min-height: 44px; border: 2px solid var(--gt-ink); border-radius: 10px; background: var(--gt-accent); color: #FFFFFF;
+    font-weight: 700; box-shadow: none; transition: background-color 0.15s, transform 0.15s;
+  }
+  .gt-modal .btn-primary::before { display: none; }
+  .gt-modal .btn-primary:hover:not(:disabled) { transform: none; background: var(--gt-accent-hover); box-shadow: none; }
+  .gt-modal .btn-primary:active:not(:disabled) { transform: scale(0.97); }
+  .gt-modal .btn-primary:focus-visible, .gt-modal .header-icon-btn:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
+  .gt-modal .spinner { border-color: var(--gt-line); border-top-color: var(--gt-accent); }
+  .gt-modal .text-body { color: var(--gt-muted); }
+  .gt-modal.fullscreen-overlay { background: rgba(255, 244, 242, 0.85); }
   .gt-root .header-icon-btn {
     min-width: 44px; min-height: 44px; background: var(--gt-surface); border-color: var(--gt-line); color: var(--gt-ink);
   }
@@ -1504,6 +1526,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     border-radius: 10px; background: var(--gt-surface); color: var(--gt-text); font-size: 16px; cursor: pointer; white-space: nowrap;
   }
   .gt-chip:hover { border-color: var(--gt-accent); }
+  .gt-chip--on { border-color: var(--gt-accent); color: var(--gt-accent); }
 
   /* 沒有外框的文字按鈕（塔名）：只要焦點框 */
   .gt-plain { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
@@ -1615,7 +1638,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     }
     .gt-rail, .gt-rail-top, .gt-side { display: contents; }
     .gt-resizer { display: none; }
-    .gt-rail-top > *, .gt-side > * { order: 5; margin: 12px 12px 0; max-width: calc(100% - 24px); }
+    .gt-rail-top > *, .gt-rail-top > .contents > *, .gt-side > * { order: 5; margin: 12px 12px 0; max-width: calc(100% - 24px); }
     .gt-stage {
       order: 2; position: sticky; top: 0; z-index: 3; flex: none; height: var(--gt-stage); padding: 0;
       background: var(--gt-bg); border-bottom: 1px solid var(--gt-line);
@@ -1675,9 +1698,11 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-dock--collapsed .gt-dock-head { border-bottom: 0; }
   .gt-dock--drag .gt-dock-head { cursor: grabbing; }
   .gt-dock-btn {
-    display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border: 0; border-radius: 6px;
+    position: relative; display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border: 0; border-radius: 6px;
     background: transparent; color: var(--gt-muted); font-size: 14px; line-height: 1; cursor: pointer;
   }
+  /* 看起來還是 28px，點擊範圍撐到 44px */
+  .gt-dock-btn::after { content: ''; position: absolute; inset: -8px; }
   .gt-dock-btn:hover { background: var(--gt-line-soft); color: var(--gt-accent-ink); }
   .gt-dock-btn:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: -2px; }
   .gt-dock-body { flex: 1 1 auto; min-height: 0; padding: 12px; overflow-y: auto; overscroll-behavior: contain; }

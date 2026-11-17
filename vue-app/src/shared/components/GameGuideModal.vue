@@ -1,7 +1,7 @@
 <template>
     <Teleport to="body">
         <Transition name="toast">
-            <div v-if="modelValue" class="overlay" role="dialog" aria-modal="true" :aria-labelledby="titleId"
+            <div v-if="modelValue" class="overlay" :class="rootClass" role="dialog" aria-modal="true" :aria-labelledby="titleId"
                 @click.self="close" @keydown.esc="close">
                 <div class="overlay-card" ref="cardRef" tabindex="-1"
                     style="max-width:480px;width:100%;max-height:85vh;display:flex;flex-direction:column;padding:0;text-align:left">
@@ -37,6 +37,7 @@ const props = defineProps({
     modelValue: { type: Boolean, default: false },
     title: { type: String, default: '📖 玩法說明' },
     confirmText: { type: String, default: '我知道了，開始玩！' },
+    rootClass: { type: String, default: '' }, // 外層加主題 class（例如 gt-modal），讓彈窗跟著該遊戲的配色
 })
 const emit = defineEmits(['update:modelValue'])
 
