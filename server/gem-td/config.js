@@ -12,7 +12,8 @@ const GEMS_PER_ROUND = 5;
 const START_LIVES = 100;
 const START_GOLD = 0;
 
-const WAVE_CHOICES = [15, 30, 50];
+const ENDLESS = 0; // waves = 0 代表無盡模式：沒有最後一波，打到全員出局為止
+const WAVE_CHOICES = [15, 30, 50, ENDLESS];
 const BUILD_SECOND_CHOICES = [0, 45, 60, 90]; // 0 = 不限時（等全員按準備）
 const LIVES_MODES = ['team', 'solo']; // team = 全隊共用血量；solo = 每人各自的血量
 // 難度：簡單 = 原本的數值，血量 ×1.2，給還不會蓋塔與迷宮的人；普通、困難給會迷宮的老手。倍率套在怪物血量與護甲上
@@ -167,7 +168,7 @@ const WISH_MAX_STACKS = WISH_STACK_RATES.length;
 const wishBase = wave => Math.min(WISH_BASE_MAX, Math.max(WISH_BASE_MIN, Math.round(WISH_BASE_MIN + wave * WISH_BASE_PER_WAVE)));
 const wishCost = (wave, stacks = 0) => wishBase(wave) * WISH_STACK_COST_MULT[stacks];
 const SWAP_COST = 25;
-// 重骰手上「一格」甜點（賭合成用）：品質越高底價越貴，同一回合每骰一次再加價，下回合歸零
+// 重骰手上全部五顆甜點（賭合成用）：一次只收一份錢，品質越高底價越貴，同一回合每骰一次再加價，下回合歸零
 const REROLL_BASE = 5;
 const REROLL_PER_QUALITY = 3;
 const REROLL_STEP = 5;
@@ -345,7 +346,8 @@ const testAfterWave = (wave, totalWaves) => wave === totalWaves || wave % TEST_E
 // 跟總波數掛鉤，所以 15／30／50 波的局，最後一隻王都扣一樣多，短局也不會因為王比較少就太輕鬆
 const BOSS_LEAK_MIN = 15;
 const BOSS_LEAK_MAX = 40;
-const bossLeak = (wave, totalWaves) => Math.round(BOSS_LEAK_MIN + (BOSS_LEAK_MAX - BOSS_LEAK_MIN) * Math.min(1, wave / totalWaves));
+const LEAK_ENDLESS_SPAN = 50; // 無盡模式沒有總波數，扣血進度以 50 波計
+const bossLeak = (wave, totalWaves) => Math.round(BOSS_LEAK_MIN + (BOSS_LEAK_MAX - BOSS_LEAK_MIN) * Math.min(1, wave / (totalWaves || LEAK_ENDLESS_SPAN)));
 
 function buildWaveDef(wave, totalWaves, difficulty) {
   const type = wave === totalWaves ? 'boss' : WAVE_ROTATION[(wave - 1) % WAVE_ROTATION.length];
@@ -406,7 +408,7 @@ function catalog() {
 
 module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
-  WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
+  ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
 
   SWAP_COST, GEM_CATEGORIES, WISH_STACK_RATES, WISH_LEVEL_STACK, WISH_MAX_STACKS, wishCost, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, RESEARCH_BASE_LEVELS, researchValue, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,

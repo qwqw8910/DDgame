@@ -127,7 +127,7 @@ export function useGemTd() {
     combine:        (recipeId, towerId) => emit('gt:combine', { recipeId, towerId }),
     upgradeQuality: () => emit('gt:upgrade-quality'),
     buyLife:        () => emit('gt:buy-life'),
-    reroll:         slot => emit('gt:reroll', { slot }),
+    reroll:         () => emit('gt:reroll'),
     makeWish:       (category, stacks) => emit('gt:wish', { category, stacks }),
     upgradeResearch: (track) => emit('gt:research', { track }),
     removeStone:    (towerId) => emit('gt:remove-stone', { towerId }),

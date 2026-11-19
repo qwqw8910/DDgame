@@ -287,21 +287,20 @@ test('女王蟻扣血依整局進度調整：後面的王扣比較多，最後�
   assert.equal(C.waveDef(3, 30).groups[0].leak, undefined, '一般蟲不受影響');
 });
 
-test('重骰：只換指定那一格、品質越高越貴、每骰一次加價、放下後不能骰、下回合歸零', () => {
+test('重骰：一次換掉五格、只收一次錢、品質越高越貴、每骰一次加價、放下後不能骰、下回合歸零', () => {
   const game = newGame();
   const p = game.players.a;
-  assert.throws(() => L.rerollGems(game, 'a', p.pending[0].slot, { rng: seededRng(3) }), { code: 'NO_GOLD' });
+  assert.throws(() => L.rerollGems(game, 'a', { rng: seededRng(3) }), { code: 'NO_GOLD' });
 
   p.gold = 1000;
-  assert.throws(() => L.rerollGems(game, 'a', 99), { code: 'BAD_ARG' });
   const first = C.rerollCost(1, 0);
   const before = p.pending.map(g => ({ ...g }));
-  const target = before[2].slot;
-  L.rerollGems(game, 'a', target, { rng: seededRng(3) });
+  L.rerollGems(game, 'a', { rng: seededRng(3) });
   assert.equal(p.gold, 1000 - first);
   assert.equal(p.pending.length, C.GEMS_PER_ROUND);
-  assert.deepEqual(p.pending.filter((_, i) => i !== 2), before.filter((_, i) => i !== 2), '其他四格不變');
-  assert.equal(p.pending[2].slot, target);
+  assert.deepEqual(p.pending.map(g => g.slot), before.map(g => g.slot), 'slot 不變');
+  assert.notDeepEqual(p.pending, before, '五格都重新抽過');
+  assert.equal(p.rerolls, 1, '一次只算一骰');
   assert.ok(C.rerollCost(1, 1) > first, '第二骰比較貴');
   assert.equal(L.buildView(game, 'a').me.rerollCost, C.rerollCost(1, 1));
 
@@ -310,7 +309,7 @@ test('重骰：只換指定那一格、品質越高越貴、每骰一次加價�
   assert.equal(L.buildView(game, 'a').me.rerollCost, C.rerollCost(2, 1));
 
   L.placeGem(game, 'a', p.pending[0].slot, 4, 6);
-  assert.throws(() => L.rerollGems(game, 'a', p.pending[0].slot), { code: 'ALREADY_PLACED' });
+  assert.throws(() => L.rerollGems(game, 'a'), { code: 'ALREADY_PLACED' });
   assert.equal(L.buildView(game, 'a').me.canReroll, false);
 
   placeAll(game, 'a');
@@ -994,10 +993,46 @@ test('排行榜紀錄：通關、倒下、提早結束', () => {
   assert.equal(rec.reachedWave, 15);
   assert.ok(Math.abs(rec.clearSeconds - 60) <= 1, '扣掉暫停');
   assert.equal(rec.finalDamage, null, '沒開傷害測試沒有最終傷害');
+  assert.equal(rec.damageRatio, null);
 
-  const mk = (name, reached, cleared, sec, dmg) => ({ player_name: name, reached_wave: reached, cleared, clear_seconds: sec, final_damage: dmg });
-  const data = [mk('A', 30, true, 900, 100), mk('B', 30, true, 800, 50), mk('C', 20, false, null, null), mk('D', 30, true, 800, 70)];
-  assert.deepEqual(lb.rank(data, 'reach').map(r => r.name), ['D', 'B', 'A', 'C']);
-  assert.deepEqual(lb.rank(data, 'time').map(r => r.name), ['D', 'B', 'A']);
-  assert.deepEqual(lb.rank(data, 'damage').map(r => r.name), ['A', 'D', 'B']);
+  const mk = (name, reached, diff, ratio, sec = null) => ({ player_name: name, reached_wave: reached, difficulty: diff, damage_ratio: ratio, clear_seconds: sec, created_at: name });
+  // 綜合分數 = (波數×100 + 傷害比率×100) × 難度倍率：簡單 ×1、困難 ×2
+  assert.equal(lb.score(mk('x', 30, 'easy', 0.5)), 3050);
+  assert.equal(lb.score(mk('x', 30, 'hard', 0.5)), 6100);
+  assert.equal(lb.score(mk('x', 30, 'easy', null)), 3000, '舊資料沒有傷害比率，傷害分算 0');
+  const data = [mk('A', 30, 'easy', 1), mk('B', 20, 'hard', 0.2), mk('C', 30, 'easy', 1, 100), mk('D', 30, 'easy', 0.4), mk('E', 30, 'easy', null)];
+  assert.deepEqual(lb.rank(data).map(r => r.name), ['B', 'C', 'A', 'D', 'E'], '困難加倍、同分先比通關時間');
+  assert.equal(lb.rank(Array.from({ length: 80 }, (_, i) => mk(`p${i}`, 10, 'easy', 0))).length, 50, '榜單放 50 筆');
+});
+
+test('無盡模式：沒有最後一波、不會通關，每 15 波仍有傷害測試，排行榜取最高傷害比率', () => {
+  const game = newGame(['a'], { options: { waves: C.ENDLESS } });
+  assert.equal(game.options.waves, C.ENDLESS);
+  game.wave = 49;
+  game.lives = 100;
+  emptyField(game, 'a');
+  L.startWave(game);
+  game.players.a.sim.def.count = 0;
+  L.tick(game, 0.1);
+  L.finishWave(game, { now: 0 });
+  assert.equal(game.phase, 'build', '50 波之後還沒結束');
+  assert.equal(game.testAt, null);
+  assert.ok(C.testAfterWave(15, C.ENDLESS) && C.testAfterWave(45, C.ENDLESS));
+  assert.ok(!C.testAfterWave(20, C.ENDLESS));
+  assert.ok(C.waveDef(60, C.ENDLESS).hp > C.waveDef(30, C.ENDLESS).hp, '怪物持續變強');
+  assert.equal(C.waveDef(20, C.ENDLESS).groups[0].type, 'boss', '每 10 波一隻首領');
+
+  const p = game.players.a;
+  p.stats.tests.push({ at: 15, damage: 500, maxHp: 1000, killed: false }, { at: 30, damage: 3000, maxHp: 2000, killed: true });
+  game.startedAt = Date.now() - 1000;
+  game.finishedAt = Date.now();
+  const [rec] = L.buildRecords(game, []);
+  assert.equal(rec.cleared, false);
+  assert.equal(rec.reachedWave, game.wave + 1, '無盡的到達波數不設上限');
+  assert.equal(rec.damageRatio, 1, '比率最多 100%，取最高的一場');
+  assert.equal(rec.finalDamage, 3000);
+});
+
+test('房主無法透過設定關掉傷害測試', () => {
+  assert.equal(L.resolveOptions({}).damageTest, true);
 });

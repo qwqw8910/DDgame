@@ -14,9 +14,9 @@
                     <span class="sr-only">金幣</span>{{ gold }}
                 </span>
                 <span class="gt-hud-item">
-                    <span class="sr-only">{{ view.nextWave?.test ? '傷害測試，' : '' }}第 {{ waveNumber }} 波，共 {{ view.options.waves }} 波</span>
+                    <span class="sr-only">{{ view.nextWave?.test ? '傷害測試，' : '' }}第 {{ waveNumber }} 波{{ view.options.waves ? `，共 ${view.options.waves} 波` : '（無盡）' }}</span>
                     <span v-if="view.nextWave?.test" class="text-(--gt-accent-ink)" aria-hidden="true">加賽</span>
-                    <span v-else aria-hidden="true"><span class="gt-hud-sub max-sm:hidden">第 </span>{{ waveNumber }}<span class="gt-hud-sub">／{{ view.options.waves }}</span><span class="gt-hud-sub max-sm:hidden"> 波</span></span>
+                    <span v-else aria-hidden="true"><span class="gt-hud-sub max-sm:hidden">第 </span>{{ waveNumber }}<span v-if="view.options.waves" class="gt-hud-sub">／{{ view.options.waves }}</span><span class="gt-hud-sub max-sm:hidden"> 波</span></span>
                 </span>
                 <span v-if="secondsLeft !== null" class="gt-hud-item" :class="secondsLeft <= 10 && 'text-(--gt-accent-ink)'" role="timer" aria-label="建造剩餘秒數">
                     <span class="gt-hud-sub max-sm:hidden">建造 </span>{{ secondsLeft }}<span class="gt-hud-sub">秒</span>
@@ -138,10 +138,6 @@
                     <select class="gt-input cursor-pointer" :value="view.options.waves" @change="setOptions({ waves: Number($event.target.value) })">
                         <option v-for="c in WAVE_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
                     </select>
-                </label>
-                <label class="flex items-center gap-2 text-(--gt-muted)">
-                    <input type="checkbox" class="size-4 cursor-pointer" :checked="view.options.damageTest" @change="setOptions({ damageTest: $event.target.checked })" />
-                    傷害測試（每 15 波與最後一波加賽，巨獸不扣血）
                 </label>
                 <label class="flex flex-col gap-1 text-(--gt-muted)">
                     每回合建造時間
@@ -602,7 +598,7 @@ function handleKey(code) {
     }
     case 'KeyD':
         if (!building || !me.canReroll) return false
-        if (me.gold >= me.rerollCost && activeSlot.value != null) reroll(activeSlot.value)
+        if (me.gold >= me.rerollCost) reroll()
         return true
     case 'KeyS':
         if (swapFrom.value) { swapFrom.value = null; return true }

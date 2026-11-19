@@ -7,6 +7,7 @@ export const WAVE_CHOICES = [
   { value: 15, label: '15 波（短局）' },
   { value: 30, label: '30 波（標準）' },
   { value: 50, label: '50 波（硬核）' },
+  { value: 0, label: '無盡（打到全員出局）' },
 ]
 export const BUILD_CHOICES = [
   { value: 45, label: '45 秒' },
