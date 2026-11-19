@@ -112,7 +112,7 @@
 | 通關時間 | 只列通關者，實際經過秒數（扣除暫停），短者勝 |
 | 最終傷害 | 只列有打最終傷害測試者，傷害高者勝 |
 
-最終傷害 = 該局最後一場（打完最後一波後）的傷害測試。讀取走 `GET /api/gem-td/leaderboard?waves=&difficulty=`（`leaderboard.js`），寫入失敗只記 log，不影響結算。前端 `GemLeaderboard.vue`。
+最終傷害 = 該局最後一場（打完最後一波後）的傷害測試。讀取走 `GET /api/gem-td/leaderboard`（15／30／50／無盡合成一個榜，每筆標示模式）（`leaderboard.js`），寫入失敗只記 log，不影響結算。前端 `GemLeaderboard.vue`。
 
 ## 地圖
 
