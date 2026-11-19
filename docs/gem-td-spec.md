@@ -158,6 +158,7 @@
 | `gt:set-paused` | C→S | 暫停／繼續，僅單人遊戲 |
 | `gt:place` `gt:keep` `gt:merge` `gt:combine` | C→S | 放置與選擇 |
 | `gt:upgrade-quality` `gt:reroll` `gt:wish` `gt:research` `gt:remove-stone` `gt:swap` `gt:buy-life` | C→S | 商店 |
+| `gt:undo` | C→S | 還原本回合上一步建造動作（金幣一併退回；重骰清空堆疊，按準備後不可還原） |
 | `gt:ready` | C→S | 準備 |
 
 `gt:frame` 內容：`owner` 是這張地圖的玩家，`players` 是所有人的血量與進度摘要，`m` 為 `[id, 怪物型別索引, x×10, y×10, 血量%, 旗標]`（旗標 1 緩速、2 中毒，4 起依 `traitIds` 順序是特性），`s` 為 `[塔 id, 怪物 id]`。

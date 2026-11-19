@@ -67,6 +67,13 @@
             </ul>
         </GemSection>
 
+        <!-- 還原上一步（放置、保留、合成、拆除、換位、商店都能還原，金幣一併退回；重骰與按準備後不行） -->
+        <GemSection v-if="phase === 'build' && me && !me.out" bare title="還原" :class="tabClass('place')">
+            <button class="gt-btn gt-btn--small w-full" :disabled="!me.canUndo" aria-keyshortcuts="Z" @click="$emit('undo')">
+                ↩ 還原上一步<kbd v-if="keys && me.canUndo" class="gt-kbd ml-2" aria-hidden="true">Z</kbd>
+            </button>
+        </GemSection>
+
         <!-- 準備：手機與平板放完、選完才出現，排在最上面；電腦版整個建造階段都釘在右欄底部，
              還沒放完時是灰的並說明還差什麼，按鈕位置不會跳 -->
         <GemSection v-if="phase === 'build' && me && !me.out" bare title="準備" class="gt-ready" :class="[tabClass('place'), !me.resolved && 'max-lg:hidden']">
@@ -239,7 +246,7 @@ const props = defineProps({
 
 // 手機只顯示目前分頁的區塊；沒傳分頁（空字串）時全部顯示
 const tabClass = (...tabs) => (props.phoneTab && !tabs.includes(props.phoneTab) ? 'max-sm:hidden' : '')
-defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'wish', 'research', 'remove', 'start-swap', 'cancel-swap'])
+defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'wish', 'research', 'remove', 'start-swap', 'cancel-swap', 'undo'])
 
 const RATE_COLORS = ['#C9B2AD', '#9FB8C9', '#5FA8D3', '#3CCB72', '#F2B233', '#D6305A']
 
