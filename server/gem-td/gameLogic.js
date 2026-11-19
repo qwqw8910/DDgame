@@ -235,7 +235,8 @@ function placeGem(game, playerId, slot, x, y) {
   }
 
   const { kind, level } = p.pending[index];
-  const tower = { id: game.nextTowerId++, x, y, kind, level, owner: playerId, fresh: true, kills: 0, damage: 0 };
+  // slot：本回合從第幾格放下的（前端在原位置顯示「已放」）；選完後 fresh 變 false 就不再下發
+  const tower = { id: game.nextTowerId++, x, y, kind, level, owner: playerId, fresh: true, slot, kills: 0, damage: 0 };
   p.towers.push(tower);
   p.grid.set(key, tower);
   p.path = path;
@@ -772,7 +773,10 @@ function leavePlayer(game, playerId) {
 
 // ── 視圖 ────────────────────────────────────────────────────────
 function towerView(t) {
-  return { id: t.id, x: t.x, y: t.y, kind: t.kind, level: t.level, owner: t.owner, fresh: t.fresh, kills: t.kills, damage: Math.round(t.damage) };
+  return {
+    id: t.id, x: t.x, y: t.y, kind: t.kind, level: t.level, owner: t.owner, fresh: t.fresh, kills: t.kills, damage: Math.round(t.damage),
+    ...(t.fresh ? { slot: t.slot } : {}),
+  };
 }
 
 function meView(game, playerId) {

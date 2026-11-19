@@ -28,6 +28,11 @@
                 <span class="hidden text-(--gt-muted) tabular-nums sm:inline">{{ roomState.roomId }}</span>
             </div>
 
+            <!-- 現在該做什麼：寬螢幕放在標題列正中間，一眼看到目前的步驟 -->
+            <p v-if="showGame && phaseHint" class="gt-phase max-xl:hidden" role="status">
+                <span class="gt-phase-tag">{{ phaseHint.tag }}</span><span class="truncate">{{ phaseHint.text }}</span>
+            </p>
+
             <div class="flex shrink-0 items-center gap-1">
                 <!-- 單人的暫停、房主的倍速：電腦與平板在標題列；手機在「戰況」分頁 -->
                 <template v-if="inGame">
@@ -44,8 +49,7 @@
                     @kick="id => kickPlayer(id)" @transfer-host="id => transferHost(id)" />
                 <PwaInstallButton v-if="!showGame" button-class="header-icon-btn" hint-class="gt-install-hint" />
                 <GemVolumePanel :class="showGame && 'max-sm:hidden'" />
-                <button v-if="inGame" class="header-icon-btn max-sm:hidden" :title="hasKeyboard ? '合成表（B）' : '合成表'" aria-label="合成表" aria-keyshortcuts="B" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes"><GemHeaderIcon name="book" /></button>
-                <GemDockMenu v-if="inGame && isWide" />
+                <button v-if="inGame && !isWide" class="header-icon-btn relative max-sm:hidden" :title="hasKeyboard ? '合成表（B）' : '合成表'" aria-label="合成表" aria-keyshortcuts="B" :aria-pressed="showRecipes" @click="showRecipes = !showRecipes"><GemHeaderIcon name="book" /><span v-if="readyFavs" class="gt-dot gt-dot--corner" aria-hidden="true" /><span v-if="readyFavs" class="sr-only">最愛有 {{ readyFavs }} 種可以合成</span></button>
                 <template v-if="!showGame">
                     <button class="header-icon-btn max-sm:hidden" :title="hasKeyboard ? '怎麼玩（H）' : '怎麼玩'" aria-label="怎麼玩" aria-keyshortcuts="H" @click="guide.open"><GemHeaderIcon name="help" /></button>
                     <button class="header-icon-btn max-sm:hidden" title="複製邀請連結" aria-label="複製邀請連結" @click="handleCopyLink"><GemHeaderIcon name="link" /></button>
@@ -75,10 +79,6 @@
         <GameGuideModal v-model="showTestLog" root-class="gt-modal" title="傷害測試紀錄" confirm-text="關閉">
             <GemTestBoard :test="view?.testLog" :names="view?.names" :heading="false" />
         </GameGuideModal>
-        <!-- 電腦版：彈出成浮動視窗的區塊會送到這一層 -->
-        <div :ref="el => dockTargets.float = el" class="gt-float-host" />
-        <!-- 平板：合成表維持浮動面板；電腦版停靠在左欄、手機是「合成表」分頁（見下方） -->
-        <GemRecipes v-if="inGame && !isWide && !isPhone" v-model="showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
 
         <div v-if="state.loading" class="fullscreen-overlay fullscreen-overlay--blur gt-modal">
             <span class="spinner mb-3.5"></span>
@@ -153,16 +153,15 @@
             <p v-else class="m-0 text-(--gt-muted)">等房主開始遊戲。</p>
         </main>
 
-        <!-- 遊戲畫面：電腦三欄（左 戰況、中 地圖、右 操作），窄螢幕由 CSS 改成上下堆疊 -->
-        <main v-else-if="view?.board && state.catalog" class="gt-game" :style="colStyle">
+        <!-- 遊戲畫面：電腦三欄固定版面（左 波次預告與合成表、中 地圖、右 操作），窄螢幕由 CSS 改成上下堆疊 -->
+        <main v-else-if="view?.board && state.catalog" class="gt-game">
             <aside class="gt-rail" aria-label="戰況">
-                <div class="gt-resizer gt-resizer--rail" role="separator" aria-orientation="vertical" aria-label="拖拉調整左欄寬度（雙擊還原）" @pointerdown="startCol($event, 'rail')" @dblclick="resetCol('rail')" />
-                <!-- 電腦版：戰況與合成表分成上下兩塊，各自捲動 -->
-                <div :ref="el => dockTargets.left = el" class="gt-rail-top">
+                <!-- 電腦版：上面是玩家與波次（依內容高度），下面的合成表吃掉剩下的高度，各自捲動 -->
+                <div class="gt-rail-top">
 
-                    <GemDock v-if="view.playerIds.length > 1" id="players" title="玩家" :class="phoneShow('status')" aria-label="玩家">
+                    <GemSection v-if="view.playerIds.length > 1" title="玩家" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="玩家">
                         <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
-                    </GemDock>
+                    </GemSection>
                     <!-- 看別人的地圖：提示放在左欄，不疊在地圖上 -->
                     <div v-if="!mine" class="gt-card flex flex-col gap-2" :class="phoneShow('place', 'tower')" role="status">
                         <p class="m-0">正在看 <b class="text-(--gt-ink)">{{ watchingName }}</b> 的地圖，不能操作。</p>
@@ -176,11 +175,9 @@
                         暫停<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">P</kbd>
                     </button>
                     <!-- 手機：合成表是一個分頁，直接排在內容區，不再浮在地圖上 -->
-                    <GemRecipes v-if="inGame && isPhone && phoneTab === 'recipes'" :model-value="true" inline :view="view" :catalog="state.catalog" @combine="onCombine" />
+                    <GemCodex v-if="inGame && isPhone && phoneTab === 'recipes'" :view="view" :catalog="state.catalog" @combine="onCombine" />
                 </div>
-                <GemDock v-if="isWide && showRecipes" id="recipes" title="合成表" external-close aria-label="合成表" @close="showRecipes = false">
-                    <GemRecipes :model-value="true" inline :view="view" :catalog="state.catalog" @combine="onCombine" />
-                </GemDock>
+                <GemCodex v-if="isWide" :view="view" :catalog="state.catalog" :meta="recipeMeta" @combine="onCombine" />
             </aside>
 
             <section class="gt-stage" aria-label="地圖">
@@ -191,11 +188,10 @@
 
             <!-- 手機專用分頁列：電腦與平板不顯示 -->
             <nav class="gt-tabbar hidden max-sm:flex" aria-label="操作分頁">
-                <button v-for="t in PHONE_TABS" :key="t.id" class="gt-phonetab" :aria-pressed="phoneTab === t.id" @click="phoneTab = t.id">{{ t.label }}</button>
+                <button v-for="t in PHONE_TABS" :key="t.id" class="gt-phonetab" :aria-pressed="phoneTab === t.id" @click="phoneTab = t.id">{{ t.label }}<span v-if="t.id === 'recipes' && readyFavs" class="gt-dot ml-1" aria-hidden="true" /><span v-if="t.id === 'recipes' && readyFavs" class="sr-only">，最愛有 {{ readyFavs }} 種可以合成</span></button>
             </nav>
 
-            <aside :ref="el => dockTargets.right = el" class="gt-side" aria-label="操作">
-                <div class="gt-resizer gt-resizer--side" role="separator" aria-orientation="vertical" aria-label="拖拉調整右欄寬度（雙擊還原）" @pointerdown="startCol($event, 'side')" @dblclick="resetCol('side')" />
+            <aside class="gt-side" aria-label="操作">
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
                 <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
@@ -204,6 +200,8 @@
                     @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
                     @remove="id => { removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
+                <!-- 平板：合成表由標題列的書本按鈕打開，排在操作區最下面（不再浮在地圖上） -->
+                <GemCodex v-if="inGame && !isWide && !isPhone && showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
             </aside>
         </main>
 
@@ -256,7 +254,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getSavedNickname, saveNickname } from '@/shared/data/identity.js'
 import { useGameGuide } from '@/shared/composables/useGameGuide.js'
@@ -272,15 +270,15 @@ import GemBoard from '../components/GemBoard.vue'
 import GemPanel from '../components/GemPanel.vue'
 import GemPlayerTabs from '../components/GemPlayerTabs.vue'
 import GemGuide from '../components/GemGuide.vue'
-import GemRecipes from '../components/GemRecipes.vue'
+import { useGemFavs } from '../composables/useGemFavs.js'
+import GemCodex from '../components/GemCodex.vue'
 import GemHeaderIcon from '../components/GemHeaderIcon.vue'
 import GemIcon from '../components/GemIcon.vue'
 import GemVolumePanel from '../components/GemVolumePanel.vue'
 import GemWaveInfo from '../components/GemWaveInfo.vue'
 import GemTestBoard from '../components/GemTestBoard.vue'
-import GemDock from '../components/GemDock.vue'
-import GemDockMenu from '../components/GemDockMenu.vue'
-import { targets as dockTargets, desktop as dockDesktop } from '../composables/useGemDock.js'
+import GemSection from '../components/GemSection.vue'
+import { desktop as layoutDesktop } from '../composables/useGemLayout.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -295,20 +293,23 @@ const { playSfx, isSfxMuted, toggleSfxMute } = useGemTdSfx()
 const guide = useGameGuide('gem-td-guide-seen')
 const view = computed(() => state.view)
 const inGame = computed(() => !!state.catalog && ['build', 'wave'].includes(view.value?.phase))
-// 電腦版（≥1024px）合成表停靠在左欄，預設打開；開關狀態記在本機
+// 電腦版（≥1024px）：三欄固定版面，合成表一直排在左欄
 const wideQuery = window.matchMedia('(min-width: 1024px)')
 const isWide = ref(wideQuery.matches)
 const isSolo = computed(() => (view.value?.playerIds?.length ?? 0) === 1 && !roomState.isSpectator)
-dockDesktop.value = isWide.value
-const onWideChange = (e) => { isWide.value = e.matches; dockDesktop.value = e.matches }
+layoutDesktop.value = isWide.value
+const onWideChange = (e) => { isWide.value = e.matches; layoutDesktop.value = e.matches }
 wideQuery.addEventListener('change', onWideChange)
-const RECIPES_KEY = 'gem-td-recipes-open'
-const showRecipes = ref((() => {
-    try { return isWide.value && localStorage.getItem(RECIPES_KEY) !== '0' } catch { return isWide.value }
-})())
+// 平板：合成表的開關；打開時捲到它的位置
+const showRecipes = ref(false)
 watch(showRecipes, (open) => {
-    if (!isWide.value) return
-    try { localStorage.setItem(RECIPES_KEY, open ? '1' : '0') } catch { /* 略過 */ }
+    if (open) nextTick(() => document.getElementById('gt-recipes')?.scrollIntoView({ block: 'start' }))
+})
+const { readyFavCount } = useGemFavs()
+const readyFavs = computed(() => readyFavCount(view.value, state.catalog))
+const recipeMeta = computed(() => {
+    const n = view.value?.me?.recipes?.length ?? 0
+    return n ? `${n} 種可合成` : ''
 })
 
 // 手機（<640px，同 Tailwind 的 max-sm）：地圖固定在上方，下面用分頁切換操作區。
@@ -320,7 +321,7 @@ phoneQuery.addEventListener('change', onPhoneChange)
 const PHONE_TABS = [
     { id: 'place', label: '放置' },
     { id: 'tower', label: '塔' },
-    { id: 'recipes', label: '合成表' },
+    { id: 'recipes', label: '圖鑑' },
     { id: 'shop', label: '商店' },
     { id: 'status', label: '戰況' },
 ]
@@ -338,51 +339,6 @@ watch(() => [view.value?.testLog?.rounds?.length ?? 0, view.value?.phase], ([cou
     if (phase === 'build' || phase === 'finished') testLogSeen = Math.max(testLogSeen ?? 0, count)
 })
 
-// 左右欄寬度：拖把手調整，雙擊還原，記在本機（只影響電腦版的三欄格線）
-const COLS_KEY = 'gem-td-col-widths'
-const COL_RANGE = { rail: [200, 480], side: [280, 560] }
-const MIN_MAP = 320
-const colW = ref((() => {
-    try {
-        const v = JSON.parse(localStorage.getItem(COLS_KEY))
-        return { rail: Number.isFinite(v?.rail) ? v.rail : null, side: Number.isFinite(v?.side) ? v.side : null }
-    } catch { return { rail: null, side: null } }
-})())
-const colStyle = computed(() => ({
-    ...(colW.value.rail ? { '--gt-rail-w': `${colW.value.rail}px` } : {}),
-    ...(colW.value.side ? { '--gt-side-w': `${colW.value.side}px` } : {}),
-}))
-function saveCols() {
-    try { localStorage.setItem(COLS_KEY, JSON.stringify(colW.value)) } catch { /* 略過 */ }
-}
-function resetCol(which) {
-    colW.value = { ...colW.value, [which]: null }
-    saveCols()
-}
-function startCol(e, which) {
-    e.preventDefault()
-    const el = e.currentTarget.parentElement
-    const game = el.parentElement
-    const sx = e.clientX
-    const w0 = el.offsetWidth
-    const other = (which === 'rail' ? game.querySelector('.gt-side') : game.querySelector('.gt-rail')).offsetWidth
-    const [lo, hi] = COL_RANGE[which]
-    const max = Math.max(lo, Math.min(hi, game.clientWidth - other - MIN_MAP))
-    const move = (ev) => {
-        const dx = ev.clientX - sx
-        const w = Math.round(Math.min(max, Math.max(lo, w0 + (which === 'rail' ? dx : -dx))))
-        colW.value = { ...colW.value, [which]: w }
-    }
-    const up = () => {
-        window.removeEventListener('pointermove', move)
-        window.removeEventListener('pointerup', up)
-        document.body.style.userSelect = ''
-        saveCols()
-    }
-    document.body.style.userSelect = 'none'
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-}
 // 遊戲畫面（地圖）是否正在顯示；條件跟 template 的 <main class="gt-game"> 一致
 const showGame = computed(() => !state.loading && !state.kicked && !(state.error && !roomState.room)
     && !showNickname.value && view.value?.phase !== 'waiting' && !!view.value?.board && !!state.catalog)
@@ -446,6 +402,19 @@ function onCombine(recipeId) {
 const livesOwner = computed(() => (view.value?.me ? roomState.myPlayerId : view.value?.watching))
 const lives = computed(() => frame.value?.players[livesOwner.value]?.lives ?? view.value?.players[livesOwner.value]?.lives ?? 0)
 const gold = computed(() => (view.value?.me?.gold ?? 0) + (frame.value?.players[roomState.myPlayerId]?.earned ?? 0))
+// 標題列正中間的步驟提示
+const phaseHint = computed(() => {
+    const v = view.value
+    const me = v?.me
+    if (v?.phase === 'wave') return { tag: v.nextWave?.test ? '傷害測試' : '出怪中', text: '點地圖上的塔看傷害與戰績' }
+    if (v?.phase !== 'build') return null
+    if (!me) return { tag: '觀戰', text: '建造階段，等玩家準備' }
+    if (me.out) return { tag: '已出局', text: '可以切換看其他人的地圖' }
+    if (me.pending.length) return { tag: '建造階段', text: `點地圖放下 ${me.pending.length} 顆甜點，最後選 1 顆留下` }
+    if (me.choosing) return { tag: '建造階段', text: '選 1 顆留下，其餘變成餅乾牆' }
+    if (me.ready) return { tag: '已準備', text: '等待其他玩家' }
+    return { tag: '建造完成', text: '逛逛商店，準備好就開始出怪' }
+})
 const waveNumber = computed(() => view.value?.nextWave?.number ?? view.value?.wave ?? 0)
 
 const topTowerName = computed(() => {
@@ -562,7 +531,8 @@ function handleKey(code) {
         if (!building) return false
         const i = DIGITS[code]
         if (me.pending.length) {
-            const g = me.pending[i]
+            // 五格位置固定（放下的格子留著顯示「已放」），按鍵對應格子位置
+            const g = me.pending.find(p => p.slot === i)
             if (g) onSelectSlot(g.slot)
             return true
         }
@@ -612,7 +582,7 @@ function handleKey(code) {
         clearSelection()
         return true
     case 'KeyB':
-        if (!inGame.value) return false
+        if (!inGame.value || isWide.value) return false
         if (isPhone.value) phoneTab.value = phoneTab.value === 'recipes' ? 'place' : 'recipes'
         else showRecipes.value = !showRecipes.value
         return true

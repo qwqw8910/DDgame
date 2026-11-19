@@ -378,7 +378,10 @@ function catalog() {
       name: s.name, trait: s.trait, tier: s.tier, stats: statsOf(k, 1),
     }])),
     recipes: RECIPES,
-    monsters: MONSTER_TYPES.map(id => ({ id, name: MONSTERS[id].name, flying: !!MONSTERS[id].flying, boss: !!MONSTERS[id].boss, test: !!MONSTERS[id].test })),
+    monsters: MONSTER_TYPES.map(id => ({
+      id, name: MONSTERS[id].name, flying: !!MONSTERS[id].flying, boss: !!MONSTERS[id].boss, test: !!MONSTERS[id].test,
+      hp: MONSTERS[id].hp, speed: MONSTERS[id].speed, armor: MONSTERS[id].armor, leak: MONSTERS[id].leak, gold: MONSTERS[id].gold,
+    })),
     qualityRates: QUALITY_RATES,
     qualityCosts: QUALITY_COSTS,
     swapCost: SWAP_COST,
