@@ -3,7 +3,7 @@
 // ================================================================
 //  甜點守衛戰 — 排行榜（Supabase 表 gem_td_scores，見 sql/001_leaderboard.sql）
 //  寫入：遊戲正常結束時，每位玩家一筆
-//  讀取：GET /api/gem-td/leaderboard?waves=30（0 = 無盡），每個波數一個榜，前 50 名
+//  讀取：GET /api/gem-td/leaderboard，15／30／50／無盡合成一個榜，前 50 名
 // ================================================================
 
 const express = require('express');
@@ -41,7 +41,7 @@ async function saveRecords(db, roomId, records, names) {
 }
 
 // 綜合分數 = (到達波數 × 100 + 最高傷害測試的傷害比率 × 100) × 難度倍率
-// 30 波、50 波、15 波、無盡各自一個榜（waves 分開），簡單與困難放在同一個榜比分數
+// 15、30、50 波與無盡合成同一個榜，簡單與困難也一起比分數：挑戰越長、越難，分數越高
 const WAVE_POINTS = 100;
 const DAMAGE_POINTS = 100;
 const DIFFICULTY_MULT = { easy: 1, normal: 1.5, hard: 2 };
@@ -76,9 +76,9 @@ function rank(rows) {
   return [...rows].sort(compare).slice(0, LIMIT).map(pub);
 }
 
-async function fetchBoard(db, waves) {
+// 15 / 30 / 50 / 無盡合成同一個榜；每筆的 waves 欄位標示是哪個模式
+async function fetchBoard(db) {
   const { data, error } = await db.from(TABLE).select('*')
-    .eq('waves', waves)
     .order('reached_wave', { ascending: false }).limit(FETCH_CAP);
   if (error) throw error;
   return rank(data ?? []);
@@ -87,10 +87,8 @@ async function fetchBoard(db, waves) {
 function createRouter(db) {
   const router = express.Router();
   router.get('/leaderboard', async (req, res) => {
-    const waves = Number(req.query.waves ?? C.DEFAULT_OPTIONS.waves);
-    if (!C.WAVE_CHOICES.includes(waves)) return res.status(400).json({ error: '參數錯誤' });
     try {
-      res.json({ waves, rows: await fetchBoard(db, waves) });
+      res.json({ rows: await fetchBoard(db) });
     } catch (err) {
       console.error('[GemTD leaderboard] fetch', err.message);
       res.status(500).json({ error: '排行榜暫時無法讀取', rows: [] });
