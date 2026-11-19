@@ -291,7 +291,8 @@ function registerNamespace(io, db) {
       try {
         const c = asHost(roomId); if (!c) return;
         if (c.game.phase !== 'waiting') throw new L.GameError('BAD_PHASE', '遊戲開始後不能改設定');
-        c.game.options = L.resolveOptions({ ...c.game.options, ...(options ?? {}) });
+        const { damageTest, ...allowed } = options ?? {}; // 傷害測試是遊戲設計的一部分，不開放玩家關閉
+        c.game.options = L.resolveOptions({ ...c.game.options, ...allowed });
         pushState(roomId);
       } catch (err) { fail(socket, err); }
     });
@@ -315,7 +316,7 @@ function registerNamespace(io, db) {
       if (msg) notice(roomId, msg);
     });
     action('gt:upgrade-quality', ({ playerId, game }) => L.upgradeQuality(game, playerId));
-    action('gt:reroll', ({ playerId, game }, { slot } = {}) => L.rerollGems(game, playerId, slot));
+    action('gt:reroll', ({ playerId, game }) => L.rerollGems(game, playerId));
     action('gt:wish', ({ playerId, game }, { category, stacks } = {}) => L.makeWish(game, playerId, { category, stacks }));
     action('gt:research', ({ playerId, game }, { track }) => L.upgradeResearch(game, playerId, track));
     action('gt:buy-life', ({ playerId, game }) => L.buyLife(game, playerId));

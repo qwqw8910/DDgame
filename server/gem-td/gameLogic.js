@@ -121,6 +121,8 @@ const livesPool = (game, p) => (isTeam(game) ? game : p);
 const activeIds = game => game.playerIds.filter(id => !game.players[id].out);
 // 正式波次都打完之後多出來的那一波：傷害測試
 const isTestWave = game => game.testAt !== null;
+const isEndless = game => game.options.waves === C.ENDLESS;
+const isLastWave = game => !isEndless(game) && game.wave >= game.options.waves;
 
 const pickOne = (list, rng) => list[Math.floor(rng() * list.length)];
 
@@ -368,18 +370,16 @@ function upgradeQuality(game, playerId) {
   p.quality += 1;
 }
 
-// 重骰：五個甜點都還在手上時才能骰，只換掉指定的那一格，其餘照舊（拿來賭湊出合成）
-function rerollGems(game, playerId, slot, { rng = Math.random } = {}) {
+// 重骰：五個甜點都還在手上時才能骰，一次把五格全部換新（拿來賭湊出合成），只收一次錢
+function rerollGems(game, playerId, { rng = Math.random } = {}) {
   requireBuild(game);
   const p = playerOf(game, playerId);
   if (p.pending.length !== C.GEMS_PER_ROUND) throw new GameError('ALREADY_PLACED', '已經放下甜點，這回合不能再骰');
-  const idx = p.pending.findIndex(g => g.slot === slot);
-  if (idx < 0) throw new GameError('BAD_ARG', '沒有這格甜點');
   spend(p, C.rerollCost(p.quality, p.rerolls ?? 0));
   p.rerolls = (p.rerolls ?? 0) + 1;
-  // 只取新抽的一格的 kind / level，slot 沿用原本的
-  const fresh = rollGems(p.quality, rng)[0];
-  p.pending[idx] = { slot, kind: fresh.kind, level: fresh.level };
+  // 全部重抽，slot 沿用原本的
+  const fresh = rollGems(p.quality, rng);
+  p.pending = p.pending.map((g, i) => ({ slot: g.slot, kind: fresh[i].kind, level: fresh[i].level }));
 }
 
 // 許願池：預訂下一回合的抽卡風向。下一次 enterBuild 抽牌時套用並清掉
@@ -660,28 +660,34 @@ function finishGame(game, winnerIds) {
   game.records = buildRecords(game, winnerIds); // 給排行榜用，不送給前端
 }
 
-// 排行榜紀錄：每位玩家一筆。到達波數 = 實際打到（或倒下）的那一波；通關 = 撐過最後一波且沒出局
-// 通關時間是實際經過的秒數，扣掉暫停；最終傷害是 N 波局最後那場傷害測試的結果
+// 排行榜紀錄：每位玩家一筆。到達波數 = 實際打到（或倒下）的那一波；通關 = 撐過最後一波且沒出局（無盡沒有通關）
+// 傷害取這局所有傷害測試中「傷害 ÷ 巨獸血量」最高的一場（最多 100%），finalDamage 是那一場的傷害
 function buildRecords(game, winnerIds) {
   if (game.aborted || !game.startedAt) return [];
   const { waves, difficulty, livesMode } = game.options;
-  const lastCleared = game.wave >= waves;
+  const endless = isEndless(game);
+  const lastCleared = isLastWave(game);
   const seconds = Math.max(0, Math.round((game.finishedAt - game.startedAt - game.pausedMs) / 1000));
   return game.playerIds.map((id) => {
     const p = game.players[id];
     const cleared = lastCleared && !p.out && (isTeam(game) ? winnerIds.length > 0 : true);
-    const final = p.stats.tests.find(t => t.at === waves);
+    const reached = p.out ? p.outWave : game.wave + 1;
+    const best = p.stats.tests.reduce((a, t) => {
+      const ratio = t.maxHp > 0 ? Math.min(1, t.damage / t.maxHp) : 0;
+      return !a || ratio > a.ratio ? { ratio, test: t } : a;
+    }, null);
     return {
       playerId: id,
       waves,
       difficulty,
       livesMode,
       playerCount: game.startCount,
-      reachedWave: cleared ? waves : Math.min(waves, p.out ? p.outWave : game.wave + 1),
+      reachedWave: cleared ? waves : endless ? reached : Math.min(waves, reached),
       cleared,
       clearSeconds: cleared ? seconds : null,
-      finalDamage: final ? final.damage : null,
-      finalKilled: final ? final.killed : null,
+      finalDamage: best ? best.test.damage : null,
+      finalKilled: best ? best.test.killed : null,
+      damageRatio: best ? Math.round(best.ratio * 10000) / 10000 : null,
     };
   });
 }
@@ -718,7 +724,7 @@ function finishWave(game, { now, rng = Math.random }) {
 
   // 傷害測試打完：中途的測試接著回到建造；最後一場用打完正式波次時就定下來的勝負結算
   if (isTestWave(game)) {
-    const last = game.wave >= game.options.waves;
+    const last = isLastWave(game);
     if (!last) rewardTest(game);
     game.testAt = null;
     if (last) {
@@ -737,7 +743,7 @@ function finishWave(game, { now, rng = Math.random }) {
     p.stats.peakGold = Math.max(p.stats.peakGold, p.gold);
   }
 
-  const last = game.wave >= game.options.waves;
+  const last = isLastWave(game);
   if (last && !game.options.damageTest) {
     finishGame(game, lastWaveWinners(game));
     return { finished: true };
@@ -876,7 +882,7 @@ module.exports = {
   catalog: C.catalog,
   createGame, resetGame, resolveOptions, startGame,
   placeGem, keepGem, mergeGem, combine, combineNotice, bossDownNotices, availableRecipes,
-  upgradeQuality, rerollGems, rollGems, makeWish, upgradeResearch, removeStone, swapWithStone, buyLife,
+  buildRecords, upgradeQuality, rerollGems, rollGems, makeWish, upgradeResearch, removeStone, swapWithStone, buyLife,
   setReady, allReady, autoResolve, startWave, setSpeed, setPaused, tick, finishWave, finishNow,
   leavePlayer, resolveWatch, buildView, buildFrames,
 };

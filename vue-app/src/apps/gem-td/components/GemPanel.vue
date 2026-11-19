@@ -21,10 +21,10 @@
             <p v-if="current" class="mt-2 mb-0 leading-snug">
                 <b class="font-semibold text-(--gt-ink)">{{ gemName(current.kind, current.level) }}</b>：{{ catalog.gems[current.kind].trait }}
             </p>
-            <!-- 重骰：一個都還沒放才能骰，只換目前選中的那一格；品質越高越貴，同回合每骰一次加價 -->
-            <template v-if="me.canReroll && current">
-                <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="shortOf(me.rerollCost) > 0" aria-keyshortcuts="D" @click="$emit('reroll', current.slot)">
-                    重骰選中的這顆（{{ me.rerollCost }} 金）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">D</kbd>
+            <!-- 重骰：一個都還沒放才能骰，一次換掉五顆；品質越高越貴，同回合每骰一次加價 -->
+            <template v-if="me.canReroll">
+                <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="shortOf(me.rerollCost) > 0" aria-keyshortcuts="D" @click="$emit('reroll')">
+                    重骰全部五顆（{{ me.rerollCost }} 金）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">D</kbd>
                 </button>
                 <p class="mt-1 mb-0 text-xs text-(--gt-muted) max-sm:hidden">
                     <template v-if="shortOf(me.rerollCost)">還差 {{ shortOf(me.rerollCost) }} 金・</template>本回合已骰 {{ me.rerolls }} 次，每骰一次 +{{ catalog.rerollStep }} 金，下回合恢復

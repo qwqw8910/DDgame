@@ -8,7 +8,7 @@
         </GameGuideSection>
         <GameGuideSection title="重骰">
             <ul class="gg-list">
-                <li>這回合的 5 個甜點<b class="font-semibold text-heading">一個都還沒放</b>時，可以花金幣把選中的<b class="font-semibold text-heading">那一顆</b>換新，其餘四顆不動，拿來賭湊出合成；放下第一個之後就不能再骰。</li>
+                <li>這回合的 5 個甜點<b class="font-semibold text-heading">一個都還沒放</b>時，可以花金幣把<b class="font-semibold text-heading">五顆一次全部換新</b>（只收一次錢），拿來賭湊出合成；放下第一個之後就不能再骰。</li>
                 <li>品質越高，重骰底價越貴；同一回合每多骰一次，再加價一次。</li>
                 <li>下一回合重新計算，回到這個品質的底價。</li>
                 <li>重骰會用目前的品質抽，先升品質再骰，抽到高等甜點的機會比較大。</li>
