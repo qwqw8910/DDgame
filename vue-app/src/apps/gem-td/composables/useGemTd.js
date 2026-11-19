@@ -132,6 +132,7 @@ export function useGemTd() {
     upgradeResearch: (track) => emit('gt:research', { track }),
     removeStone:    (towerId) => emit('gt:remove-stone', { towerId }),
     swap:           (towerId, stoneId) => emit('gt:swap', { towerId, stoneId }),
+    undo:           () => emit('gt:undo'),
     ready:          () => emit('gt:ready'),
     setSpeed:       (speed) => emit('gt:set-speed', { speed }),
     setPaused:      (paused) => emit('gt:set-paused', { paused }),

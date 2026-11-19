@@ -197,7 +197,7 @@
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
-                    @combine="onCombine" @ready="ready" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
+                    @combine="onCombine" @ready="ready" @undo="() => { undo(); clearSelection() }" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
                     @remove="id => { removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
                 <!-- 平板：合成表由標題列的書本按鈕打開，排在操作區最下面（不再浮在地圖上） -->
@@ -284,7 +284,7 @@ const route = useRoute()
 const router = useRouter()
 const {
     state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
-    upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, ready, setSpeed, setPaused, finishNow, restart,
+    upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, undo, ready, setSpeed, setPaused, finishNow, restart,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useGemTd()
@@ -559,6 +559,11 @@ function handleKey(code) {
     case 'KeyR':
         if (!building || !me.resolved || me.ready) return false
         ready()
+        return true
+    case 'KeyZ':
+        if (!building || !me.canUndo) return false
+        undo()
+        clearSelection()
         return true
     case 'KeyU': {
         if (!building) return false

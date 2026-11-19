@@ -140,6 +140,7 @@ function enterBuild(game, { now, rng }) {
     p.livesBought = 0;
     p.resolved = false;
     p.ready = false;
+    p.undo = [];
   }
 }
 
@@ -198,6 +199,53 @@ function toStone(t) {
 function spend(p, cost) {
   if (p.gold < cost) throw new GameError('NO_GOLD', `金幣不足，需要 ${cost}`);
   p.gold -= cost;
+}
+
+// ── 還原（回合內復原）───────────────────────────────────────────
+// 每次成功的建造動作前存一份玩家狀態；還原時整份放回去（含金幣）。
+// 重骰會清空堆疊（不能靠還原重骰刷運氣）；按準備、進入下一回合後也不能還原。
+function takeSnapshot(game, p) {
+  return {
+    gold: p.gold, quality: p.quality, rerolls: p.rerolls, resolved: p.resolved, livesBought: p.livesBought,
+    research: { ...p.research }, wish: p.wish ? { ...p.wish } : null,
+    pending: p.pending.map(g => ({ ...g })),
+    stats: structuredClone(p.stats),
+    towers: p.towers.map(t => ({ ...t })),
+    path: p.path,
+    nextTowerId: game.nextTowerId,
+    gameLives: game.lives, playerLives: p.lives,
+  };
+}
+
+function restoreSnapshot(game, p, s) {
+  Object.assign(p, {
+    gold: s.gold, quality: s.quality, rerolls: s.rerolls, resolved: s.resolved, livesBought: s.livesBought,
+    research: s.research, wish: s.wish, pending: s.pending, stats: s.stats, towers: s.towers, path: s.path,
+    lives: s.playerLives,
+  });
+  game.nextTowerId = s.nextTowerId;
+  game.lives = s.gameLives;
+  p.grid = new Map(p.towers.map(t => [keyOf(t.x, t.y), t]));
+}
+
+// 包住會改動玩家狀態的建造動作：成功才記一筆快照，失敗（丟錯）不留痕跡
+function undoable(fn) {
+  return function wrapped(game, playerId, ...args) {
+    const p = game.phase === 'build' ? game.players[playerId] : null;
+    const snap = p && !p.out && !p.ready ? takeSnapshot(game, p) : null;
+    const result = fn(game, playerId, ...args);
+    if (snap) (p.undo ??= []).push(snap);
+    return result;
+  };
+}
+
+function undo(game, playerId) {
+  requireBuild(game);
+  const p = playerOf(game, playerId);
+  if (p.ready) throw new GameError('ALREADY_READY', '已經按下準備，不能還原');
+  const snap = p.undo?.pop();
+  if (!snap) throw new GameError('NOTHING_TO_UNDO', '沒有可以還原的操作');
+  restoreSnapshot(game, p, snap);
 }
 
 // ── 買命 ────────────────────────────────────────────────────────
@@ -378,6 +426,7 @@ function rerollGems(game, playerId, { rng = Math.random } = {}) {
   if (p.pending.length !== C.GEMS_PER_ROUND) throw new GameError('ALREADY_PLACED', '已經放下甜點，這回合不能再骰');
   spend(p, C.rerollCost(p.quality, p.rerolls ?? 0));
   p.rerolls = (p.rerolls ?? 0) + 1;
+  p.undo = []; // 重骰是不可逆的隨機結果
   // 全部重抽，slot 沿用原本的
   const fresh = rollGems(p.quality, rng);
   p.pending = p.pending.map((g, i) => ({ slot: g.slot, kind: fresh[i].kind, level: fresh[i].level }));
@@ -794,6 +843,7 @@ function meView(game, playerId) {
     lifeCost: C.lifeCost(game.wave),
     wishCost: C.wishCost(game.wave, Math.min(p.wish?.stacks ?? 0, C.WISH_MAX_STACKS - 1)),
     wishCosts: Array.from({ length: C.WISH_MAX_STACKS }, (_, s) => C.wishCost(game.wave, s)), // 第 1／2／3 層各自的價格
+    canUndo: game.phase === 'build' && !p.out && !p.ready && !!p.undo?.length,
     rerollCost: C.rerollCost(p.quality, p.rerolls ?? 0),
     canReroll: game.phase === 'build' && !p.out && p.pending.length === C.GEMS_PER_ROUND,
     out: p.out,
@@ -885,8 +935,11 @@ module.exports = {
   MAX_PLAYERS: C.MAX_PLAYERS,
   catalog: C.catalog,
   createGame, resetGame, resolveOptions, startGame,
-  placeGem, keepGem, mergeGem, combine, combineNotice, bossDownNotices, availableRecipes,
-  buildRecords, upgradeQuality, rerollGems, rollGems, makeWish, upgradeResearch, removeStone, swapWithStone, buyLife,
+  placeGem: undoable(placeGem), keepGem: undoable(keepGem), mergeGem: undoable(mergeGem), combine: undoable(combine),
+  combineNotice, bossDownNotices, availableRecipes, undo,
+  buildRecords, upgradeQuality: undoable(upgradeQuality), rerollGems, rollGems, makeWish: undoable(makeWish),
+  upgradeResearch: undoable(upgradeResearch), removeStone: undoable(removeStone), swapWithStone: undoable(swapWithStone),
+  buyLife: undoable(buyLife),
   setReady, allReady, autoResolve, startWave, setSpeed, setPaused, tick, finishWave, finishNow,
   leavePlayer, resolveWatch, buildView, buildFrames,
 };

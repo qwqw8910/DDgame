@@ -1036,3 +1036,49 @@ test('無盡模式：沒有最後一波、不會通關，每 15 波仍有傷害�
 test('房主無法透過設定關掉傷害測試', () => {
   assert.equal(L.resolveOptions({}).damageTest, true);
 });
+
+// ── 還原 ──────────────────────────────────────────────────────
+test('還原：放置後還原，糖果回到手上、格子清空', () => {
+  const game = newGame();
+  const p = game.players.a;
+  const before = p.pending.length;
+  L.placeGem(game, 'a', p.pending[0].slot, 4, 4);
+  assert.equal(p.towers.length, 1);
+  L.undo(game, 'a');
+  assert.equal(p.towers.length, 0);
+  assert.equal(p.pending.length, before);
+  assert.equal(p.grid.size, 0);
+  assert.throws(() => L.undo(game, 'a'), /沒有可以還原/);
+});
+
+test('還原：拆餅乾牆與金幣一併還原，且可逐步退回', () => {
+  const game = newGame();
+  const p = game.players.a;
+  setPending(game, 'a', [['ruby', 1], ['ruby', 1], ['ruby', 1], ['ruby', 1], ['ruby', 1]]);
+  placeAll(game, 'a');
+  L.keepGem(game, 'a', p.towers[0].id);
+  const stone = p.towers.find(t => t.kind === 'stone');
+  p.gold = 100;
+  L.removeStone(game, 'a', stone.id);
+  assert.equal(p.towers.length, 4);
+  L.undo(game, 'a');
+  assert.equal(p.towers.length, 5);
+  assert.equal(p.gold, 100);
+  assert.ok(p.grid.get(`${stone.x},${stone.y}`));
+  L.undo(game, 'a'); // 回到保留之前
+  assert.equal(p.resolved, false);
+  assert.ok(p.towers.every(t => t.fresh));
+});
+
+test('還原：重骰後不能退回重骰之前；按準備後不能還原', () => {
+  const game = newGame();
+  const p = game.players.a;
+  p.gold = 999;
+  L.upgradeQuality(game, 'a');
+  L.rerollGems(game, 'a', { rng: seededRng(3) });
+  assert.throws(() => L.undo(game, 'a'), /沒有可以還原/);
+  placeAll(game, 'a');
+  L.keepGem(game, 'a', p.towers[0].id);
+  L.setReady(game, 'a');
+  assert.throws(() => L.undo(game, 'a'), /準備/);
+});

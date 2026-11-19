@@ -321,6 +321,7 @@ function registerNamespace(io, db) {
     action('gt:research', ({ playerId, game }, { track }) => L.upgradeResearch(game, playerId, track));
     action('gt:buy-life', ({ playerId, game }) => L.buyLife(game, playerId));
     action('gt:remove-stone', ({ playerId, game }, { towerId }) => L.removeStone(game, playerId, towerId));
+    action('gt:undo', ({ playerId, game }) => L.undo(game, playerId));
     action('gt:swap', ({ playerId, game }, { towerId, stoneId }) => L.swapWithStone(game, playerId, towerId, stoneId));
 
     socket.on('gt:ready', ({ roomId } = {}) => {
