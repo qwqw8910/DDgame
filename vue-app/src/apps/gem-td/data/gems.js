@@ -30,6 +30,10 @@ export const LIVES_CHOICES = [
   { value: 'solo', label: '獨立血量（各自比存活）' },
 ]
 
+// 攻擊目標的說明：全站共用（長條圖、圖鑑、提示、選中的塔都用同一套字）
+export const HITS = { all: '地面與空中', ground: '只打地面', air: '只打空中' }
+export const HITS_SHORT = { all: '地＋空', ground: '地面', air: '空中' }
+
 export const GEM_ORDER = ['B', 'D', 'E', 'G', 'O', 'Q', 'R', 'P']
 
 // 塔的主色：射擊線與擺放預覽用；圖片在 public/gem-td/towers/<kind>.webp
@@ -116,4 +120,21 @@ export function mergeOptions(me, maxLevel) {
     const gain = Math.min(g.count >= 4 ? 2 : g.count >= 2 ? 1 : 0, maxLevel - g.level)
     return gain > 0 ? [{ ...g, gain, status: placing ? 'placing' : 'ready' }] : []
   })
+}
+
+// 每種怪的打法提示：怪物圖鑑與波次預告共用；數值本身來自伺服器，不在這裡重複
+export const MONSTER_TIPS = {
+  normal: '最常見，沒有特別能力，拿來練迷宮。',
+  fast: '血少但跑得快，緩速塔與長迷宮最有效。',
+  swarm: '一次出 2 隻、血很少，濺射或多目標的塔一次清掉。',
+  armored: '護甲高，攻擊太低會被大幅減傷，用高傷害或破甲。',
+  air: '飛行，無視迷宮直線飛向終點，只有能打空中的塔打得到。',
+  boss: '血量很厚，漏掉會一次扣很多血；只吃一半緩速。',
+  titan: '傷害測試專用，走到終點不扣血，只比誰打得多。',
+}
+
+// 這種甜點打不打得到空中（方糖只打地面）
+export const canHitAir = (kind, catalog) => {
+  const st = catalog.specials[kind]?.stats ?? catalog.gems[kind]?.levels[0]
+  return !!st && st.hits !== 'ground'
 }

@@ -1480,6 +1480,8 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-root {
     background: var(--gt-bg); color: var(--gt-text); font-family: var(--font-sans);
     accent-color: var(--gt-accent);
+    /* 卡片內的捲軸用細的草莓牛奶色，不要系統預設的深色粗條 */
+    scrollbar-width: thin; scrollbar-color: var(--gt-line) transparent;
   }
   /* 教學、暫停等彈窗是 Teleport 到 body 的共用元件，不在 .gt-root 底下：
      加上 .gt-modal 拿到同一組變數，再把舊的霓虹底色換成草莓牛奶色 */
@@ -1547,6 +1549,30 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     border: 1px solid var(--gt-line-soft); border-radius: 10px; background: var(--gt-surface); color: var(--gt-text); cursor: pointer;
   }
   .gt-gem-slot--on { border: 2px solid var(--gt-accent); background: var(--gt-accent-soft); }
+  .gt-gem-slot { transition: background-color 0.15s, border-color 0.15s; }
+  .gt-gem-slot:hover:not(.gt-gem-slot--on) { border-color: var(--gt-line); background: var(--gt-bg); }
+  /* 已放下的格子：留在原位、變淡，文字仍維持可讀對比 */
+  .gt-gem-slot--placed { border-style: dashed; background: var(--gt-bg); color: var(--gt-muted); }
+  .gt-gem-slot--placed > :first-child { opacity: 0.45; filter: grayscale(0.6); }
+
+  /* 甜點數值預覽：圖示＋名稱＋攻擊／攻速／射程長條 */
+  .gt-preview { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--gt-bg); }
+  /* 手機與平板沒有卡片外框，預覽本身要有白底才看得出範圍 */
+  @media (max-width: 1023px) { .gt-preview { border: 1px solid var(--gt-line-soft); background: var(--gt-surface); } }
+  .gt-preview-icon {
+    display: grid; flex-shrink: 0; place-items: center; width: 60px; height: 60px;
+    border: 1px solid var(--gt-line-soft); border-radius: 12px; background: var(--gt-surface);
+  }
+  .gt-bars { display: flex; flex-direction: column; gap: 4px; }
+  .gt-bar-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; }
+  .gt-bar-label { color: var(--gt-muted); font-size: 14px; }
+  .gt-bar-pips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; max-width: 140px; }
+  .gt-bar-pip { height: 8px; border-radius: 3px; background: var(--gt-line-soft); }
+  .gt-bar-pip--on { background: var(--gt-accent); }
+  .gt-bar-value { min-width: 4.5em; color: var(--gt-ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  .gt-bar-target { grid-column: 2 / 4; color: var(--gt-ink); font-size: 14px; font-weight: 700; text-align: right; }
+  .gt-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gt-accent); vertical-align: middle; }
+  .gt-dot--corner { position: absolute; top: 6px; right: 6px; box-shadow: 0 0 0 2px var(--gt-surface); }
 
   /* 許願池：上排選甜點（只有圖示），下排選機率（一次付清，已許的打勾） */
   .gt-wish-pick, .gt-wish-tier {
@@ -1593,38 +1619,31 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     border: 1px solid var(--gt-line); border-radius: 10px; background: var(--gt-surface); color: var(--gt-text); font-size: 16px;
   }
 
-  /* ── 遊戲版面：電腦三欄（左 戰況與合成表、中 地圖、右 操作）；窄螢幕退回上下堆疊 ── */
-  .gt-game {
-    display: grid; flex: 1; min-height: 0;
-    grid-template-columns: var(--gt-rail-w, clamp(240px, 20vw, 300px)) minmax(0, 1fr) var(--gt-side-w, clamp(320px, 26vw, 400px));
-  }
-  /* 地圖是正方形：中欄寬度等於可用高度（100cqh），剩下的寬度平分給左右欄，地圖兩側就不會留白。
-     拖拉設定的欄寬變成「最小寬度」；空間不夠時中欄最小縮到 320px。 */
+  /* ── 遊戲版面：電腦三欄固定（左 波次預告與合成表、中 地圖、右 操作）；窄螢幕退回上下堆疊。
+     區塊不能拖曳、浮動或調大小：每個東西永遠在同一個位置，玩家靠位置記憶找按鈕。 ── */
+  .gt-game { display: grid; flex: 1; min-height: 0; }
+  /* 地圖是正方形：中欄寬度等於可用高度（100cqh），剩下的寬度平分給左右欄，地圖兩側就不會留白；
+     空間不夠時中欄最小縮到 320px。 */
   @media (min-width: 1024px) {
     .gt-game {
       container-type: size;
       grid-template-columns:
-        minmax(var(--gt-rail-w, clamp(240px, 20vw, 300px)), 1fr)
+        minmax(clamp(260px, 21vw, 320px), 1fr)
         minmax(320px, 100cqh)
-        minmax(var(--gt-side-w, clamp(320px, 26vw, 400px)), 1fr);
+        minmax(clamp(320px, 26vw, 400px), 1fr);
     }
   }
-  .gt-rail, .gt-side { position: relative; }
-  /* 欄寬拖拉把手：貼在欄的內側邊緣 */
-  .gt-resizer { position: absolute; top: 0; bottom: 0; z-index: 5; width: 8px; cursor: col-resize; touch-action: none; }
-  .gt-resizer--rail { right: 0; }
-  .gt-resizer--side { left: 0; }
-  .gt-resizer:hover, .gt-resizer:active { background: var(--gt-accent); opacity: .35; }
   .gt-rail, .gt-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding: 12px; }
-  .gt-rail { border-right: 1px solid var(--gt-line); overflow: hidden; }
-  .gt-rail-top { display: flex; flex: 1 1 auto; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  .gt-side { border-left: 1px solid var(--gt-line); }
-  .gt-stage { position: relative; min-width: 0; min-height: 0; padding: 8px; }
+  /* 左欄：上面（玩家、波次）依內容高度、最多佔一半；下面的合成表卡片吃掉剩下的高度 */
+  .gt-rail { overflow: hidden; }
+  .gt-rail-top { display: flex; flex: 0 1 auto; flex-direction: column; gap: 12px; min-height: 0; max-height: 55%; overflow-y: auto; overscroll-behavior: contain; }
+  .gt-rail-top:last-child { flex: 1 1 auto; max-height: none; }
+  .gt-side { overscroll-behavior: contain; }
+  .gt-stage { position: relative; min-width: 0; min-height: 0; padding: 12px 4px; }
   @media (max-width: 1023px) {
     .gt-game { display: flex; flex-direction: column; overflow-y: auto; }
-    .gt-resizer { display: none; }
-    .gt-rail, .gt-side, .gt-rail-top { flex-shrink: 0; overflow: visible; border: 0; }
-    .gt-stage { flex-shrink: 0; height: min(100vw, 62dvh); }
+    .gt-rail, .gt-side, .gt-rail-top { flex-shrink: 0; overflow: visible; border: 0; max-height: none; }
+    .gt-stage { flex-shrink: 0; height: min(100vw, 62dvh); padding: 8px; }
   }
 
   /* ── 手機（<640px）：畫面最上面只有標題列一排（血量、金幣、波次、倒數都併進去）。
@@ -1637,7 +1656,6 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
       flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 16px;
     }
     .gt-rail, .gt-rail-top, .gt-side { display: contents; }
-    .gt-resizer { display: none; }
     .gt-rail-top > *, .gt-rail-top > .contents > *, .gt-side > * { order: 5; margin: 12px 12px 0; max-width: calc(100% - 24px); }
     .gt-stage {
       order: 2; position: sticky; top: 0; z-index: 3; flex: none; height: var(--gt-stage); padding: 0;
@@ -1653,65 +1671,72 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     }
     .gt-phonetab[aria-pressed="true"] { border: 2px solid var(--gt-accent); background: var(--gt-accent-soft); color: var(--gt-accent-ink); font-weight: 700; }
     .gt-phonetab:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
-    .gt-recipes.gt-recipes--inline { position: static; width: auto; max-height: none; overflow: visible; background: var(--gt-surface); box-shadow: none; border-color: var(--gt-line-soft); }
   }
 
 
-  .gt-recipes {
-    position: fixed; z-index: 50; display: flex; flex-direction: column;
-    width: min(340px, calc(100vw - 16px)); max-height: min(62dvh, 560px); overflow: hidden;
-    border: 1px solid var(--gt-line); border-radius: 12px; background: var(--gt-bg); color: var(--gt-text);
-    box-shadow: var(--gt-shadow);
+  /* 合成表：一律排在版面裡。電腦版放在左欄卡片內（卡片本體負責捲動）；手機與平板自己帶卡片外框 */
+  .gt-recipes { color: var(--gt-text); }
+  @media (max-width: 1023px) {
+    .gt-recipes { padding: 12px; border: 1px solid var(--gt-line-soft); border-radius: 12px; background: var(--gt-surface); scroll-margin-top: 8px; }
   }
-  /* 停靠在左欄：跟著欄位捲動，不浮在地圖上 */
-  .gt-recipes--docked {
-    position: static; flex: 1 1 0; width: auto; min-height: 280px; max-height: none; overflow: hidden;
-    border-color: var(--gt-line-soft); background: var(--gt-surface); box-shadow: none;
-  }
-  .gt-recipes-handle {
-    display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding: 10px 12px;
-    color: var(--gt-muted); cursor: grab; touch-action: none; user-select: none;
-  }
-  .gt-recipes-handle:active { cursor: grabbing; }
-  .gt-recipes-close {
-    display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; color: var(--gt-text); cursor: pointer;
-  }
-  .gt-recipes-close:hover { color: var(--gt-accent-ink); }
-  .gt-recipes-close:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: -2px; }
-  /* 放進停靠區塊裡的合成表：沒有自己的外框，跟著區塊本體捲動 */
-  .gt-recipes--inline { position: static; width: auto; max-height: none; overflow: visible; border: 0; background: transparent; box-shadow: none; }
-  .gt-recipes--inline > div { overflow: visible; padding: 0; }
 
-  /* ── 電腦版區塊停靠（GemDock）：標題列可收折、拖曳排序、彈出浮動、調高度 ── */
-  .gt-float-host { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
-  .gt-dock {
-    position: relative; display: flex; flex-direction: column; flex-shrink: 0; min-width: 0; overflow: hidden;
-    border: 1px solid var(--gt-line-soft); border-radius: 12px; background: var(--gt-surface);
+  /* ── 電腦版固定卡片（GemSection）：標題列左邊名稱、右邊一句狀態；內容超出時卡片自己捲動 ── */
+  .gt-panel {
+    display: flex; flex-direction: column; flex-shrink: 0; min-width: 0; min-height: 0; overflow: hidden;
+    border: 1px solid var(--gt-line); border-radius: 14px; background: var(--gt-surface);
+    box-shadow: 0 1px 2px rgba(74, 44, 42, 0.06);
   }
-  .gt-dock.gt-card { padding: 0; }
-  .gt-dock--float { position: absolute; pointer-events: auto; border-color: var(--gt-line); box-shadow: var(--gt-shadow); }
-  .gt-dock--drag { opacity: .75; box-shadow: var(--gt-shadow); }
-  .gt-dock-head {
-    display: flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 4px 0 10px;
-    border-bottom: 1px solid var(--gt-line-soft); cursor: grab; touch-action: none; user-select: none;
+  .gt-panel.gt-card { padding: 0; }
+  .gt-panel--fill { flex: 1 1 0; min-height: 240px; }
+  .gt-panel-head {
+    display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 0 14px;
+    border-bottom: 1px solid var(--gt-line-soft); background: var(--gt-accent-soft);
   }
-  .gt-dock--collapsed .gt-dock-head { border-bottom: 0; }
-  .gt-dock--drag .gt-dock-head { cursor: grabbing; }
-  .gt-dock-btn {
-    position: relative; display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border: 0; border-radius: 6px;
-    background: transparent; color: var(--gt-muted); font-size: 14px; line-height: 1; cursor: pointer;
-  }
-  /* 看起來還是 28px，點擊範圍撐到 44px */
-  .gt-dock-btn::after { content: ''; position: absolute; inset: -8px; }
-  .gt-dock-btn:hover { background: var(--gt-line-soft); color: var(--gt-accent-ink); }
-  .gt-dock-btn:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: -2px; }
-  .gt-dock-body { flex: 1 1 auto; min-height: 0; padding: 12px; overflow-y: auto; overscroll-behavior: contain; }
+  .gt-panel-title { margin: 0; overflow: hidden; color: var(--gt-ink); font-size: 16px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+  .gt-panel-meta { flex-shrink: 0; color: var(--gt-muted); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .gt-panel-body { flex: 1 1 auto; min-height: 0; padding: 12px 14px 14px; overflow-y: auto; overscroll-behavior: contain; }
   /* 標題列已經有名稱，內容裡第一個標題就不重複顯示 */
-  .gt-dock-body > .gt-heading:first-child, .gt-dock-body > section[aria-label] > .gt-heading:first-child { display: none; }
-  .gt-dock-grip--bar { flex-shrink: 0; height: 8px; cursor: row-resize; touch-action: none; }
-  .gt-dock-grip--bar:hover, .gt-dock-grip--bar:active { background: var(--gt-accent); opacity: .35; }
-  .gt-dock-grip--corner { position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; cursor: nwse-resize; touch-action: none; }
-  .gt-dock-grip--corner::after { content: ''; position: absolute; right: 3px; bottom: 3px; width: 8px; height: 8px; border-right: 2px solid var(--gt-faint); border-bottom: 2px solid var(--gt-faint); }
+  .gt-panel-body > .gt-heading:first-child { display: none; }
+
+  /* 分段控制（商店分頁）：一條淺底軌道，選中的那段浮起來 */
+  .gt-seg { gap: 2px; padding: 3px; border-radius: 12px; background: var(--gt-track); }
+  .gt-seg-btn {
+    flex: 1; min-width: 0; min-height: 38px; padding: 0 8px; border: 0; border-radius: 9px; background: transparent;
+    color: var(--gt-muted); font-size: 15px; font-weight: 700; white-space: nowrap; cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .gt-seg-btn:hover { color: var(--gt-ink); }
+  .gt-seg-btn[aria-selected="true"] { background: var(--gt-surface); color: var(--gt-accent-ink); box-shadow: 0 1px 3px rgba(74, 44, 42, 0.16); }
+  .gt-seg-btn:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 1px; }
+
+  /* 商店：電腦版是一張卡片，上面分段控制、下面目前分頁的內容；窄螢幕直接攤開成原本的一塊一塊 */
+  @media (min-width: 1024px) {
+    .gt-shop {
+      display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+      border: 1px solid var(--gt-line); border-radius: 14px; background: var(--gt-surface); box-shadow: 0 1px 2px rgba(74, 44, 42, 0.06);
+    }
+    .gt-shop > .gt-seg { margin: 10px 12px 0; }
+    .gt-shop > section { padding: 12px 14px 14px; }
+    .gt-shop .gt-heading:first-child { display: none; }
+
+    /* 主按鈕：整個建造階段都釘在右欄底部，位置固定 */
+    .gt-actions { flex: 1 0 auto; }
+    .gt-ready {
+      position: sticky; bottom: -12px; z-index: 2; order: 99; margin: auto -12px -12px; padding: 12px;
+      background: linear-gradient(to bottom, transparent, var(--gt-bg) 12px);
+    }
+  }
+  @media (max-width: 1023px) {
+    .gt-shop { display: contents; }
+  }
+  .gt-btn--hero { min-height: 56px; border-radius: 14px; font-size: 18px; }
+
+  /* 標題列正中間的步驟提示 */
+  .gt-phase {
+    display: flex; flex: 0 1 auto; align-items: center; gap: 10px; min-width: 0; margin: 0; padding: 4px 16px 4px 4px;
+    border: 1px solid var(--gt-line); border-radius: 999px; background: var(--gt-surface); color: var(--gt-ink); font-weight: 700;
+  }
+  .gt-phase-tag { flex-shrink: 0; padding: 4px 12px; border-radius: 999px; background: var(--gt-accent-soft); color: var(--gt-accent-ink); font-size: 14px; }
 
   .gt-need { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border: 1px solid var(--gt-line-soft); border-radius: 8px; background: var(--gt-surface); }
   .gt-need--ready { border-color: #2E9E5B; background: #E9F7EE; color: #1E6B3D; }
@@ -1741,10 +1766,8 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-fold-arrow { transition: transform 0.15s; }
   .gt-fold[open] > summary .gt-fold-arrow { transform: rotate(180deg); }
 
-  .gt-pop-enter-active, .gt-pop-leave-active { transition: opacity 0.16s, transform 0.16s ease-out; }
-  .gt-pop-enter-from, .gt-pop-leave-to { opacity: 0; transform: scale(0.92); }
   @media (prefers-reduced-motion: reduce) {
-    .gt-btn, .gt-fold-arrow, .gt-pop-enter-active, .gt-pop-leave-active, .gt-wish-pick, .gt-wish-tier, .gt-hud-btn { transition: none; }
+    .gt-btn, .gt-fold-arrow, .gt-wish-pick, .gt-wish-tier, .gt-hud-btn, .gt-seg-btn, .gt-gem-slot { transition: none; }
     .gt-btn:active:not(:disabled), .gt-wish-pick:active, .gt-wish-tier:active, .gt-hud-btn:active { transform: none; }
   }
 }
