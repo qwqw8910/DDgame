@@ -183,6 +183,18 @@ let curMap = new Map()
 let curAt = 0
 let frameGap = 200
 const shots = []
+const facing = new Map() // 怪物 id → 是否面向右（用於水平翻轉）
+// 走路動畫參數：period 越小越快；hop 彈跳高度（× 半徑）；sway 搖擺弧度；float 為飛行（漂浮不壓扁）；
+// flip 為 false 表示圖片是正面、不需要依方向翻轉
+const WALK = {
+    normal: { period: 85, hop: 0.14, sway: 0.1, flip: true },
+    armored: { period: 130, hop: 0.07, sway: 0.05, flip: true },
+    fast: { period: 55, hop: 0.1, sway: 0.12, flip: true },
+    swarm: { period: 75, hop: 0.1, sway: 0.08, flip: true },
+    air: { period: 160, hop: 0.2, sway: 0.07, flip: true, float: true },
+    boss: { period: 120, hop: 0.07, sway: 0.04, flip: true },
+    titan: { period: 170, hop: 0.05, sway: 0.03, flip: false },
+}
 
 // ── 打擊感（Juice）：受擊閃白、暴擊數字、螢幕震動 ───────────────
 const FLASH_MS = 90
@@ -213,6 +225,7 @@ watch(() => props.frame, (frame) => {
         prevMap = new Map()
         curMap = new Map()
         shots.length = 0
+        facing.clear()
         resetJuice()
         clearFx()
         return
@@ -230,6 +243,7 @@ watch(() => props.frame, (frame) => {
     for (const [id, m] of prevMap) {
         if (curMap.has(id)) continue
         flashes.delete(id)
+        facing.delete(id)
         const reachedEnd = end && Math.hypot(m.x - end.x, m.y - end.y) <= 1.5
         if (!reachedEnd) {
             const type = catalogRaw()?.monsters?.[m.type]?.id ?? 'normal'
@@ -575,9 +589,28 @@ function drawMonsters(catalog, cell, now) {
 
         const img = imageOf(monsterImage(type))
         if (img) {
-            ctx.drawImage(img, cx - r * 1.25, cy - r * 1.25, r * 2.5, r * 2.5)
-            const left = (flashes.get(id) ?? 0) - now
-            if (left > 0) drawFlash(img, cx - r * 1.25, cy - r * 1.25, r * 2.5, r * 2.5, 0.75 * (left / FLASH_MS))
+            // 走路感：圖片頭朝左，往右走時水平翻轉，並依種類加上彈跳／漂浮與左右搖擺
+            const gait = reducedMotion ? null : WALK[type]
+            if (gait) {
+                const prev = prevMap.get(id)
+                if (prev && Math.abs(m.x - prev.x) > 0.01) facing.set(id, m.x > prev.x)
+                const phase = now / gait.period + (Number(id) || 0) * 1.7
+                const hop = gait.float ? (Math.sin(phase) + 1) / 2 : Math.abs(Math.sin(phase))
+                const squash = gait.float ? 0 : (1 - hop) * 0.05
+                ctx.save()
+                ctx.translate(cx, cy + r * 0.8)
+                ctx.rotate(Math.sin(phase) * gait.sway)
+                ctx.scale((gait.flip && facing.get(id) ? -1 : 1) * (1 + squash), 1 - squash)
+                ctx.translate(0, -r * 0.8 - hop * r * gait.hop)
+                ctx.drawImage(img, -r * 1.25, -r * 1.25, r * 2.5, r * 2.5)
+                const left = (flashes.get(id) ?? 0) - now
+                if (left > 0) drawFlash(img, -r * 1.25, -r * 1.25, r * 2.5, r * 2.5, 0.75 * (left / FLASH_MS))
+                ctx.restore()
+            } else {
+                ctx.drawImage(img, cx - r * 1.25, cy - r * 1.25, r * 2.5, r * 2.5)
+                const left = (flashes.get(id) ?? 0) - now
+                if (left > 0) drawFlash(img, cx - r * 1.25, cy - r * 1.25, r * 2.5, r * 2.5, 0.75 * (left / FLASH_MS))
+            }
         } else {
             ctx.fillStyle = look.color
             ctx.beginPath()
