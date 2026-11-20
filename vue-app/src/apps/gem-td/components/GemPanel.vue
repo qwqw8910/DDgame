@@ -2,11 +2,19 @@
     <!-- 右欄只放「現在要做的事」；戰況與波次預告在左欄 -->
     <!-- 電腦版：由上到下是「本回合甜點 → 選中的塔 → 可以合成 → 品質 → 商店分頁」，主按鈕釘在欄底 -->
     <div class="gt-actions flex flex-col gap-4 text-base text-(--gt-text)">
-        <p v-if="me?.out" class="m-0 font-semibold text-(--gt-accent-ink)" :class="tabClass('place')">你已出局，可以切換看其他人的地圖。</p>
-        <p v-else-if="me && !mine && (me.pending.length || me.choosing)" class="m-0 text-(--gt-accent-ink)" :class="tabClass('place')">回到自己的地圖才能放置和選擇甜點。</p>
+        <!-- 電腦版右欄頁簽：建造（放甜點、選塔、合成）／商店（品質、許願、研究、補血）；樣式與商店分頁共用 gt-seg，手機與平板不顯示 -->
+        <div v-if="showMainTabs" class="gt-seg gt-main-tabs hidden lg:flex" role="tablist" aria-label="右欄分頁">
+            <button v-for="t in mainTabs" :id="`gt-main-tab-${t.id}`" :key="t.id" class="gt-seg-btn" role="tab"
+                :aria-selected="mainTab === t.id" :tabindex="mainTab === t.id ? 0 : -1"
+                @click="pickedMain = t.id" @keydown.right.prevent="stepMain()" @keydown.left.prevent="stepMain()">
+                {{ t.label }}<span v-if="t.meta" class="ml-1 font-normal tabular-nums">{{ t.meta }}</span><span v-if="t.dot" class="gt-dot ml-1" aria-hidden="true" /><span v-if="t.dot" class="sr-only">，有東西買得起</span>
+            </button>
+        </div>
+        <p v-if="me?.out" class="m-0 font-semibold text-(--gt-accent-ink)" :class="[tabClass('place'), buildHide]">你已出局，可以切換看其他人的地圖。</p>
+        <p v-else-if="me && !mine && (me.pending.length || me.choosing)" class="m-0 text-(--gt-accent-ink)" :class="[tabClass('place'), buildHide]">回到自己的地圖才能放置和選擇甜點。</p>
 
         <!-- 手上的甜點 -->
-        <GemSection v-if="mine && me?.pending.length" title="本回合甜點" :meta="`還可放 ${me.pending.length} 顆`" :class="tabClass('place')" aria-label="本回合甜點">
+        <GemSection v-if="mine && me?.pending.length" title="本回合甜點" :meta="`還可放 ${me.pending.length} 顆`" :class="[tabClass('place'), buildHide]" aria-label="本回合甜點">
             <h3 class="gt-heading">點地圖放下甜點（還有 {{ me.pending.length }} 個）</h3>
             <!-- 五格位置固定：放下的那格留著、變灰寫「已放」，其他格子不會往前擠；點已放的格子可以看那座塔 -->
             <div class="grid grid-cols-5 gap-1.5" @mouseleave="hoverSlot = null">
@@ -50,7 +58,7 @@
         </GemSection>
 
         <!-- 五顆都放完：選一顆 -->
-        <GemSection v-else-if="mine && me?.choosing" title="選 1 顆留下" meta="其餘變成餅乾牆" :class="tabClass('place')" aria-label="選擇保留的甜點">
+        <GemSection v-else-if="mine && me?.choosing" title="選 1 顆留下" meta="其餘變成餅乾牆" :class="[tabClass('place'), buildHide]" aria-label="選擇保留的甜點">
             <h3 class="gt-heading">留下一個，其餘變成餅乾牆</h3>
             <p v-if="keys" class="mt-0 mb-2 text-(--gt-muted)">按 <kbd class="gt-kbd">1</kbd>～<kbd class="gt-kbd">5</kbd> 選，<kbd class="gt-kbd">K</kbd> 保留，<kbd class="gt-kbd">M</kbd> 合成</p>
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
@@ -67,22 +75,21 @@
             </ul>
         </GemSection>
 
-        <!-- 還原上一步（放置、保留、合成、拆除、換位、商店都能還原，金幣一併退回；重骰與按準備後不行） -->
-        <GemSection v-if="phase === 'build' && me && !me.out" bare title="還原" :class="tabClass('place')">
-            <button class="gt-btn gt-btn--small w-full" :disabled="!me.canUndo" aria-keyshortcuts="Z" @click="$emit('undo')">
-                ↩ 還原上一步<kbd v-if="keys && me.canUndo" class="gt-kbd ml-2" aria-hidden="true">Z</kbd>
-            </button>
+        <!-- 底部動作列：還原（次要）＋準備（主要）放在一起，不隨右欄頁簽切換。
+             還原：放置、保留、合成、拆除、換位、商店都能還原，金幣一併退回；重骰與按準備後不行。
+             準備：手機與平板放完、選完才出現；電腦版整個建造階段都釘在右欄底部，還沒放完時是灰的並說明還差什麼 -->
+        <GemSection v-if="phase === 'build' && me && !me.out" bare title="操作" class="gt-ready" :class="tabClass('place')">
+            <div class="flex gap-2">
+                <button class="gt-btn gt-btn--hero shrink-0" :class="!me.resolved && 'max-lg:flex-1'" :disabled="!me.canUndo" aria-keyshortcuts="Z" aria-label="還原上一步" title="還原上一步" @click="$emit('undo')">
+                    <span aria-hidden="true">↩ 還原</span><kbd v-if="keys && me.canUndo" class="gt-kbd ml-2 max-xl:hidden" aria-hidden="true">Z</kbd>
+                </button>
+                <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" :class="!me.resolved && 'max-lg:hidden'" :disabled="me.ready || !me.resolved" aria-keyshortcuts="R" @click="$emit('ready')">
+                    {{ readyLabel }}<kbd v-if="keys && me.resolved && !me.ready" class="gt-kbd ml-2" aria-hidden="true">R</kbd>
+                </button>
+            </div>
         </GemSection>
 
-        <!-- 準備：手機與平板放完、選完才出現，排在最上面；電腦版整個建造階段都釘在右欄底部，
-             還沒放完時是灰的並說明還差什麼，按鈕位置不會跳 -->
-        <GemSection v-if="phase === 'build' && me && !me.out" bare title="準備" class="gt-ready" :class="[tabClass('place'), !me.resolved && 'max-lg:hidden']">
-            <button class="gt-btn gt-btn--lamp gt-btn--hero w-full" :disabled="me.ready || !me.resolved" aria-keyshortcuts="R" @click="$emit('ready')">
-                {{ readyLabel }}<kbd v-if="keys && me.resolved && !me.ready" class="gt-kbd ml-2" aria-hidden="true">R</kbd>
-            </button>
-        </GemSection>
-
-        <GemSection v-if="recipes.length" title="可以合成" :meta="`${recipes.length} 種`" :class="tabClass('place')" aria-label="可合成的特殊塔">
+        <GemSection v-if="recipes.length" title="可以合成" :meta="`${recipes.length} 種`" :class="[tabClass('place'), buildHide]" aria-label="可合成的特殊塔">
             <h3 class="gt-heading">可以合成</h3>
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
                 <li v-for="r in recipes" :key="r.id" class="gt-row group relative">
@@ -105,7 +112,7 @@
         </GemSection>
 
         <!-- 選中的塔 -->
-        <GemSection v-if="selected" :title="selectedTitle" :meta="selected.kind === 'stone' ? '' : `擊殺 ${selected.kills}`" class="gt-card" :class="tabClass('tower', ...(me?.choosing ? ['place'] : []))" aria-label="選取的塔">
+        <GemSection v-if="selected" :title="selectedTitle" :meta="selected.kind === 'stone' ? '' : `擊殺 ${selected.kills}`" class="gt-card" :class="[tabClass('tower', ...(me?.choosing ? ['place'] : [])), buildHide]" aria-label="選取的塔">
             <template v-if="selected.kind === 'stone'">
                 <h3 class="gt-heading">餅乾牆</h3>
                 <template v-if="phase === 'build' && me && mine">
@@ -145,7 +152,7 @@
                 </template>
             </template>
         </GemSection>
-        <p v-if="swapFrom" class="m-0 text-(--gt-accent-ink)" :class="tabClass('place', 'tower')" role="status">點一塊餅乾牆，塔會移到那裡。</p>
+        <p v-if="swapFrom" class="m-0 text-(--gt-accent-ink)" :class="[tabClass('place', 'tower'), buildHide]" role="status">點一塊餅乾牆，塔會移到那裡。</p>
         <!-- 出怪中沒有能做的事：告訴玩家右欄現在的用途，不留一整欄空白 -->
         <GemSection v-if="phase === 'wave' && !selected && !recipes.length" title="塔的資訊" :class="tabClass('place', 'tower')">
             <p class="m-0 mb-2 text-(--gt-muted)">點地圖上的塔，可以在這裡看它的傷害、射程和戰績。</p>
@@ -154,7 +161,7 @@
         </GemSection>
 
         <!-- 品質 -->
-        <GemSection v-if="me && !me.out && phase === 'build'" title="甜點品質" :meta="`Lv ${me.quality} / ${catalog.qualityRates.length}`" :class="tabClass('shop')" aria-label="甜點品質">
+        <GemSection v-if="me && !me.out && phase === 'build'" title="甜點品質" :meta="`Lv ${me.quality} / ${catalog.qualityRates.length}`" :class="[tabClass('shop'), shopHide]" aria-label="甜點品質">
             <h3 class="gt-heading">甜點品質 {{ me.quality }}／{{ catalog.qualityRates.length }}</h3>
             <div class="flex h-2.5 overflow-hidden rounded-sm bg-(--gt-track)" role="img" :aria-label="`目前機率：${rateText}`">
                 <span v-for="(r, i) in rates" :key="i" :style="{ width: `${r}%`, background: RATE_COLORS[i] }" />
@@ -167,7 +174,7 @@
         </GemSection>
 
         <!-- 商店：電腦版收成一張有分頁的卡片（許願池／甜點研究／補血）；手機與平板維持原本一塊一塊往下排 -->
-        <section v-if="shopTabs.length" class="gt-shop" :class="tabClass('shop')" aria-label="商店">
+        <section v-if="shopTabs.length" class="gt-shop" :class="[tabClass('shop'), shopHide]" aria-label="商店">
         <div class="gt-seg hidden lg:flex" role="tablist" aria-label="商店分頁">
             <button v-for="t in shopTabs" :id="`gt-shop-tab-${t.id}`" :key="t.id" class="gt-seg-btn" role="tab"
                 :aria-selected="shopTab === t.id" :aria-controls="`gt-shop-${t.id}`" :tabindex="shopTab === t.id ? 0 : -1"
@@ -225,7 +232,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { isSpecial, HITS, HITS_SHORT } from '../data/gems.js'
 import GemIcon from './GemIcon.vue'
 import GemHeaderIcon from './GemHeaderIcon.vue'
@@ -298,6 +305,24 @@ const readyLabel = computed(() => {
     if (m.choosing) return '先選 1 顆留下'
     return '準備好了，開始出怪'
 })
+
+// 電腦版右欄頁簽：建造／商店。商店只在自己的建造階段才有；其他時候只剩一頁，不顯示頁簽
+const showMainTabs = computed(() => phase.value === 'build' && !!me.value && !me.value.out && shopTabs.value.length > 0)
+const pickedMain = ref('build')
+const mainTab = computed(() => (showMainTabs.value ? pickedMain.value : 'build'))
+const buildHide = computed(() => (mainTab.value === 'shop' ? 'lg:hidden' : ''))
+const shopHide = computed(() => (mainTab.value === 'build' ? 'lg:hidden' : ''))
+const canAffordShop = computed(() => !!me.value && ((qualityCost.value > 0 && shortOf(qualityCost.value) === 0) || canBuyLife.value))
+const mainTabs = computed(() => [
+    { id: 'build', label: '建造', meta: me.value?.pending.length ? `剩 ${me.value.pending.length}` : '', dot: false },
+    { id: 'shop', label: '商店', meta: '', dot: canAffordShop.value },
+])
+function stepMain() {
+    pickedMain.value = pickedMain.value === 'build' ? 'shop' : 'build'
+    document.getElementById(`gt-main-tab-${pickedMain.value}`)?.focus()
+}
+// 在地圖上點了塔或甜點，回到「建造」頁才看得到它的資訊
+watch(() => [props.selectedId, props.selectedSlot], () => { pickedMain.value = 'build' })
 
 // 商店分頁：只列出現在用得到的；選過的分頁消失時退回第一個
 const SHOP = [
