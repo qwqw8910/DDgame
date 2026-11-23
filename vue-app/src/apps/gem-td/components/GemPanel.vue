@@ -3,7 +3,7 @@
     <!-- 電腦版：由上到下是「本回合甜點 → 選中的塔 → 可以合成 → 品質 → 商店分頁」，主按鈕釘在欄底 -->
     <div class="gt-actions flex flex-col gap-4 text-base text-(--gt-text)">
         <!-- 電腦版右欄頁簽：建造（放甜點、選塔、合成）／商店（品質、許願、研究、補血）；樣式與商店分頁共用 gt-seg，手機與平板不顯示 -->
-        <div v-if="showMainTabs" class="gt-seg gt-main-tabs hidden lg:flex" role="tablist" aria-label="右欄分頁">
+        <div v-if="showMainTabs" class="gt-seg gt-main-tabs hidden min-[1024px]:max-[1279px]:flex" role="tablist" aria-label="右欄分頁">
             <button v-for="t in mainTabs" :id="`gt-main-tab-${t.id}`" :key="t.id" class="gt-seg-btn" role="tab"
                 :aria-selected="mainTab === t.id" :tabindex="mainTab === t.id ? 0 : -1"
                 @click="pickedMain = t.id" @keydown.right.prevent="stepMain()" @keydown.left.prevent="stepMain()">
@@ -14,7 +14,19 @@
         <p v-else-if="me && !mine && (me.pending.length || me.choosing)" class="m-0 text-(--gt-accent-ink)" :class="[tabClass('place'), buildHide]">回到自己的地圖才能放置和選擇甜點。</p>
 
         <!-- 手上的甜點 -->
-        <GemSection v-if="mine && me?.pending.length" title="本回合甜點" :meta="`還可放 ${me.pending.length} 顆`" :class="[tabClass('place'), buildHide]" aria-label="本回合甜點">
+        <!-- 電腦版右側圖示列：升品質、買命是直接購買；研究、許願打開右欄商店分頁（再點一次回到建造） -->
+        <Teleport :to="dockTarget" :disabled="!dockTarget || !desktop">
+            <template v-if="dockTarget && desktop && phase === 'build' && me && !me.out && mine">
+                <button v-if="qualityCost" class="gt-dock-btn" :disabled="shortOf(qualityCost) > 0" :title="`提升甜點品質 Lv${me.quality} → ${me.quality + 1}（${qualityCost} 金）`" aria-keyshortcuts="U" aria-label="提升甜點品質" @click="$emit('upgrade')"><GemHeaderIcon name="quality" :size="26" /><span class="gt-dock-cost">{{ qualityCost }}</span></button>
+                <button class="gt-dock-btn" :aria-pressed="dockOn('research')" title="甜點研究" aria-label="甜點研究" @click="openShop('research')"><GemHeaderIcon name="research" :size="26" /></button>
+                <button v-if="shopOn('wish')" class="gt-dock-btn" :aria-pressed="dockOn('wish')" title="許願池" aria-label="許願池" @click="openShop('wish')"><GemHeaderIcon name="wish" :size="26" /></button>
+                <button v-if="shopOn('life')" class="gt-dock-btn" :disabled="!canBuyLife" :title="`補血：${me.lifeCost} 金換 1 點血`" aria-label="補血" @click="$emit('buy-life')"><GemHeaderIcon name="life" :size="26" /><span class="gt-dock-cost">{{ me.lifeCost }}</span></button>
+            </template>
+        </Teleport>
+
+        <!-- 電腦版：五格甜點和重骰搬到地圖下方的托盤（handTarget）；數值預覽留在右欄 -->
+        <Teleport :to="handTarget" :disabled="!handTarget || !desktop">
+        <GemSection v-if="mine && me?.pending.length" title="本回合甜點" :meta="`還可放 ${me.pending.length} 顆`" :class="[tabClass('place'), mainTab === 'shop' ? 'lg:max-[1279px]:hidden' : '']" aria-label="本回合甜點">
             <h3 class="gt-heading">點地圖放下甜點（還有 {{ me.pending.length }} 個）</h3>
             <!-- 五格位置固定：放下的那格留著、變灰寫「已放」，其他格子不會往前擠；點已放的格子可以看那座塔 -->
             <div class="grid grid-cols-5 gap-1.5" @mouseleave="hoverSlot = null">
@@ -35,8 +47,22 @@
                     </button>
                 </template>
             </div>
-            <!-- 數值預覽：滑鼠移到哪一格就顯示哪一格，移開回到目前選的那顆（手機點一下就是選取） -->
-            <div v-if="preview" class="gt-preview" aria-live="polite">
+            <!-- 重骰：一個都還沒放才能骰，一次換掉五顆；品質越高越貴，同回合每骰一次加價 -->
+            <template v-if="me.canReroll">
+                <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="shortOf(me.rerollCost) > 0" aria-keyshortcuts="D"
+                    :title="`本回合已骰 ${me.rerolls} 次，每骰一次 +${catalog.rerollStep} 金，下回合恢復`" @click="$emit('reroll')">
+                    重骰全部五顆（{{ me.rerollCost }} 金）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">D</kbd>
+                </button>
+                <p class="gt-tray-hide mt-1 mb-0 text-xs text-(--gt-muted) max-sm:hidden">
+                    <template v-if="shortOf(me.rerollCost)">還差 {{ shortOf(me.rerollCost) }} 金・</template>本回合已骰 {{ me.rerolls }} 次，每骰一次 +{{ catalog.rerollStep }} 金，下回合恢復
+                </p>
+            </template>
+        </GemSection>
+        </Teleport>
+        <!-- 數值預覽：滑鼠移到哪一格就顯示哪一格，移開回到目前選的那顆（手機點一下就是選取） -->
+        <Teleport :to="previewTarget" :disabled="!previewTarget || !desktop">
+        <GemSection v-if="mine && me?.pending.length && preview" title="甜點資訊" bare :class="[tabClass('place'), buildHide]" aria-label="甜點數值預覽">
+            <div class="gt-preview" aria-live="polite">
                 <span class="gt-preview-icon"><GemIcon :kind="preview.kind" :level="preview.level" :size="44" /></span>
                 <div class="min-w-0 flex-1">
                     <p class="m-0 mb-1 truncate font-bold text-(--gt-ink)">
@@ -45,20 +71,12 @@
                     <GemStatBars :stats="statsOf(preview.kind, preview.level)" :catalog="catalog" />
                 </div>
             </div>
-            <p v-if="preview" class="mt-2 mb-0 leading-snug text-(--gt-muted)">{{ catalog.gems[preview.kind].trait }}</p>
-            <!-- 重骰：一個都還沒放才能骰，一次換掉五顆；品質越高越貴，同回合每骰一次加價 -->
-            <template v-if="me.canReroll">
-                <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="shortOf(me.rerollCost) > 0" aria-keyshortcuts="D" @click="$emit('reroll')">
-                    重骰全部五顆（{{ me.rerollCost }} 金）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">D</kbd>
-                </button>
-                <p class="mt-1 mb-0 text-xs text-(--gt-muted) max-sm:hidden">
-                    <template v-if="shortOf(me.rerollCost)">還差 {{ shortOf(me.rerollCost) }} 金・</template>本回合已骰 {{ me.rerolls }} 次，每骰一次 +{{ catalog.rerollStep }} 金，下回合恢復
-                </p>
-            </template>
+            <p class="mt-2 mb-0 leading-snug text-(--gt-muted)">{{ catalog.gems[preview.kind].trait }}</p>
         </GemSection>
+        </Teleport>
 
         <!-- 五顆都放完：選一顆 -->
-        <GemSection v-else-if="mine && me?.choosing" title="選 1 顆留下" meta="其餘變成餅乾牆" :class="[tabClass('place'), buildHide]" aria-label="選擇保留的甜點">
+        <GemSection v-if="mine && me?.choosing && !me.pending.length"title="選 1 顆留下" meta="其餘變成餅乾牆" :class="[tabClass('place'), buildHide]" aria-label="選擇保留的甜點">
             <h3 class="gt-heading">留下一個，其餘變成餅乾牆</h3>
             <p v-if="keys" class="mt-0 mb-2 text-(--gt-muted)">按 <kbd class="gt-kbd">1</kbd>～<kbd class="gt-kbd">5</kbd> 選，<kbd class="gt-kbd">K</kbd> 保留，<kbd class="gt-kbd">M</kbd> 合成</p>
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
@@ -78,7 +96,8 @@
         <!-- 底部動作列：還原（次要）＋準備（主要）放在一起，不隨右欄頁簽切換。
              還原：放置、保留、合成、拆除、換位、商店都能還原，金幣一併退回；重骰與按準備後不行。
              準備：手機與平板放完、選完才出現；電腦版整個建造階段都釘在右欄底部，還沒放完時是灰的並說明還差什麼 -->
-        <GemSection v-if="phase === 'build' && me && !me.out" bare title="操作" class="gt-ready" :class="tabClass('place')">
+        <Teleport :to="actTarget" :disabled="!actTarget || !desktop">
+        <GemSection v-if="phase === 'build' && me && !me.out" bare title="操作" class="gt-ready" :class="tabClass('place')" :style="{ '--p': ring ?? 1 }">
             <div class="flex gap-2">
                 <button class="gt-btn gt-btn--hero shrink-0" :class="!me.resolved && 'max-lg:flex-1'" :disabled="!me.canUndo" aria-keyshortcuts="Z" aria-label="還原上一步" title="還原上一步" @click="$emit('undo')">
                     <span aria-hidden="true">↩ 還原</span><kbd v-if="keys && me.canUndo" class="gt-kbd ml-2 max-xl:hidden" aria-hidden="true">Z</kbd>
@@ -88,6 +107,7 @@
                 </button>
             </div>
         </GemSection>
+        </Teleport>
 
         <GemSection v-if="recipes.length" title="可以合成" :meta="`${recipes.length} 種`" :class="[tabClass('place'), buildHide]" aria-label="可合成的特殊塔">
             <h3 class="gt-heading">可以合成</h3>
@@ -239,6 +259,7 @@ import GemHeaderIcon from './GemHeaderIcon.vue'
 import GemSection from './GemSection.vue'
 import GemStatBars from './GemStatBars.vue'
 import GemWaveTips from './GemWaveTips.vue'
+import { desktop } from '../composables/useGemLayout.js'
 
 const props = defineProps({
     view: { type: Object, required: true },
@@ -249,6 +270,11 @@ const props = defineProps({
     myId: { type: String, default: '' },
     keys: { type: Boolean, default: false }, // 有實體鍵盤時顯示快捷鍵提示
     phoneTab: { type: String, default: '' }, // 手機分頁；只用 max-sm: 隱藏，電腦與平板不受影響
+    handTarget: { type: Object, default: null }, // 電腦版：地圖下方托盤放五格甜點的元素
+    actTarget: { type: Object, default: null }, // 電腦版：托盤放還原與準備的元素
+    previewTarget: { type: Object, default: null }, // 電腦版：托盤放數值預覽的元素
+    dockTarget: { type: Object, default: null }, // 電腦版：右側圖示列的元素
+    ring: { type: Number, default: null }, // 建造倒數剩餘比例 0~1（準備鈕外圈）
 })
 
 // 手機只顯示目前分頁的區塊；沒傳分頁（空字串）時全部顯示
@@ -341,6 +367,13 @@ const pickedShop = ref('wish')
 const shopTab = computed(() => (shopTabs.value.some(t => t.id === pickedShop.value) ? pickedShop.value : shopTabs.value[0]?.id))
 // 不是目前分頁的內容只在電腦版藏起來；手機與平板全部照排
 const shopPane = id => (shopTab.value === id ? '' : 'lg:hidden')
+// 圖示列：已在該商店分頁就再點一次回到建造
+const dockOn = id => mainTab.value === 'shop' && shopTab.value === id
+function openShop(id) {
+    if (dockOn(id)) { pickedMain.value = 'build'; return }
+    pickedShop.value = id
+    pickedMain.value = 'shop'
+}
 function stepShop(d) {
     const tabs = shopTabs.value
     const i = tabs.findIndex(t => t.id === shopTab.value)
