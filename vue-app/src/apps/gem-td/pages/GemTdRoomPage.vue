@@ -1,5 +1,5 @@
 <template>
-    <div class="gt-root flex h-[100dvh] w-full flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
+    <div class="gt-root flex h-[100dvh] w-full flex-col overflow-hidden pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
         <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
 
         <header class="flex shrink-0 items-center justify-between gap-3 border-b border-(--gt-line) px-3 py-1.5">

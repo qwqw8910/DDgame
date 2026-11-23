@@ -56,6 +56,7 @@ function move(step) {
     flex: 1; min-width: 0; min-height: 34px; padding: 0 8px; border: 1px solid transparent; border-radius: 10px;
     background: transparent; color: var(--gt-muted); font-size: 15px; cursor: pointer; white-space: nowrap;
 }
+@media (pointer: coarse) { .gt-codex-tab { min-height: 44px; } }
 .gt-codex-tab[aria-selected="true"] { border-color: var(--gt-accent); background: var(--gt-surface); color: var(--gt-accent-ink); font-weight: 700; }
 .gt-codex-tab:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
 </style>

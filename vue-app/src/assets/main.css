@@ -1847,6 +1847,12 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-fold-arrow { transition: transform 0.15s; }
   .gt-fold[open] > summary .gt-fold-arrow { transform: rotate(180deg); }
 
+  /* 觸控裝置：滑鼠用的緊湊控制項放大到 44px（滑鼠的電腦版不受影響） */
+  @media (pointer: coarse) {
+    .gt-seg-btn { min-height: 44px; }
+    .gt-gem-slot { min-height: 76px; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .gt-btn, .gt-fold-arrow, .gt-wish-pick, .gt-wish-tier, .gt-hud-btn, .gt-seg-btn, .gt-gem-slot { transition: none; }
     .gt-btn:active:not(:disabled), .gt-wish-pick:active, .gt-wish-tier:active, .gt-hud-btn:active { transform: none; }
