@@ -2,14 +2,6 @@
     <!-- 右欄只放「現在要做的事」；戰況與波次預告在左欄 -->
     <!-- 電腦版：由上到下是「本回合甜點 → 選中的塔 → 可以合成 → 品質 → 商店分頁」，主按鈕釘在欄底 -->
     <div class="gt-actions flex flex-col gap-4 text-base text-(--gt-text)">
-        <!-- 電腦版右欄頁簽：建造（放甜點、選塔、合成）／商店（品質、許願、研究、補血）；樣式與商店分頁共用 gt-seg，手機與平板不顯示 -->
-        <div v-if="showMainTabs" class="gt-seg gt-main-tabs hidden min-[1024px]:max-[1279px]:flex" role="tablist" aria-label="右欄分頁">
-            <button v-for="t in mainTabs" :id="`gt-main-tab-${t.id}`" :key="t.id" class="gt-seg-btn" role="tab"
-                :aria-selected="mainTab === t.id" :tabindex="mainTab === t.id ? 0 : -1"
-                @click="pickedMain = t.id" @keydown.right.prevent="stepMain()" @keydown.left.prevent="stepMain()">
-                {{ t.label }}<span v-if="t.meta" class="ml-1 font-normal tabular-nums">{{ t.meta }}</span><span v-if="t.dot" class="gt-dot ml-1" aria-hidden="true" /><span v-if="t.dot" class="sr-only">，有東西買得起</span>
-            </button>
-        </div>
         <p v-if="me?.out" class="m-0 font-semibold text-(--gt-accent-ink)" :class="[tabClass('place'), buildHide]">你已出局，可以切換看其他人的地圖。</p>
         <p v-else-if="me && !mine && (me.pending.length || me.choosing)" class="m-0 text-(--gt-accent-ink)" :class="[tabClass('place'), buildHide]">回到自己的地圖才能放置和選擇甜點。</p>
 
@@ -17,16 +9,16 @@
         <!-- 電腦版右側圖示列：升品質、買命是直接購買；研究、許願打開右欄商店分頁（再點一次回到建造） -->
         <Teleport :to="dockTarget" :disabled="!dockTarget || !desktop">
             <template v-if="dockTarget && desktop && phase === 'build' && me && !me.out && mine">
-                <button v-if="qualityCost" class="gt-dock-btn" :disabled="shortOf(qualityCost) > 0" :title="`提升甜點品質 Lv${me.quality} → ${me.quality + 1}（${qualityCost} 金）`" aria-keyshortcuts="U" aria-label="提升甜點品質" @click="$emit('upgrade')"><GemHeaderIcon name="quality" :size="26" /><span class="gt-dock-cost">{{ qualityCost }}</span></button>
-                <button class="gt-dock-btn" :aria-pressed="dockOn('research')" title="甜點研究" aria-label="甜點研究" @click="openShop('research')"><GemHeaderIcon name="research" :size="26" /></button>
-                <button v-if="shopOn('wish')" class="gt-dock-btn" :aria-pressed="dockOn('wish')" title="許願池" aria-label="許願池" @click="openShop('wish')"><GemHeaderIcon name="wish" :size="26" /></button>
-                <button v-if="shopOn('life')" class="gt-dock-btn" :disabled="!canBuyLife" :title="`補血：${me.lifeCost} 金換 1 點血`" aria-label="補血" @click="$emit('buy-life')"><GemHeaderIcon name="life" :size="26" /><span class="gt-dock-cost">{{ me.lifeCost }}</span></button>
+                <button v-if="qualityCost" class="gt-dock-btn" :disabled="shortOf(qualityCost) > 0" :title="`提升甜點品質 Lv${me.quality} → ${me.quality + 1}（${qualityCost} 金）`" aria-keyshortcuts="U" aria-label="提升甜點品質" @click="$emit('upgrade')"><GemHeaderIcon name="quality" :size="26" /><span class="gt-dock-label" aria-hidden="true">品質</span><span class="gt-dock-cost">{{ qualityCost }}</span></button>
+                <button class="gt-dock-btn" :aria-pressed="dockOn('research')" title="甜點研究" aria-label="甜點研究" @click="openShop('research')"><GemHeaderIcon name="research" :size="26" /><span class="gt-dock-label" aria-hidden="true">研究</span></button>
+                <button v-if="shopOn('wish')" class="gt-dock-btn" :aria-pressed="dockOn('wish')" title="許願池" aria-label="許願池" @click="openShop('wish')"><GemHeaderIcon name="wish" :size="26" /><span class="gt-dock-label" aria-hidden="true">許願</span></button>
+                <button v-if="shopOn('life')" class="gt-dock-btn" :disabled="!canBuyLife" :title="`補血：${me.lifeCost} 金換 1 點血`" aria-label="補血" @click="$emit('buy-life')"><GemHeaderIcon name="life" :size="26" /><span class="gt-dock-label" aria-hidden="true">補血</span><span class="gt-dock-cost">{{ me.lifeCost }}</span></button>
             </template>
         </Teleport>
 
         <!-- 電腦版：五格甜點和重骰搬到地圖下方的托盤（handTarget）；數值預覽留在右欄 -->
         <Teleport :to="handTarget" :disabled="!handTarget || !desktop">
-        <GemSection v-if="mine && me?.pending.length" title="本回合甜點" :meta="`還可放 ${me.pending.length} 顆`" :class="[tabClass('place'), mainTab === 'shop' ? 'lg:max-[1279px]:hidden' : '']" aria-label="本回合甜點">
+        <GemSection v-if="mine && me?.pending.length" title="本回合甜點" :meta="`還可放 ${me.pending.length} 顆`" :class="tabClass('place')" aria-label="本回合甜點">
             <h3 class="gt-heading">點地圖放下甜點（還有 {{ me.pending.length }} 個）</h3>
             <!-- 五格位置固定：放下的那格留著、變灰寫「已放」，其他格子不會往前擠；點已放的格子可以看那座塔 -->
             <div class="grid grid-cols-5 gap-1.5" @mouseleave="hoverSlot = null">
@@ -75,23 +67,37 @@
         </GemSection>
         </Teleport>
 
-        <!-- 五顆都放完：選一顆 -->
-        <GemSection v-if="mine && me?.choosing && !me.pending.length"title="選 1 顆留下" meta="其餘變成餅乾牆" :class="[tabClass('place'), buildHide]" aria-label="選擇保留的甜點">
-            <h3 class="gt-heading">留下一個，其餘變成餅乾牆</h3>
-            <p v-if="keys" class="mt-0 mb-2 text-(--gt-muted)">按 <kbd class="gt-kbd">1</kbd>～<kbd class="gt-kbd">5</kbd> 選，<kbd class="gt-kbd">K</kbd> 保留，<kbd class="gt-kbd">M</kbd> 合成</p>
-            <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
-                <li v-for="(f, i) in freshRows" :key="f.id" class="gt-row max-sm:!py-0.5" :class="{ 'gt-row--on': f.id === selectedId }">
-                    <button class="gt-plain flex min-h-11 min-w-0 flex-1 items-center gap-2 p-0 text-left"
-                        :aria-keyshortcuts="String(i + 1)" @click="$emit('select-tower', f.tower)">
-                        <kbd v-if="keys" class="gt-kbd" aria-hidden="true">{{ i + 1 }}</kbd>
-                        <GemIcon :kind="f.tower.kind" :level="f.tower.level" :size="30" />
-                        <span class="truncate">{{ gemName(f.tower.kind, f.tower.level) }}</span>
+        <!-- 五顆都放完：選一顆。直放的平板：五顆排進底部操作列（點選），用右邊的主按鈕「留下這顆」確認 -->
+        <Teleport :to="handTarget" :disabled="!trayChoose">
+        <GemSection v-if="mine && me?.choosing && !me.pending.length" title="選 1 顆留下" meta="其餘變成餅乾牆" :class="[tabClass('place'), buildHide]" aria-label="選擇保留的甜點">
+            <template v-if="trayChoose">
+                <p class="m-0 mb-1.5 font-bold text-(--gt-ink)">點一顆，按右邊「留下這顆」，其餘變成餅乾牆</p>
+                <div class="grid grid-cols-5 gap-1.5">
+                    <button v-for="f in freshRows" :key="f.id" class="gt-gem-slot" :class="{ 'gt-gem-slot--on': f.id === selectedId }" :aria-pressed="f.id === selectedId"
+                        :aria-label="gemName(f.tower.kind, f.tower.level)" @click="$emit('select-tower', f.tower)">
+                        <GemIcon :kind="f.tower.kind" :level="f.tower.level" :size="38" />
+                        <span class="leading-none">Lv{{ f.tower.level }}<template v-if="f.mergeGain"> ＋</template></span>
                     </button>
-                    <button v-if="f.mergeGain" class="gt-btn gt-btn--small gt-btn--lamp" @click="$emit('merge', f.id)">合成 +{{ f.mergeGain }}</button>
-                    <button class="gt-btn gt-btn--small" @click="$emit('keep', f.id)">保留</button>
-                </li>
-            </ul>
+                </div>
+            </template>
+            <template v-else>
+                <h3 class="gt-heading">留下一個，其餘變成餅乾牆</h3>
+                <p v-if="keys" class="mt-0 mb-2 text-(--gt-muted)">按 <kbd class="gt-kbd">1</kbd>～<kbd class="gt-kbd">5</kbd> 選，<kbd class="gt-kbd">K</kbd> 保留，<kbd class="gt-kbd">M</kbd> 合成</p>
+                <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
+                    <li v-for="(f, i) in freshRows" :key="f.id" class="gt-row max-sm:!py-0.5" :class="{ 'gt-row--on': f.id === selectedId }">
+                        <button class="gt-plain flex min-h-11 min-w-0 flex-1 items-center gap-2 p-0 text-left"
+                            :aria-keyshortcuts="String(i + 1)" @click="$emit('select-tower', f.tower)">
+                            <kbd v-if="keys" class="gt-kbd" aria-hidden="true">{{ i + 1 }}</kbd>
+                            <GemIcon :kind="f.tower.kind" :level="f.tower.level" :size="30" />
+                            <span class="truncate">{{ gemName(f.tower.kind, f.tower.level) }}</span>
+                        </button>
+                        <button v-if="f.mergeGain" class="gt-btn gt-btn--small gt-btn--lamp" @click="$emit('merge', f.id)">合成 +{{ f.mergeGain }}</button>
+                        <button class="gt-btn gt-btn--small" @click="$emit('keep', f.id)">保留</button>
+                    </li>
+                </ul>
+            </template>
         </GemSection>
+        </Teleport>
 
         <!-- 底部動作列：還原（次要）＋準備（主要）放在一起，不隨右欄頁簽切換。
              還原：放置、保留、合成、拆除、換位、商店都能還原，金幣一併退回；重骰與按準備後不行。
@@ -99,15 +105,19 @@
         <Teleport :to="actTarget" :disabled="!actTarget || !desktop">
         <GemSection v-if="phase === 'build' && me && !me.out" bare title="操作" class="gt-ready" :style="{ '--p': ring ?? 1 }">
             <!-- 手機與平板：地圖上點一下預覽後，這裡換成「取消／放在這裡」，不用回頭找同一格 -->
-            <div v-if="armedCell && !desktop" class="flex gap-2">
+            <div v-if="armedCell" class="flex gap-2">
                 <button class="gt-btn gt-btn--hero shrink-0" @click="$emit('cancel-armed')">取消</button>
                 <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" @click="$emit('place-armed')">放在這裡</button>
             </div>
+            <div v-else-if="trayChoose && selFresh" class="flex gap-2">
+                <button v-if="selFresh.mergeGain" class="gt-btn gt-btn--hero shrink-0" @click="$emit('merge', selFresh.id)">合成 +{{ selFresh.mergeGain }}</button>
+                <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" @click="$emit('keep', selFresh.id)">留下這顆</button>
+            </div>
             <div v-else class="flex gap-2">
-                <button class="gt-btn gt-btn--hero shrink-0" :class="!me.resolved && 'sm:max-lg:flex-1'" :disabled="!me.canUndo" aria-keyshortcuts="Z" aria-label="還原上一步" title="還原上一步" @click="$emit('undo')">
+                <button class="gt-btn gt-btn--hero shrink-0" :disabled="!me.canUndo" aria-keyshortcuts="Z" aria-label="還原上一步" title="還原上一步" @click="$emit('undo')">
                     <span aria-hidden="true">↩ 還原</span><kbd v-if="keys && me.canUndo" class="gt-kbd ml-2 max-xl:hidden" aria-hidden="true">Z</kbd>
                 </button>
-                <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" :class="!me.resolved && 'sm:max-lg:hidden'" :disabled="me.ready || !me.resolved" aria-keyshortcuts="R" @click="$emit('ready')">
+                <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" :disabled="me.ready || !me.resolved" aria-keyshortcuts="R" @click="$emit('ready')">
                     {{ readyLabel }}<kbd v-if="keys && me.resolved && !me.ready" class="gt-kbd ml-2" aria-hidden="true">R</kbd>
                 </button>
             </div>
@@ -200,7 +210,7 @@
 
         <!-- 商店：電腦版收成一張有分頁的卡片（許願池／甜點研究／補血）；手機與平板維持原本一塊一塊往下排 -->
         <section v-if="shopTabs.length" class="gt-shop" :class="[tabClass('shop'), shopHide]" aria-label="商店">
-        <div class="gt-seg hidden lg:flex" role="tablist" aria-label="商店分頁">
+        <div v-if="desktop" class="gt-seg flex" role="tablist" aria-label="商店分頁">
             <button v-for="t in shopTabs" :id="`gt-shop-tab-${t.id}`" :key="t.id" class="gt-seg-btn" role="tab"
                 :aria-selected="shopTab === t.id" :aria-controls="`gt-shop-${t.id}`" :tabindex="shopTab === t.id ? 0 : -1"
                 @click="pickedShop = t.id" @keydown.right.prevent="stepShop(1)" @keydown.left.prevent="stepShop(-1)">{{ t.label }}</button>
@@ -264,7 +274,7 @@ import GemHeaderIcon from './GemHeaderIcon.vue'
 import GemSection from './GemSection.vue'
 import GemStatBars from './GemStatBars.vue'
 import GemWaveTips from './GemWaveTips.vue'
-import { desktop } from '../composables/useGemLayout.js'
+import { desktop, lgLayout } from '../composables/useGemLayout.js'
 
 const props = defineProps({
     view: { type: Object, required: true },
@@ -342,17 +352,8 @@ const readyLabel = computed(() => {
 const showMainTabs = computed(() => phase.value === 'build' && !!me.value && !me.value.out && shopTabs.value.length > 0)
 const pickedMain = ref('build')
 const mainTab = computed(() => (showMainTabs.value ? pickedMain.value : 'build'))
-const buildHide = computed(() => (mainTab.value === 'shop' ? 'lg:hidden' : ''))
-const shopHide = computed(() => (mainTab.value === 'build' ? 'lg:hidden' : ''))
-const canAffordShop = computed(() => !!me.value && ((qualityCost.value > 0 && shortOf(qualityCost.value) === 0) || canBuyLife.value))
-const mainTabs = computed(() => [
-    { id: 'build', label: '建造', meta: me.value?.pending.length ? `剩 ${me.value.pending.length}` : '', dot: false },
-    { id: 'shop', label: '商店', meta: '', dot: canAffordShop.value },
-])
-function stepMain() {
-    pickedMain.value = pickedMain.value === 'build' ? 'shop' : 'build'
-    document.getElementById(`gt-main-tab-${pickedMain.value}`)?.focus()
-}
+const buildHide = computed(() => (desktop.value && mainTab.value === 'shop' ? 'hidden' : ''))
+const shopHide = computed(() => (desktop.value && mainTab.value === 'build' ? 'hidden' : ''))
 // 在地圖上點了塔或甜點，回到「建造」頁才看得到它的資訊
 watch(() => [props.selectedId, props.selectedSlot], () => { pickedMain.value = 'build' })
 
@@ -372,7 +373,7 @@ const shopTabs = computed(() => SHOP.filter(t => shopOn(t.id)))
 const pickedShop = ref('wish')
 const shopTab = computed(() => (shopTabs.value.some(t => t.id === pickedShop.value) ? pickedShop.value : shopTabs.value[0]?.id))
 // 不是目前分頁的內容只在電腦版藏起來；手機與平板全部照排
-const shopPane = id => (shopTab.value === id ? '' : 'lg:hidden')
+const shopPane = id => (desktop.value && shopTab.value !== id ? 'hidden' : '')
 // 圖示列：已在該商店分頁就再點一次回到建造
 const dockOn = id => mainTab.value === 'shop' && shopTab.value === id
 function openShop(id) {
@@ -408,6 +409,10 @@ const preview = computed(() => (
     ?? null
 ))
 const statsOf = (kind, level) => props.catalog.gems[kind].levels[level - 1]
+
+// 直放的平板（寬版、但 <1024px）：選留下的甜點在操作列裡完成
+const trayChoose = computed(() => !!props.handTarget && desktop.value && !lgLayout.value && !!me.value?.choosing && !me.value.pending.length)
+const selFresh = computed(() => (trayChoose.value ? freshRows.value.find(f => f.id === props.selectedId) ?? null : null))
 
 const freshRows = computed(() => (me.value?.fresh ?? [])
     .map(f => ({ ...f, tower: me.value.towers.find(t => t.id === f.id) }))

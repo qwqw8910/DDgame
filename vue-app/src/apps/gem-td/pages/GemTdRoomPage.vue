@@ -210,7 +210,7 @@
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
                 <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
-                    :hand-target="isTray ? trayHandEl : null" :preview-target="isTray ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="isTray ? dockEl : null" :ring="ring" :armed-cell="armedCell"
+                    :hand-target="isTray ? trayHandEl : null" :preview-target="isTray && isLg ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="isTray ? dockEl : null" :ring="ring" :armed-cell="armedCell"
                     @place-armed="placeArmed" @cancel-armed="boardRef?.disarm()"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
@@ -295,7 +295,7 @@ import GemVolumePanel from '../components/GemVolumePanel.vue'
 import GemWaveInfo from '../components/GemWaveInfo.vue'
 import GemTestBoard from '../components/GemTestBoard.vue'
 import GemSection from '../components/GemSection.vue'
-import { desktop as layoutDesktop } from '../composables/useGemLayout.js'
+import { desktop as layoutDesktop, lgLayout } from '../composables/useGemLayout.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -310,13 +310,16 @@ const { playSfx, isSfxMuted, toggleSfxMute } = useGemTdSfx()
 const guide = useGameGuide('gem-td-guide-seen')
 const view = computed(() => state.view)
 const inGame = computed(() => !!state.catalog && ['build', 'wave'].includes(view.value?.phase))
-// 電腦版（≥1024px）：三欄固定版面，合成表一直排在左欄
-const wideQuery = window.matchMedia('(min-width: 1024px)')
+// 寬版：電腦（≥1024px）和直放的平板（≥640px、高比寬長）。地圖下方有操作列、右邊有圖示列，合成表一直排在左欄。
+// 跟 main.css 的寬版 media query 一致；窄版（手機、橫放的小平板）是上下堆疊
+const wideQuery = window.matchMedia('(min-width: 1024px), (min-width: 640px) and (orientation: portrait)')
 const isWide = ref(wideQuery.matches)
-// ≥1280px 才有地圖下方托盤與右側圖示列；1024～1279 維持三欄
-const trayQuery = window.matchMedia('(min-width: 1280px)')
-const isTray = ref(trayQuery.matches)
-trayQuery.addEventListener('change', (e) => { isTray.value = e.matches })
+const isTray = isWide
+// 數值預覽放進操作列要 ≥1024px 才放得下；直放的平板排在右邊那塊
+const lgQuery = window.matchMedia('(min-width: 1024px)')
+const isLg = ref(lgQuery.matches)
+lgLayout.value = isLg.value
+lgQuery.addEventListener('change', (e) => { isLg.value = e.matches; lgLayout.value = e.matches })
 const isSolo = computed(() => (view.value?.playerIds?.length ?? 0) === 1 && !roomState.isSpectator)
 layoutDesktop.value = isWide.value
 const onWideChange = (e) => { isWide.value = e.matches; layoutDesktop.value = e.matches }

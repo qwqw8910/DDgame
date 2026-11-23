@@ -1558,7 +1558,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   /* 甜點數值預覽：圖示＋名稱＋攻擊／攻速／射程長條 */
   .gt-preview { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--gt-bg); }
   /* 手機與平板沒有卡片外框，預覽本身要有白底才看得出範圍 */
-  @media (max-width: 1023px) { .gt-preview { border: 1px solid var(--gt-line-soft); background: var(--gt-surface); } }
+  @media (max-width: 639px), (max-width: 1023px) and (orientation: landscape) { .gt-preview { border: 1px solid var(--gt-line-soft); background: var(--gt-surface); } }
   .gt-preview-icon {
     display: grid; flex-shrink: 0; place-items: center; width: 60px; height: 60px;
     border: 1px solid var(--gt-line-soft); border-radius: 12px; background: var(--gt-surface);
@@ -1619,46 +1619,23 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     border: 1px solid var(--gt-line); border-radius: 10px; background: var(--gt-surface); color: var(--gt-text); font-size: 16px;
   }
 
-  /* ── 遊戲版面：電腦三欄固定（左 波次預告與合成表、中 地圖、右 操作）；窄螢幕退回上下堆疊。
-     區塊不能拖曳、浮動或調大小：每個東西永遠在同一個位置，玩家靠位置記憶找按鈕。 ── */
   .gt-game { display: grid; flex: 1; min-height: 0; }
-  /* 地圖是正方形：中欄寬度等於可用高度（100cqh），剩下的寬度平分給左右欄，地圖兩側就不會留白；
-     空間不夠時中欄最小縮到 320px。 */
-  @media (min-width: 1024px) {
-    .gt-game {
-      container-type: size;
-      grid-template-columns:
-        minmax(clamp(260px, 21vw, 320px), 1fr)
-        minmax(320px, 100cqh)
-        minmax(clamp(320px, 26vw, 400px), 1fr);
-    }
-    .gt-center { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-    .gt-center > .gt-stage { flex: 1 1 0; }
-    .gt-tray, .gt-dock { display: none; }
-  }
-  /* ≥1280px：上面三欄（左 圖鑑、中 地圖、右 戰況與商店）加最右邊一條圖示列；
-     最下面一整條橫跨全寬，放本回合甜點、數值、還原、準備。
-     地圖欄寬 = 方形地圖的邊長（視窗高 − 標題列 − 底部操作列）。 */
-  @media (min-width: 1280px) {
-    .gt-game {
-      --gt-tray-h: 164px;
-      grid-template-columns:
-        minmax(240px, 1fr)
-        minmax(360px, calc(100dvh - 57px - var(--gt-tray-h)))
-        minmax(280px, 1fr)
-        72px;
-      grid-template-rows: minmax(0, 1fr) var(--gt-tray-h);
-    }
+  @media (min-width: 1024px) { .gt-game { container-type: size; } }
+
+  /* ── 寬版：電腦（≥1024px）和直放的平板（≥640px、高比寬長）。
+     上面是 左 圖鑑／波次、中 地圖、右 戰況與商店，加一條圖示列；
+     最下面一整條橫跨全寬，放本回合甜點、數值、還原、準備（拇指在平板直放時最容易按到的地方）。
+     區塊不能拖曳、浮動或調大小：每個東西永遠在同一個位置，玩家靠位置記憶找按鈕。
+     窄版（手機、橫放的小平板）退回上下堆疊，見下面。 ── */
+  @media (min-width: 1024px), (min-width: 640px) and (orientation: portrait) {
+    .gt-game { --gt-tray-h: 164px; }
     .gt-center { display: contents; }
-    .gt-rail { grid-column: 1; grid-row: 1; justify-self: end; width: 100%; max-width: 380px; }
-    .gt-center > .gt-stage { grid-column: 2; grid-row: 1; }
-    .gt-side { grid-column: 3; grid-row: 1; justify-self: start; width: 100%; max-width: 380px; }
     .gt-side-top { display: flex; flex-direction: column; gap: 12px; }
     .gt-side-top:empty { display: none; }
-    .gt-dock { display: flex; grid-column: 4; grid-row: 1; padding-right: 8px; }
+    .gt-dock { display: flex; padding-right: 8px; }
     /* 底部操作列：全寬 */
     .gt-tray {
-      display: flex; grid-column: 1 / -1; grid-row: 2; align-items: stretch; justify-content: center; gap: 12px;
+      display: flex; align-items: stretch; justify-content: center; gap: 12px;
       height: var(--gt-tray-h); padding: 10px 16px; border-top: 1px solid var(--gt-line); background: var(--gt-surface);
     }
     .gt-tray-hand { flex: 0 1 560px; min-width: 0; }
@@ -1701,12 +1678,56 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     .gt-dock-btn[aria-pressed="true"] { border-color: var(--gt-accent); background: var(--gt-accent-soft); color: var(--gt-accent-ink); }
     .gt-dock-btn:disabled { border-color: var(--gt-line); color: var(--gt-faint); box-shadow: none; cursor: not-allowed; }
     .gt-dock-btn:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
+    .gt-dock-label { display: none; }
     .gt-dock-cost {
       position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); padding: 0 7px; border-radius: 999px;
       background: var(--gt-gold); color: var(--gt-ink); font-size: 12px; line-height: 18px; white-space: nowrap;
     }
+    /* 觸控：圖示底下加文字說明（沒有滑鼠移上去的提示），金額徽章移到右上角 */
+    @media (pointer: coarse) {
+      .gt-dock { gap: 12px; }
+      .gt-dock-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 68px; height: 72px; }
+      .gt-dock-label { display: block; font-size: 14px; line-height: 1; }
+      .gt-dock-cost { top: -8px; right: -6px; bottom: auto; left: auto; transform: none; }
+    }
+    @media (pointer: coarse) { .gt-tray-hand .gt-panel-body > button { min-height: 44px; } }
   }
-  @media (max-width: 1023px) {
+  /* ≥1024px：地圖欄寬 = 方形地圖的邊長（視窗高 − 標題列 − 底部操作列） */
+  @media (min-width: 1024px) {
+    .gt-game {
+      grid-template-columns:
+        minmax(240px, 1fr)
+        minmax(360px, calc(100dvh - 57px - var(--gt-tray-h)))
+        minmax(280px, 1fr)
+        72px;
+      grid-template-rows: minmax(0, 1fr) var(--gt-tray-h);
+    }
+    .gt-rail { grid-column: 1; grid-row: 1; justify-self: end; width: 100%; max-width: 380px; }
+    .gt-center > .gt-stage { grid-column: 2; grid-row: 1; }
+    .gt-side { grid-column: 3; grid-row: 1; justify-self: start; width: 100%; max-width: 380px; }
+    .gt-dock { grid-column: 4; grid-row: 1; }
+    .gt-tray { grid-column: 1 / -1; grid-row: 2; }
+  }
+  /* 1024～1279px（橫放平板、小筆電）：左右欄縮窄一點，圖示列放寬給手指 */
+  @media (min-width: 1024px) and (max-width: 1279px) {
+    .gt-game {
+      grid-template-columns: minmax(250px, 1fr) minmax(300px, calc(100dvh - 57px - var(--gt-tray-h))) minmax(240px, 1fr) 84px;
+    }
+  }
+  /* 直放的平板：地圖在上（左邊，圖示列在它右邊），中間左右兩塊（左 圖鑑／波次、右 操作與商店），底部操作列 */
+  @media (min-width: 640px) and (max-width: 1023px) and (orientation: portrait) {
+    .gt-game {
+      --gt-map: min(calc(100vw - 84px), calc(100dvh - 57px - var(--gt-tray-h) - 220px));
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
+      grid-template-rows: var(--gt-map) minmax(0, 1fr) var(--gt-tray-h);
+    }
+    .gt-center > .gt-stage { grid-column: 1 / 3; grid-row: 1; padding: 8px; }
+    .gt-dock { grid-column: 3; grid-row: 1; }
+    .gt-rail { grid-column: 1; grid-row: 2; }
+    .gt-side { grid-column: 2 / 4; grid-row: 2; }
+    .gt-tray { grid-column: 1 / -1; grid-row: 3; }
+  }
+  @media (max-width: 639px), (max-width: 1023px) and (orientation: landscape) {
     .gt-center { display: contents; }
     .gt-tray, .gt-dock { display: none; }
   }
@@ -1717,7 +1738,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-rail-top:last-child { flex: 1 1 auto; max-height: none; }
   .gt-side { overscroll-behavior: contain; }
   .gt-stage { position: relative; min-width: 0; min-height: 0; padding: 12px 4px; }
-  @media (max-width: 1023px) {
+  @media (max-width: 639px), (max-width: 1023px) and (orientation: landscape) {
     .gt-game { display: flex; flex-direction: column; overflow-y: auto; }
     .gt-rail, .gt-side, .gt-rail-top { flex-shrink: 0; overflow: visible; border: 0; max-height: none; }
     .gt-stage { flex-shrink: 0; height: min(100vw, 62dvh); padding: 8px; }
@@ -1764,7 +1785,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   /* ── 橫向小螢幕（高度 < 500px 的手機、小平板橫放）：地圖是左邊的正方形，用 sticky 釘住不跟著捲；
      分頁、說明、操作都在右邊一欄往下排，還原＋準備固定在右欄最下面。
      放在手機與平板規則之後，才蓋得過去。 ── */
-  @media (max-height: 500px) and (orientation: landscape) and (max-width: 1023px) {
+  @media (max-width: 1023px) and (orientation: landscape) {
     .gt-game {
       --gt-sq: calc(100dvh - 57px);
       display: grid; grid-template-columns: var(--gt-sq) minmax(0, 1fr); grid-auto-rows: auto;
@@ -1786,7 +1807,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
 
   /* 合成表：一律排在版面裡。電腦版放在左欄卡片內（卡片本體負責捲動）；手機與平板自己帶卡片外框 */
   .gt-recipes { color: var(--gt-text); }
-  @media (max-width: 1023px) {
+  @media (max-width: 639px), (max-width: 1023px) and (orientation: landscape) {
     .gt-recipes { padding: 12px; border: 1px solid var(--gt-line-soft); border-radius: 12px; background: var(--gt-surface); scroll-margin-top: 8px; }
   }
 
@@ -1820,7 +1841,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-seg-btn:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 1px; }
 
   /* 商店：電腦版是一張卡片，上面分段控制、下面目前分頁的內容；窄螢幕直接攤開成原本的一塊一塊 */
-  @media (min-width: 1024px) {
+  @media (min-width: 1024px), (min-width: 640px) and (orientation: portrait) {
     .gt-shop {
       display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
       border: 1px solid var(--gt-line); border-radius: 14px; background: var(--gt-surface); box-shadow: 0 1px 2px rgba(74, 44, 42, 0.06);
@@ -1840,7 +1861,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     .gt-main-tabs .gt-seg-btn { background: var(--gt-track); }
     .gt-main-tabs .gt-seg-btn[aria-selected="true"] { background: var(--gt-surface); }
   }
-  @media (max-width: 1023px) {
+  @media (max-width: 639px), (max-width: 1023px) and (orientation: landscape) {
     .gt-shop { display: contents; }
   }
   .gt-btn--hero { min-height: 56px; border-radius: 14px; font-size: 18px; }

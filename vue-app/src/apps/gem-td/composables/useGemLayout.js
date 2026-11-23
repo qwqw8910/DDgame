@@ -3,3 +3,5 @@
 import { ref } from 'vue'
 
 export const desktop = ref(false)
+// ≥1024px：地圖旁有左右欄，數值預覽放得進操作列。直放的平板（寬版但 <1024px）沒有這個空間，選留下的甜點改排進操作列
+export const lgLayout = ref(false)
