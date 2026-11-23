@@ -317,6 +317,15 @@ function playFrame(next, prev) {
   // 暴擊每幀只響一次，波次後段暴擊塔很多時才不會糊成一團
   if (next.s.some(shot => shot[2])) playSfx('crit', Math.random() * FRAME_MS / 1000 * 0.5)
 
+  // 環形接力：整圈一份快照，擊殺與漏怪加總所有區域
+  if (next.ring) {
+    if (!prev?.ring) return
+    const sum = (f, key) => Object.values(f.players).reduce((n, p) => n + p[key], 0)
+    const gained = Math.min(sum(next, 'killed') - sum(prev, 'killed'), MAX_KILLS_PER_FRAME)
+    for (let i = 0; i < gained; i++) playSfx('kill', i * 0.06)
+    if (sum(next, 'leaked') > sum(prev, 'leaked')) playSfx('leak')
+    return
+  }
   // 換視角的第一幀沒有可比對的進度
   if (next.owner !== prev?.owner) return
   const before = prev.players[next.owner]

@@ -37,11 +37,30 @@ function prepareTowers(towers, research) {
   });
 }
 
+// 環形接力：這一區要出的蟲。每區出一組、血量 = 單人同一波 × 倍數；首領與巨獸只從區 1 出發、整隻繞完整圈
+function applyRelayDef(def, { zone, n }) {
+  const boss = def.groups.some(g => C.MONSTERS[g.type].boss);
+  if (boss && zone !== 0) {
+    def.count = 0;
+    def.groups = def.groups.map(g => ({ ...g, count: 0 }));
+    return;
+  }
+  const mult = boss ? n * C.RELAY_BOSS_HP_MULT : C.RELAY_GROUP_HP_MULT;
+  def.groups = def.groups.map(g => ({ ...g, hp: Math.max(1, Math.round(g.hp * mult)) }));
+  def.hp = def.groups[0].hp;
+}
+
+// 蟲的編號：環形接力整圈共用同一組編號，前端才不會把不同區的蟲混在一起
+const newId = sim => (sim.relay ? sim.relay.hub.nextId++ : sim.nextId++);
+
 // pool 是這張地圖漏怪時扣血的對象：共用血量是 game，獨立血量是玩家自己
-function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research }) {
+// relay：環形接力時為 { zone, n, hub }；devBoss：開發測試的首領波
+function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research, relay = null, devBoss = false }) {
   // waveDef 有快取；這一波會改動 def 與各組（測試也會），所以複製一份
-  const cached = testAt === null ? C.waveDef(wave, totalWaves, difficulty) : C.testWaveDef(testAt, difficulty, totalWaves);
+  const cached = devBoss ? C.bossWaveDef(wave, totalWaves, difficulty)
+    : testAt === null ? C.waveDef(wave, totalWaves, difficulty) : C.testWaveDef(testAt, difficulty, totalWaves);
   const def = { ...cached, groups: cached.groups.map(g => ({ ...g })) };
+  if (relay) applyRelayDef(def, relay);
   const towers = prepareTowers(placed, research);
   const air = airRoute(board);
   return {
@@ -49,6 +68,8 @@ function createWave({ board, towers: placed, path, wave, totalWaves, testAt = nu
     def,
     board,
     pool,
+    relay, // 環形接力：{ zone, n, hub }；單人模式是 null
+    rs: { kills: 0, handoff: 0, relief: 0, leaks: 0 }, // 分區統計（只在環形接力有意義）
     time: 0,
     queue: spawnQueue(def),
     spawned: 0,
@@ -85,7 +106,7 @@ function spawn(sim) {
   const hp = group.hp;
   const baseGold = info.gold + Math.floor(sim.wave / 6);
   sim.monsters.push({
-    id: sim.nextId++,
+    id: newId(sim),
     type: group.type,
     trait: group.trait,
     flying: !!info.flying,
@@ -103,6 +124,8 @@ function spawn(sim) {
     gold: baseGold,
     leak: group.leak ?? info.leak,
     dead: false,
+    // 環形接力：出生區、已走完幾區、總共要走幾區（一般蟲 2 區：主防＋後援；首領與巨獸繞完整圈）
+    ...(sim.relay ? { born: sim.relay.zone, hop: 0, hops: info.boss ? sim.relay.n : Math.min(2, sim.relay.n) } : {}),
   });
   sim.spawned += 1;
 }
@@ -130,6 +153,7 @@ function moveMonster(sim, m, dt) {
   const length = pathLength(sim, m);
   if (m.pos >= length) {
     m.dead = true;
+    if (sim.relay) return sim.relay.hub.onExit(sim, m); // 離開這一區：傳給下一區，或離場扣血
     sim.leaked += 1;
     sim.pool.lives = Math.max(0, sim.pool.lives - m.leak);
     return;
@@ -171,7 +195,7 @@ function splitMonster(sim, m) {
   const hp = m.maxHp * C.SPLIT_HP_RATIO;
   for (let i = 0; i < C.SPLIT_COUNT; i++) {
     sim.monsters.push({
-      ...m, id: sim.nextId++, trait: null, hp, maxHp: hp, gold: 0, leak: 1, dead: false, pos: Math.max(0, m.pos - i * 0.3),
+      ...m, id: newId(sim), trait: null, hp, maxHp: hp, gold: 0, leak: 1, dead: false, pos: Math.max(0, m.pos - i * 0.3),
     });
   }
   sim.splits += C.SPLIT_COUNT;
@@ -180,6 +204,10 @@ function splitMonster(sim, m) {
 function kill(sim, tower, m) {
   m.dead = true;
   sim.killed += 1;
+  if (sim.relay) {
+    sim.rs.kills += 1;
+    if (m.hop >= 1) sim.rs.relief += 1; // 在自己的區打死別區傳來的蟲
+  }
   sim.earned += m.gold;
   tower.ref.kills += 1;
   if (m.boss) sim.bossDownAt = sim.time;
@@ -289,6 +317,11 @@ function stepWave(sim, dt, rng = Math.random) {
   return sim.pool.lives <= 0 || (sim.spawned >= def.count && sim.monsters.length === 0);
 }
 
+// 蟲的狀態旗標（緩速、中毒、特性），單人與環形接力的快照共用
+function monsterFlags(sim, m) {
+  return (sim.time < m.slowUntil ? FLAG_SLOW : 0) | (sim.time < m.poisonUntil ? FLAG_POISON : 0) | traitFlag(m);
+}
+
 function traitFlag(m) {
   return m.trait ? 1 << (FLAG_TRAIT_SHIFT + C.TRAIT_IDS.indexOf(m.trait)) : 0;
 }
@@ -302,7 +335,7 @@ function buildSimFrame(sim) {
       Math.round(m.x * 10),
       Math.round(m.y * 10),
       Math.ceil((m.hp / m.maxHp) * 100),
-      (sim.time < m.slowUntil ? FLAG_SLOW : 0) | (sim.time < m.poisonUntil ? FLAG_POISON : 0) | traitFlag(m),
+      monsterFlags(sim, m),
     ]),
     s: sim.shots,
   };
@@ -310,4 +343,4 @@ function buildSimFrame(sim) {
   return frame;
 }
 
-module.exports = { createWave, stepWave, buildSimFrame, prepareTowers };
+module.exports = { createWave, stepWave, buildSimFrame, prepareTowers, monsterFlags, typeIndex };

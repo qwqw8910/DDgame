@@ -10,6 +10,7 @@ const express = require('express');
 const C = require('./config');
 
 const TABLE = 'gem_td_scores';
+const RELAY_TABLE = 'gem_td_relay_scores'; // 環形接力：依區域數各一個榜，見 sql/002_relay_leaderboard.sql
 const LIMIT = 50;
 const FETCH_CAP = 2000; // 同一組最多撈這麼多筆再排序，避免全表掃描
 
@@ -29,14 +30,26 @@ const toRow = (roomId, names, rec) => ({
   damage_ratio: rec.damageRatio,
 });
 
-// 寫入失敗只記 log，不影響遊戲結算
+const toRelayRow = (roomId, names, rec) => {
+  const { lives_mode, ...row } = toRow(roomId, names, rec);
+  return { ...row, zones: rec.zones };
+};
+
+// 寫入失敗只記 log，不影響遊戲結算；環形接力寫進自己的表
 async function saveRecords(db, roomId, records, names) {
   if (!db || !records?.length) return;
-  try {
-    const { error } = await db.from(TABLE).insert(records.map(r => toRow(roomId, names, r)));
-    if (error) console.error('[GemTD leaderboard] insert', error.message);
-  } catch (err) {
-    console.error('[GemTD leaderboard] insert', err.message);
+  const jobs = [
+    [TABLE, records.filter(r => r.mode !== 'relay').map(r => toRow(roomId, names, r))],
+    [RELAY_TABLE, records.filter(r => r.mode === 'relay').map(r => toRelayRow(roomId, names, r))],
+  ];
+  for (const [table, rows] of jobs) {
+    if (!rows.length) continue;
+    try {
+      const { error } = await db.from(table).insert(rows);
+      if (error) console.error('[GemTD leaderboard] insert', table, error.message);
+    } catch (err) {
+      console.error('[GemTD leaderboard] insert', table, err.message);
+    }
   }
 }
 
@@ -61,7 +74,8 @@ const pub = r => ({
   name: r.player_name,
   waves: r.waves,
   difficulty: r.difficulty,
-  livesMode: r.lives_mode,
+  livesMode: r.lives_mode ?? 'team',
+  zones: r.zones ?? null,
   playerCount: r.player_count,
   reachedWave: r.reached_wave,
   cleared: r.cleared,
@@ -84,10 +98,23 @@ async function fetchBoard(db) {
   return rank(data ?? []);
 }
 
+// 環形接力：只看指定區域數的榜
+async function fetchRelayBoard(db, zones) {
+  const { data, error } = await db.from(RELAY_TABLE).select('*').eq('zones', zones)
+    .order('reached_wave', { ascending: false }).limit(FETCH_CAP);
+  if (error) throw error;
+  return rank(data ?? []);
+}
+
 function createRouter(db) {
   const router = express.Router();
   router.get('/leaderboard', async (req, res) => {
     try {
+      if (req.query.mode === 'relay') {
+        const zones = Number(req.query.zones);
+        if (!Number.isInteger(zones) || zones < C.MIN_ZONES || zones > C.MAX_ZONES) return res.status(400).json({ error: '區域數不對', rows: [] });
+        return res.json({ rows: await fetchRelayBoard(db, zones) });
+      }
       res.json({ rows: await fetchBoard(db) });
     } catch (err) {
       console.error('[GemTD leaderboard] fetch', err.message);
@@ -97,4 +124,4 @@ function createRouter(db) {
   return router;
 }
 
-module.exports = { saveRecords, createRouter, rank, score };
+module.exports = { saveRecords, createRouter, rank, score, toRelayRow };

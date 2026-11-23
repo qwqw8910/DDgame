@@ -135,4 +135,68 @@ function run(rounds) {
   }
 }
 
-run(Number(process.argv[2]) || 5);
+// ── 環形接力 ─────────────────────────────────────────────────────
+// 每一區都用同一個機器人（蓋迷宮、合塔、升級），血量給到打不死，量的是「漏怪率」：
+// 漏怪率 = 從出口離場的蟲 ÷ 出過的蟲（含分裂小蟲）。區域數 1 就是單人基準，其他區域數與它相除。
+// 排除首領與傷害測試（首領另列：每場首領波的漏怪次數）
+function playRelay({ zones, waves, seed, difficulty = 'easy' }) {
+  const rng = seededRng(seed);
+  const game = L.createGame();
+  game.options = L.resolveOptions({ mode: zones === 1 ? 'single' : 'relay', zones, waves, buildSeconds: 0 });
+  L.startGame(game, ['p0'], { now: 1, rng });
+  game.lives = 1e9; // 不讓血量歸零，量完整的漏怪率
+  const ids = game.playerIds;
+  const out = { spawned: 0, leaked: 0, bossLeaks: 0, bossWaves: 0, damage: 0, perWave: [] };
+
+  while (game.phase !== 'finished') {
+    for (const id of ids) {
+      spendGold(game, id);
+      placeSmart(game, id);
+      resolveRound(game, id, rng);
+    }
+    const testWave = game.testAt !== null;
+    L.startWave(game, { rng });
+    let guard = 0;
+    while (!L.tick(game, 0.1, rng).done && guard++ < 40000);
+    const sims = ids.map(id => game.players[id].sim);
+    const spawned = sims.reduce((n, sm) => n + sm.spawned + sm.splits, 0);
+    const leaked = sims.reduce((n, sm) => n + sm.leaked, 0);
+    const boss = sims.some(sm => sm.def.groups.some(g => C.MONSTERS[g.type].boss));
+    if (!testWave) {
+      if (boss) { out.bossWaves += 1; out.bossLeaks += leaked; } else { out.spawned += spawned; out.leaked += leaked; }
+      out.perWave.push({ wave: game.wave + 1, spawned, leaked, boss });
+    }
+    L.finishWave(game, { now: 1, rng });
+  }
+  return out;
+}
+
+// 調係數：RELAY_HP=1.2 RELAY_BOSS=0.8 node gem-td/balanceSim.js relay 6 50 easy（只在這次執行有效）
+function runRelay(rounds, waves, difficulty) {
+  if (process.env.RELAY_HP) C.RELAY_GROUP_HP_MULT = Number(process.env.RELAY_HP);
+  if (process.env.RELAY_BOSS) C.RELAY_BOSS_HP_MULT = Number(process.env.RELAY_BOSS);
+  console.log(`環形接力平衡（${waves} 波、${difficulty}、每組 ${rounds} 局，血量不歸零）；漏怪率 = 離場蟲 ÷ 出過的蟲，不含首領`);
+  console.log(`群血量 ×${C.RELAY_GROUP_HP_MULT}、首領 ×N×${C.RELAY_BOSS_HP_MULT}`);
+  console.log('區域數  漏怪率   相對單人  前半段  後半段   首領漏出（次/首領波）');
+  let base = null;
+  for (let zones = 1; zones <= C.MAX_ZONES; zones++) {
+    let spawned = 0; let leaked = 0; let bossLeaks = 0; let bossWaves = 0;
+    const half = { early: [0, 0], late: [0, 0] };
+    for (let seed = 1; seed <= rounds; seed++) {
+      const r = playRelay({ zones, waves, seed, difficulty });
+      spawned += r.spawned; leaked += r.leaked; bossLeaks += r.bossLeaks; bossWaves += r.bossWaves;
+      for (const w of r.perWave.filter(x => !x.boss)) {
+        const bucket = w.wave <= waves / 2 ? half.early : half.late;
+        bucket[0] += w.spawned; bucket[1] += w.leaked;
+      }
+    }
+    const rate = leaked / spawned;
+    if (zones === 1) base = rate;
+    const pct = v => `${(v * 100).toFixed(1)}%`;
+    const bucketRate = ([n, l]) => (n ? l / n : 0);
+    console.log(`${zones}       ${pct(rate).padStart(6)}   ${(base ? rate / base : 1).toFixed(2).padStart(6)}   ${pct(bucketRate(half.early)).padStart(6)}  ${pct(bucketRate(half.late)).padStart(6)}   ${bossWaves ? (bossLeaks / bossWaves).toFixed(2) : '-'}`);
+  }
+}
+
+if (process.argv[2] === 'relay') runRelay(Number(process.argv[3]) || 3, Number(process.argv[4]) || 30, process.argv[5] || 'easy');
+else run(Number(process.argv[2]) || 5);

@@ -122,12 +122,26 @@
 
             <fieldset class="m-0 flex flex-col gap-3 border-0 p-0" :disabled="!roomState.isHost">
                 <label class="flex flex-col gap-1 text-(--gt-muted)">
+                    模式{{ roomState.isHost ? '' : '（房主決定）' }}
+                    <select class="gt-input cursor-pointer" :value="view.options.mode" @change="setOptions({ mode: $event.target.value })">
+                        <option v-for="c in MODE_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
+                    </select>
+                </label>
+                <label v-if="view.options.mode === 'relay'" class="flex flex-col gap-1 text-(--gt-muted)">
+                    區域數{{ roomState.isHost ? '' : '（房主決定）' }}
+                    <select class="gt-input cursor-pointer" :value="roomState.players.length > 1 ? roomState.players.length : view.options.zones" :disabled="roomState.players.length > 1"
+                        @change="setOptions({ zones: Number($event.target.value) })">
+                        <option v-for="c in ZONE_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
+                    </select>
+                    <span class="text-sm">{{ roomState.players.length > 1 ? `多位真人時，區域數 = 玩家數（${roomState.players.length} 區）。` : '只有一位真人時，其餘區域由電腦控制；單人可切換到任何一區操作。' }}強制共用血量。</span>
+                </label>
+                <label class="flex flex-col gap-1 text-(--gt-muted)">
                     難度{{ roomState.isHost ? '' : '（房主決定）' }}
                     <select class="gt-input cursor-pointer" :value="view.options.difficulty" @change="setOptions({ difficulty: $event.target.value })">
                         <option v-for="c in DIFFICULTY_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
                     </select>
                 </label>
-                <label class="flex flex-col gap-1 text-(--gt-muted)">
+                <label v-if="view.options.mode !== 'relay'" class="flex flex-col gap-1 text-(--gt-muted)">
                     血量模式{{ roomState.isHost ? '' : '（房主決定）' }}
                     <select class="gt-input cursor-pointer" :value="view.options.livesMode" @change="setOptions({ livesMode: $event.target.value })">
                         <option v-for="c in LIVES_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
@@ -159,7 +173,12 @@
                 <!-- 電腦版：上面是玩家與波次（依內容高度），下面的合成表吃掉剩下的高度，各自捲動 -->
                 <div class="gt-rail-top">
 
-                    <Teleport :to="sideTopEl" :disabled="!isTray || !sideTopEl">
+                    <!-- 環形接力：隊伍血量、區域、分區統計、事件；一般模式是玩家分頁 -->
+                    <Teleport v-if="view.relay" :to="sideTopEl" :disabled="!isTray || !sideTopEl">
+                    <GemRelayInfo :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
+                        :is-host="roomState.isHost" :keys="hasKeyboard" @watch="watchMap" @boss-wave="bossWave" />
+                    </Teleport>
+                    <Teleport v-else :to="sideTopEl" :disabled="!isTray || !sideTopEl">
                     <GemSection v-if="view.playerIds.length > 1" title="玩家" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="玩家">
                         <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
                     </GemSection>
@@ -171,7 +190,7 @@
                     </div>
 
                     <Teleport :to="sideTopEl" :disabled="!isTray || !sideTopEl">
-                    <GemWaveInfo :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
+                    <GemWaveInfo :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
                     </Teleport>
                     <!-- 手機標題列放不下暫停，留在「戰況」分頁；電腦與平板在標題列 -->
@@ -186,7 +205,10 @@
 
             <div class="gt-center">
                 <section class="gt-stage" aria-label="地圖">
-                    <GemBoard ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
+                    <GemRingBoard v-if="view.relay" ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="myId"
+                        :pending-gem="pendingGem" :selected-id="selectedId" :keys="hasKeyboard"
+                        @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" @zone="watchMap" />
+                    <GemBoard v-else ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
                         :pending-gem="pendingGem" :selected-id="selectedId"
                         @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" />
                 </section>
@@ -209,7 +231,7 @@
                 <div ref="sideTopEl" class="gt-side-top" />
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
                 <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
-                    :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
+                    :swap-from="swapFrom" :my-id="myId" :keys="hasKeyboard"
                     :hand-target="isTray ? trayHandEl : null" :preview-target="isTray && isLg ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="isTray ? dockEl : null" :ring="ring" :armed-cell="armedCell"
                     @place-armed="placeArmed" @cancel-armed="boardRef?.disarm()"
                     @select-slot="onSelectSlot" @select-tower="onTower"
@@ -247,6 +269,19 @@
                     <span>最強的塔：{{ nameOf(view.result.topTower.owner) }} 的{{ topTowerName }}，打出 {{ view.result.topTower.damage.toLocaleString() }} 傷害</span>
                 </p>
 
+                <section v-if="view.result.relay" aria-label="分區統計">
+                    <h3 class="gt-heading">分區統計</h3>
+                    <table class="w-full border-collapse text-center text-sm tabular-nums">
+                        <thead><tr class="text-(--gt-muted)"><th class="py-1 text-left font-normal">區</th><th class="font-normal">擊殺</th><th class="font-normal">傳後援</th><th class="font-normal">補救</th><th class="font-normal">漏怪</th><th class="font-normal">傷害</th></tr></thead>
+                        <tbody>
+                            <tr v-for="z in view.result.relay.zones" :key="z.id" class="border-t border-(--gt-line-soft)">
+                                <th scope="row" class="py-1 text-left font-semibold">P{{ z.index + 1 }} {{ nameOf(z.id) }}</th>
+                                <td v-for="k in ['kills', 'handoff', 'relief', 'leaks', 'damage']" :key="k" :class="z[k] > 0 && z[k] === relayMax[k] ? 'font-black text-(--gt-ink)' : ''">{{ z[k].toLocaleString() }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
                 <GemTestBoard :test="view.result.test" :names="view.names" />
 
                 <section v-if="awardRows.length" aria-label="本局指標">
@@ -282,8 +317,10 @@ import GameGuideModal from '@/shared/components/GameGuideModal.vue'
 import { useGemTd } from '../composables/useGemTd.js'
 import { useGemTdCues, useGemTdSfx } from '../composables/useGemTdSfx.js'
 import { useGemTdKeys } from '../composables/useGemTdKeys.js'
-import { WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, nextSpeed, PLAYER_MARKS, isSpecial, RESULT_WIN_IMAGE, RESULT_LOSE_IMAGE } from '../data/gems.js'
+import { WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, MODE_CHOICES, ZONE_CHOICES, nextSpeed, PLAYER_MARKS, isSpecial, RESULT_WIN_IMAGE, RESULT_LOSE_IMAGE } from '../data/gems.js'
 import GemBoard from '../components/GemBoard.vue'
+import GemRingBoard from '../components/GemRingBoard.vue'
+import GemRelayInfo from '../components/GemRelayInfo.vue'
 import GemPanel from '../components/GemPanel.vue'
 import GemPlayerTabs from '../components/GemPlayerTabs.vue'
 import GemGuide from '../components/GemGuide.vue'
@@ -301,7 +338,7 @@ const route = useRoute()
 const router = useRouter()
 const {
     state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
-    upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, undo, ready, setSpeed, setPaused, finishNow, restart,
+    upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, undo, ready, setSpeed, setPaused, bossWave, finishNow, restart,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useGemTd()
@@ -320,7 +357,15 @@ const lgQuery = window.matchMedia('(min-width: 1024px)')
 const isLg = ref(lgQuery.matches)
 lgLayout.value = isLg.value
 lgQuery.addEventListener('change', (e) => { isLg.value = e.matches; lgLayout.value = e.matches })
-const isSolo = computed(() => (view.value?.playerIds?.length ?? 0) === 1 && !roomState.isSpectator)
+// 目前操作的區：一般模式是自己；單一真人的環形接力是正在看的那一區（伺服器在 me.zoneId 帶回來）
+const myId = computed(() => view.value?.me?.zoneId ?? roomState.myPlayerId)
+// 只有一位真人才能暫停：一般模式是單人局；環形接力是真人只有一位（其餘區域是電腦）
+const isSolo = computed(() => {
+    if (roomState.isSpectator || !view.value) return false
+    const relay = view.value.relay
+    if (relay) return relay.zones.filter(z => !z.bot).length === 1
+    return (view.value.playerIds?.length ?? 0) === 1
+})
 layoutDesktop.value = isWide.value
 const onWideChange = (e) => { isWide.value = e.matches; layoutDesktop.value = e.matches }
 wideQuery.addEventListener('change', onWideChange)
@@ -398,7 +443,7 @@ const activeSlot = computed(() => (
     pending.value.some(g => g.slot === selectedSlot.value) ? selectedSlot.value : pending.value[0]?.slot ?? null
 ))
 // 只有在自己的地圖上才能放甜點；看別人的地圖時是唯讀
-const mine = computed(() => view.value?.watching === roomState.myPlayerId)
+const mine = computed(() => view.value?.watching === myId.value)
 const watchingName = computed(() => view.value?.names?.[view.value.watching] ?? '玩家')
 const pendingGem = computed(() => (
     view.value?.phase === 'build' && mine.value ? pending.value.find(g => g.slot === activeSlot.value) ?? null : null
@@ -447,7 +492,7 @@ function onCombine(recipeId) {
 // 血量顯示自己的；觀戰者顯示正在看的玩家
 const livesOwner = computed(() => (view.value?.me ? roomState.myPlayerId : view.value?.watching))
 const lives = computed(() => frame.value?.players[livesOwner.value]?.lives ?? view.value?.players[livesOwner.value]?.lives ?? 0)
-const gold = computed(() => (view.value?.me?.gold ?? 0) + (frame.value?.players[roomState.myPlayerId]?.earned ?? 0))
+const gold = computed(() => (view.value?.me?.gold ?? 0) + (frame.value?.players[myId.value]?.earned ?? 0))
 // 標題列正中間的步驟提示
 const phaseHint = computed(() => {
     const v = view.value
@@ -487,6 +532,12 @@ const resultText = computed(() => {
     if (!r) return ''
     if (r.versus) return r.win ? `打到第 ${r.wave} 波，最高還剩 ${r.lives} 點血。` : `撐到第 ${r.wave} 波。`
     return r.win ? `撐過全部 ${view.value.options.waves} 波，還剩 ${r.lives} 點血。` : `撐到第 ${r.wave} 波。`
+})
+
+// 結算的分區統計：每欄最高的格子加粗
+const relayMax = computed(() => {
+    const zones = view.value?.result?.relay?.zones ?? []
+    return Object.fromEntries(['kills', 'handoff', 'relief', 'leaks', 'damage'].map(k => [k, Math.max(0, ...zones.map(z => z[k]))]))
 })
 
 // 結算的本局指標：沒有人得獎的項目不顯示
@@ -572,7 +623,7 @@ function freshRows() {
     return (me?.fresh ?? []).map(f => ({ ...f, tower: me.towers.find(t => t.id === f.id) })).filter(f => f.tower)
 }
 
-function handleKey(code) {
+function handleKey(code, e) {
     const v = view.value
     const me = v.me
     const catalog = state.catalog
@@ -650,6 +701,8 @@ function handleKey(code) {
         return true
     }
     case 'KeyF':
+        // 環形接力：F 是整圈視角（倍速用標題列的按鈕）
+        if (v.relay) { boardRef.value?.fit?.(); return true }
         if (!roomState.isHost) return false
         setSpeed(nextSpeed(v.speed))
         return true
@@ -657,6 +710,13 @@ function handleKey(code) {
         if (!isSolo.value || (v.phase !== 'build' && v.phase !== 'wave')) return false
         setPaused(!v.paused)
         return true
+    case 'Tab': {
+        // 環形接力：依序切換區域（單人就是換操作的區）
+        const ids = v.playerIds ?? []
+        if (!v.relay || ids.length < 2) return false
+        watchMap(ids[(ids.indexOf(v.watching) + (e.shiftKey ? ids.length - 1 : 1)) % ids.length])
+        return true
+    }
     case 'KeyH':
         guide.open()
         return true

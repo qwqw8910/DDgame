@@ -143,6 +143,11 @@ function registerNamespace(io, db) {
     // 只組有人正在看的地圖；其他地圖的快照沒人收，不必花力氣組
     const targets = socketsInRoom(roomId).map(s => ({ s, id: L.resolveWatch(game, s.data.playerId, s.data.gtWatch) }));
     const frames = L.buildFrames(game, new Set(targets.map(t => t.id)));
+    // 環形接力：整圈只有一份快照，所有人收到同一份
+    if (frames.ring) {
+      for (const { s } of targets) s.volatile.emit('gt:frame', frames.ring);
+      return;
+    }
     for (const { s, id } of targets) {
       if (frames[id]) s.volatile.emit('gt:frame', frames[id]);
     }
@@ -265,7 +270,8 @@ function registerNamespace(io, db) {
       socket.on(event, (payload = {}) => {
         try {
           const c = ctx(payload.roomId); if (!c) return;
-          run(c, payload);
+          // 單一真人的環形接力：動作作用在正在看的那一區（開發與測試用）
+          run({ ...c, playerId: L.actorOf(c.game, c.playerId, socket.data.gtWatch) }, payload);
           pushState(payload.roomId);
         } catch (err) { fail(socket, err); }
       });
@@ -301,6 +307,8 @@ function registerNamespace(io, db) {
       try {
         const c = asHost(roomId); if (!c) return;
         L.startGame(c.game, roomPlayers(roomId).map(p => p.id), { now: Date.now() });
+        // 環形接力的假人區域：名字用「電腦 N」（N 是區號）
+        c.game.playerIds.forEach((id, i) => { if (c.game.players[id].bot) c.game.names[id] = `電腦 ${i + 1}`; });
         _roomCache.updateRoom(roomId, { status: 'playing' });
         scheduleBuild(roomId, c.game);
         pushState(roomId);
@@ -350,6 +358,15 @@ function registerNamespace(io, db) {
           else scheduleBuild(roomId, c.game);
         }
         pushState(roomId);
+      } catch (err) { fail(socket, err); }
+    });
+
+    // 開發／測試：環形接力直接放出繞全圈的首領，限房主（單人遊戲的玩家就是房主）
+    socket.on('gt:boss-wave', ({ roomId } = {}) => {
+      try {
+        const c = asHost(roomId); if (!c) return;
+        L.startBossWave(c.game);
+        launchWave(roomId, c.game);
       } catch (err) { fail(socket, err); }
     });
 

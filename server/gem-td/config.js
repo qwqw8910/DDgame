@@ -24,7 +24,11 @@ const DIFFICULTIES = {
 };
 const DIFFICULTY_IDS = Object.keys(DIFFICULTIES);
 const SPEED_CHOICES = [1, 2, 4];
-const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true, difficulty: 'easy' };
+// 模式：single = 每人一張獨立地圖；relay = 環形接力（多個區域排成環，蟲群主防後傳給下一區）
+const MODES = ['single', 'relay'];
+const MIN_ZONES = 1;
+const MAX_ZONES = MAX_PLAYERS;
+const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true, difficulty: 'easy', mode: 'single', zones: 3 };
 
 // 用金幣換血量：建造階段每次換 1 點，最多補到開局血量
 // 單價隨波次上漲，上限 30 金；連續購買不會變貴
@@ -245,6 +249,21 @@ const BOSS_SLOW_RESIST = 0.5;
 
 const waveClearBonus = wave => 8 + 2 * wave;
 
+// ── 環形接力 ────────────────────────────────────────────────────
+// 每組蟲的血量 = 單人同一波 × 這個倍數；首領與巨獸整隻繞完整圈，血量 × 區域數 × 這個倍數
+const RELAY_GROUP_HP_MULT = 1.3; // balanceSim relay 實測：1.0 → 約 0.55 倍單人漏怪率（太輕鬆），1.3 → 約 0.69 倍
+const RELAY_BOSS_HP_MULT = 0.8;
+// 過關獎勵：每區拿到同樣的額度（總額 = 單人獎勵 × 區域數，平分後每區等於單人獎勵）；擊殺金則歸實際擊殺的那一區
+const RELAY_CLEAR_BONUS_SHARE = 1;
+// 排版：相鄰區域中心距 ≥ 區域對角線 + 間距；外環輸送帶半徑 = 環半徑 + 對角線的一半 + 邊距（單位：格）
+const RELAY_ZONE_GAP = 6;
+const RELAY_ARC_MARGIN = 3;
+const RELAY_ARC_STEP = 2.5; // 弧線每段約幾格，只影響折線的平滑度
+const RELAY_EVENT_KEEP = 30; // 事件紀錄最多保留幾筆
+const RELAY_EVENT_SHOW = 8; // 送給前端顯示最近幾筆
+// 每區的代表色：邊框、塔、該區出生的蟲
+const RELAY_ZONE_COLORS = ['#D6305A', '#2F7FD1', '#2E9E5B', '#D9A21F', '#7C4DCC', '#E8741E'];
+
 // 護甲：每點減傷 6%（遞減）；被破甲到負值時改為增傷
 const ARMOR_FLOOR = -10;
 const armorFactor = armor => 1 / (1 + 0.06 * Math.max(armor, ARMOR_FLOOR));
@@ -349,6 +368,17 @@ const BOSS_LEAK_MAX = 40;
 const LEAK_ENDLESS_SPAN = 50; // 無盡模式沒有總波數，扣血進度以 50 波計
 const bossLeak = (wave, totalWaves) => Math.round(BOSS_LEAK_MIN + (BOSS_LEAK_MAX - BOSS_LEAK_MIN) * Math.min(1, wave / (totalWaves || LEAK_ENDLESS_SPAN)));
 
+// 開發／測試用：直接取該波強度的首領（環形接力的「首領波」按鈕）
+function bossWaveDef(wave, totalWaves, difficulty = 'easy') {
+  const key = `devboss/${wave}/${totalWaves}/${difficulty}`;
+  if (!waveDefCache.has(key)) {
+    const groups = waveGroups('boss', wave, difficulty).map(g => ({ ...g, leak: bossLeak(wave, totalWaves) }));
+    const [main] = groups;
+    waveDefCache.set(key, { ...main, count: 1, interval: SPAWN_INTERVAL * 1.2, groups });
+  }
+  return waveDefCache.get(key);
+}
+
 function buildWaveDef(wave, totalWaves, difficulty) {
   const type = wave === totalWaves ? 'boss' : WAVE_ROTATION[(wave - 1) % WAVE_ROTATION.length];
   const groups = waveGroups(type, wave, difficulty)
@@ -406,15 +436,18 @@ function catalog() {
     gemsPerRound: GEMS_PER_ROUND,
     difficulties: DIFFICULTIES,
     speedChoices: SPEED_CHOICES,
+    relay: { maxZones: MAX_ZONES, colors: RELAY_ZONE_COLORS, groupHpMult: RELAY_GROUP_HP_MULT, bossHpMult: RELAY_BOSS_HP_MULT },
   };
 }
 
 module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
+  MODES, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_CLEAR_BONUS_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
+  RELAY_EVENT_KEEP, RELAY_EVENT_SHOW, RELAY_ZONE_COLORS,
   ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
 
   SWAP_COST, GEM_CATEGORIES, WISH_STACK_RATES, WISH_LEVEL_STACK, WISH_MAX_STACKS, wishCost, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, RESEARCH_BASE_LEVELS, researchValue, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
   TRAIT_IDS, SPLIT_COUNT, SPLIT_HP_RATIO, SHIELD_HIT_CAP,
-  waveClearBonus, bossLeak, interestOn, armorFactor, gemStats, researchBonus, waveDef, testWaveDef, isFinalTest, FINAL_TEST_HP_MULT, FINAL_TEST_ARMOR_MULT, testAfterWave, testReward, catalog,
+  waveClearBonus, bossLeak, interestOn, armorFactor, gemStats, researchBonus, waveDef, bossWaveDef, testWaveDef, isFinalTest, FINAL_TEST_HP_MULT, FINAL_TEST_ARMOR_MULT, testAfterWave, testReward, catalog,
 };

@@ -14,6 +14,8 @@
 const C = require('./config');
 const { findFullPath } = require('./pathing');
 const { createWave, stepWave, buildSimFrame } = require('./waveSim');
+const { ringLayout } = require('./ringLayout');
+const R = require('./relay');
 
 class GameError extends Error {
   constructor(code, message) {
@@ -33,7 +35,11 @@ function blankRun() {
     nextTowerId: 1,
     players: {},
     playerIds: [],
-    startCount: 0, // 開局人數；獨立血量多人局剩一人時判定勝負
+    startCount: 0, // 開局人數（環形接力是區域數）；獨立血量多人局剩一人時判定勝負
+    humanIds: [], // 開局的真人（環形接力的其餘區域由假人控制）
+    ring: null, // 環形接力（區域數 ≥ 2）：{ layout, events, hub }；單人模式與區域數 1 是 null
+    devBoss: false, // 開發測試：下一波改成繞全圈的首領，不推進波數
+    tainted: false, // 用過開發測試功能：不列入排行榜
     pendingWinners: null, // 打完所有波次時的勝負；最後的傷害測試結束後才結算
     testAt: null, // 正在進行（或準備進行）的傷害測試，是打完第幾波之後的加賽；沒有就是 null
     buildEndsAt: null,
@@ -59,10 +65,14 @@ function resetGame(game) {
 }
 
 function resolveOptions(raw = {}) {
+  const mode = C.MODES.includes(raw.mode) ? raw.mode : C.DEFAULT_OPTIONS.mode;
   return {
+    mode,
+    zones: Number.isInteger(raw.zones) && raw.zones >= C.MIN_ZONES && raw.zones <= C.MAX_ZONES ? raw.zones : C.DEFAULT_OPTIONS.zones,
     waves: C.WAVE_CHOICES.includes(raw.waves) ? raw.waves : C.DEFAULT_OPTIONS.waves,
     buildSeconds: C.BUILD_SECOND_CHOICES.includes(raw.buildSeconds) ? raw.buildSeconds : C.DEFAULT_OPTIONS.buildSeconds,
-    livesMode: C.LIVES_MODES.includes(raw.livesMode) ? raw.livesMode : C.DEFAULT_OPTIONS.livesMode,
+    // 環形接力強制共用血量
+    livesMode: mode === 'relay' ? 'team' : C.LIVES_MODES.includes(raw.livesMode) ? raw.livesMode : C.DEFAULT_OPTIONS.livesMode,
     difficulty: C.DIFFICULTY_IDS.includes(raw.difficulty) ? raw.difficulty : C.DEFAULT_OPTIONS.difficulty,
     damageTest: typeof raw.damageTest === 'boolean' ? raw.damageTest : C.DEFAULT_OPTIONS.damageTest,
   };
@@ -115,6 +125,15 @@ function refreshPath(game, p) {
 }
 
 const isTeam = game => game.options.livesMode === 'team';
+const isRelay = game => !!game.ring;
+// 環形接力裡還在場的真人（離開的人，他的區停止建造）
+const humansLeft = game => game.humanIds.filter(id => !game.players[id].left).length;
+// 只有一位真人：可暫停，也能切到任何一區操作（開發與測試用）
+const soloRelay = game => isRelay(game) && humansLeft(game) === 1;
+// 玩家動作實際作用的區：單人接力時是正在看的那區，否則就是自己的區
+const actorOf = (game, playerId, watchId) => (
+  soloRelay(game) && game.humanIds.includes(playerId) && game.playerIds.includes(watchId) ? watchId : playerId
+);
 // 每張地圖都會漏怪，共用血量跟著人數加，每張地圖分到的血量才跟單人一樣
 const maxLives = game => (isTeam(game) ? C.START_LIVES * Math.max(1, game.startCount) : C.START_LIVES);
 const livesPool = (game, p) => (isTeam(game) ? game : p);
@@ -134,6 +153,11 @@ function enterBuild(game, { now, rng }) {
   for (const id of game.playerIds) game.players[id].sim = null;
   for (const id of activeIds(game)) {
     const p = game.players[id];
+    if (p.left) {
+      // 離開的人：他的區停止建造，塔繼續攻擊
+      Object.assign(p, { pending: [], resolved: true, ready: true, undo: [], rerolls: 0, livesBought: 0 });
+      continue;
+    }
     p.pending = rollGems(p.quality, rng, p.wish);
     p.wish = null; // 許願只管這一回合
     p.rerolls = 0;
@@ -149,14 +173,22 @@ function startGame(game, ids, { now, rng = Math.random }) {
   if (ids.length < C.MIN_PLAYERS || ids.length > C.MAX_PLAYERS) {
     throw new GameError('BAD_PLAYER_COUNT', `需要 ${C.MIN_PLAYERS}～${C.MAX_PLAYERS} 位玩家`);
   }
+  const options = game.options;
   Object.assign(game, blankRun());
-  game.playerIds = [...ids];
-  game.startCount = ids.length;
+  // 環形接力：區域數 = 玩家數（多人）；單一真人時由設定決定，其餘區域由假人控制
+  const relay = options.mode === 'relay';
+  const zoneCount = relay ? (ids.length > 1 ? ids.length : options.zones) : ids.length;
+  const zoneIds = [...ids, ...Array.from({ length: zoneCount - ids.length }, (_, i) => `bot-${i + 1}`)];
+  game.playerIds = zoneIds;
+  game.humanIds = [...ids];
+  game.startCount = zoneIds.length;
   game.startedAt = now;
   game.lives = maxLives(game);
   game.board = makeBoard();
-  for (const id of ids) {
+  if (relay && zoneIds.length > 1) game.ring = { layout: ringLayout(zoneIds.length, game.board), events: [], hub: null, eventsFor: null };
+  for (const id of zoneIds) {
     const p = {
+      bot: !ids.includes(id), left: false, rstats: R.blankStats(),
       gold: C.START_GOLD, quality: 1, research: { damage: 0, speed: 0, range: 0 }, pending: [], rerolls: 0, resolved: false, ready: false,
       lives: C.START_LIVES, out: false, outWave: 0,
       stats: { leaked: 0, peakGold: 0, lifeBought: 0, tests: [] },
@@ -534,9 +566,12 @@ function startWave(game, { rng = Math.random } = {}) {
   for (const id of activeIds(game)) autoResolve(game, id, rng);
   game.phase = 'wave';
   game.buildEndsAt = null;
+  if (isRelay(game)) game.ring.hub = R.createHub(game.ring);
   for (const id of activeIds(game)) {
     const p = game.players[id];
     p.sim = createWave({
+      relay: isRelay(game) ? { zone: game.playerIds.indexOf(id), n: game.playerIds.length, hub: game.ring.hub } : null,
+      devBoss: game.devBoss,
       board: game.board,
       towers: p.towers,
       path: p.path,
@@ -557,7 +592,8 @@ function setSpeed(game, speed) {
 
 // 暫停只開放單人遊戲；建造階段會凍結倒數，恢復時從剩下的時間繼續
 function setPaused(game, paused, { now }) {
-  if (game.startCount !== 1) throw new GameError('FORBIDDEN', '只有單人遊戲可以暫停');
+  const solo = isRelay(game) ? humansLeft(game) === 1 : game.startCount === 1;
+  if (!solo) throw new GameError('FORBIDDEN', isRelay(game) ? '只有一位真人時可以暫停' : '只有單人遊戲可以暫停');
   if (game.phase !== 'build' && game.phase !== 'wave') throw new GameError('BAD_PHASE', '現在不能暫停');
   paused = !!paused;
   if (paused === game.paused) return;
@@ -594,6 +630,7 @@ function eliminate(game, id) {
 // 前進 dt 秒。done：所有地圖都打完或勝負已定（結算由 finishWave 處理）；out：這一步出局的玩家
 function tick(game, dt, rng = Math.random) {
   if (game.phase !== 'wave') return { done: false, out: [] };
+  if (isRelay(game)) return tickRelay(game, dt, rng);
   const out = [];
   for (const id of activeIds(game)) {
     const p = game.players[id];
@@ -605,6 +642,16 @@ function tick(game, dt, rng = Math.random) {
   }
   const done = decidedWinners(game) !== null || activeIds(game).every(id => game.players[id].sim.done);
   return { done, out };
+}
+
+// 環形接力：每區都照常推進（區裡的蟲走完就交給輸送帶），直到整圈的蟲都出完、打完、走完
+function tickRelay(game, dt, rng) {
+  const sims = game.playerIds.map(id => game.players[id].sim);
+  for (const sim of sims) stepWave(sim, dt, rng);
+  R.stepTransit(game.ring.hub, sims, dt);
+  const done = game.lives <= 0 || R.waveClear(game.ring.hub, sims);
+  if (done) for (const sim of sims) sim.done = true;
+  return { done, out: [] };
 }
 
 // 每個獎項取數值最大的玩家；全部都是 0 就沒有人得獎
@@ -626,7 +673,11 @@ function buildTestResult(game) {
       .map(id => ({ id, ...game.players[id].stats.tests.find(t => t.at === at) }))
       .filter(r => r.at === at)
       .sort((x, y) => y.damage - x.damage);
-    return { at, maxHp: rows[0].maxHp, rows };
+    // 環形接力：一隻巨獸繞完整圈，各區傷害加總才是隊伍成績
+    const team = isRelay(game)
+      ? { damage: rows.reduce((n, r) => n + r.damage, 0), killed: rows.some(r => r.killed), seconds: rows.find(r => r.killed)?.seconds ?? null }
+      : null;
+    return { at, maxHp: rows[0].maxHp, rows, ...(team ? { team } : {}) };
   });
   const totals = rounds.length > 1
     ? game.playerIds
@@ -674,7 +725,16 @@ function buildResult(game, winnerIds) {
       perfectIds: game.wave > 0 ? scores.filter(s => s.leaked === 0).map(s => s.id) : [],
     },
     test: buildTestResult(game),
+    ...(isRelay(game) ? { relay: { zones: relayZoneRows(game) } } : {}),
   };
+}
+
+// 分區統計表：每區一列（累計到目前這一波）
+function relayZoneRows(game) {
+  return game.playerIds.map((id, index) => {
+    const p = game.players[id];
+    return { id, index, bot: p.bot, left: p.left, pathLength: Math.max(0, p.path.length - 1), ...R.liveStats(p) };
+  });
 }
 
 // 把這一波的成績記到玩家身上；同一張 sim 只記一次
@@ -686,18 +746,35 @@ function bankWave(game) {
     if (!sim || sim.banked) continue;
     sim.banked = true;
     if (testWave) {
+      // 環形接力：巨獸血量與是否擊倒都是整隊的，每區只記自己打出的傷害
+      const sims = isRelay(game) ? game.playerIds.map(pid => game.players[pid].sim) : [sim];
+      const downAt = sims.map(s => s.bossDownAt).filter(t => t !== null);
       p.stats.tests.push({
         at: game.testAt,
         damage: Math.round(sim.damage),
-        maxHp: sim.def.hp,
-        killed: sim.bossDownAt !== null,
-        seconds: sim.bossDownAt === null ? null : Math.round(sim.bossDownAt * 10) / 10,
+        maxHp: isRelay(game) ? sims[0].def.hp : sim.def.hp,
+        killed: downAt.length > 0,
+        seconds: downAt.length ? Math.round(Math.min(...downAt) * 10) / 10 : null,
         escaped: sim.leaked > 0,
       });
     } else {
       p.stats.leaked += sim.leaked;
+      if (isRelay(game)) R.bankStats(p, sim);
     }
   }
+}
+
+// 環形接力：一波打完，把各區的傳遞與補救寫進事件紀錄（每一波只寫一次）
+function recordRelayEvents(game) {
+  if (!isRelay(game)) return;
+  const sims = game.playerIds.map(id => game.players[id].sim);
+  if (sims.some(s => !s)) return;
+  const test = isTestWave(game);
+  const label = test ? game.testAt : game.wave + 1;
+  const key = `${label}/${test}/${game.devBoss}/${game.wave}`;
+  if (game.ring.eventsFor === key) return;
+  game.ring.eventsFor = key;
+  R.recordWaveEvents(game.ring, sims, label, { test });
 }
 
 function finishGame(game, winnerIds) {
@@ -713,11 +790,12 @@ function finishGame(game, winnerIds) {
 // 排行榜紀錄：每位玩家一筆。到達波數 = 實際打到（或倒下）的那一波；通關 = 撐過最後一波且沒出局（無盡沒有通關）
 // 傷害取這局所有傷害測試中「傷害 ÷ 巨獸血量」最高的一場（最多 100%），finalDamage 是那一場的傷害
 function buildRecords(game, winnerIds) {
-  if (game.aborted || !game.startedAt) return [];
+  if (game.aborted || game.tainted || !game.startedAt) return [];
   const { waves, difficulty, livesMode } = game.options;
   const endless = isEndless(game);
   const lastCleared = isLastWave(game);
   const seconds = Math.max(0, Math.round((game.finishedAt - game.startedAt - game.pausedMs) / 1000));
+  if (game.options.mode === 'relay') return buildRelayRecords(game, winnerIds, { waves, difficulty, endless, lastCleared, seconds });
   return game.playerIds.map((id) => {
     const p = game.players[id];
     const cleared = lastCleared && !p.out && (isTeam(game) ? winnerIds.length > 0 : true);
@@ -742,6 +820,32 @@ function buildRecords(game, winnerIds) {
   });
 }
 
+// 環形接力的成績是整隊的：每位在場的真人一筆，內容相同；依區域數各開一個榜
+function buildRelayRecords(game, winnerIds, { waves, difficulty, endless, lastCleared, seconds }) {
+  const cleared = lastCleared && winnerIds.length > 0;
+  const reached = game.wave + 1;
+  const best = (buildTestResult(game)?.rounds ?? []).reduce((a, r) => {
+    const ratio = r.maxHp > 0 ? Math.min(1, r.team.damage / r.maxHp) : 0;
+    return !a || ratio > a.ratio ? { ratio, round: r } : a;
+  }, null);
+  const zones = game.playerIds.length;
+  return game.humanIds.filter(id => !game.players[id].left).map(id => ({
+    playerId: id,
+    mode: 'relay',
+    zones,
+    waves,
+    difficulty,
+    livesMode: 'team',
+    playerCount: game.humanIds.length,
+    reachedWave: cleared ? waves : endless ? reached : Math.min(waves, reached),
+    cleared,
+    clearSeconds: cleared ? seconds : null,
+    finalDamage: best ? best.round.team.damage : null,
+    finalKilled: best ? best.round.team.killed : null,
+    damageRatio: best ? Math.round(best.ratio * 10000) / 10000 : null,
+  }));
+}
+
 // 打完最後一波：共用血量全隊贏；獨立血量比剩餘血量，同分並列
 function lastWaveWinners(game) {
   const alive = activeIds(game);
@@ -752,11 +856,15 @@ function lastWaveWinners(game) {
 
 // 中途的傷害測試依傷害比例發金幣，在進入下一波建造前入帳
 function rewardTest(game) {
+  // 環形接力：依隊伍總傷害發獎，每區拿到一樣的額度
+  const teamDamage = isRelay(game)
+    ? game.playerIds.reduce((n, id) => n + (game.players[id].stats.tests.find(t => t.at === game.testAt)?.damage ?? 0), 0)
+    : null;
   for (const id of activeIds(game)) {
     const p = game.players[id];
     const entry = p.stats.tests.find(t => t.at === game.testAt);
     if (!entry) continue;
-    entry.reward = C.testReward(entry.at, entry.damage, entry.maxHp);
+    entry.reward = C.testReward(entry.at, teamDamage ?? entry.damage, entry.maxHp);
     p.gold += entry.reward;
     p.stats.peakGold = Math.max(p.stats.peakGold, p.gold);
   }
@@ -765,11 +873,20 @@ function rewardTest(game) {
 function finishWave(game, { now, rng = Math.random }) {
   if (game.phase !== 'wave') return { finished: game.phase === 'finished' };
 
+  recordRelayEvents(game);
   bankWave(game);
   const winners = decidedWinners(game);
   if (winners) {
     finishGame(game, winners);
     return { finished: true };
+  }
+
+  // 開發測試的首領波：不推進波數、不發獎勵，打完回到建造；這局不列入排行榜
+  if (game.devBoss) {
+    game.devBoss = false;
+    game.tainted = true;
+    enterBuild(game, { now, rng });
+    return { finished: false };
   }
 
   // 傷害測試打完：中途的測試接著回到建造；最後一場用打完正式波次時就定下來的勝負結算
@@ -786,7 +903,7 @@ function finishWave(game, { now, rng = Math.random }) {
   }
 
   game.wave += 1;
-  const bonus = C.waveClearBonus(game.wave);
+  const bonus = Math.round(C.waveClearBonus(game.wave) * (isRelay(game) ? C.RELAY_CLEAR_BONUS_SHARE : 1));
   for (const id of activeIds(game)) {
     const p = game.players[id];
     p.gold += p.sim.earned + bonus + C.interestOn(p.gold);
@@ -811,8 +928,24 @@ function finishNow(game) {
   finishGame(game, []);
 }
 
+// 開發／測試：直接放出繞全圈的首領（只在環形接力的建造階段）。呼叫端接著開波
+function startBossWave(game) {
+  requireBuild(game);
+  if (!isRelay(game)) throw new GameError('BAD_PHASE', '只有環形接力可以測試首領波');
+  if (isTestWave(game)) throw new GameError('BAD_PHASE', '傷害測試前不能插入首領波');
+  game.devBoss = true;
+}
+
 // 玩家離開：他的地圖跟著收掉；回傳剩餘人數。波次中的勝負由下一次 tick 判定
+// 環形接力：環不收，他的區停止建造（塔繼續攻擊）；剩餘人數指還在場的真人
 function leavePlayer(game, playerId) {
+  if (isRelay(game)) {
+    if (!game.humanIds.includes(playerId) || game.players[playerId].left) return { changed: false, remaining: humansLeft(game), finished: false };
+    const p = game.players[playerId];
+    if (game.phase === 'build') autoResolve(game, playerId); // 手上的甜點先收尾，不留半成品
+    Object.assign(p, { left: true, bot: true, pending: [], resolved: true, ready: true, undo: [] });
+    return { changed: true, remaining: humansLeft(game), finished: false };
+  }
   if (!game.playerIds.includes(playerId)) return { changed: false, remaining: game.playerIds.length, finished: false };
   game.playerIds = game.playerIds.filter(id => id !== playerId);
   const winners = game.phase === 'build' && game.playerIds.length ? decidedWinners(game) : null;
@@ -872,11 +1005,19 @@ function buildView(game, viewerId, watchId) {
     const test = isTestWave(game);
     const number = test ? game.testAt : game.wave + 1;
     const def = test ? C.testWaveDef(game.testAt, game.options.difficulty, game.options.waves) : C.waveDef(number, game.options.waves, game.options.difficulty);
-    const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: g.hp, armor: Math.round(g.armor), trait: g.trait, leak: g.leak }));
-    return { number, type: def.type, count: def.count, hp: def.hp, armor: Math.round(def.armor), groups, test: !!def.test };
+    // 環形接力：每組的數量同單人，血量依區域數換算；首領與巨獸整隻繞圈（只有一隻）
+    const n = game.ring ? game.playerIds.length : 1;
+    const hpMult = (g) => {
+      if (!game.ring) return 1;
+      return C.MONSTERS[g.type].boss ? n * C.RELAY_BOSS_HP_MULT : C.RELAY_GROUP_HP_MULT;
+    };
+    const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: Math.max(1, Math.round(g.hp * hpMult(g))), armor: Math.round(g.armor), trait: g.trait, leak: g.leak }));
+    return { number, type: def.type, count: def.count, hp: groups[0].hp, armor: Math.round(def.armor), groups, test: !!def.test, perZone: !!game.ring && !C.MONSTERS[def.type].boss };
   })();
   const watching = resolveWatch(game, viewerId, watchId);
   const field = game.players[watching];
+  // 單一真人的環形接力：操作的是正在看的那一區
+  const actor = actorOf(game, viewerId, watching);
 
   return {
     phase: game.phase,
@@ -904,13 +1045,52 @@ function buildView(game, viewerId, watchId) {
         lives: livesPool(game, p).lives, out: p.out, gold: p.gold,
       }];
     })),
-    me: viewerId ? meView(game, viewerId) : null,
+    me: viewerId ? relayMe(game, viewerId, actor) : null,
+    relay: game.ring ? relayView(game, viewerId, watching) : null,
+  };
+}
+
+// 單一真人操作別區時，「準備」仍是自己那區的狀態（只有自己的區會擋開波）
+function relayMe(game, viewerId, actor) {
+  const me = meView(game, actor);
+  if (me && actor !== viewerId && game.players[viewerId]) me.ready = game.players[viewerId].ready;
+  return me && { ...me, zoneId: actor };
+}
+
+const flatPath = path => path.flatMap(c => [c.x, c.y]);
+// 環形接力的整圈資訊：排版、各區的塔（精簡成陣列）、路線、統計、事件。塔與路線全部都送，前端才畫得出整圈
+function relayView(game, viewerId, watching) {
+  const { layout, events } = game.ring;
+  const zones = game.playerIds.map((id, index) => {
+    const p = game.players[id];
+    return {
+      id, index, bot: p.bot, left: p.left, pathLength: Math.max(0, p.path.length - 1),
+      path: flatPath(p.path),
+      towers: p.towers.map(t => [t.id, t.x, t.y, t.kind, t.level, t.fresh ? 1 : 0, t.kills]),
+      stats: R.liveStats(p),
+    };
+  });
+  return {
+    n: layout.n,
+    layout: {
+      size: layout.size, radius: layout.radius, arcRadius: layout.arcRadius, bounds: layout.bounds,
+      zones: layout.zones.map(z => ({ cx: z.cx, cy: z.cy, origin: z.origin })),
+      conveyors: layout.conveyors.map(c => ({ from: c.from, to: c.to, points: c.points, length: c.length, arcFrom: c.arcFrom, arcTo: c.arcTo })),
+    },
+    zones,
+    events: events.slice(-C.RELAY_EVENT_SHOW),
+    operateAny: soloRelay(game) && game.humanIds.includes(viewerId), // 單一真人：可以切到任何一區操作
+    myZone: game.playerIds.indexOf(game.humanIds.includes(viewerId) ? viewerId : ''),
+    watchZone: game.playerIds.indexOf(watching),
+    canBossWave: game.phase === 'build' && !isTestWave(game),
   };
 }
 
 // 波次快照：每張地圖一份；players 是所有人的摘要，讓看別人地圖時也知道自己的進度
 // watched 給定時只組這些玩家的地圖（沒人看的地圖只清掉累積的射擊事件）
 function buildFrames(game, watched = null) {
+  // 環形接力：整圈只有一份快照，所有人收到同一份
+  if (isRelay(game) && game.ring.hub && game.playerIds.every(id => game.players[id].sim)) return { ring: R.buildRingFrame(game) };
   const ids = game.playerIds.filter(id => game.players[id].sim);
   const players = Object.fromEntries(ids.map((id) => {
     const p = game.players[id];
@@ -940,6 +1120,6 @@ module.exports = {
   buildRecords, upgradeQuality: undoable(upgradeQuality), rerollGems, rollGems, makeWish: undoable(makeWish),
   upgradeResearch: undoable(upgradeResearch), removeStone: undoable(removeStone), swapWithStone: undoable(swapWithStone),
   buyLife: undoable(buyLife),
-  setReady, allReady, autoResolve, startWave, setSpeed, setPaused, tick, finishWave, finishNow,
-  leavePlayer, resolveWatch, buildView, buildFrames,
+  setReady, allReady, autoResolve, startWave, setSpeed, setPaused, tick, finishWave, finishNow, startBossWave,
+  leavePlayer, resolveWatch, actorOf, buildView, buildFrames,
 };
