@@ -1688,7 +1688,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
       .gt-dock { gap: 12px; }
       .gt-dock-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 68px; height: 72px; }
       .gt-dock-label { display: block; font-size: 14px; line-height: 1; }
-      .gt-dock-cost { top: -8px; right: -6px; bottom: auto; left: auto; transform: none; }
+      .gt-dock-cost { top: -8px; right: -6px; bottom: auto; left: auto; transform: none; font-size: 14px; line-height: 20px; }
     }
     @media (pointer: coarse) { .gt-tray-hand .gt-panel-body > button { min-height: 44px; } }
   }
