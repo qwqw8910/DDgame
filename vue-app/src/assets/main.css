@@ -1761,6 +1761,29 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   }
 
 
+  /* ── 橫向小螢幕（高度 < 500px 的手機、小平板橫放）：地圖是左邊的正方形，用 sticky 釘住不跟著捲；
+     分頁、說明、操作都在右邊一欄往下排，還原＋準備固定在右欄最下面。
+     放在手機與平板規則之後，才蓋得過去。 ── */
+  @media (max-height: 500px) and (orientation: landscape) and (max-width: 1023px) {
+    .gt-game {
+      --gt-sq: calc(100dvh - 57px);
+      display: grid; grid-template-columns: var(--gt-sq) minmax(0, 1fr); grid-auto-rows: auto;
+      align-content: start; overflow-y: auto; overscroll-behavior: contain; padding: 0;
+    }
+    .gt-stage {
+      position: sticky; top: 0; z-index: 3; grid-column: 1; grid-row: 1 / span 40; align-self: start; order: 0;
+      width: var(--gt-sq); height: var(--gt-sq); padding: 4px; border-bottom: 0; background: none;
+    }
+    .gt-tabbar { position: static; grid-column: 2; order: 0; height: auto; border-bottom: 0; }
+    .gt-rail, .gt-rail-top, .gt-side { display: contents; }
+    .gt-rail-top > *, .gt-rail-top > .contents > *, .gt-side > * { grid-column: 2; margin: 8px 12px 0; max-width: none; order: 0; }
+    .gt-actions { display: flex; flex-direction: column; flex: none; padding-bottom: 84px; }
+    .gt-ready {
+      position: fixed; right: env(safe-area-inset-right); bottom: env(safe-area-inset-bottom); left: calc(var(--gt-sq) + env(safe-area-inset-left));
+      z-index: 4; margin: 0; padding: 8px 12px; border-top: 1px solid var(--gt-line); background: var(--gt-bg);
+    }
+  }
+
   /* 合成表：一律排在版面裡。電腦版放在左欄卡片內（卡片本體負責捲動）；手機與平板自己帶卡片外框 */
   .gt-recipes { color: var(--gt-text); }
   @media (max-width: 1023px) {
