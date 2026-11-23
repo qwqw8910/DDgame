@@ -124,7 +124,7 @@ async function jump(key) {
 .gt-dex-jump {
     display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px;
 }
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (min-width: 640px) and (orientation: portrait) {
     /* 電腦版內容在卡片裡捲動，跳階列釘在最上面 */
     .gt-dex-jump {
         position: sticky; top: -12px; z-index: 2; margin: -12px -14px 10px; padding: 10px 14px 8px;
@@ -145,5 +145,6 @@ async function jump(key) {
     flex-shrink: 0; width: 36px; height: 36px; border: 0; border-radius: 10px; background: transparent;
     color: var(--gt-muted); font-size: 22px; line-height: 1; cursor: pointer;
 }
+@media (pointer: coarse) { .gt-chip { min-height: 44px; padding: 2px 12px; } .gt-star { width: 44px; height: 44px; } }
 .gt-star[aria-pressed="true"] { color: #E5B400; }
 </style>

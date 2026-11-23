@@ -113,6 +113,7 @@ const merges = computed(() => (props.view.me ? mergeOptions(props.view.me, props
     flex-shrink: 0; width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent;
     color: var(--gt-muted); font-size: 20px; line-height: 1; cursor: pointer;
 }
+@media (pointer: coarse) { .gt-fav { width: 44px; height: 44px; margin: -6px; } }
 .gt-fav[aria-pressed="true"] { color: #E5B400; }
 .gt-fav:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
 </style>

@@ -6,8 +6,8 @@
             @pointerleave="hover = null" @wheel.prevent="onWheel" />
         <!-- 縮放：滾輪、雙指也可以；放大後拖曳平移 -->
         <div class="absolute top-2 right-2 flex flex-col gap-1" role="group" aria-label="地圖縮放">
-            <button class="gt-chip !min-h-10 !w-10 justify-center !px-0 text-xl font-bold" aria-label="放大地圖" title="放大" :disabled="zoom >= 5" @click="zoomBy(1.4)">＋</button>
-            <button class="gt-chip !min-h-10 !w-10 justify-center !px-0 text-xl font-bold" aria-label="縮小地圖" title="縮小" :disabled="zoom <= 1.01" @click="zoomBy(1 / 1.4)">－</button>
+            <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="放大地圖" title="放大" :disabled="zoom >= 5" @click="zoomBy(1.4)">＋</button>
+            <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="縮小地圖" title="縮小" :disabled="zoom <= 1.01" @click="zoomBy(1 / 1.4)">－</button>
         </div>
         <button v-if="zoom > 1.01" class="gt-chip absolute right-2 bottom-2" @click="resetView">看全圖</button>
     </div>
@@ -29,7 +29,7 @@ const props = defineProps({
     pendingGem: { type: Object, default: null }, // 目前要放下的甜點
     selectedId: { type: Number, default: null },
 })
-const emit = defineEmits(['cell', 'tower', 'clear'])
+const emit = defineEmits(['cell', 'tower', 'clear', 'arm'])
 
 const wrapRef = ref(null)
 const canvasRef = ref(null)
@@ -37,6 +37,10 @@ const zoom = ref(1)
 const hover = ref(null)
 const armed = ref(null) // 手機：第一次點選的格子
 const placing = computed(() => !!props.pendingGem)
+// 預覽中的格子交給外面（底部操作列顯示「放在這裡」）；放下一顆、或回合結束就不再預覽
+watch(armed, c => emit('arm', c ? { x: c.x, y: c.y } : null))
+watch(() => [props.view.phase, props.view.me?.pending?.length ?? 0, props.view.watching], () => { armed.value = null })
+defineExpose({ disarm: () => { armed.value = null } })
 
 let ctx = null
 let size = 0

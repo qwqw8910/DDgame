@@ -1,5 +1,5 @@
 <template>
-    <div class="gt-root flex h-[100dvh] w-full flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
+    <div class="gt-root flex h-[100dvh] w-full flex-col overflow-hidden pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
         <ConnectionBanner :connected="roomState.connected" :active="roomState.inRoom" />
 
         <header class="flex shrink-0 items-center justify-between gap-3 border-b border-(--gt-line) px-3 py-1.5">
@@ -186,9 +186,9 @@
 
             <div class="gt-center">
                 <section class="gt-stage" aria-label="地圖">
-                    <GemBoard :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
+                    <GemBoard ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
                         :pending-gem="pendingGem" :selected-id="selectedId"
-                        @cell="onCell" @tower="onTower" @clear="clearSelection" />
+                        @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" />
                 </section>
                 <!-- 電腦版托盤：本回合甜點、還原、準備搬到地圖正下方（GemPanel 用 Teleport 放進來） -->
                 <div class="gt-tray" aria-label="本回合操作">
@@ -200,7 +200,7 @@
 
             <!-- 手機專用分頁列：電腦與平板不顯示 -->
             <nav class="gt-tabbar hidden max-sm:flex" aria-label="操作分頁">
-                <button v-for="t in PHONE_TABS" :key="t.id" class="gt-phonetab" :aria-pressed="phoneTab === t.id" @click="phoneTab = t.id">{{ t.label }}<span v-if="t.id === 'recipes' && readyFavs" class="gt-dot ml-1" aria-hidden="true" /><span v-if="t.id === 'recipes' && readyFavs" class="sr-only">，最愛有 {{ readyFavs }} 種可以合成</span></button>
+                <button v-for="t in PHONE_TABS" :key="t.id" class="gt-phonetab" :aria-pressed="phoneTab === t.id" @click="phoneTab = t.id">{{ t.label }}<span v-if="t.id === 'shop' && shopAfford" class="gt-dot gt-dot--corner" aria-hidden="true" /><span v-if="t.id === 'shop' && shopAfford" class="sr-only">，有東西買得起</span><span v-if="t.id === 'recipes' && readyFavs" class="gt-dot ml-1" aria-hidden="true" /><span v-if="t.id === 'recipes' && readyFavs" class="sr-only">，最愛有 {{ readyFavs }} 種可以合成</span></button>
             </nav>
 
             <nav ref="dockEl" class="gt-dock" aria-label="商店" />
@@ -210,7 +210,8 @@
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
                 <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
-                    :hand-target="isTray ? trayHandEl : null" :preview-target="isTray ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="isTray ? dockEl : null" :ring="ring"
+                    :hand-target="isTray ? trayHandEl : null" :preview-target="isTray && isLg ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="isTray ? dockEl : null" :ring="ring" :armed-cell="armedCell"
+                    @place-armed="placeArmed" @cancel-armed="boardRef?.disarm()"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
                     @combine="onCombine" @ready="ready" @undo="() => { undo(); clearSelection() }" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
@@ -294,7 +295,7 @@ import GemVolumePanel from '../components/GemVolumePanel.vue'
 import GemWaveInfo from '../components/GemWaveInfo.vue'
 import GemTestBoard from '../components/GemTestBoard.vue'
 import GemSection from '../components/GemSection.vue'
-import { desktop as layoutDesktop } from '../composables/useGemLayout.js'
+import { desktop as layoutDesktop, lgLayout } from '../composables/useGemLayout.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -309,13 +310,16 @@ const { playSfx, isSfxMuted, toggleSfxMute } = useGemTdSfx()
 const guide = useGameGuide('gem-td-guide-seen')
 const view = computed(() => state.view)
 const inGame = computed(() => !!state.catalog && ['build', 'wave'].includes(view.value?.phase))
-// 電腦版（≥1024px）：三欄固定版面，合成表一直排在左欄
-const wideQuery = window.matchMedia('(min-width: 1024px)')
+// 寬版：電腦（≥1024px）和直放的平板（≥640px、高比寬長）。地圖下方有操作列、右邊有圖示列，合成表一直排在左欄。
+// 跟 main.css 的寬版 media query 一致；窄版（手機、橫放的小平板）是上下堆疊
+const wideQuery = window.matchMedia('(min-width: 1024px), (min-width: 640px) and (orientation: portrait)')
 const isWide = ref(wideQuery.matches)
-// ≥1280px 才有地圖下方托盤與右側圖示列；1024～1279 維持三欄
-const trayQuery = window.matchMedia('(min-width: 1280px)')
-const isTray = ref(trayQuery.matches)
-trayQuery.addEventListener('change', (e) => { isTray.value = e.matches })
+const isTray = isWide
+// 數值預覽放進操作列要 ≥1024px 才放得下；直放的平板排在右邊那塊
+const lgQuery = window.matchMedia('(min-width: 1024px)')
+const isLg = ref(lgQuery.matches)
+lgLayout.value = isLg.value
+lgQuery.addEventListener('change', (e) => { isLg.value = e.matches; lgLayout.value = e.matches })
 const isSolo = computed(() => (view.value?.playerIds?.length ?? 0) === 1 && !roomState.isSpectator)
 layoutDesktop.value = isWide.value
 const onWideChange = (e) => { isWide.value = e.matches; layoutDesktop.value = e.matches }
@@ -353,6 +357,15 @@ const PHONE_TABS = [
 const phoneTab = ref('place')
 const phoneShow = (...tabs) => (tabs.includes(phoneTab.value) ? '' : 'max-sm:hidden')
 const menuOpen = ref(false)
+// 商店分頁的提示點：品質升級或補血買得起（跟電腦版右欄「商店」頁簽的點同一個條件）
+const shopAfford = computed(() => {
+    const me = view.value?.me
+    if (view.value?.phase !== 'build' || !me || me.out) return false
+    const quality = state.catalog.qualityCosts[me.quality - 1]
+    const lives = view.value.players[roomState.myPlayerId]?.lives ?? 0
+    const life = !view.value.nextWave?.test && lives < view.value.maxLives && me.gold >= me.lifeCost
+    return (!!quality && me.gold >= quality) || life
+})
 
 // 傷害測試紀錄彈窗：加賽打完、回到建造階段時，有新的紀錄就自動打開一次
 // （最後一場直接看結算畫面，不另外跳）。中途加入的人不補跳已經打完的紀錄
@@ -399,6 +412,14 @@ function clearSelection() {
 function onCell(x, y) {
     if (activeSlot.value === null || !mine.value) return
     place(activeSlot.value, x, y)
+}
+
+const boardRef = ref(null)
+const armedCell = ref(null)
+function placeArmed() {
+    const c = armedCell.value
+    boardRef.value?.disarm()
+    if (c) onCell(c.x, c.y)
 }
 
 function onSelectSlot(slot) {
