@@ -4,6 +4,11 @@
             role="img" aria-label="遊戲地圖"
             @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp"
             @pointerleave="hover = null" @wheel.prevent="onWheel" />
+        <!-- 縮放：滾輪、雙指也可以；放大後拖曳平移 -->
+        <div class="absolute top-2 right-2 flex flex-col gap-1" role="group" aria-label="地圖縮放">
+            <button class="gt-chip !min-h-10 !w-10 justify-center !px-0 text-xl font-bold" aria-label="放大地圖" title="放大" :disabled="zoom >= 5" @click="zoomBy(1.4)">＋</button>
+            <button class="gt-chip !min-h-10 !w-10 justify-center !px-0 text-xl font-bold" aria-label="縮小地圖" title="縮小" :disabled="zoom <= 1.01" @click="zoomBy(1 / 1.4)">－</button>
+        </div>
         <button v-if="zoom > 1.01" class="gt-chip absolute right-2 bottom-2" @click="resetView">看全圖</button>
     </div>
 </template>
@@ -13,6 +18,7 @@
 // 手機點一下先預覽、同一格再點一下才放；滑鼠直接放。雙指或滾輪縮放，放大後拖曳平移。
 import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
 import { CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
+import { fullPathLength } from '../data/pathing.js'
 import { spawnHit, spawnDeath, clearFx, drawFx, hasFx } from '../composables/usePixelFx.js'
 
 const props = defineProps({
@@ -77,6 +83,8 @@ function resetView() {
     panY = 0
     invalidate()
 }
+
+function zoomBy(factor) { zoomAt(factor, size / 2, size / 2) }
 
 function zoomAt(factor, cx, cy) {
     const next = Math.min(5, Math.max(1, zoom.value * factor))
@@ -760,8 +768,37 @@ function drawOverlays(view, cell) {
     if (gem && ghost && !view.towers.some(t => t.x === ghost.x && t.y === ghost.y)) {
         const cx = (ghost.x + 0.5) * cell
         const cy = (ghost.y + 0.5) * cell
-        drawRange(gem.kind, gem.level, cx, cy, cell, GEM_LOOK[gem.kind].color)
-        drawGem(gem.kind, gem.level, cx, cy, cell, 0.75)
+        // 路線預覽：放這格路線變長幾格；會封路就標紅
+        const { board } = view
+        const onStop = [board.start, board.end, ...board.checkpoints].some(p => p.x === ghost.x && p.y === ghost.y)
+        const inside = ghost.x >= 0 && ghost.y >= 0 && ghost.x < board.width && ghost.y < board.height
+        let label = ''
+        let blocked = false
+        if (inside && !onStop) {
+            const taken = new Set(view.towers.map(t => t.y * board.width + t.x))
+            const now = fullPathLength(board, (x, y) => taken.has(y * board.width + x))
+            const next = fullPathLength(board, (x, y) => taken.has(y * board.width + x) || (x === ghost.x && y === ghost.y))
+            blocked = next < 0
+            label = blocked ? '封路，不能放' : `路線 ${next - now >= 0 ? '+' : ''}${next - now}`
+        }
+        if (blocked) {
+            ctx.fillStyle = 'rgba(214,48,90,0.35)'
+            ctx.fillRect(ghost.x * cell, ghost.y * cell, cell, cell)
+        } else {
+            drawRange(gem.kind, gem.level, cx, cy, cell, GEM_LOOK[gem.kind].color)
+            drawGem(gem.kind, gem.level, cx, cy, cell, 0.75)
+        }
+        if (label) {
+            ctx.font = `700 ${Math.max(11, cell * 0.5)}px sans-serif`
+            ctx.textAlign = 'left'
+            ctx.textBaseline = 'bottom'
+            const tx = Math.min((ghost.x + 1.1) * cell, size / zoom.value - cell * 6)
+            ctx.lineWidth = Math.max(3, cell * 0.16)
+            ctx.strokeStyle = '#4A2C2A'
+            ctx.strokeText(label, tx, ghost.y * cell)
+            ctx.fillStyle = blocked ? '#FF9AA8' : '#FFFFFF'
+            ctx.fillText(label, tx, ghost.y * cell)
+        }
     }
 }
 

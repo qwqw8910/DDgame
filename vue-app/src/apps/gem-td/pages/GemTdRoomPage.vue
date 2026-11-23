@@ -159,17 +159,21 @@
                 <!-- 電腦版：上面是玩家與波次（依內容高度），下面的合成表吃掉剩下的高度，各自捲動 -->
                 <div class="gt-rail-top">
 
+                    <Teleport :to="sideTopEl" :disabled="!isTray || !sideTopEl">
                     <GemSection v-if="view.playerIds.length > 1" title="玩家" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="玩家">
                         <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
                     </GemSection>
+                    </Teleport>
                     <!-- 看別人的地圖：提示放在左欄，不疊在地圖上 -->
                     <div v-if="!mine" class="gt-card flex flex-col gap-2" :class="phoneShow('place', 'tower')" role="status">
                         <p class="m-0">正在看 <b class="text-(--gt-ink)">{{ watchingName }}</b> 的地圖，不能操作。</p>
                         <button v-if="view.me" class="gt-btn gt-btn--small w-full" @click="watchMap(roomState.myPlayerId)">回到我的地圖</button>
                     </div>
 
+                    <Teleport :to="sideTopEl" :disabled="!isTray || !sideTopEl">
                     <GemWaveInfo :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
+                    </Teleport>
                     <!-- 手機標題列放不下暫停，留在「戰況」分頁；電腦與平板在標題列 -->
                     <button v-if="isSolo && (view.phase === 'build' || view.phase === 'wave')" class="gt-btn gt-btn--small w-full sm:hidden" :class="phoneShow('status')" aria-keyshortcuts="P" @click="setPaused(true)">
                         暫停<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">P</kbd>
@@ -180,21 +184,33 @@
                 <GemCodex v-if="isWide" :view="view" :catalog="state.catalog" :meta="recipeMeta" @combine="onCombine" />
             </aside>
 
-            <section class="gt-stage" aria-label="地圖">
-                <GemBoard :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
-                    :pending-gem="pendingGem" :selected-id="selectedId"
-                    @cell="onCell" @tower="onTower" @clear="clearSelection" />
-            </section>
+            <div class="gt-center">
+                <section class="gt-stage" aria-label="地圖">
+                    <GemBoard :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
+                        :pending-gem="pendingGem" :selected-id="selectedId"
+                        @cell="onCell" @tower="onTower" @clear="clearSelection" />
+                </section>
+                <!-- 電腦版托盤：本回合甜點、還原、準備搬到地圖正下方（GemPanel 用 Teleport 放進來） -->
+                <div class="gt-tray" aria-label="本回合操作">
+                    <div ref="trayHandEl" class="gt-tray-hand" />
+                    <div ref="trayPrevEl" class="gt-tray-prev" />
+                    <div ref="trayActEl" class="gt-tray-act" />
+                </div>
+            </div>
 
             <!-- 手機專用分頁列：電腦與平板不顯示 -->
             <nav class="gt-tabbar hidden max-sm:flex" aria-label="操作分頁">
                 <button v-for="t in PHONE_TABS" :key="t.id" class="gt-phonetab" :aria-pressed="phoneTab === t.id" @click="phoneTab = t.id">{{ t.label }}<span v-if="t.id === 'recipes' && readyFavs" class="gt-dot ml-1" aria-hidden="true" /><span v-if="t.id === 'recipes' && readyFavs" class="sr-only">，最愛有 {{ readyFavs }} 種可以合成</span></button>
             </nav>
 
+            <nav ref="dockEl" class="gt-dock" aria-label="商店" />
+
             <aside class="gt-side" aria-label="操作">
+                <div ref="sideTopEl" class="gt-side-top" />
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
                 <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
+                    :hand-target="isTray ? trayHandEl : null" :preview-target="isTray ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="isTray ? dockEl : null" :ring="ring"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
                     @combine="onCombine" @ready="ready" @undo="() => { undo(); clearSelection() }" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
@@ -296,12 +312,21 @@ const inGame = computed(() => !!state.catalog && ['build', 'wave'].includes(view
 // 電腦版（≥1024px）：三欄固定版面，合成表一直排在左欄
 const wideQuery = window.matchMedia('(min-width: 1024px)')
 const isWide = ref(wideQuery.matches)
+// ≥1280px 才有地圖下方托盤與右側圖示列；1024～1279 維持三欄
+const trayQuery = window.matchMedia('(min-width: 1280px)')
+const isTray = ref(trayQuery.matches)
+trayQuery.addEventListener('change', (e) => { isTray.value = e.matches })
 const isSolo = computed(() => (view.value?.playerIds?.length ?? 0) === 1 && !roomState.isSpectator)
 layoutDesktop.value = isWide.value
 const onWideChange = (e) => { isWide.value = e.matches; layoutDesktop.value = e.matches }
 wideQuery.addEventListener('change', onWideChange)
 // 平板：合成表的開關；打開時捲到它的位置
 const showRecipes = ref(false)
+const trayHandEl = ref(null)
+const trayActEl = ref(null)
+const dockEl = ref(null)
+const trayPrevEl = ref(null)
+const sideTopEl = ref(null)
 watch(showRecipes, (open) => {
     if (open) nextTick(() => document.getElementById('gt-recipes')?.scrollIntoView({ block: 'start' }))
 })
@@ -470,6 +495,12 @@ const secondsLeft = computed(() => {
     const ends = view.value?.buildEndsAt
     if (!ends) return null
     return Math.max(0, Math.ceil((ends - (nowTick.value + state.clockOffset)) / 1000))
+})
+
+// 準備鈕外圈：建造倒數剩下的比例；沒有倒數時為 null（整圈）
+const ring = computed(() => {
+    const total = view.value?.options?.buildSeconds
+    return secondsLeft.value !== null && total ? Math.min(1, secondsLeft.value / total) : null
 })
 
 useGemTdCues({ view: () => state.view, frame, myId: () => roomState.myPlayerId, secondsLeft })
