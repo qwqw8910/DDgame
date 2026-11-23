@@ -251,7 +251,7 @@ const waveClearBonus = wave => 8 + 2 * wave;
 
 // ── 環形接力 ────────────────────────────────────────────────────
 // 每組蟲的血量 = 單人同一波 × 這個倍數；首領與巨獸整隻繞完整圈，血量 × 區域數 × 這個倍數
-const RELAY_GROUP_HP_MULT = 1.0;
+const RELAY_GROUP_HP_MULT = 1.3; // balanceSim relay 實測：1.0 → 約 0.55 倍單人漏怪率（太輕鬆），1.3 → 約 0.69 倍
 const RELAY_BOSS_HP_MULT = 0.8;
 // 過關獎勵：每區拿到同樣的額度（總額 = 單人獎勵 × 區域數，平分後每區等於單人獎勵）；擊殺金則歸實際擊殺的那一區
 const RELAY_CLEAR_BONUS_SHARE = 1;
