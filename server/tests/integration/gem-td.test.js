@@ -266,3 +266,43 @@ test('唯一的玩家離開 → 本局中止回大廳，計時器清掉', async 
   await until(() => games[roomId].phase === 'waiting', 'reset');
   assert.equal(games[roomId]._timer, null);
 });
+
+test('環形接力：單一真人帶假人，切到別區操作、整圈一份快照、首領波按鈕', async () => {
+  const roomId = 'GT0007';
+  const [a] = await makeRoom(roomId, ['r']);
+  emit(roomId, a, 'gt:set-options', { options: { mode: 'relay', zones: 3, buildSeconds: 0, waves: 15, livesMode: 'solo' } });
+  await until(() => a.view.options.mode === 'relay', 'relay options');
+  assert.equal(a.view.options.livesMode, 'team', '環形接力強制共用血量');
+  emit(roomId, a, 'gt:start');
+  await until(() => a.view.phase === 'build', 'build');
+  assert.equal(a.view.relay.n, 3);
+  assert.equal(a.view.playerIds.length, 3);
+  assert.equal(a.view.relay.operateAny, true);
+
+  // 切到區 2（假人）操作：放甜點會放在那一區
+  const botId = a.view.playerIds[1];
+  emit(roomId, a, 'gt:watch', { targetId: botId });
+  await until(() => a.view.watching === botId, 'watching bot zone');
+  assert.equal(a.view.me.zoneId, botId);
+  emit(roomId, a, 'gt:place', { slot: a.view.me.pending[0].slot, x: 5, y: 5 });
+  await until(() => a.view.relay.zones[1].towers.length === 1, 'tower placed in zone 2');
+  assert.equal(a.view.relay.zones[0].towers.length, 0, '自己的區沒有被動到');
+
+  // 自己的區放完保留 → 準備 → 開波（假人的區由伺服器代選）
+  emit(roomId, a, 'gt:watch', { targetId: a.id });
+  await until(() => a.view.watching === a.id, 'back home');
+  await placeAndKeep(roomId, a, 5);
+  emit(roomId, a, 'gt:ready');
+  await until(() => a.view.phase === 'wave', 'wave');
+  await until(() => a.frames.some(f => f.ring && f.m.length), 'ring frame');
+  assert.equal(a.frames.find(f => f.ring).owner, null);
+
+  // 首領波：不推進波數
+  for (const p of Object.values(games[roomId].players)) { p.sim.def.count = 0; p.sim.monsters = []; }
+  await until(() => a.view.phase === 'build', 'wave over');
+  const wave = a.view.wave;
+  emit(roomId, a, 'gt:boss-wave');
+  await until(() => a.view.phase === 'wave', 'boss wave');
+  assert.equal(games[roomId].devBoss, true);
+  assert.equal(a.view.wave, wave, '首領波不推進波數');
+});
