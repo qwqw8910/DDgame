@@ -80,7 +80,7 @@
             <h3 class="gt-heading">留下一個，其餘變成餅乾牆</h3>
             <p v-if="keys" class="mt-0 mb-2 text-(--gt-muted)">按 <kbd class="gt-kbd">1</kbd>～<kbd class="gt-kbd">5</kbd> 選，<kbd class="gt-kbd">K</kbd> 保留，<kbd class="gt-kbd">M</kbd> 合成</p>
             <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
-                <li v-for="(f, i) in freshRows" :key="f.id" class="gt-row" :class="{ 'gt-row--on': f.id === selectedId }">
+                <li v-for="(f, i) in freshRows" :key="f.id" class="gt-row max-sm:!py-0.5" :class="{ 'gt-row--on': f.id === selectedId }">
                     <button class="gt-plain flex min-h-11 min-w-0 flex-1 items-center gap-2 p-0 text-left"
                         :aria-keyshortcuts="String(i + 1)" @click="$emit('select-tower', f.tower)">
                         <kbd v-if="keys" class="gt-kbd" aria-hidden="true">{{ i + 1 }}</kbd>
@@ -97,12 +97,12 @@
              還原：放置、保留、合成、拆除、換位、商店都能還原，金幣一併退回；重骰與按準備後不行。
              準備：手機與平板放完、選完才出現；電腦版整個建造階段都釘在右欄底部，還沒放完時是灰的並說明還差什麼 -->
         <Teleport :to="actTarget" :disabled="!actTarget || !desktop">
-        <GemSection v-if="phase === 'build' && me && !me.out" bare title="操作" class="gt-ready" :class="tabClass('place')" :style="{ '--p': ring ?? 1 }">
+        <GemSection v-if="phase === 'build' && me && !me.out" bare title="操作" class="gt-ready" :style="{ '--p': ring ?? 1 }">
             <div class="flex gap-2">
-                <button class="gt-btn gt-btn--hero shrink-0" :class="!me.resolved && 'max-lg:flex-1'" :disabled="!me.canUndo" aria-keyshortcuts="Z" aria-label="還原上一步" title="還原上一步" @click="$emit('undo')">
+                <button class="gt-btn gt-btn--hero shrink-0" :class="!me.resolved && 'sm:max-lg:flex-1'" :disabled="!me.canUndo" aria-keyshortcuts="Z" aria-label="還原上一步" title="還原上一步" @click="$emit('undo')">
                     <span aria-hidden="true">↩ 還原</span><kbd v-if="keys && me.canUndo" class="gt-kbd ml-2 max-xl:hidden" aria-hidden="true">Z</kbd>
                 </button>
-                <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" :class="!me.resolved && 'max-lg:hidden'" :disabled="me.ready || !me.resolved" aria-keyshortcuts="R" @click="$emit('ready')">
+                <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" :class="!me.resolved && 'sm:max-lg:hidden'" :disabled="me.ready || !me.resolved" aria-keyshortcuts="R" @click="$emit('ready')">
                     {{ readyLabel }}<kbd v-if="keys && me.resolved && !me.ready" class="gt-kbd ml-2" aria-hidden="true">R</kbd>
                 </button>
             </div>

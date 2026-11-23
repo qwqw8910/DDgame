@@ -1729,8 +1729,8 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
      rail / side 改 display: contents，讓裡面的區塊直接排進 .gt-game，再用 order 排順序。 ── */
   @media (max-width: 639px) {
     .gt-game {
-      --gt-stage: min(100vw, calc(100dvh - 57px - 48px - 240px)); --gt-tabbar: 48px;
-      flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 16px;
+      --gt-stage: min(100vw, calc(100dvh - 57px - 48px - 300px)); --gt-tabbar: 48px;
+      flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 0;
     }
     .gt-rail, .gt-rail-top, .gt-side { display: contents; }
     .gt-rail-top > *, .gt-rail-top > .contents > *, .gt-side > * { order: 5; margin: 12px 12px 0; max-width: calc(100% - 24px); }
@@ -1748,6 +1748,16 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     }
     .gt-phonetab[aria-pressed="true"] { border: 2px solid var(--gt-accent); background: var(--gt-accent-soft); color: var(--gt-accent-ink); font-weight: 700; }
     .gt-phonetab:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
+    .gt-phonetab { position: relative; }
+    .gt-phonetab .gt-dot--corner { top: 4px; right: 4px; }
+    /* 內容區撐滿剩下的高度，底部操作列（還原＋準備）釘在畫面最下面，單手拇指按得到；
+       內容不夠長時靠 margin-top:auto 貼底，夠長時靠 sticky 釘住 */
+    .gt-actions { flex: 1 0 auto; padding-bottom: 12px; }
+    .gt-ready {
+      position: sticky; bottom: 0; z-index: 4; order: 99; margin: auto -12px -12px; padding: 8px 12px;
+      border-top: 1px solid var(--gt-line); background: var(--gt-bg);
+    }
+    .gt-ready .gt-btn--hero { font-size: 16px; line-height: 1.25; }
   }
 
 

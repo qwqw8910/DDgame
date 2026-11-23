@@ -200,7 +200,7 @@
 
             <!-- 手機專用分頁列：電腦與平板不顯示 -->
             <nav class="gt-tabbar hidden max-sm:flex" aria-label="操作分頁">
-                <button v-for="t in PHONE_TABS" :key="t.id" class="gt-phonetab" :aria-pressed="phoneTab === t.id" @click="phoneTab = t.id">{{ t.label }}<span v-if="t.id === 'recipes' && readyFavs" class="gt-dot ml-1" aria-hidden="true" /><span v-if="t.id === 'recipes' && readyFavs" class="sr-only">，最愛有 {{ readyFavs }} 種可以合成</span></button>
+                <button v-for="t in PHONE_TABS" :key="t.id" class="gt-phonetab" :aria-pressed="phoneTab === t.id" @click="phoneTab = t.id">{{ t.label }}<span v-if="t.id === 'shop' && shopAfford" class="gt-dot gt-dot--corner" aria-hidden="true" /><span v-if="t.id === 'shop' && shopAfford" class="sr-only">，有東西買得起</span><span v-if="t.id === 'recipes' && readyFavs" class="gt-dot ml-1" aria-hidden="true" /><span v-if="t.id === 'recipes' && readyFavs" class="sr-only">，最愛有 {{ readyFavs }} 種可以合成</span></button>
             </nav>
 
             <nav ref="dockEl" class="gt-dock" aria-label="商店" />
@@ -353,6 +353,15 @@ const PHONE_TABS = [
 const phoneTab = ref('place')
 const phoneShow = (...tabs) => (tabs.includes(phoneTab.value) ? '' : 'max-sm:hidden')
 const menuOpen = ref(false)
+// 商店分頁的提示點：品質升級或補血買得起（跟電腦版右欄「商店」頁簽的點同一個條件）
+const shopAfford = computed(() => {
+    const me = view.value?.me
+    if (view.value?.phase !== 'build' || !me || me.out) return false
+    const quality = state.catalog.qualityCosts[me.quality - 1]
+    const lives = view.value.players[roomState.myPlayerId]?.lives ?? 0
+    const life = !view.value.nextWave?.test && lives < view.value.maxLives && me.gold >= me.lifeCost
+    return (!!quality && me.gold >= quality) || life
+})
 
 // 傷害測試紀錄彈窗：加賽打完、回到建造階段時，有新的紀錄就自動打開一次
 // （最後一場直接看結算畫面，不另外跳）。中途加入的人不補跳已經打完的紀錄
