@@ -22,6 +22,15 @@ export const DIFFICULTY_CHOICES = [
   { value: 'hard', label: '困難（怪物非常硬，適合迷宮高手）' },
 ]
 
+// 遊戲模式：環形接力的區域數不等於真人數（單一真人時其餘區域由電腦控制）
+export const MODE_CHOICES = [
+  { value: 'single', label: '一般（每人一張地圖）' },
+  { value: 'relay', label: '環形接力（多區域排成一圈，蟲群主防後傳給下一區）' },
+]
+export const ZONE_CHOICES = [1, 2, 3, 4, 5, 6].map(n => ({ value: n, label: n === 1 ? '1 區（等同單人）' : `${n} 區` }))
+// 環形接力每區的代表色（伺服器的 catalog.relay.colors 為準，這裡是沒收到型錄時的備用）
+export const ZONE_COLORS = ['#D6305A', '#2F7FD1', '#2E9E5B', '#D9A21F', '#7C4DCC', '#E8741E']
+
 export const SPEEDS = [1, 2, 4]
 export const nextSpeed = cur => SPEEDS[(SPEEDS.indexOf(cur) + 1) % SPEEDS.length]
 

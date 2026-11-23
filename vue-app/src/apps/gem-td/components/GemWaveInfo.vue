@@ -46,8 +46,19 @@ const waveMeta = computed(() => {
     const n = props.view.nextWave
     if (props.view.phase === 'wave') return `${props.view.speed}×`
     if (!n || n.test) return ''
-    return `共 ${(n.groups ?? []).reduce((a, g) => a + g.count, 0)} 隻`
+    const total = (n.groups ?? []).reduce((a, g) => a + g.count, 0)
+    return n.perZone ? `每區 ${total} 隻` : `共 ${total} 隻`
 })
-const watched = computed(() => props.frame?.players[props.view.watching] ?? null)
-const watchedLabel = computed(() => (props.view.watching === props.myId ? '' : `${props.view.names?.[props.view.watching] ?? '玩家'}：`))
+// 環形接力：蟲在區與區之間流動，進度算全隊的加總
+const watched = computed(() => {
+    if (props.frame?.ring) {
+        const sum = key => Object.values(props.frame.players).reduce((n, p) => n + p[key], 0)
+        return { killed: sum('killed'), leaked: sum('leaked'), damage: sum('damage') }
+    }
+    return props.frame?.players[props.view.watching] ?? null
+})
+const watchedLabel = computed(() => {
+    if (props.frame?.ring) return '全隊'
+    return props.view.watching === props.myId ? '' : `${props.view.names?.[props.view.watching] ?? '玩家'}：`
+})
 </script>

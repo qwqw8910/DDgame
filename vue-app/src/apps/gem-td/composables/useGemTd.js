@@ -45,7 +45,8 @@ let _currentRoom = null
 let _reconnectListenerAttached = false
 
 function applyView(view) {
-  const switched = view.watching !== gem.view?.watching
+  // 環形接力整圈只有一份快照，切換視角不必清掉
+  const switched = !view.relay && view.watching !== gem.view?.watching
   gem.view = view
   if (view.serverNow) gem.clockOffset = view.serverNow - Date.now()
   if (view.phase !== 'wave' || switched) frame.value = null
@@ -58,7 +59,7 @@ function registerGameHandlers(socket) {
   socket.on('gt:state', applyView)
   socket.on('gt:catalog', (catalog) => { gem.catalog = catalog })
   // 切換視角的瞬間可能還收到舊地圖的快照
-  socket.on('gt:frame', (f) => { if (f.owner === gem.view?.watching) frame.value = f })
+  socket.on('gt:frame', (f) => { if (f.ring || f.owner === gem.view?.watching) frame.value = f })
   socket.on('gt:notice', ({ message }) => { gem.notice = message })
   socket.on('gt:error', ({ code, message }) => {
     gem.error = message
@@ -136,6 +137,7 @@ export function useGemTd() {
     ready:          () => emit('gt:ready'),
     setSpeed:       (speed) => emit('gt:set-speed', { speed }),
     setPaused:      (paused) => emit('gt:set-paused', { paused }),
+    bossWave:       () => emit('gt:boss-wave'),
     finishNow:      () => emit('gt:finish-now'),
     restart:        () => emit('gt:restart'),
     clearError()  { gem.error = ''; gem.errorCode = '' },

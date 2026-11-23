@@ -163,7 +163,9 @@ function buildRingFrame(game) {
   const e = hub.fx;
   hub.fx = [];
   const lead = game.players[ids[0]].sim;
-  return { ring: true, owner: null, wave: lead.wave, total: ids.reduce((n, id) => n + game.players[id].sim.def.count + game.players[id].sim.splits, 0), players, m, s, e };
+  // zs：各區的累計統計（分區統計表在波次中即時更新）
+  const zs = ids.map(id => liveStats(game.players[id]));
+  return { ring: true, owner: null, zs, wave: lead.wave, total: ids.reduce((n, id) => n + game.players[id].sim.def.count + game.players[id].sim.splits, 0), players, m, s, e };
 }
 
 module.exports = { createHub, stepTransit, waveClear, bankStats, liveStats, blankStats, recordWaveEvents, buildRingFrame, zoneLabel };

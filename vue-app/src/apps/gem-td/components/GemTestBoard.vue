@@ -8,6 +8,11 @@
                 <span>第 {{ r.at }} 波後</span>
                 <span class="tabular-nums" :title="`巨獸血量 ${r.maxHp.toLocaleString()}`">巨獸 {{ compact(r.maxHp) }} 血</span>
             </p>
+            <!-- 環形接力：一隻巨獸繞完整圈，各區傷害加總才是隊伍成績，下面列出每區的貢獻 -->
+            <p v-if="r.team" class="m-0 mb-1.5 flex flex-wrap items-baseline justify-between gap-x-2 tabular-nums">
+                <b class="text-(--gt-ink)">隊伍合計 {{ compact(r.team.damage) }}</b>
+                <span class="text-xs" :class="r.team.killed ? 'font-semibold text-(--gt-accent-ink)' : 'text-(--gt-muted)'">{{ r.team.killed ? `擊倒 ${r.team.seconds} 秒` : `${Math.min(100, Math.round((r.team.damage / r.maxHp) * 100))}%` }}</span>
+            </p>
             <ol class="m-0 flex list-none flex-col gap-2 p-0">
                 <li v-for="(t, i) in r.rows" :key="t.id" class="min-w-0">
                     <div class="flex items-baseline gap-2">
@@ -15,10 +20,11 @@
                         <b class="shrink-0 font-semibold text-(--gt-ink) tabular-nums" :title="`${t.damage.toLocaleString()} 傷害`">{{ compact(t.damage) }}</b>
                     </div>
                     <div class="mt-0.5 h-1.5 overflow-hidden rounded-full bg-(--gt-line-soft)" aria-hidden="true">
-                        <div class="h-full rounded-full" :class="t.killed ? 'bg-(--gt-accent)' : 'bg-(--gt-faint)'" :style="{ width: `${pct(t, r.maxHp)}%` }" />
+                        <div class="h-full rounded-full" :class="t.killed && !r.team ? 'bg-(--gt-accent)' : 'bg-(--gt-faint)'" :style="{ width: `${pct(t, r.maxHp, r.team)}%` }" />
                     </div>
                     <p class="m-0 mt-0.5 flex flex-wrap gap-x-2 text-xs text-(--gt-muted) tabular-nums">
-                        <span v-if="t.killed" class="font-semibold text-(--gt-accent-ink)">擊倒 {{ t.seconds }} 秒</span>
+                        <span v-if="r.team">佔隊伍 {{ r.team.damage ? Math.round((t.damage / r.team.damage) * 100) : 0 }}%</span>
+                        <span v-else-if="t.killed" class="font-semibold text-(--gt-accent-ink)">擊倒 {{ t.seconds }} 秒</span>
                         <span v-else>{{ pct(t, r.maxHp) }}%</span>
                         <span v-if="t.reward">+{{ t.reward }} 金</span>
                     </p>
@@ -47,7 +53,8 @@ const props = defineProps({
 })
 
 const nameOf = id => props.names?.[id] ?? '玩家'
-const pct = (t, maxHp) => (t.killed ? 100 : Math.min(100, Math.round((t.damage / maxHp) * 100)))
+// 環形接力的長條：每區的傷害佔巨獸血量的比例（加起來就是隊伍進度）
+const pct = (t, maxHp, team) => (t.killed && !team ? 100 : Math.min(100, Math.round((t.damage / maxHp) * 100)))
 
 // 大數字縮寫成「12.3萬」「1.2億」，完整數字放在 title
 function compact(n) {
