@@ -98,7 +98,12 @@
              準備：手機與平板放完、選完才出現；電腦版整個建造階段都釘在右欄底部，還沒放完時是灰的並說明還差什麼 -->
         <Teleport :to="actTarget" :disabled="!actTarget || !desktop">
         <GemSection v-if="phase === 'build' && me && !me.out" bare title="操作" class="gt-ready" :style="{ '--p': ring ?? 1 }">
-            <div class="flex gap-2">
+            <!-- 手機與平板：地圖上點一下預覽後，這裡換成「取消／放在這裡」，不用回頭找同一格 -->
+            <div v-if="armedCell && !desktop" class="flex gap-2">
+                <button class="gt-btn gt-btn--hero shrink-0" @click="$emit('cancel-armed')">取消</button>
+                <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" @click="$emit('place-armed')">放在這裡</button>
+            </div>
+            <div v-else class="flex gap-2">
                 <button class="gt-btn gt-btn--hero shrink-0" :class="!me.resolved && 'sm:max-lg:flex-1'" :disabled="!me.canUndo" aria-keyshortcuts="Z" aria-label="還原上一步" title="還原上一步" @click="$emit('undo')">
                     <span aria-hidden="true">↩ 還原</span><kbd v-if="keys && me.canUndo" class="gt-kbd ml-2 max-xl:hidden" aria-hidden="true">Z</kbd>
                 </button>
@@ -274,12 +279,13 @@ const props = defineProps({
     actTarget: { type: Object, default: null }, // 電腦版：托盤放還原與準備的元素
     previewTarget: { type: Object, default: null }, // 電腦版：托盤放數值預覽的元素
     dockTarget: { type: Object, default: null }, // 電腦版：右側圖示列的元素
+    armedCell: { type: Object, default: null }, // 手機與平板：地圖上預覽中、還沒確認的格子
     ring: { type: Number, default: null }, // 建造倒數剩餘比例 0~1（準備鈕外圈）
 })
 
 // 手機只顯示目前分頁的區塊；沒傳分頁（空字串）時全部顯示
 const tabClass = (...tabs) => (props.phoneTab && !tabs.includes(props.phoneTab) ? 'max-sm:hidden' : '')
-defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'wish', 'research', 'remove', 'start-swap', 'cancel-swap', 'undo'])
+defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'wish', 'research', 'remove', 'start-swap', 'cancel-swap', 'undo', 'place-armed', 'cancel-armed'])
 
 const RATE_COLORS = ['#C9B2AD', '#9FB8C9', '#5FA8D3', '#3CCB72', '#F2B233', '#D6305A']
 

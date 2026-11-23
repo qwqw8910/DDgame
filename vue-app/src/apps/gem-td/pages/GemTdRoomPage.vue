@@ -186,9 +186,9 @@
 
             <div class="gt-center">
                 <section class="gt-stage" aria-label="地圖">
-                    <GemBoard :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
+                    <GemBoard ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
                         :pending-gem="pendingGem" :selected-id="selectedId"
-                        @cell="onCell" @tower="onTower" @clear="clearSelection" />
+                        @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" />
                 </section>
                 <!-- 電腦版托盤：本回合甜點、還原、準備搬到地圖正下方（GemPanel 用 Teleport 放進來） -->
                 <div class="gt-tray" aria-label="本回合操作">
@@ -210,7 +210,8 @@
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
                 <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="roomState.myPlayerId" :keys="hasKeyboard"
-                    :hand-target="isTray ? trayHandEl : null" :preview-target="isTray ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="isTray ? dockEl : null" :ring="ring"
+                    :hand-target="isTray ? trayHandEl : null" :preview-target="isTray ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="isTray ? dockEl : null" :ring="ring" :armed-cell="armedCell"
+                    @place-armed="placeArmed" @cancel-armed="boardRef?.disarm()"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
                     @combine="onCombine" @ready="ready" @undo="() => { undo(); clearSelection() }" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
@@ -408,6 +409,14 @@ function clearSelection() {
 function onCell(x, y) {
     if (activeSlot.value === null || !mine.value) return
     place(activeSlot.value, x, y)
+}
+
+const boardRef = ref(null)
+const armedCell = ref(null)
+function placeArmed() {
+    const c = armedCell.value
+    boardRef.value?.disarm()
+    if (c) onCell(c.x, c.y)
 }
 
 function onSelectSlot(slot) {
