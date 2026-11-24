@@ -1,6 +1,7 @@
 <template>
     <div ref="wrapRef" class="relative flex h-full w-full items-center justify-center overflow-hidden">
-        <canvas ref="canvasRef" class="block touch-none select-none max-sm:rounded-none rounded-sm" :class="placing ? 'cursor-crosshair' : 'cursor-default'"
+        <GemTableDecor />
+        <canvas ref="canvasRef" class="relative block touch-none select-none max-sm:rounded-none rounded-sm" :class="placing ? 'cursor-crosshair' : 'cursor-default'"
             role="img" aria-label="遊戲地圖"
             @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp"
             @pointerleave="hover = null" @wheel.prevent="onWheel" />
@@ -24,6 +25,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
 import { CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
 import { fullPathLength } from '../data/pathing.js'
+import GemTableDecor from './GemTableDecor.vue'
 import { spawnHit, spawnDeath, clearFx, drawFx, hasFx } from '../composables/usePixelFx.js'
 
 const props = defineProps({
@@ -33,6 +35,7 @@ const props = defineProps({
     myId: { type: String, default: '' },
     pendingGem: { type: Object, default: null }, // 目前要放下的甜點
     selectedId: { type: Number, default: null },
+    highlightIds: { type: Array, default: () => [] }, // 合成選位置：可以選的材料塔
 })
 const emit = defineEmits(['cell', 'tower', 'clear', 'arm', 'step'])
 
@@ -762,6 +765,16 @@ function drawPops(cell, now) {
 }
 
 function drawOverlays(view, cell) {
+    // 合成選位置：材料塔打上金框，點哪一座，合成後的塔就出現在那裡
+    for (const id of props.highlightIds) {
+        const t = view.towers.find(o => o.id === id)
+        if (!t) continue
+        ctx.fillStyle = 'rgba(255,210,63,0.35)'
+        ctx.fillRect(t.x * cell, t.y * cell, cell, cell)
+        ctx.strokeStyle = '#E8A800'
+        ctx.lineWidth = Math.max(2.5, cell * 0.14)
+        ctx.strokeRect(t.x * cell + 1, t.y * cell + 1, cell - 2, cell - 2)
+    }
     const selected = view.towers.find(t => t.id === props.selectedId)
     if (selected) {
         const cx = (selected.x + 0.5) * cell
@@ -853,7 +866,7 @@ function draw(now) {
 }
 
 watch(() => props.pendingGem, () => { armed.value = null })
-watch([() => props.view, () => props.selectedId, () => props.pendingGem, () => props.catalog, hover, armed, zoom], invalidate)
+watch([() => props.view, () => props.selectedId, () => props.highlightIds, () => props.pendingGem, () => props.catalog, hover, armed, zoom], invalidate)
 
 onMounted(() => {
     resize()

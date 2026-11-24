@@ -1534,6 +1534,12 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   }
   .gt-chip:hover { border-color: var(--gt-accent); }
   .gt-chip--on { border-color: var(--gt-accent); color: var(--gt-accent); }
+  /* 合成選位置：浮在地圖上方的提示條 */
+  .gt-combine-pick {
+    position: absolute; z-index: 6; left: 50%; top: 10px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px;
+    align-items: center; width: max-content; max-width: calc(100% - 24px); padding: 10px 14px; border: 2px solid #E8A800;
+    border-radius: 14px; background: var(--gt-surface); color: var(--gt-text); text-align: center; box-shadow: 0 4px 0 rgba(74, 44, 42, 0.35);
+  }
 
   /* 沒有外框的文字按鈕（塔名）：只要焦點框 */
   .gt-plain { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }

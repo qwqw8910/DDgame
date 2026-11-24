@@ -231,11 +231,21 @@
             <div class="gt-center">
                 <section class="gt-stage" aria-label="地圖">
                     <GemRingBoard v-if="view.relay" ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="myId"
-                        :pending-gem="pendingGem" :selected-id="selectedId" :keys="hasKeyboard"
+                        :pending-gem="pendingGem" :selected-id="selectedId" :highlight-ids="combinePick?.ids ?? []" :keys="hasKeyboard"
                         @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" @zone="watchMap" @camera="c => mapCamera = c" />
                     <GemBoard v-else ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
-                        :pending-gem="pendingGem" :selected-id="selectedId"
+                        :pending-gem="pendingGem" :selected-id="selectedId" :highlight-ids="combinePick?.ids ?? []"
                         @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" @step="stepPlayer" />
+                    <!-- 合成選位置：浮在地圖上方 -->
+                    <div v-if="combinePick" class="gt-combine-pick" role="dialog" aria-label="選擇合成位置">
+                        <p class="m-0 font-bold">合成「{{ combinePick.name }}」：點地圖上金框的塔，決定它出現在哪裡</p>
+                        <div class="flex flex-wrap items-center justify-center gap-1.5">
+                            <button v-for="t in combineChoices" :key="t.id" class="gt-chip" @click="chooseCombineAt(t.id)">
+                                <GemIcon :kind="t.kind" :level="t.level" :size="26" />第 {{ t.x + 1 }} 欄・第 {{ t.y + 1 }} 列
+                            </button>
+                            <button class="gt-chip" @click="cancelCombinePick">取消<kbd v-if="hasKeyboard" class="gt-kbd ml-1.5" aria-hidden="true">Esc</kbd></button>
+                        </div>
+                    </div>
                 </section>
                 <!-- 電腦版托盤：本回合甜點、還原、準備搬到地圖正下方（GemPanel 用 Teleport 放進來） -->
                 <div class="gt-tray" aria-label="本回合操作">
@@ -563,6 +573,11 @@ function onSelectSlot(slot) {
 }
 
 function onTower(tower) {
+    if (combinePick.value) {
+        if (combinePick.value.ids.includes(tower.id)) chooseCombineAt(tower.id)
+        else playSfx('click')
+        return
+    }
     if (swapFrom.value && tower.kind === 'stone') {
         swap(swapFrom.value, tower.id)
         clearSelection()
@@ -572,11 +587,38 @@ function onTower(tower) {
     playSfx('click')
 }
 
+// 合成：材料不只一座時，讓玩家選「合成後的塔出現在哪一座材料的位置」（點地圖上金框的塔，或點上方的按鈕）
+const combinePick = ref(null) // { recipeId, ids, name }
+const combineChoices = computed(() => {
+    const cp = combinePick.value
+    if (!cp) return []
+    return cp.ids.map(id => view.value?.towers.find(t => t.id === id)).filter(Boolean)
+})
 function onCombine(recipeId) {
-    // 選中的塔是材料時，特殊塔就出現在那裡
-    combine(recipeId, selectedId.value ?? undefined)
+    const r = view.value?.me?.recipes?.find(x => x.id === recipeId)
+    const ids = r?.towerIds ?? []
+    if (ids.length <= 1) {
+        combine(recipeId, ids[0])
+        clearSelection()
+        return
+    }
+    selectedId.value = null
+    combinePick.value = { recipeId, ids, name: state.catalog?.specials?.[state.catalog.recipes.find(x => x.id === recipeId)?.result]?.name ?? '特殊塔' }
+}
+function chooseCombineAt(towerId) {
+    const cp = combinePick.value
+    if (!cp) return
+    combinePick.value = null
+    combine(cp.recipeId, towerId)
     clearSelection()
 }
+function cancelCombinePick() { combinePick.value = null }
+// 材料變了（回合結束、還原、別人的地圖）就取消選位置
+watch(() => view.value?.me?.recipes, (rs) => {
+    const cp = combinePick.value
+    if (cp && !rs?.some(r => r.id === cp.recipeId)) combinePick.value = null
+})
+watch(() => view.value?.phase, () => { combinePick.value = null })
 
 // ── 抬頭資訊 ─────────────────────────────────────────────────────
 // 血量顯示自己的；觀戰者顯示正在看的玩家
@@ -836,6 +878,7 @@ function handleKey(code, e) {
     case 'Escape':
         if (playersOpen.value) { playersOpen.value = false; return true }
         if (showRecipes.value) { showRecipes.value = false; return true }
+        if (combinePick.value) { cancelCombinePick(); return true }
         if (swapFrom.value || selectedId.value !== null) { clearSelection(); return true }
         return false
     default:
