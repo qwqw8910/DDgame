@@ -177,7 +177,7 @@ function runRelay(rounds, waves, difficulty) {
   const step = process.env.RELAY_STEP ? Number(process.env.RELAY_STEP) : C.RELAY_PLAYER_HP_STEP;
   if (process.env.RELAY_HP || process.env.RELAY_STEP) {
     const hp = Number(process.env.RELAY_HP ?? C.RELAY_GROUP_HP_MULT);
-    C.relayGroupHpMult = zones => hp * (1 + step * Math.max(0, zones - 1));
+    C.relayGroupHpMult = zones => hp * (C.relayPasses(zones) / C.RELAY_PASSES) * (1 + step * Math.max(0, zones - 1));
   }
   if (process.env.RELAY_BOSS) C.RELAY_BOSS_HP_MULT = Number(process.env.RELAY_BOSS);
   console.log(`環形接力平衡（${waves} 波、${difficulty}、每組 ${rounds} 局，血量不歸零）；漏怪率 = 離場蟲 ÷ 出過的蟲，不含首領`);

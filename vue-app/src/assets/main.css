@@ -1527,6 +1527,9 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-btn--danger:hover:not(:disabled) { background: var(--gt-text); }
   /* 準備鈕上的第二行小字：還差什麼、幾位已準備 */
   .gt-ready-sub { display: block; margin-top: 2px; font-size: 13px; font-weight: 600; line-height: 1.2; }
+  /* 標題列：波次後面的下一波摘要（環形接力電腦版），太長就截斷，滑鼠移上去看完整 */
+  .gt-hud-next { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 15px; font-weight: 400; color: var(--gt-muted); }
+  .gt-hud-next b { color: var(--gt-ink); font-weight: 700; }
 
   .gt-chip {
     display: inline-flex; align-items: center; min-height: 44px; padding: 4px 12px; border: 1px solid var(--gt-line);
@@ -1883,10 +1886,14 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     .gt-game--tabs .gt-rail { left: 14px; width: var(--gt-rail-w); overflow: hidden; }
     .gt-game--tabs .gt-side { right: 14px; width: var(--gt-side-w); }
     .gt-game--tabs .gt-rail > *, .gt-game--tabs .gt-side > * { pointer-events: auto; }
+    /* 右欄內容比欄高：整欄接收滑鼠，滾輪在卡片之間的空隙也能捲（不會變成縮放地圖） */
+    .gt-game--tabs .gt-side.gt-side--scroll { pointer-events: auto; }
+    .gt-side-more { position: sticky; bottom: 0; z-index: 1; flex-shrink: 0; align-self: center; margin-top: auto; box-shadow: 0 4px 12px rgba(30, 15, 5, 0.35); }
     .gt-game--tabs .gt-rail-top { flex: 1 1 0; max-height: none; }
     .gt-game--tabs .gt-rail-top:last-child { flex: 0 1 auto; }
-    /* 環形接力：整體地圖搬進最下面那一列的左邊，左欄沒東西了就縮到 0，讓地圖多出來的位置用在地圖上 */
-    .gt-game--relay .gt-rail { width: 0; }
+    /* 環形接力：整體地圖搬進最下面那一列的左邊；左欄只放合成表，排在左上「玩家」按鈕下面 */
+    .gt-game--relay .gt-rail { top: 70px; }
+    .gt-game--relay .gt-rail-top { flex: 0 1 auto; }
     .gt-game--relay .gt-tray-map { flex: 0 0 var(--gt-rail-w); align-self: stretch; display: flex; min-width: 0; padding-right: 12px; border-right: 2px solid var(--gt-line-soft); }
     .gt-game--relay .gt-tray-map > .gt-mini { flex: 1; min-width: 0; border: 0; box-shadow: none; background: none; backdrop-filter: none; }
     .gt-game--relay .gt-tray-map .gt-panel-body { height: 100%; display: flex; align-items: center; padding: 0 !important; }
