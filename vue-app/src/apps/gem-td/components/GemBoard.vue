@@ -233,7 +233,23 @@ function shake(amount) {
     if (!reducedMotion) shakeAmp = Math.min(0.5, Math.max(shakeAmp, amount))
 }
 
+// ── 主動技能特效：全圖染色＋擴散光環＋粒子（frame.sk 的冷卻突然增加＝有人施放）──
+const SKILL_FX_MS = 1100
+const SKILL_FX = {
+    freeze: { tint: '#9BD8FF', ring: '#E6F6FF', spark: '#FFFFFF' },
+    stun: { tint: '#FFD25A', ring: '#FFF1B8', spark: '#FFB300' },
+}
+const skillFx = [] // { id, born }
+let prevSk = null
+
+function playSkillFx(id) {
+    skillFx.push({ id, born: performance.now() })
+    if (id === 'stun') shake(0.28)
+}
+
 function resetJuice() {
+    skillFx.length = 0
+    prevSk = null
     flashes.clear()
     pops.length = 0
     ghosts.length = 0
@@ -250,6 +266,9 @@ watch(() => props.frame, (frame) => {
         clearFx()
         return
     }
+    const sk = frame.sk
+    if (sk && prevSk) sk.forEach((v, i) => { if (v > prevSk[i]) playSkillFx(i === 0 ? 'freeze' : 'stun') })
+    prevSk = sk ? [...sk] : null
     const now = performance.now()
     frameGap = Math.min(600, Math.max(80, now - curAt))
     curAt = now
@@ -644,6 +663,18 @@ function drawMonsters(catalog, cell, now) {
             ctx.arc(cx, cy, r * 1.15, 0, Math.PI * 2)
             ctx.stroke()
         }
+        if (m.flags & 4) {
+            // 暈眩：三顆星星繞著頭頂轉
+            ctx.fillStyle = '#FFC21A'
+            for (let k = 0; k < 3; k++) {
+                const a = now / 220 + (k * Math.PI * 2) / 3
+                const sx2 = cx + Math.cos(a) * r * 0.9
+                const sy2 = cy - r * 1.35 + Math.sin(a) * r * 0.28
+                ctx.beginPath()
+                ctx.arc(sx2, sy2, Math.max(1.5, r * 0.22), 0, Math.PI * 2)
+                ctx.fill()
+            }
+        }
         if (m.flags & 2) {
             ctx.fillStyle = '#2E9E5B'
             ctx.beginPath()
@@ -651,7 +682,7 @@ function drawMonsters(catalog, cell, now) {
             ctx.fill()
         }
 
-        const traitId = m.flags >= 4 ? catalog?.traitIds.find((_, i) => m.flags & (4 << i)) : null
+        const traitId = m.flags >= 8 ? catalog?.traitIds.find((_, i) => m.flags & (8 << i)) : null
         if (traitId) {
             ctx.strokeStyle = catalog.traits[traitId].color
             ctx.lineWidth = Math.max(1, cell * 0.06)
@@ -764,6 +795,60 @@ function drawPops(cell, now) {
     ctx.globalAlpha = 1
 }
 
+function drawSkillFx(now) {
+    for (let i = skillFx.length - 1; i >= 0; i--) {
+        const fx = skillFx[i]
+        const t = (now - fx.born) / SKILL_FX_MS
+        if (t >= 1) { skillFx.splice(i, 1); continue }
+        const look = SKILL_FX[fx.id]
+        const fade = 1 - t
+        const c = size / 2
+        ctx.save()
+        // 全圖染色：很快亮起、慢慢退
+        ctx.globalAlpha = (t < 0.12 ? t / 0.12 : fade) * (fx.id === 'stun' ? 0.28 : 0.24)
+        ctx.fillStyle = look.tint
+        ctx.fillRect(0, 0, size, size)
+        if (!reducedMotion) {
+            // 擴散光環：暈眩兩圈，冰凍一圈
+            const rings = fx.id === 'stun' ? [0, 0.18] : [0]
+            for (const delay of rings) {
+                const rt = Math.min(1, Math.max(0, (t - delay) / 0.7))
+                if (rt <= 0) continue
+                ctx.globalAlpha = (1 - rt) * 0.9
+                ctx.strokeStyle = look.ring
+                ctx.lineWidth = Math.max(2, size * 0.02 * (1 - rt) + 1)
+                ctx.beginPath()
+                ctx.arc(c, c, rt * size * 0.75, 0, Math.PI * 2)
+                ctx.stroke()
+            }
+            // 粒子：冰凍是往下飄的雪花，暈眩是往外迸的火花
+            ctx.fillStyle = look.spark
+            for (let k = 0; k < 28; k++) {
+                const rx = (Math.sin(k * 12.9898) * 43758.5453) % 1
+                const ry = (Math.sin(k * 78.233) * 12345.6789) % 1
+                const ax = Math.abs(rx)
+                const ay = Math.abs(ry)
+                let px, py
+                if (fx.id === 'freeze') {
+                    px = ax * size + Math.sin(t * 6 + k) * size * 0.012
+                    py = ((ay + t * 0.35) % 1) * size
+                } else {
+                    const ang = (k / 28) * Math.PI * 2
+                    const dist = t * size * (0.2 + ax * 0.45)
+                    px = c + Math.cos(ang) * dist
+                    py = c + Math.sin(ang) * dist
+                }
+                const r = size * (0.004 + ay * 0.006)
+                ctx.globalAlpha = fade * 0.9
+                ctx.beginPath()
+                ctx.arc(px, py, r, 0, Math.PI * 2)
+                ctx.fill()
+            }
+        }
+        ctx.restore()
+    }
+}
+
 function drawOverlays(view, cell) {
     // 合成選位置：材料塔打上金框，點哪一座，合成後的塔就出現在那裡
     for (const id of props.highlightIds) {
@@ -835,7 +920,7 @@ function draw(now) {
     const view = toRaw(props.view)
     const catalog = toRaw(props.catalog)
     if (!ctx || !size || !view?.board) return
-    const animating = view.phase === 'wave' || shots.length > 0 || hasFx() || pops.length > 0 || ghosts.length > 0 || shakeAmp > 0.002
+    const animating = view.phase === 'wave' || shots.length > 0 || hasFx() || pops.length > 0 || skillFx.length > 0 || ghosts.length > 0 || shakeAmp > 0.002
         || view.towers.some(t => t.fresh && t.owner === props.myId) // 剛放下的塔外框會閃
     if (!animating && !dirty) return
     dirty = false
@@ -862,6 +947,7 @@ function draw(now) {
     drawGhosts(cell, now)
     drawFx(ctx, cell, dt)
     drawPops(cell, now)
+    drawSkillFx(now)
     drawOverlays(view, cell)
 }
 

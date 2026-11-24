@@ -258,7 +258,7 @@
                     <div ref="trayActEl" class="gt-tray-act" />
                     <!-- 出怪中：建造用的欄位都是空的，換成全隊戰況（血量、擊殺、各區傳出） -->
                     <GemWaveBar v-if="view.phase === 'wave'" :view="view" :catalog="state.catalog" :frame="frame" :is-host="roomState.isHost" :is-solo="isSolo" :keys="hasKeyboard"
-                        @speed="setSpeed" @pause="setPaused(true)" />
+                        @speed="setSpeed" @pause="setPaused(true)" @skill="castSkill" :can-cast="!!mine && !view.me?.out" />
                 </div>
             </div>
 
@@ -405,7 +405,7 @@ const route = useRoute()
 const router = useRouter()
 const {
     state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
-    upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, undo, ready, setSpeed, setPaused, bossWave, finishNow, restart,
+    upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, undo, ready, setSpeed, setPaused, bossWave, finishNow, restart, castSkill,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
 } = useGemTd()
@@ -859,6 +859,12 @@ function handleKey(code, e) {
         if (!roomState.isHost) return false
         setSpeed(nextSpeed(v.speed))
         return true
+    case 'KeyQ':
+    case 'KeyW': {
+        if (v.phase !== 'wave' || v.relay || !mine.value || me?.out) return false
+        castSkill(code === 'KeyQ' ? 'freeze' : 'stun')
+        return true
+    }
     case 'KeyP':
         if (!isSolo.value || (v.phase !== 'build' && v.phase !== 'wave')) return false
         setPaused(!v.paused)

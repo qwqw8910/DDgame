@@ -881,7 +881,7 @@ function drawMonstersFull(catalog, now) {
             ctx.arc(pos.x + r * 0.9, pos.y - r * 0.9, r * 0.28, 0, Math.PI * 2)
             ctx.fill()
         }
-        const traitId = m.flags >= 4 ? catalog?.traitIds.find((_, k) => m.flags & (4 << k)) : null
+        const traitId = m.flags >= 8 ? catalog?.traitIds.find((_, k) => m.flags & (8 << k)) : null
         if (traitId) {
             ctx.strokeStyle = catalog.traits[traitId].color
             ctx.lineWidth = Math.max(px(1.5), 0.06)

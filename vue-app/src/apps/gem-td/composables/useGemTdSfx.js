@@ -235,6 +235,18 @@ const SOUNDS = {
     chord(t + 0.46, [C5, E5, G5, C6], { dur: 0.9, gain: 0.06, type: 'triangle' })
     noise(t + 0.46, { dur: 0.8, gain: 0.07, type: 'highpass', freq: 5000, attack: 0.01 })
   },
+  // 糖霜冰凍：高頻鈴聲往下滑，加一道冷冷的氣流
+  freeze(t) {
+    arpeggio(t, [C6, G5, E5], 0.07, { dur: 0.35, gain: 0.1, type: 'triangle' })
+    tone(t, { freq: E6, to: 600, dur: 0.5, gain: 0.07 })
+    noise(t, { dur: 0.6, gain: 0.08, type: 'highpass', freq: 5500, attack: 0.02 })
+  },
+  // 焦糖暈眩：低沉的悶響加上一串上揚的叮叮
+  stun(t) {
+    tone(t, { freq: 140, to: 55, dur: 0.35, gain: 0.3 })
+    noise(t, { dur: 0.12, gain: 0.18, type: 'lowpass', freq: 900 })
+    arpeggio(t + 0.1, [C5, E5, G5, C6], 0.06, { dur: 0.2, gain: 0.09, type: 'triangle' })
+  },
   // 落敗：一路往下
   lose(t) {
     arpeggio(t, [G5 / 2, 349.2, 311.1, 233.1], 0.2, { dur: 0.34, gain: 0.11, type: 'triangle' })
@@ -312,6 +324,8 @@ function actionCue(before, after) {
 }
 
 function playFrame(next, prev) {
+  // 技能冷卻突然增加＝有人施放（自己或正在看的那張地圖）
+  if (next.sk && prev?.sk) next.sk.forEach((v, i) => { if (v > prev.sk[i]) playSfx(i === 0 ? 'freeze' : 'stun') })
   const shots = Math.min(next.s.length, MAX_SHOTS_PER_FRAME)
   for (let i = 0; i < shots; i++) playSfx('shot', Math.random() * FRAME_MS / 1000)
   // 暴擊每幀只響一次，波次後段暴擊塔很多時才不會糊成一團

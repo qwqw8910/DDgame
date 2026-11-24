@@ -137,6 +137,7 @@ export function useGemTd() {
     ready:          () => emit('gt:ready'),
     setSpeed:       (speed) => emit('gt:set-speed', { speed }),
     setPaused:      (paused) => emit('gt:set-paused', { paused }),
+    castSkill:      (skill) => emit('gt:skill', { skill }),
     bossWave:       () => emit('gt:boss-wave'),
     finishNow:      () => emit('gt:finish-now'),
     restart:        () => emit('gt:restart'),

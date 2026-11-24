@@ -13,7 +13,7 @@
 
 const C = require('./config');
 const { findFullPath } = require('./pathing');
-const { createWave, stepWave, buildSimFrame } = require('./waveSim');
+const { createWave, stepWave, buildSimFrame, castSkill: simCastSkill, skillCooldowns } = require('./waveSim');
 const { ringLayout } = require('./ringLayout');
 const R = require('./relay');
 
@@ -78,15 +78,18 @@ function resolveOptions(raw = {}) {
   };
 }
 
-function makeBoard() {
+function makeBoard(mapId = 0) {
+  const map = C.MAP_LAYOUTS[mapId] ?? C.MAP_LAYOUTS[0];
   const size = C.BOARD_SIZE;
   const toCell = ([rx, ry]) => ({ x: Math.round(rx * (size - 1)), y: Math.round(ry * (size - 1)) });
   return {
     width: size,
     height: size,
-    start: toCell(C.WAYPOINTS.start),
-    checkpoints: C.WAYPOINTS.checkpoints.map(toCell),
-    end: toCell(C.WAYPOINTS.end),
+    mapId: map.id,
+    mapName: map.name,
+    start: toCell(map.start),
+    checkpoints: map.checkpoints.map(toCell),
+    end: toCell(map.end),
   };
 }
 
@@ -184,7 +187,7 @@ function startGame(game, ids, { now, rng = Math.random }) {
   game.startCount = zoneIds.length;
   game.startedAt = now;
   game.lives = maxLives(game);
-  game.board = makeBoard();
+  game.board = makeBoard(relay ? 0 : Math.floor(rng() * C.MAP_COUNT));
   if (relay && zoneIds.length > 1) game.ring = { layout: ringLayout(zoneIds.length, game.board), events: [], hub: null, eventsFor: null };
   for (const id of zoneIds) {
     const p = {
@@ -193,6 +196,7 @@ function startGame(game, ids, { now, rng = Math.random }) {
       lives: C.START_LIVES, out: false, outWave: 0,
       stats: { leaked: 0, peakGold: 0, lifeBought: 0, tests: [] },
       towers: [],
+      skillCd: Object.fromEntries(C.SKILL_IDS.map(sid => [sid, 0])), // 技能冷卻（波數）
       grid: new Map(), // "x,y" → tower
       path: [],
       sim: null,
@@ -581,7 +585,22 @@ function startWave(game, { rng = Math.random } = {}) {
       difficulty: game.options.difficulty,
       pool: isTestWave(game) ? { lives: 1 } : livesPool(game, p), // 傷害測試的怪不會扣血
       research: p.research,
+      skillCd: p.skillCd,
     });
+  }
+}
+
+// 波次中施放主動技能（只作用在自己的地圖）
+function castSkill(game, playerId, skill) {
+  if (game.phase !== 'wave') throw new GameError('BAD_PHASE', '只有出怪時可以使用技能');
+  if (game.paused) throw new GameError('PAUSED', '遊戲暫停中');
+  if (isRelay(game)) throw new GameError('NO_SKILL', '環形接力不能使用技能');
+  const p = playerOf(game, playerId);
+  if (!p.sim) throw new GameError('NO_SKILL', '這一波不能使用技能');
+  try {
+    simCastSkill(p.sim, skill);
+  } catch (err) {
+    throw new GameError('NO_SKILL', err.message);
   }
 }
 
@@ -745,6 +764,7 @@ function bankWave(game) {
     const sim = p.sim;
     if (!sim || sim.banked) continue;
     sim.banked = true;
+    for (const sid of C.SKILL_IDS) p.skillCd[sid] = Math.max(0, p.skillCd[sid] - 1);
     if (testWave) {
       // 環形接力：巨獸血量與是否擊倒都是整隊的，每區只記自己打出的傷害
       const sims = isRelay(game) ? game.playerIds.map(pid => game.players[pid].sim) : [sim];
@@ -1106,7 +1126,7 @@ function buildFrames(game, watched = null) {
       sim.shots = [];
       continue;
     }
-    frames[id] = { owner: id, wave: sim.wave, total: sim.def.count + sim.splits, players, ...buildSimFrame(sim) };
+    frames[id] = { owner: id, wave: sim.wave, total: sim.def.count + sim.splits, players, sk: sim.noSkills ? null : skillCooldowns(sim), ...buildSimFrame(sim) };
   }
   return frames;
 }
@@ -1116,7 +1136,7 @@ module.exports = {
   MIN_PLAYERS: C.MIN_PLAYERS,
   MAX_PLAYERS: C.MAX_PLAYERS,
   catalog: C.catalog,
-  createGame, resetGame, resolveOptions, startGame,
+  createGame, resetGame, resolveOptions, startGame, castSkill,
   placeGem: undoable(placeGem), keepGem: undoable(keepGem), mergeGem: undoable(mergeGem), combine: undoable(combine),
   combineNotice, bossDownNotices, availableRecipes, undo,
   buildRecords, upgradeQuality: undoable(upgradeQuality), rerollGems, rollGems, makeWish: undoable(makeWish),

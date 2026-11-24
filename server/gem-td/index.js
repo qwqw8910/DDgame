@@ -310,6 +310,7 @@ function registerNamespace(io, db) {
         // 環形接力的假人區域：名字用「電腦 N」（N 是區號）
         c.game.playerIds.forEach((id, i) => { if (c.game.players[id].bot) c.game.names[id] = `電腦 ${i + 1}`; });
         _roomCache.updateRoom(roomId, { status: 'playing' });
+        notice(roomId, `本局地圖：${c.game.board.mapName}`);
         scheduleBuild(roomId, c.game);
         pushState(roomId);
       } catch (err) { fail(socket, err); }
@@ -329,6 +330,7 @@ function registerNamespace(io, db) {
     action('gt:research', ({ playerId, game }, { track }) => L.upgradeResearch(game, playerId, track));
     action('gt:buy-life', ({ playerId, game }) => L.buyLife(game, playerId));
     action('gt:remove-stone', ({ playerId, game }, { towerId }) => L.removeStone(game, playerId, towerId));
+    action('gt:skill', ({ playerId, game }, { skill }) => L.castSkill(game, playerId, skill));
     action('gt:undo', ({ playerId, game }) => L.undo(game, playerId));
     action('gt:swap', ({ playerId, game }, { towerId, stoneId }) => L.swapWithStone(game, playerId, towerId, stoneId));
 

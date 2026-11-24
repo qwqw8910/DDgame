@@ -31,6 +31,14 @@
             </li>
         </ul>
 
+        <!-- 主動技能：全場減速、全場暈眩，冷卻跑完才能再用 -->
+        <div v-if="!view.relay && skillList.length" class="flex shrink-0 items-center gap-2" aria-label="主動技能">
+            <button v-for="s in skillList" :key="s.id" class="gt-btn gt-btn--small" :disabled="!canCast || !s.ready"
+                :title="s.disabledReason || `${s.desc}（${s.duration} 秒，施放後 ${s.cooldownWaves} 波才能再用）`" :aria-keyshortcuts="s.key" @click="$emit('skill', s.id)">
+                {{ s.name }}<span v-if="canCast && s.sk > 0" class="ml-2 tabular-nums text-(--gt-muted)">{{ s.sk }} 波</span><kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">{{ s.key }}</kbd>
+            </button>
+        </div>
+
         <div class="ml-auto flex shrink-0 items-center gap-2">
             <button v-if="isHost" class="gt-btn gt-btn--small" :aria-label="`目前 ${view.speed} 倍速，切換為 ${nextSpeed(view.speed)} 倍`" @click="$emit('speed', nextSpeed(view.speed))">
                 {{ view.speed }}× 倍速<kbd v-if="keys && !view.relay" class="gt-kbd ml-2" aria-hidden="true">F</kbd>
@@ -51,8 +59,19 @@ const props = defineProps({
     isHost: { type: Boolean, default: false },
     isSolo: { type: Boolean, default: false },
     keys: { type: Boolean, default: false },
+    canCast: { type: Boolean, default: false },
 })
-defineEmits(['speed', 'pause'])
+defineEmits(['speed', 'pause', 'skill'])
+
+const skillList = computed(() => {
+    const skills = props.catalog?.skills
+    if (!skills) return []
+    const sk = props.frame?.sk
+    return Object.entries(skills).map(([id, s], i) => ({
+        id, ...s, sk: sk?.[i] ?? 0, ready: !!sk && sk[i] === 0,
+        disabledReason: sk ? '' : '這一波不能使用技能',
+    }))
+})
 
 const lives = computed(() => props.frame?.players?.[props.view.playerIds[0]]?.lives ?? props.view.lives)
 const pct = computed(() => Math.max(0, Math.min(100, (lives.value / props.view.maxLives) * 100)))
