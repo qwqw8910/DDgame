@@ -147,3 +147,13 @@ export const canHitAir = (kind, catalog) => {
   const st = catalog.specials[kind]?.stats ?? catalog.gems[kind]?.levels[0]
   return !!st && st.hits !== 'ground'
 }
+
+// 環形接力每區的短標籤：玩家取暱稱前兩個字，電腦區是「電1」「電2」；兩區撞名時改成「首字＋區號」
+export function zoneLabels(view) {
+    const zones = view?.relay?.zones ?? []
+    const raw = zones.map((z, i) => {
+        const name = view.names?.[z.id]
+        return name ? Array.from(name).slice(0, 2).join('') : `電${i + 1}`
+    })
+    return raw.map((label, i) => (raw.indexOf(label) === raw.lastIndexOf(label) ? label : `${Array.from(label)[0]}${i + 1}`))
+}

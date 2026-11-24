@@ -43,14 +43,14 @@ function createHub(ring) {
   return hub;
 }
 
-// 輸送帶前進；走完的蟲進入下一區的入口。sims 依區的順序排列
+// 傳送：漏出去的蟲直接出現在下一區的入口（沒有移動時間）；有 delay 的測試才會留在 transit 裡。sims 依區的順序排列
 function stepTransit(hub, sims, dt) {
   if (!hub.transit.length) return;
   const keep = [];
   for (const t of hub.transit) {
     t.d += t.m.speed * dt;
     const conveyor = hub.layout.conveyors[t.from];
-    if (t.d < conveyor.length) {
+    if (hub.delay && t.d < conveyor.length) {
       keep.push(t);
       continue;
     }

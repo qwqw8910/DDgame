@@ -168,17 +168,15 @@
         </main>
 
         <!-- 遊戲畫面：電腦三欄固定版面（左 波次預告與合成表、中 地圖、右 操作），窄螢幕由 CSS 改成上下堆疊 -->
-        <main v-else-if="view?.board && state.catalog" class="gt-game">
+        <main v-else-if="view?.board && state.catalog" class="gt-game gt-game--tabs" :class="view.relay && 'gt-game--relay'">
             <aside class="gt-rail" aria-label="戰況">
                 <!-- 電腦版：上面是玩家與波次（依內容高度），下面的合成表吃掉剩下的高度，各自捲動 -->
                 <div class="gt-rail-top">
 
-                    <!-- 環形接力：隊伍血量、區域、分區統計、事件；一般模式是玩家分頁 -->
-                    <Teleport v-if="view.relay" :to="sideTopEl" :disabled="!isTray || !sideTopEl">
-                    <GemRelayInfo :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
+                    <!-- 環形接力：左欄只放隊伍血量與玩家（電腦版統計與事件在右上「戰況」頁籤）；一般模式是玩家分頁 -->
+                    <GemRelayInfo v-if="view.relay && !isLg" :class="phoneShow('status')" :part="isWide ? 'rail' : 'all'" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @watch="watchMap" @boss-wave="bossWave" />
-                    </Teleport>
-                    <Teleport v-else :to="sideTopEl" :disabled="!isTray || !sideTopEl">
+                    <Teleport v-else-if="!view.relay" :to="sideTopEl" :disabled="!isTray || !sideTopEl">
                     <GemSection v-if="view.playerIds.length > 1" title="玩家" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="玩家">
                         <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
                     </GemSection>
@@ -189,7 +187,7 @@
                         <button v-if="view.me" class="gt-btn gt-btn--small w-full" @click="watchMap(roomState.myPlayerId)">回到我的地圖</button>
                     </div>
 
-                    <Teleport :to="sideTopEl" :disabled="!isTray || !sideTopEl">
+                    <Teleport :to="sideTopEl" :disabled="!isTray || !sideTopEl || !view.relay">
                     <GemWaveInfo :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
                     </Teleport>
@@ -200,23 +198,31 @@
                     <!-- 手機：合成表是一個分頁，直接排在內容區，不再浮在地圖上 -->
                     <GemCodex v-if="inGame && isPhone && phoneTab === 'recipes'" :view="view" :catalog="state.catalog" @combine="onCombine" />
                 </div>
-                <GemCodex v-if="isWide" :view="view" :catalog="state.catalog" :meta="recipeMeta" @combine="onCombine" />
+                <!-- 環形接力：左下角放整體地圖，合成表搬到右上頁籤 -->
+                <GemRingMini v-if="view.relay && isWide && !isLg" :view="view" :catalog="state.catalog" :frame="frame" :camera="mapCamera" @goto="onMiniGoto" />
             </aside>
 
             <div class="gt-center">
                 <section class="gt-stage" aria-label="地圖">
                     <GemRingBoard v-if="view.relay" ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="myId"
                         :pending-gem="pendingGem" :selected-id="selectedId" :keys="hasKeyboard"
-                        @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" @zone="watchMap" />
+                        @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" @zone="watchMap" @camera="c => mapCamera = c" />
                     <GemBoard v-else ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
                         :pending-gem="pendingGem" :selected-id="selectedId"
-                        @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" />
+                        @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" @step="stepPlayer" />
                 </section>
                 <!-- 電腦版托盤：本回合甜點、還原、準備搬到地圖正下方（GemPanel 用 Teleport 放進來） -->
                 <div class="gt-tray" aria-label="本回合操作">
+                    <!-- 環形接力：最下面這一列左邊是整體地圖，右邊是放塔資訊、還原、開始 -->
+                    <div v-if="view.relay && isLg" class="gt-tray-map">
+                        <GemRingMini compact :view="view" :catalog="state.catalog" :frame="frame" :camera="mapCamera" @goto="onMiniGoto" />
+                    </div>
                     <div ref="trayHandEl" class="gt-tray-hand" />
                     <div ref="trayPrevEl" class="gt-tray-prev" />
                     <div ref="trayActEl" class="gt-tray-act" />
+                    <!-- 出怪中：建造用的欄位都是空的，換成全隊戰況（血量、擊殺、各區傳出） -->
+                    <GemWaveBar v-if="view.phase === 'wave'" :view="view" :catalog="state.catalog" :frame="frame" :is-host="roomState.isHost" :is-solo="isSolo" :keys="hasKeyboard"
+                        @speed="setSpeed" @pause="setPaused(true)" />
                 </div>
             </div>
 
@@ -227,18 +233,36 @@
 
             <nav ref="dockEl" class="gt-dock" aria-label="商店" />
 
+            <!-- 環形接力（電腦版）：隊伍血量與玩家平常收起來，Tab 或左上按鈕從左側滑出，再按一次收回 -->
+            <template v-if="view.relay && isLg">
+                <button class="gt-chip gt-drawer-toggle" :aria-expanded="playersOpen" aria-controls="gt-players-drawer" :aria-keyshortcuts="'Tab'" @click="playersOpen = !playersOpen">
+                    玩家<span class="gt-drawer-arrow" :class="playersOpen && 'gt-drawer-arrow--open'" aria-hidden="true">▸</span><kbd v-if="hasKeyboard" class="gt-kbd ml-1.5" aria-hidden="true">Tab</kbd>
+                </button>
+                <aside id="gt-players-drawer" class="gt-drawer" :class="playersOpen && 'gt-drawer--open'" :inert="!playersOpen" aria-label="隊伍血量與玩家">
+                    <GemRelayInfo part="rail" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
+                        :is-host="roomState.isHost" :keys="hasKeyboard" @watch="id => { watchMap(id); boardRef?.focusZone?.(view.relay.zones.findIndex(z => z.id === id)) }" />
+                </aside>
+            </template>
             <aside class="gt-side" aria-label="操作">
-                <div ref="sideTopEl" class="gt-side-top" />
+                <!-- 環形接力（電腦版）：右上頁籤，一次只看一頁，不再往現有畫面疊東西 -->
+                <div v-if="isWide" class="gt-seg gt-rtabs flex" role="tablist" aria-label="右側頁籤">
+                    <button v-for="t in relayTabs" :key="t.id" class="gt-seg-btn relative" role="tab" :aria-selected="relayPanelTab === t.id"
+                        :tabindex="relayPanelTab === t.id ? 0 : -1" @click="relayTab = t.id">{{ t.label }}<span v-if="t.dot" class="gt-dot gt-dot--corner" aria-hidden="true" /></button>
+                </div>
+                <div ref="sideTopEl" v-show="relayPanelTab === '' || relayPanelTab === 'build'" class="gt-side-top" />
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
                 <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="myId" :keys="hasKeyboard"
-                    :hand-target="isTray ? trayHandEl : null" :preview-target="isTray && isLg ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="isTray ? dockEl : null" :ring="ring" :armed-cell="armedCell"
+                    :hand-target="isTray ? trayHandEl : null" :preview-target="isTray && isLg ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="null" :ring="ring" :armed-cell="armedCell" :relay-tab="relayPanelTab"
                     @place-armed="placeArmed" @cancel-armed="boardRef?.disarm()"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
                     @combine="onCombine" @ready="ready" @undo="() => { undo(); clearSelection() }" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
                     @remove="id => { removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
+                <GemRelayInfo v-if="relayPanelTab === 'stats'" part="stats" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
+                    :is-host="roomState.isHost" :keys="hasKeyboard" @watch="watchMap" @boss-wave="bossWave" />
+                <GemCodex v-if="relayPanelTab === 'codex'" :view="view" :catalog="state.catalog" :meta="recipeMeta" @combine="onCombine" />
                 <!-- 平板：合成表由標題列的書本按鈕打開，排在操作區最下面（不再浮在地圖上） -->
                 <GemCodex v-if="inGame && !isWide && !isPhone && showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
             </aside>
@@ -321,6 +345,8 @@ import { WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, MODE_CH
 import GemBoard from '../components/GemBoard.vue'
 import GemRingBoard from '../components/GemRingBoard.vue'
 import GemRelayInfo from '../components/GemRelayInfo.vue'
+import GemRingMini from '../components/GemRingMini.vue'
+import GemWaveBar from '../components/GemWaveBar.vue'
 import GemPanel from '../components/GemPanel.vue'
 import GemPlayerTabs from '../components/GemPlayerTabs.vue'
 import GemGuide from '../components/GemGuide.vue'
@@ -385,6 +411,39 @@ const recipeMeta = computed(() => {
     const n = view.value?.me?.recipes?.length ?? 0
     return n ? `${n} 種可合成` : ''
 })
+
+// 電腦版（所有模式）：右上頁籤（操作／商店／合成表；環形接力多一個戰況）；沒有的頁籤（例：出怪中沒有商店）自動退回「操作」
+const playersOpen = ref(false) // 環形接力：左側玩家抽屜
+const relayTab = ref('build')
+const relayTabs = computed(() => {
+    const me = view.value?.me
+    const canShop = view.value?.phase === 'build' && !!me && !me.out
+    return [
+        { id: 'build', label: '操作' },
+        ...(canShop ? [{ id: 'shop', label: '商店', dot: shopAfford.value }] : []),
+        { id: 'codex', label: '合成表', dot: readyFavs.value > 0 },
+        ...(view.value?.relay ? [{ id: 'stats', label: '戰況' }] : []),
+    ]
+})
+const relayPanelTab = computed(() => {
+    if (!view.value?.board || !isWide.value) return ''
+    return relayTabs.value.some(t => t.id === relayTab.value) ? relayTab.value : 'build'
+})
+// 整體地圖（左下角）：主地圖目前看到的範圍；點小地圖跳過去
+const mapCamera = ref(null)
+function onMiniGoto({ zone, x, y }) {
+    if (zone === undefined) { boardRef.value?.panTo(x, y); return }
+    const id = view.value.relay.zones[zone]?.id
+    if (id && id !== view.value.watching) watchMap(id)
+    boardRef.value?.focusZone(zone)
+}
+
+// 一般多人模式：‹ › 切換看誰的地圖
+function stepPlayer(d) {
+    const ids = view.value?.playerIds ?? []
+    if (ids.length < 2) return
+    watchMap(ids[(ids.indexOf(view.value.watching) + d + ids.length) % ids.length])
+}
 
 // 手機（<640px，同 Tailwind 的 max-sm）：地圖固定在上方，下面用分頁切換操作區。
 // 分頁只靠 max-sm: 的 class 隱藏，電腦與平板的畫面不受影響
@@ -601,6 +660,7 @@ watch(() => state.notice, (message) => {
 watch(() => view.value?.watching, clearSelection)
 // 手機：點到塔就切到「塔」分頁，取消選取就回「放置」；挑選保留的甜點時留在「放置」
 watch(selectedId, (id) => {
+    if (id !== null && relayPanelTab.value) relayTab.value = 'build' // 點了塔，回到「操作」頁才看得到它的資訊
     if (!isPhone.value) return
     if (id !== null && !view.value?.me?.choosing) phoneTab.value = 'tower'
     else if (id === null && phoneTab.value === 'tower') phoneTab.value = 'place'
@@ -690,6 +750,7 @@ function handleKey(code, e) {
         clearSelection()
         return true
     case 'KeyB':
+        if (inGame.value && relayPanelTab.value) { relayTab.value = relayPanelTab.value === 'codex' ? 'build' : 'codex'; return true }
         if (!inGame.value || isWide.value) return false
         if (isPhone.value) phoneTab.value = phoneTab.value === 'recipes' ? 'place' : 'recipes'
         else showRecipes.value = !showRecipes.value
@@ -711,9 +772,11 @@ function handleKey(code, e) {
         setPaused(!v.paused)
         return true
     case 'Tab': {
-        // 環形接力：依序切換區域（單人就是換操作的區）
+        // 環形接力（電腦版）：開關左側的玩家列；窄螢幕沒有抽屜，維持依序切換區域
+        if (!v.relay) return false
+        if (isLg.value) { playersOpen.value = !playersOpen.value; return true }
         const ids = v.playerIds ?? []
-        if (!v.relay || ids.length < 2) return false
+        if (ids.length < 2) return false
         watchMap(ids[(ids.indexOf(v.watching) + (e.shiftKey ? ids.length - 1 : 1)) % ids.length])
         return true
     }
@@ -721,6 +784,7 @@ function handleKey(code, e) {
         guide.open()
         return true
     case 'Escape':
+        if (playersOpen.value) { playersOpen.value = false; return true }
         if (showRecipes.value) { showRecipes.value = false; return true }
         if (swapFrom.value || selectedId.value !== null) { clearSelection(); return true }
         return false

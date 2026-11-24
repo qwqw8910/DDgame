@@ -10,6 +10,11 @@
             <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="縮小地圖" title="縮小" :disabled="zoom <= 1.01" @click="zoomBy(1 / 1.4)">－</button>
         </div>
         <button v-if="zoom > 1.01" class="gt-chip absolute right-2 bottom-2" @click="resetView">看全圖</button>
+        <!-- 多人：切換看誰的地圖（一次只畫一張，其他人的地圖不吃效能） -->
+        <template v-if="(view.playerIds?.length ?? 0) > 1">
+            <button class="gt-chip absolute top-1/2 left-2 !min-h-12 !w-10 -translate-y-1/2 justify-center !px-0 text-xl font-bold opacity-90 [@media(pointer:coarse)]:!w-11" aria-label="看上一位玩家的地圖" title="上一位玩家" @click="emit('step', -1)">‹</button>
+            <button class="gt-chip absolute top-1/2 right-14 !min-h-12 !w-10 -translate-y-1/2 justify-center !px-0 text-xl font-bold opacity-90 [@media(pointer:coarse)]:!w-11" aria-label="看下一位玩家的地圖" title="下一位玩家" @click="emit('step', 1)">›</button>
+        </template>
     </div>
 </template>
 
@@ -29,7 +34,7 @@ const props = defineProps({
     pendingGem: { type: Object, default: null }, // 目前要放下的甜點
     selectedId: { type: Number, default: null },
 })
-const emit = defineEmits(['cell', 'tower', 'clear', 'arm'])
+const emit = defineEmits(['cell', 'tower', 'clear', 'arm', 'step'])
 
 const wrapRef = ref(null)
 const canvasRef = ref(null)

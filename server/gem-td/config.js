@@ -250,13 +250,19 @@ const BOSS_SLOW_RESIST = 0.5;
 const waveClearBonus = wave => 8 + 2 * wave;
 
 // ── 環形接力 ────────────────────────────────────────────────────
-// 每組蟲的血量 = 單人同一波 × 這個倍數；首領與巨獸整隻繞完整圈，血量 × 區域數 × 這個倍數
-const RELAY_GROUP_HP_MULT = 1.3; // balanceSim relay 實測：1.0 → 約 0.55 倍單人漏怪率（太輕鬆），1.3 → 約 0.69 倍
+// 每隻一般蟲要連續走過 RELAY_PASSES 區的迷宮才離場（區數不夠就繞回來），所以血量 = 單人同一波 × 走過的區數，
+// 人越多越肥（每多一位 +RELAY_PLAYER_HP_STEP），護甲也調高一點；打不死的蟲一路傳給下一區，全隊一起把牠磨死。
+const RELAY_PASSES = 3;
+const RELAY_PLAYER_HP_STEP = 0.25;
+const RELAY_ARMOR_MULT = 1.3;
+const relayGroupHpMult = zones => RELAY_PASSES * (1 + RELAY_PLAYER_HP_STEP * Math.max(0, zones - 1));
+const RELAY_GROUP_HP_MULT = relayGroupHpMult(1); // 單區基準（= 走過的區數）
+// 首領每區各出一隻、各自繞完整圈：每隻血量 = 單人 × 這個倍數（n 隻 × 繞 n 區，每區的負擔與單隻時相同）；傷害測試的巨獸只有一隻，再 × 區域數
 const RELAY_BOSS_HP_MULT = 0.8;
 // 過關獎勵：每區拿到同樣的額度（總額 = 單人獎勵 × 區域數，平分後每區等於單人獎勵）；擊殺金則歸實際擊殺的那一區
 const RELAY_CLEAR_BONUS_SHARE = 1;
 // 排版：相鄰區域中心距 ≥ 區域對角線 + 間距；外環輸送帶半徑 = 環半徑 + 對角線的一半 + 邊距（單位：格）
-const RELAY_ZONE_GAP = 6;
+const RELAY_ZONE_GAP = 32; // 區與區隔得夠遠：看自己這區時左右看不到別人，要用 ‹ › 或點整體地圖才過去（畫面外的區不畫、不吃效能）
 const RELAY_ARC_MARGIN = 3;
 const RELAY_ARC_STEP = 2.5; // 弧線每段約幾格，只影響折線的平滑度
 const RELAY_EVENT_KEEP = 30; // 事件紀錄最多保留幾筆
@@ -436,13 +442,13 @@ function catalog() {
     gemsPerRound: GEMS_PER_ROUND,
     difficulties: DIFFICULTIES,
     speedChoices: SPEED_CHOICES,
-    relay: { maxZones: MAX_ZONES, colors: RELAY_ZONE_COLORS, groupHpMult: RELAY_GROUP_HP_MULT, bossHpMult: RELAY_BOSS_HP_MULT },
+    relay: { maxZones: MAX_ZONES, colors: RELAY_ZONE_COLORS, passes: RELAY_PASSES, playerHpStep: RELAY_PLAYER_HP_STEP, bossHpMult: RELAY_BOSS_HP_MULT },
   };
 }
 
 module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
-  MODES, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_CLEAR_BONUS_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
+  MODES, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_PASSES, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
   RELAY_EVENT_KEEP, RELAY_EVENT_SHOW, RELAY_ZONE_COLORS,
   ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,

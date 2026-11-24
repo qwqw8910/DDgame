@@ -88,69 +88,72 @@ test('單一真人：區域數由設定決定，其餘是假人；多位真人�
   assert.equal(multi.ring.layout.n, 2);
 });
 
-test('交棒：離開主防區不扣血，從後援區離場才扣；整波扣血 = 各蟲 leak 的總和', () => {
+test('交棒：每隻蟲連走 3 區才離場；傳給下一區不扣血，從第 3 區出口離場才扣；整波扣血 = 各蟲 leak 的總和', () => {
   const game = relayGame(['a'], 2);
   emptyAll(game);
   const maxLives = game.lives;
   L.startWave(game, { rng: seededRng() });
   const hub = game.ring.hub;
-  let sawTransit = false;
-  let livesWhileTransit = null;
   for (let i = 0; i < 30000; i++) {
     const { done } = L.tick(game, 0.1, seededRng());
-    if (hub.transit.length && !sawTransit) {
-      sawTransit = true;
-      livesWhileTransit = game.lives;
-    }
+    assert.equal(hub.transit.length, 0, '傳送沒有移動時間，不會有蟲停在半路');
     if (done) break;
   }
-  assert.ok(sawTransit, '有蟲上了輸送帶');
-  assert.equal(livesWhileTransit, maxLives, '傳給後援不扣血');
   const def = C.waveDef(1, 15, 'easy');
   const perZone = def.groups.reduce((n, g) => n + g.count * (g.leak ?? C.MONSTERS[g.type].leak), 0);
-  assert.equal(maxLives - game.lives, perZone * 2, '兩組蟲都走完兩區後離場');
+  assert.equal(maxLives - game.lives, perZone * 2, '兩組蟲都走完 3 區後離場');
   for (const id of game.playerIds) {
     const s = R.liveStats(game.players[id]);
-    assert.equal(s.handoff, def.count, '每隻蟲都從主防區傳給後援');
-    assert.equal(s.leaks, def.count, '每區的出口也離場了同樣多的蟲（別區傳來的）');
+    assert.equal(s.handoff, def.count * 2, '自己的蟲傳出第 1 次，別區傳來的蟲再傳出第 2 次');
+    assert.equal(s.leaks, def.count, '繞回出生區才離場（3 區、2 個人）');
     assert.equal(s.kills, 0);
   }
 });
 
-test('輸送帶：移動時間 = 路徑長度 ÷ 蟲自己的速度；到站後從下一區入口出發', () => {
+test('傳送：漏出去的蟲立刻出現在下一區入口（最後一區接回第一區）', () => {
   const ring = { layout: ringLayout(3), events: [] };
   const hub = R.createHub(ring);
   const board = { start: { x: 2, y: 2 } };
   const sims = [0, 1, 2].map(() => ({ board, monsters: [], spawned: 0, def: { count: 0 } }));
-  const fast = { id: 1, speed: 5, hop: 1 };
-  const slow = { id: 2, speed: 2, hop: 1 };
-  hub.transit.push({ m: fast, from: 0, d: 0 }, { m: slow, from: 0, d: 0 });
-  const { length } = ring.layout.conveyors[0];
-  let t = 0;
-  while (!sims[1].monsters.includes(fast)) { R.stepTransit(hub, sims, 0.05); t += 0.05; }
-  assert.ok(Math.abs(t - length / 5) < 0.1, `快蟲 ${t} 秒，應約 ${length / 5}`);
-  assert.equal(sims[1].monsters.includes(slow), false, '慢蟲還在輸送帶上');
-  assert.deepEqual([fast.pos, fast.x, fast.y], [0, 2, 2]);
-  while (!sims[1].monsters.includes(slow)) { R.stepTransit(hub, sims, 0.05); t += 0.05; }
-  assert.ok(Math.abs(t - length / 2) < 0.1);
+  const a = { id: 1, speed: 5, hop: 1 };
+  const b = { id: 2, speed: 2, hop: 1 };
+  hub.transit.push({ m: a, from: 0, d: 0 }, { m: b, from: 2, d: 0 });
+  R.stepTransit(hub, sims, 0.05);
+  assert.ok(sims[1].monsters.includes(a));
+  assert.ok(sims[0].monsters.includes(b), '區 3 的出口接回區 1');
+  assert.deepEqual([a.pos, a.x, a.y], [0, 2, 2]);
   assert.equal(hub.transit.length, 0);
 });
 
-test('首領：只從區 1 出發，血量 × 區域數 × 0.8，繞完整圈後才離場扣血', () => {
+test('首領：每區各出一隻、血量 × 0.8，各自繞完整圈後才離場扣血', () => {
   const game = relayGame(['a'], 3);
   game.options.waves = 1; // 第 1 波就是最後一波首領
   emptyAll(game);
   L.startWave(game, { rng: seededRng() });
   const base = C.waveDef(1, 1, 'easy').groups[0];
   const sims = game.playerIds.map(id => game.players[id].sim);
-  assert.deepEqual(sims.map(s => s.def.count), [1, 0, 0]);
-  assert.equal(sims[0].def.groups[0].hp, Math.round(base.hp * 3 * C.RELAY_BOSS_HP_MULT));
+  assert.deepEqual(sims.map(s => s.def.count), [1, 1, 1]);
+  assert.equal(sims[1].def.groups[0].hp, Math.round(base.hp * C.RELAY_BOSS_HP_MULT));
   const lives = game.lives;
   for (let i = 0; i < 30000; i++) if (L.tick(game, 0.1, seededRng()).done) break;
-  assert.equal(lives - game.lives, base.leak, '只扣一次首領的漏怪血量');
+  assert.equal(lives - game.lives, base.leak * 3, '三隻首領各扣一次');
   const stats = game.playerIds.map(id => R.liveStats(game.players[id]));
-  assert.deepEqual(stats.map(s => s.handoff), [1, 1, 0], '前兩區傳出去，最後一區離場');
-  assert.deepEqual(stats.map(s => s.leaks), [0, 0, 1]);
+  assert.deepEqual(stats.map(s => s.handoff), [2, 2, 2], '每隻首領前兩區傳出去');
+  assert.deepEqual(stats.map(s => s.leaks), [1, 1, 1], '第三區離場');
+});
+
+test('一般蟲：血量依人數加成、走三區、護甲調高', () => {
+  const game = relayGame(['a'], 3);
+  L.startWave(game, { rng: seededRng() });
+  const base = C.waveDef(1, 15, 'easy');
+  const sim = game.players.a.sim;
+  assert.equal(sim.def.groups[0].hp, Math.round(base.groups[0].hp * C.relayGroupHpMult(3)));
+  assert.equal(sim.def.groups[0].armor, Math.round(base.groups[0].armor * C.RELAY_ARMOR_MULT));
+  assert.ok(C.relayGroupHpMult(4) > C.relayGroupHpMult(2) && C.relayGroupHpMult(1) === C.RELAY_PASSES);
+  stepWave(sim, 0.7);
+  assert.equal(sim.monsters[0].hops, C.RELAY_PASSES);
+  const view = L.buildView(game, 'a').nextWave;
+  assert.equal(view.groups[0].hp, sim.def.groups[0].hp, '預告與實際出的血量一致');
 });
 
 test('分裂小蟲繼承出生區、已走區數與「已傳給後援」標記，編號整圈不重複', () => {
@@ -276,9 +279,9 @@ test('事件紀錄與分區統計：數字與實際傳遞一致', () => {
   runWave(game);
   const events = game.ring.events.map(e => e.text);
   const def = C.waveDef(1, 15, 'easy');
-  assert.ok(events[0].includes(`傳 ${def.count} 隻給`), events[0]);
+  assert.ok(events[0].includes(`傳 ${def.count * 2} 隻給`), events[0]);
   const rows = L.buildView(game, 'a').relay.zones.map(z => z.stats);
-  assert.ok(rows.every(s => s.handoff === def.count && s.leaks === def.count));
+  assert.ok(rows.every(s => s.handoff === def.count * 2 && s.leaks === def.count));
 });
 
 test('快照：整圈一份，每隻蟲帶世界座標、出生區、是否已傳給後援與所在區', () => {
@@ -286,14 +289,13 @@ test('快照：整圈一份，每隻蟲帶世界座標、出生區、是否已�
   emptyAll(game);
   L.startWave(game, { rng: seededRng() });
   let frame = null;
-  let onBelt = null;
-  for (let i = 0; i < 3000 && !onBelt; i++) {
+  let relieved = null;
+  for (let i = 0; i < 3000 && !relieved; i++) {
     L.tick(game, 0.1, seededRng());
     frame = L.buildFrames(game).ring;
-    onBelt = frame.m.find(m => m[8] === -1);
+    relieved = frame.m.find(m => m[7] === 1);
   }
   assert.ok(frame.ring);
-  assert.ok(frame.m.every(m => m.length === 9));
-  assert.ok(onBelt, '有蟲在輸送帶上');
-  assert.equal(onBelt[7], 1, '輸送帶上的蟲都已傳給後援');
+  assert.ok(frame.m.every(m => m.length === 9 && m[8] >= 0), '沒有輸送帶，每隻蟲都在某一區裡');
+  assert.ok(relieved, '有蟲已經傳給後援');
 });

@@ -1005,14 +1005,16 @@ function buildView(game, viewerId, watchId) {
     const test = isTestWave(game);
     const number = test ? game.testAt : game.wave + 1;
     const def = test ? C.testWaveDef(game.testAt, game.options.difficulty, game.options.waves) : C.waveDef(number, game.options.waves, game.options.difficulty);
-    // 環形接力：每組的數量同單人，血量依區域數換算；首領與巨獸整隻繞圈（只有一隻）
+    // 環形接力：每組的數量同單人，血量與護甲依走過的區數與人數換算；首領每區各一隻，傷害測試的巨獸只有一隻
     const n = game.ring ? game.playerIds.length : 1;
     const hpMult = (g) => {
       if (!game.ring) return 1;
-      return C.MONSTERS[g.type].boss ? n * C.RELAY_BOSS_HP_MULT : C.RELAY_GROUP_HP_MULT;
+      if (C.MONSTERS[g.type].boss) return test ? n * C.RELAY_BOSS_HP_MULT : C.RELAY_BOSS_HP_MULT;
+      return C.relayGroupHpMult(n);
     };
-    const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: Math.max(1, Math.round(g.hp * hpMult(g))), armor: Math.round(g.armor), trait: g.trait, leak: g.leak }));
-    return { number, type: def.type, count: def.count, hp: groups[0].hp, armor: Math.round(def.armor), groups, test: !!def.test, perZone: !!game.ring && !C.MONSTERS[def.type].boss };
+    const armorMult = g => (game.ring && !C.MONSTERS[g.type].boss ? C.RELAY_ARMOR_MULT : 1);
+    const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: Math.max(1, Math.round(g.hp * hpMult(g))), armor: Math.round(g.armor * armorMult(g)), trait: g.trait, leak: g.leak }));
+    return { number, type: def.type, count: def.count, hp: groups[0].hp, armor: groups[0].armor, groups, test: !!def.test, perZone: !!game.ring && !test };
   })();
   const watching = resolveWatch(game, viewerId, watchId);
   const field = game.players[watching];
@@ -1073,7 +1075,7 @@ function relayView(game, viewerId, watching) {
   return {
     n: layout.n,
     layout: {
-      size: layout.size, radius: layout.radius, arcRadius: layout.arcRadius, bounds: layout.bounds,
+      size: layout.size, pitch: layout.pitch, bounds: layout.bounds,
       zones: layout.zones.map(z => ({ cx: z.cx, cy: z.cy, origin: z.origin })),
       conveyors: layout.conveyors.map(c => ({ from: c.from, to: c.to, points: c.points, length: c.length, arcFrom: c.arcFrom, arcTo: c.arcTo })),
     },
