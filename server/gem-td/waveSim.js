@@ -132,7 +132,7 @@ function spawn(sim) {
     leak: group.leak ?? info.leak,
     dead: false,
     // 環形接力：出生區、已走完幾區、總共要走幾區（一般蟲 2 區：主防＋後援；首領與巨獸繞完整圈）
-    ...(sim.relay ? { born: sim.relay.zone, hop: 0, hops: info.boss ? sim.relay.n : C.RELAY_PASSES } : {}),
+    ...(sim.relay ? { born: sim.relay.zone, hop: 0, hops: info.boss ? sim.relay.n : C.relayPasses(sim.relay.n) } : {}),
   });
   sim.spawned += 1;
 }

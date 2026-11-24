@@ -18,6 +18,9 @@
                     <span v-if="view.nextWave?.test" class="text-(--gt-accent-ink)" aria-hidden="true">傷害測試</span>
                     <span v-else aria-hidden="true"><span class="gt-hud-sub max-sm:hidden">第 </span>{{ waveNumber }}<span v-if="view.options.waves" class="gt-hud-sub">／{{ view.options.waves }}</span><span class="gt-hud-sub max-sm:hidden"> 波</span></span>
                 </span>
+                <span v-if="waveBrief" class="gt-hud-next" :title="waveBrief.text">
+                    <b>下一波：</b>{{ waveBrief.body }}<b v-if="waveBrief.warn" class="ml-2 !text-(--gt-accent-ink)">{{ waveBrief.warn }}</b>
+                </span>
                 <span v-if="secondsLeft !== null" class="gt-hud-item" :class="secondsLeft <= 10 && 'text-(--gt-accent-ink)'" role="timer" aria-label="建造剩餘秒數">
                     <span class="gt-hud-sub max-sm:hidden">建造 </span>{{ secondsLeft }}<span class="gt-hud-sub">秒</span>
                 </span>
@@ -221,7 +224,8 @@
                     </div>
 
                     <Teleport :to="sideTopEl" :disabled="!isTray || !sideTopEl || !view.relay">
-                    <GemWaveInfo :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
+                    <!-- 環形接力電腦版：預告只留一行摘要在標題列波次後面（waveBrief），進度看底部戰況列 -->
+                    <GemWaveInfo v-if="!relayCodexLeft" :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
                     </Teleport>
                     <!-- 手機標題列放不下暫停，留在「戰況」分頁；電腦與平板在標題列 -->
@@ -233,6 +237,8 @@
                 </div>
                 <!-- 環形接力：左下角放整體地圖，合成表搬到右上頁籤 -->
                 <GemRingMini v-if="view.relay && isWide && !isLg" :view="view" :catalog="state.catalog" :frame="frame" :camera="mapCamera" @goto="onMiniGoto" />
+                <!-- 環形接力（電腦版）：合成表固定在左欄，玩家抽屜打開時蓋在它上面 -->
+                <GemCodex v-if="relayCodexLeft" :view="view" :catalog="state.catalog" :meta="recipeMeta" @combine="onCombine" />
             </aside>
 
             <div class="gt-center">
@@ -286,7 +292,7 @@
                         :is-host="roomState.isHost" :keys="hasKeyboard" @watch="id => { watchMap(id); boardRef?.focusZone?.(view.relay.zones.findIndex(z => z.id === id)) }" />
                 </aside>
             </template>
-            <aside class="gt-side" aria-label="操作">
+            <aside ref="sideEl" class="gt-side" :class="sideScroll.can && 'gt-side--scroll'" aria-label="操作" @scroll.passive="measureSide">
                 <!-- 環形接力（電腦版）：右上頁籤，一次只看一頁，不再往現有畫面疊東西 -->
                 <div v-if="isWide" class="gt-seg gt-rtabs flex" role="tablist" aria-label="右側頁籤">
                     <button v-for="t in relayTabs" :key="t.id" class="gt-seg-btn relative" role="tab" :aria-selected="relayPanelTab === t.id"
@@ -308,6 +314,8 @@
                 <GemCodex v-if="relayPanelTab === 'codex'" :view="view" :catalog="state.catalog" :meta="recipeMeta" @combine="onCombine" />
                 <!-- 平板：合成表由標題列的書本按鈕打開，排在操作區最下面（不再浮在地圖上） -->
                 <GemCodex v-if="inGame && !isWide && !isPhone && showRecipes" :view="view" :catalog="state.catalog" @combine="onCombine" />
+                <!-- 電腦版：右欄下面還有內容時，提示往下捲（點一下捲到底） -->
+                <button v-if="isLg && sideScroll.more" class="gt-chip gt-side-more" @click="sideEl?.scrollBy({ top: sideEl.clientHeight * 0.8, behavior: 'smooth' })">往下還有 ↓</button>
             </aside>
         </main>
 
@@ -387,7 +395,7 @@ import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
 import { useGemTd } from '../composables/useGemTd.js'
 import { useGemTdCues, useGemTdSfx } from '../composables/useGemTdSfx.js'
 import { useGemTdKeys } from '../composables/useGemTdKeys.js'
-import { PRESETS, WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, MODE_CHOICES, ZONE_CHOICES, nextSpeed, PLAYER_MARKS, isSpecial, RESULT_WIN_IMAGE, RESULT_LOSE_IMAGE } from '../data/gems.js'
+import { canHitAir, PRESETS, WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, MODE_CHOICES, ZONE_CHOICES, nextSpeed, PLAYER_MARKS, isSpecial, RESULT_WIN_IMAGE, RESULT_LOSE_IMAGE } from '../data/gems.js'
 import GemBoard from '../components/GemBoard.vue'
 import GemRingBoard from '../components/GemRingBoard.vue'
 import GemRelayInfo from '../components/GemRelayInfo.vue'
@@ -450,6 +458,26 @@ const trayActEl = ref(null)
 const dockEl = ref(null)
 const trayPrevEl = ref(null)
 const sideTopEl = ref(null)
+// 電腦版右欄：內容超出高度時整欄接收滑鼠（否則滾輪落在卡片間的空隙會變成縮放地圖），還沒捲到底時顯示「往下還有」
+const sideEl = ref(null)
+const sideScroll = ref({ can: false, more: false })
+function measureSide() {
+    const el = sideEl.value
+    if (!el) return
+    const can = el.scrollHeight > el.clientHeight + 2
+    const more = can && el.scrollTop + el.clientHeight < el.scrollHeight - 24
+    if (can !== sideScroll.value.can || more !== sideScroll.value.more) sideScroll.value = { can, more }
+}
+let sideObserver = null
+watch(sideEl, (el) => {
+    sideObserver?.disconnect()
+    sideObserver = null
+    if (!el) return
+    sideObserver = new MutationObserver(() => nextTick(measureSide))
+    sideObserver.observe(el, { childList: true, subtree: true, characterData: true })
+    nextTick(measureSide)
+})
+window.addEventListener('resize', measureSide)
 watch(showRecipes, (open) => {
     if (open) nextTick(() => document.getElementById('gt-recipes')?.scrollIntoView({ block: 'start' }))
 })
@@ -462,6 +490,20 @@ const recipeMeta = computed(() => {
 
 // 電腦版（所有模式）：右上頁籤（操作／商店／圖鑑；環形接力多一個戰況）；沒有的頁籤（例：出怪中沒有商店）自動退回「操作」
 const playersOpen = ref(false) // 環形接力：左側玩家抽屜
+// 環形接力（電腦版）：合成表放左欄，右上頁籤就不再有「圖鑑」
+const relayCodexLeft = computed(() => !!view.value?.relay && isLg.value && !!view.value?.board)
+// 環形接力（電腦版）沒有完整預告卡：建造時在標題列波次後面寫一句下一波是什麼，例「螞蟻 10・胡蜂 5（會飛）」
+const waveBrief = computed(() => {
+    const v = view.value
+    const n = v?.nextWave
+    if (!relayCodexLeft.value || v.phase !== 'build' || !n || !state.catalog) return null
+    const info = type => state.catalog.monsters.find(m => m.id === type)
+    const groups = n.groups ?? []
+    const body = n.test ? '巨獸（不扣血，盡量打滿傷害）' : groups.map(g => `${info(g.type)?.name ?? g.type} ${g.count}${info(g.type)?.flying ? '（會飛）' : ''}`).join('・')
+    const towers = v.me?.towers ?? []
+    const warn = groups.some(g => info(g.type)?.flying) && towers.length && !towers.some(t => canHitAir(t.kind, state.catalog)) ? '塔都打不到空中！' : ''
+    return { body, warn, text: `下一波：${body}${warn ? `　${warn}` : ''}` }
+})
 const relayTab = ref('build')
 const relayTabs = computed(() => {
     const me = view.value?.me
@@ -469,7 +511,7 @@ const relayTabs = computed(() => {
     return [
         { id: 'build', label: '操作' },
         ...(canShop ? [{ id: 'shop', label: '商店', dot: shopAfford.value }] : []),
-        { id: 'codex', label: '圖鑑', dot: readyFavs.value > 0 },
+        ...(relayCodexLeft.value ? [] : [{ id: 'codex', label: '圖鑑', dot: readyFavs.value > 0 }]),
         ...(view.value?.relay ? [{ id: 'stats', label: '戰況' }] : []),
     ]
 })
@@ -849,6 +891,7 @@ function handleKey(code, e) {
         clearSelection()
         return true
     case 'KeyB':
+        if (relayCodexLeft.value) return false // 合成表一直開在左欄
         if (inGame.value && relayPanelTab.value) { relayTab.value = relayPanelTab.value === 'codex' ? 'build' : 'codex'; return true }
         if (!inGame.value || isWide.value) return false
         if (isPhone.value) phoneTab.value = phoneTab.value === 'recipes' ? 'place' : 'recipes'
@@ -1003,6 +1046,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+    sideObserver?.disconnect()
+    window.removeEventListener('resize', measureSide)
     wideQuery.removeEventListener('change', onWideChange)
     phoneQuery.removeEventListener('change', onPhoneChange)
     clearInterval(clock)

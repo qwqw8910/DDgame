@@ -271,12 +271,14 @@ const BOSS_SLOW_RESIST = 0.5;
 const waveClearBonus = wave => 8 + 2 * wave;
 
 // ── 環形接力 ────────────────────────────────────────────────────
-// 每隻一般蟲要連續走過 RELAY_PASSES 區的迷宮才離場（區數不夠就繞回來），所以血量 = 單人同一波 × 走過的區數，
+// 每隻一般蟲要連續走過 relayPasses(區數) 區的迷宮才離場：至少 RELAY_PASSES 區（區數不夠就繞回來），區數更多時繞完整圈；
+// 血量 = 單人同一波 × 走過的區數，
 // 人越多越肥（每多一位 +RELAY_PLAYER_HP_STEP），護甲也調高一點；打不死的蟲一路傳給下一區，全隊一起把牠磨死。
 const RELAY_PASSES = 3;
 const RELAY_PLAYER_HP_STEP = 0.25;
 const RELAY_ARMOR_MULT = 1.3;
-const relayGroupHpMult = zones => RELAY_PASSES * (1 + RELAY_PLAYER_HP_STEP * Math.max(0, zones - 1));
+const relayPasses = zones => Math.max(RELAY_PASSES, zones);
+const relayGroupHpMult = zones => relayPasses(zones) * (1 + RELAY_PLAYER_HP_STEP * Math.max(0, zones - 1));
 const RELAY_GROUP_HP_MULT = relayGroupHpMult(1); // 單區基準（= 走過的區數）
 // 首領每區各出一隻、各自繞完整圈：每隻血量 = 單人 × 這個倍數（n 隻 × 繞 n 區，每區的負擔與單隻時相同）；傷害測試的巨獸只有一隻，再 × 區域數
 const RELAY_BOSS_HP_MULT = 0.8;
@@ -471,7 +473,7 @@ function catalog() {
 
 module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
-  MODES, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_PASSES, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
+  MODES, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_PASSES, relayPasses, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
   RELAY_EVENT_KEEP, RELAY_EVENT_SHOW, RELAY_ZONE_COLORS,
   ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, MAP_LAYOUTS, MAP_COUNT, SKILLS, SKILL_IDS, BOSS_STUN_RESIST, SKILL_HP_MULT,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,

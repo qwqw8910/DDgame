@@ -156,6 +156,18 @@ test('一般蟲：血量依人數加成、走三區、護甲調高', () => {
   assert.equal(view.groups[0].hp, sim.def.groups[0].hp, '預告與實際出的血量一致');
 });
 
+test('一般蟲：區數超過 3 時繞完整圈，血量跟著走過的區數放大', () => {
+  assert.equal(C.relayPasses(2), C.RELAY_PASSES);
+  assert.equal(C.relayPasses(4), 4);
+  assert.equal(C.relayPasses(6), 6);
+  assert.ok(Math.abs(C.relayGroupHpMult(4) - 4 * (1 + 3 * C.RELAY_PLAYER_HP_STEP)) < 1e-9);
+  const game = relayGame(['a'], 4);
+  L.startWave(game, { rng: seededRng() });
+  const sim = game.players.a.sim;
+  stepWave(sim, 0.7);
+  assert.equal(sim.monsters[0].hops, 4);
+});
+
 test('分裂小蟲繼承出生區、已走區數與「已傳給後援」標記，編號整圈不重複', () => {
   const game = relayGame(['a'], 3);
   L.startWave(game, { rng: seededRng() });
