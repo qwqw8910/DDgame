@@ -1644,7 +1644,7 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     .gt-tray-prev > section { width: 100%; }
     .gt-tray-prev .gt-preview { margin-top: 0; }
     .gt-tray-prev > section > p { display: none; }
-    .gt-tray-act { flex: none; width: 200px; display: flex; align-items: center; }
+    .gt-tray-act { flex: none; width: auto; min-width: 200px; display: flex; align-items: center; }
     .gt-tray-hand > .gt-panel { height: 100%; border: 0; box-shadow: none; }
     .gt-tray-hand .gt-panel-head { display: none; }
     .gt-tray-hand .gt-panel-body { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 0 4px; }
@@ -1656,9 +1656,9 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
     .gt-tray-act .gt-ready > div { align-items: center; justify-content: space-between; gap: 6px; }
     /* 準備鈕：圓形，外圈是建造倒數 */
     .gt-tray-act .gt-btn--lamp.gt-btn--hero {
-      position: relative; isolation: isolate; flex: none; width: 128px; height: 128px; min-height: 0; padding: 12px; border: 0; border-radius: 50%;
+      position: relative; isolation: isolate; flex: 0 0 128px; width: 128px; min-width: 128px; max-width: 128px; height: 128px; aspect-ratio: 1; min-height: 0; padding: 12px; border: 0; border-radius: 50%;
       background: conic-gradient(var(--gt-gold) calc(var(--p, 1) * 1turn), var(--gt-track) 0);
-      box-shadow: 0 3px 8px rgba(74, 44, 42, 0.25); font-size: 16px; line-height: 1.25;
+      box-shadow: 0 3px 8px rgba(74, 44, 42, 0.25); font-size: 24px; font-weight: 800; line-height: 1.25;
     }
     .gt-tray-act .gt-btn--lamp.gt-btn--hero::before { content: ""; position: absolute; inset: 9px; z-index: -1; border-radius: 50%; background: var(--gt-accent); }
     .gt-tray-act .gt-btn--lamp.gt-btn--hero:hover:not(:disabled)::before { background: var(--gt-accent-hover); }
@@ -1738,6 +1738,40 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-rail-top:last-child { flex: 1 1 auto; max-height: none; }
   .gt-side { overscroll-behavior: contain; }
   .gt-stage { position: relative; min-width: 0; min-height: 0; padding: 12px 4px; }
+
+  /* 底部操作列：沒有內容的欄位不佔寬（出怪中只剩戰況列） */
+  .gt-tray-hand:empty, .gt-tray-act:empty { display: none; }
+  .gt-tray > .gt-wavebar { align-self: center; }
+
+  /* ── 環形接力（電腦與直放平板）：地圖是橫排的一整列，不用方形；
+     左欄固定窄（血量、玩家、整體地圖），右欄固定寬（頁籤），中間全部給地圖。
+     右側圖示列拿掉：品質、補血、許願、研究都在右上「商店」頁籤。 ── */
+  .gt-rtabs { position: sticky; top: 0; z-index: 2; flex-shrink: 0; }
+  .gt-rtabs .gt-seg-btn { flex: 1; min-width: 0; padding-inline: 4px; white-space: nowrap; }
+  .gt-rtabs .gt-dot--corner { top: 2px; right: 2px; }
+  /* 所有模式的電腦版共用右上頁籤：沒有圖示列，只剩 左／中／右 三欄 */
+  @media (min-width: 1024px) {
+    .gt-game--tabs {
+      grid-template-columns: minmax(240px, 1fr) minmax(360px, calc(100dvh - 57px - var(--gt-tray-h))) minmax(280px, 1fr);
+    }
+    .gt-game--tabs .gt-dock { display: none; }
+    .gt-game--relay {
+      grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(300px, 360px);
+    }
+    .gt-game--relay .gt-rail { justify-self: stretch; max-width: none; }
+    .gt-game--relay .gt-side { justify-self: stretch; max-width: none; }
+    .gt-game--relay .gt-stage { padding: 8px; }
+  }
+  @media (min-width: 1024px) and (max-width: 1279px) {
+    .gt-game--tabs:not(.gt-game--relay) { grid-template-columns: minmax(250px, 1fr) minmax(300px, calc(100dvh - 57px - var(--gt-tray-h))) minmax(260px, 1fr); }
+  }
+  @media (min-width: 640px) and (max-width: 1023px) and (orientation: portrait) {
+    .gt-game--tabs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); --gt-map: min(100vw, calc(100dvh - 57px - var(--gt-tray-h) - 220px)); }
+    .gt-game--tabs .gt-center > .gt-stage { grid-column: 1 / -1; }
+    .gt-game--tabs .gt-dock { display: none; }
+    .gt-game--tabs .gt-side { grid-column: 2; }
+    .gt-game--relay { --gt-map: min(56vw, calc(100dvh - 57px - var(--gt-tray-h) - 220px)); }
+  }
   @media (max-width: 639px), (max-width: 1023px) and (orientation: landscape) {
     .gt-game { display: flex; flex-direction: column; overflow-y: auto; }
     .gt-rail, .gt-side, .gt-rail-top { flex-shrink: 0; overflow: visible; border: 0; max-height: none; }
@@ -1803,6 +1837,84 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
       position: fixed; right: env(safe-area-inset-right); bottom: env(safe-area-inset-bottom); left: calc(var(--gt-sq) + env(safe-area-inset-left));
       z-index: 4; margin: 0; padding: 8px 12px; border-top: 1px solid var(--gt-line); background: var(--gt-bg);
     }
+  }
+
+  /* ── 電腦版（≥1024px）浮動版面：地圖鋪滿整個舞台，像一張桌子；面板、托盤、頁籤都是浮在桌面上的物件。
+     面板不佔版面，地圖永遠是最大的；被蓋住的範圍由地圖自己留邊（GemRingBoard 的 measureInsets）。
+     質感：2px 深色邊框＋硬陰影（厚厚的按鈕感）＋一點半透明；桌面是木紋加暗角。 ── */
+  @media (min-width: 1024px) {
+    .gt-game--tabs {
+      position: relative; display: block; overflow: hidden;
+      --gt-rail-w: 300px; --gt-side-w: 350px; --gt-float-b: calc(var(--gt-tray-h) + 28px);
+      background:
+        radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(30, 15, 5, 0.42) 100%),
+        repeating-linear-gradient(180deg, #CFA56E 0 88px, #A57A47 88px 90px);
+    }
+    .gt-game--tabs .gt-stage {
+      position: absolute; inset: 0;
+      padding: 14px calc(var(--gt-side-w) + 28px) var(--gt-float-b) calc(var(--gt-rail-w) + 28px);
+    }
+    .gt-game--relay .gt-stage { padding: 0; }
+    /* 一般模式的方形地圖：像放在桌上的烤盤 */
+    .gt-game--tabs:not(.gt-game--relay) .gt-stage canvas {
+      box-shadow: 0 0 0 7px #C3C8CE, 0 0 0 9px rgba(0, 0, 0, 0.3), 0 16px 30px rgba(30, 15, 5, 0.5); border-radius: 4px;
+    }
+    .gt-game--tabs .gt-rail, .gt-game--tabs .gt-side {
+      position: absolute; z-index: 3; top: 14px; bottom: var(--gt-float-b); max-width: none; padding: 0; pointer-events: none;
+    }
+    .gt-game--tabs .gt-rail { left: 14px; width: var(--gt-rail-w); overflow: hidden; }
+    .gt-game--tabs .gt-side { right: 14px; width: var(--gt-side-w); }
+    .gt-game--tabs .gt-rail > *, .gt-game--tabs .gt-side > * { pointer-events: auto; }
+    .gt-game--tabs .gt-rail-top { flex: 1 1 0; max-height: none; }
+    .gt-game--tabs .gt-rail-top:last-child { flex: 0 1 auto; }
+    /* 環形接力：整體地圖搬進最下面那一列的左邊，左欄沒東西了就縮到 0，讓地圖多出來的位置用在地圖上 */
+    .gt-game--relay .gt-rail { width: 0; }
+    .gt-game--relay .gt-tray-map { flex: 0 0 var(--gt-rail-w); align-self: stretch; display: flex; min-width: 0; padding-right: 12px; border-right: 2px solid var(--gt-line-soft); }
+    .gt-game--relay .gt-tray-map > .gt-mini { flex: 1; min-width: 0; border: 0; box-shadow: none; background: none; backdrop-filter: none; }
+    .gt-game--relay .gt-tray-map .gt-panel-body { height: 100%; display: flex; align-items: center; padding: 0 !important; }
+    .gt-game--relay .gt-tray-hand { margin-left: auto; }
+    .gt-game--relay .gt-tray-act { margin-right: auto; }
+    .gt-game--tabs .gt-rail .gt-tab { min-height: 0; padding: 6px 10px; }
+    /* 玩家抽屜：從左側滑出（Tab 開關），平常整個收起來 */
+    .gt-drawer-toggle { position: absolute; z-index: 5; left: 14px; top: 14px; min-height: 44px; }
+    .gt-drawer-arrow { display: inline-block; margin-left: 6px; transition: transform 0.2s ease; }
+    .gt-drawer-arrow--open { transform: rotate(180deg); }
+    .gt-drawer {
+      position: absolute; z-index: 4; left: 14px; top: 70px; display: flex; flex-direction: column; gap: 12px; width: var(--gt-rail-w);
+      max-height: calc(100% - 84px - var(--gt-float-b)); overflow-y: auto; overscroll-behavior: contain;
+      transform: translateX(calc(-100% - 28px)); visibility: hidden;
+      transition: transform 0.22s ease, visibility 0s linear 0.22s;
+    }
+    .gt-drawer--open { transform: none; visibility: visible; transition: transform 0.22s ease; }
+    @media (prefers-reduced-motion: reduce) {
+      .gt-drawer, .gt-drawer--open, .gt-drawer-arrow { transition: none; }
+    }
+    .gt-game--tabs .gt-tray {
+      position: absolute; z-index: 3; left: 14px; right: 14px; bottom: 14px; width: auto;
+      border: 2px solid var(--gt-ink); border-radius: 20px; background: rgba(255, 248, 246, 0.96); backdrop-filter: blur(8px);
+      box-shadow: 0 5px 0 rgba(74, 44, 42, 0.35), 0 14px 26px rgba(30, 15, 5, 0.28);
+    }
+    /* 浮動的卡片 */
+    .gt-game--tabs .gt-panel, .gt-game--tabs .gt-card, .gt-game--tabs .gt-rtabs {
+      border: 2px solid var(--gt-ink); border-radius: 16px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(6px);
+      box-shadow: 0 4px 0 rgba(74, 44, 42, 0.32), 0 10px 22px rgba(30, 15, 5, 0.2);
+    }
+    .gt-game--tabs .gt-panel-head { background: var(--gt-accent-soft); }
+    .gt-game--tabs .gt-tray-hand > .gt-panel { border: 0; border-radius: 0; background: none; backdrop-filter: none; box-shadow: none; }
+    .gt-game--tabs .gt-rtabs { padding: 4px; }
+    .gt-game--tabs .gt-rtabs .gt-seg-btn { border-radius: 12px; }
+    /* 厚厚的按鈕：硬陰影，按下去往下沉 */
+    .gt-game--tabs .gt-btn, .gt-game--tabs .gt-chip { box-shadow: 0 3px 0 rgba(74, 44, 42, 0.35); }
+    .gt-game--tabs .gt-btn:active:not(:disabled), .gt-game--tabs .gt-chip:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(74, 44, 42, 0.35); }
+    .gt-game--tabs .gt-btn:disabled { box-shadow: none; }
+    .gt-game--tabs .gt-chip { border: 2px solid var(--gt-ink); background: var(--gt-surface); }
+    .gt-game--tabs .gt-chip--on { border-color: var(--gt-accent); background: var(--gt-accent-soft); color: var(--gt-accent-ink); }
+  }
+  @media (min-width: 1024px) and (max-width: 1279px) {
+    .gt-game--tabs { --gt-rail-w: 250px; --gt-side-w: 310px; }
+  }
+  @media (min-width: 1920px) {
+    .gt-game--tabs { --gt-rail-w: 340px; --gt-side-w: 400px; }
   }
 
   /* 合成表：一律排在版面裡。電腦版放在左欄卡片內（卡片本體負責捲動）；手機與平板自己帶卡片外框 */

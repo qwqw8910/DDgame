@@ -171,12 +171,17 @@ function playRelay({ zones, waves, seed, difficulty = 'easy' }) {
   return out;
 }
 
-// 調係數：RELAY_HP=1.2 RELAY_BOSS=0.8 node gem-td/balanceSim.js relay 6 50 easy（只在這次執行有效）
+// 調係數：RELAY_HP=3 RELAY_STEP=0.25 RELAY_BOSS=0.8 node gem-td/balanceSim.js relay 6 50 easy（只在這次執行有效）
+// RELAY_HP＝單區基準倍數（預設 = 走過的區數），RELAY_STEP＝每多一位真人加的比例
 function runRelay(rounds, waves, difficulty) {
-  if (process.env.RELAY_HP) C.RELAY_GROUP_HP_MULT = Number(process.env.RELAY_HP);
+  const step = process.env.RELAY_STEP ? Number(process.env.RELAY_STEP) : C.RELAY_PLAYER_HP_STEP;
+  if (process.env.RELAY_HP || process.env.RELAY_STEP) {
+    const hp = Number(process.env.RELAY_HP ?? C.RELAY_GROUP_HP_MULT);
+    C.relayGroupHpMult = zones => hp * (1 + step * Math.max(0, zones - 1));
+  }
   if (process.env.RELAY_BOSS) C.RELAY_BOSS_HP_MULT = Number(process.env.RELAY_BOSS);
   console.log(`環形接力平衡（${waves} 波、${difficulty}、每組 ${rounds} 局，血量不歸零）；漏怪率 = 離場蟲 ÷ 出過的蟲，不含首領`);
-  console.log(`群血量 ×${C.RELAY_GROUP_HP_MULT}、首領 ×N×${C.RELAY_BOSS_HP_MULT}`);
+  console.log(`群血量 ×${C.RELAY_GROUP_HP_MULT}（每多一人 +${step * 100}%）、首領 ×${C.RELAY_BOSS_HP_MULT}`);
   console.log('區域數  漏怪率   相對單人  前半段  後半段   首領漏出（次/首領波）');
   let base = null;
   for (let zones = 1; zones <= C.MAX_ZONES; zones++) {

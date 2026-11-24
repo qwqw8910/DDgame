@@ -1,7 +1,7 @@
 <template>
     <!-- 右欄只放「現在要做的事」；戰況與波次預告在左欄 -->
     <!-- 電腦版：由上到下是「本回合甜點 → 選中的塔 → 可以合成 → 品質 → 商店分頁」，主按鈕釘在欄底 -->
-    <div class="gt-actions flex flex-col gap-4 text-base text-(--gt-text)">
+    <div class="gt-actions flex flex-col gap-4 text-base text-(--gt-text)" :class="panelHidden && 'hidden'">
         <p v-if="me?.out" class="m-0 font-semibold text-(--gt-accent-ink)" :class="[tabClass('place'), buildHide]">你已出局，可以切換看其他人的地圖。</p>
         <p v-else-if="me && !mine && (me.pending.length || me.choosing)" class="m-0 text-(--gt-accent-ink)" :class="[tabClass('place'), buildHide]">回到自己的地圖才能放置和選擇甜點。</p>
 
@@ -117,7 +117,7 @@
                 <button class="gt-btn gt-btn--hero shrink-0" :disabled="!me.canUndo" aria-keyshortcuts="Z" aria-label="還原上一步" title="還原上一步" @click="$emit('undo')">
                     <span aria-hidden="true">↩ 還原</span><kbd v-if="keys && me.canUndo" class="gt-kbd ml-2 max-xl:hidden" aria-hidden="true">Z</kbd>
                 </button>
-                <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" :disabled="me.ready || !me.resolved" aria-keyshortcuts="R" @click="$emit('ready')">
+                <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" :disabled="me.ready || !me.resolved" :title="readyHint" :aria-label="readyHint" aria-keyshortcuts="R" @click="$emit('ready')">
                     {{ readyLabel }}<kbd v-if="keys && me.resolved && !me.ready" class="gt-kbd ml-2" aria-hidden="true">R</kbd>
                 </button>
             </div>
@@ -291,6 +291,7 @@ const props = defineProps({
     dockTarget: { type: Object, default: null }, // 電腦版：右側圖示列的元素
     armedCell: { type: Object, default: null }, // 手機與平板：地圖上預覽中、還沒確認的格子
     ring: { type: Number, default: null }, // 建造倒數剩餘比例 0~1（準備鈕外圈）
+    relayTab: { type: String, default: '' }, // 環形接力電腦版：右上頁籤（build／shop／codex／stats）；空字串 = 照原本的圖示列切換
 })
 
 // 手機只顯示目前分頁的區塊；沒傳分頁（空字串）時全部顯示
@@ -342,16 +343,27 @@ function gemName(kind, level) {
 // 電腦版主按鈕：還沒放完時說明還差哪一步
 const readyLabel = computed(() => {
     const m = me.value
-    if (m.ready) return '已準備，等待隊友'
+    if (m.ready) return '等待中'
+    return '開始'
+})
+// 按不下去的原因：只放在提示與讀屏文字，鈕上只寫「開始」
+const readyHint = computed(() => {
+    const m = me.value
+    if (m.ready) return '已準備，等其他玩家'
     if (m.pending.length) return `還要放 ${m.pending.length} 顆甜點`
     if (m.choosing) return '先選 1 顆留下'
-    return '準備好了，開始出怪'
+    return '開始出怪'
 })
 
 // 電腦版右欄頁簽：建造／商店。商店只在自己的建造階段才有；其他時候只剩一頁，不顯示頁簽
 const showMainTabs = computed(() => phase.value === 'build' && !!me.value && !me.value.out && shopTabs.value.length > 0)
 const pickedMain = ref('build')
-const mainTab = computed(() => (showMainTabs.value ? pickedMain.value : 'build'))
+const mainTab = computed(() => {
+    if (props.relayTab) return props.relayTab === 'shop' && showMainTabs.value ? 'shop' : 'build'
+    return showMainTabs.value ? pickedMain.value : 'build'
+})
+// 合成表、戰況頁籤由頁面自己排；這一欄整個收起來（托盤的搬運內容不受影響）
+const panelHidden = computed(() => desktop.value && (props.relayTab === 'codex' || props.relayTab === 'stats'))
 const buildHide = computed(() => (desktop.value && mainTab.value === 'shop' ? 'hidden' : ''))
 const shopHide = computed(() => (desktop.value && mainTab.value === 'build' ? 'hidden' : ''))
 // 在地圖上點了塔或甜點，回到「建造」頁才看得到它的資訊

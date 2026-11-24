@@ -1,32 +1,30 @@
 <template>
     <div class="contents">
         <!-- 隊伍共用血量 -->
-        <GemSection title="隊伍血量" :meta="`${lives}／${view.maxLives}`" class="gt-card" aria-label="隊伍共用血量">
+        <GemSection v-if="part !== 'stats'" title="隊伍血量" :meta="`${lives}／${view.maxLives}`" class="gt-card" aria-label="隊伍共用血量">
             <div class="h-2.5 overflow-hidden rounded-full bg-(--gt-line-soft)" role="progressbar" aria-label="隊伍共用血量"
                 :aria-valuenow="lives" aria-valuemin="0" :aria-valuemax="view.maxLives">
                 <div class="h-full rounded-full transition-[width] duration-300" :class="livesPct > 50 ? 'bg-[#3CCB72]' : livesPct > 25 ? 'bg-[#F2B233]' : 'bg-[#F0506E]'" :style="{ width: `${livesPct}%` }" />
             </div>
-            <p class="m-0 mt-1.5 text-xs text-(--gt-muted)">全隊共用；從任何一區的出口離場都會扣。</p>
         </GemSection>
 
         <!-- 區域：點一下切換正在看（單人還能操作）的區；Tab 也可以 -->
-        <GemSection title="區域" :meta="`${zones.length} 區`" class="gt-card" aria-label="區域">
+        <GemSection v-if="part !== 'stats'" title="玩家" :meta="`${zones.length} 人`" class="gt-card" aria-label="區域">
             <nav class="flex flex-col gap-1" aria-label="切換區域">
                 <button v-for="z in zoneRows" :key="z.id" class="gt-tab" :class="{ 'gt-tab--on': z.id === view.watching }"
                     :aria-pressed="z.id === view.watching" @click="$emit('watch', z.id)">
                     <span class="flex items-center gap-1.5">
                         <span class="size-2.5 shrink-0 rounded-full" :style="{ background: z.color }" aria-hidden="true" />
-                        <span class="truncate font-semibold text-(--gt-ink)">P{{ z.index + 1 }} {{ z.name }}{{ z.index === view.relay.myZone ? '（我）' : '' }}</span>
+                        <span class="truncate font-semibold text-(--gt-ink)">{{ z.label }}{{ z.label === z.name || z.bot ? '' : `　${z.name}` }}{{ z.index === view.relay.myZone ? '（我）' : '' }}</span>
                         <span v-if="z.id === view.watching" class="ml-auto shrink-0 text-(--gt-accent-ink)">{{ operateAny ? '操作中' : '正在看' }}</span>
                     </span>
                     <span class="truncate text-(--gt-muted)">{{ z.status }}</span>
                 </button>
             </nav>
-            <p v-if="operateAny" class="m-0 mt-1.5 text-xs text-(--gt-muted)">只有一位真人：可以切到任何一區操作；沒建的電腦區會在開波時自動放牆。<template v-if="keys">按 Tab 換區。</template></p>
         </GemSection>
 
         <!-- 分區統計：每欄最高的格子加粗 -->
-        <GemSection title="分區統計" class="gt-card" aria-label="分區統計">
+        <GemSection v-if="part !== 'rail'" title="分區統計" class="gt-card" aria-label="分區統計">
             <div class="overflow-x-auto">
                 <table class="w-full border-collapse text-center text-xs tabular-nums">
                     <caption class="sr-only">每區的路徑長度、擊殺、傳給後援、後援補救、漏怪與傷害；每欄最高的格子加粗</caption>
@@ -38,7 +36,7 @@
                     </thead>
                     <tbody>
                         <tr v-for="r in statRows" :key="r.id" class="border-t border-(--gt-line-soft)">
-                            <th scope="row" class="px-1 py-1 text-left font-semibold" :style="{ color: r.color }">P{{ r.index + 1 }}</th>
+                            <th scope="row" class="px-1 py-1 text-left font-semibold" :style="{ color: r.color }">{{ r.label }}</th>
                             <td v-for="c in COLUMNS" :key="c.key" class="px-1 py-1" :class="r.top[c.key] ? 'font-black text-(--gt-ink)' : 'text-(--gt-text)'" :title="`${c.tip}：${r[c.key].toLocaleString()}`">{{ compact(r[c.key]) }}</td>
                         </tr>
                     </tbody>
@@ -48,20 +46,20 @@
         </GemSection>
 
         <!-- 事件紀錄：最近幾筆 -->
-        <GemSection title="事件" :meta="events.length ? `最近 ${events.length} 筆` : ''" class="gt-card" aria-label="事件紀錄">
+        <GemSection v-if="part !== 'rail'" title="事件" :meta="events.length ? `最近 ${events.length} 筆` : ''" class="gt-card" aria-label="事件紀錄">
             <p v-if="!events.length" class="m-0 text-(--gt-muted)">打完第一波就會有紀錄。</p>
             <ol v-else class="m-0 flex list-none flex-col gap-1 p-0" aria-live="polite">
                 <li v-for="(e, i) in eventsNewestFirst" :key="`${e.wave}-${i}-${e.text}`" class="leading-snug" :class="i === 0 ? 'text-(--gt-ink)' : 'text-(--gt-muted)'">{{ e.text }}</li>
             </ol>
         </GemSection>
 
-        <button v-if="isHost && view.relay.canBossWave" class="gt-btn gt-btn--small w-full" title="開發與測試用：直接放出一隻繞完整圈的首領，不推進波數、不發獎勵，這局不列入排行榜" @click="onBoss">首領波（測試）</button>
+        <button v-if="part !== 'rail' && isHost && view.relay.canBossWave" class="gt-btn gt-btn--small w-full" title="開發與測試用：直接放出一隻繞完整圈的首領，不推進波數、不發獎勵，這局不列入排行榜" @click="onBoss">首領波（測試）</button>
     </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { ZONE_COLORS } from '../data/gems.js'
+import { zoneLabels, ZONE_COLORS } from '../data/gems.js'
 import GemSection from './GemSection.vue'
 
 const props = defineProps({
@@ -71,6 +69,8 @@ const props = defineProps({
     myId: { type: String, default: '' },
     isHost: { type: Boolean, default: false },
     keys: { type: Boolean, default: false },
+    // 'all'：手機一次全放；'rail'：電腦左欄只放血量與玩家；'stats'：電腦右上「戰況」頁籤放統計與事件
+    part: { type: String, default: 'all' },
 })
 const emit = defineEmits(['watch', 'boss-wave'])
 
@@ -101,8 +101,11 @@ function statusOf(z) {
     return z.bot ? '電腦' : '防守中'
 }
 
+const labels = computed(() => zoneLabels(props.view))
 const zoneRows = computed(() => zones.value.map(z => ({
     id: z.id,
+    label: labels.value[z.index],
+    bot: z.bot,
     index: z.index,
     color: colorOf(z.index),
     name: props.view.names?.[z.id] ?? '玩家',
@@ -112,7 +115,7 @@ const zoneRows = computed(() => zones.value.map(z => ({
 // 波次中的統計來自快照（即時），其他時候來自視圖
 const statRows = computed(() => {
     const live = props.frame?.zs
-    const rows = zones.value.map((z, i) => ({ id: z.id, index: z.index, color: colorOf(z.index), pathLength: z.pathLength, ...(live?.[i] ?? z.stats) }))
+    const rows = zones.value.map((z, i) => ({ id: z.id, index: z.index, label: labels.value[z.index], color: colorOf(z.index), pathLength: z.pathLength, ...(live?.[i] ?? z.stats) }))
     const max = Object.fromEntries(COLUMNS.map(c => [c.key, Math.max(...rows.map(r => r[c.key]))]))
     return rows.map(r => ({ ...r, top: Object.fromEntries(COLUMNS.map(c => [c.key, max[c.key] > 0 && r[c.key] === max[c.key]])) }))
 })

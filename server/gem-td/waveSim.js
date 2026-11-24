@@ -37,17 +37,21 @@ function prepareTowers(towers, research) {
   });
 }
 
-// 環形接力：這一區要出的蟲。每區出一組、血量 = 單人同一波 × 倍數；首領與巨獸只從區 1 出發、整隻繞完整圈
+// 環形接力：這一區要出的蟲。每區出一組、血量與護甲依走過的區數與人數加成；
+// 首領每區各出一隻、整隻繞完整圈；傷害測試的巨獸仍只從區 1 出發（才量得到整圈的總傷害）
 function applyRelayDef(def, { zone, n }) {
   const boss = def.groups.some(g => C.MONSTERS[g.type].boss);
-  if (boss && zone !== 0) {
+  const test = def.groups.some(g => C.MONSTERS[g.type].test);
+  if (test && zone !== 0) {
     def.count = 0;
     def.groups = def.groups.map(g => ({ ...g, count: 0 }));
     return;
   }
-  const mult = boss ? n * C.RELAY_BOSS_HP_MULT : C.RELAY_GROUP_HP_MULT;
-  def.groups = def.groups.map(g => ({ ...g, hp: Math.max(1, Math.round(g.hp * mult)) }));
+  const hpMult = boss ? (test ? n * C.RELAY_BOSS_HP_MULT : C.RELAY_BOSS_HP_MULT) : C.relayGroupHpMult(n);
+  const armorMult = boss ? 1 : C.RELAY_ARMOR_MULT;
+  def.groups = def.groups.map(g => ({ ...g, hp: Math.max(1, Math.round(g.hp * hpMult)), armor: Math.round(g.armor * armorMult) }));
   def.hp = def.groups[0].hp;
+  def.armor = Math.round(def.armor * armorMult);
 }
 
 // 蟲的編號：環形接力整圈共用同一組編號，前端才不會把不同區的蟲混在一起
@@ -125,7 +129,7 @@ function spawn(sim) {
     leak: group.leak ?? info.leak,
     dead: false,
     // 環形接力：出生區、已走完幾區、總共要走幾區（一般蟲 2 區：主防＋後援；首領與巨獸繞完整圈）
-    ...(sim.relay ? { born: sim.relay.zone, hop: 0, hops: info.boss ? sim.relay.n : Math.min(2, sim.relay.n) } : {}),
+    ...(sim.relay ? { born: sim.relay.zone, hop: 0, hops: info.boss ? sim.relay.n : C.RELAY_PASSES } : {}),
   });
   sim.spawned += 1;
 }
