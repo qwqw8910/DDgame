@@ -28,7 +28,7 @@ const SPEED_CHOICES = [1, 2, 4];
 const MODES = ['single', 'relay'];
 const MIN_ZONES = 1;
 const MAX_ZONES = MAX_PLAYERS;
-const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true, difficulty: 'easy', mode: 'single', zones: 3 };
+const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true, difficulty: 'easy', mode: 'single', zones: 3, map: 0 };
 
 // 用金幣換血量：建造階段每次換 1 點，最多補到開局血量
 // 單價隨波次上漲，上限 30 金；連續購買不會變貴
@@ -40,7 +40,7 @@ const lifeCost = wave => Math.min(LIFE_MAX, LIFE_BASE + wave * LIFE_PER_WAVE);
 // 每位玩家各一張地圖，大小固定
 const BOARD_SIZE = 25;
 
-// 地圖：每局開始時隨機抽一張（環形接力固定用 0 號，環形版面依它的起終點排）。
+// 地圖：房主在等待大廳選（預設 0 號經典圖，也可選「隨機」每局抽一張）；環形接力固定用 0 號，環形版面依它的起終點排。
 // 路徑點為相對座標：起點 → 1~5 → 終點，七個點都不可重疊，空地圖時每段都走得通。
 // 經典圖的第 2、4、5 段都穿過地圖中央，把 3 號點圍進迷宮就能讓怪物反覆進出
 const MAP_LAYOUTS = [
