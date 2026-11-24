@@ -89,18 +89,41 @@ function registerNamespace(io, db) {
   }
 
   // ── 計時 ─────────────────────────────────────────────────────
+  // 計時器裡丟出的錯誤沒有人接，會讓整個 Node 程式掛掉、所有遊戲一起斷線。
+  // 這裡接住：記 log，先試著照常結束這一波；連結束都失敗就中止這一局、回到大廳，其他房間不受影響。
+  function abortGame(roomId, game, err, where) {
+    console.error(`[GemTD ${where}] 房間 ${roomId}`, err);
+    try {
+      backToLobby(roomId, game, '伺服器發生錯誤，本局中止，回到大廳。');
+    } catch (err2) {
+      clearTimers(game);
+      console.error(`[GemTD ${where}] 房間 ${roomId} 回大廳也失敗`, err2);
+    }
+  }
+  function safeEndWave(roomId, game, where) {
+    try {
+      endWave(roomId, game);
+    } catch (err) {
+      abortGame(roomId, game, err, where);
+    }
+  }
+
   function scheduleBuild(roomId, game) {
     clearTimers(game);
     if (game.buildEndsAt === null || game.paused) return;
     game._timer = setTimeout(() => {
       game._timer = null;
       if (getGame(roomId) !== game || game.phase !== 'build') return;
-      // 全員離線就不開波，避免沒人看的時候被打爆
-      if (!onlineIds(roomId).length) {
-        game.buildEndsAt = Date.now() + IDLE_RETRY_MS;
-        return scheduleBuild(roomId, game);
+      try {
+        // 全員離線就不開波，避免沒人看的時候被打爆
+        if (!onlineIds(roomId).length) {
+          game.buildEndsAt = Date.now() + IDLE_RETRY_MS;
+          return scheduleBuild(roomId, game);
+        }
+        launchWave(roomId, game);
+      } catch (err) {
+        abortGame(roomId, game, err, 'launch');
       }
-      launchWave(roomId, game);
     }, Math.max(0, game.buildEndsAt - Date.now()));
     game._timer.unref?.();
   }
@@ -122,19 +145,24 @@ function registerNamespace(io, db) {
           out.push(...step.out);
           if (step.done) {
             announceOut(roomId, game, out);
-            return endWave(roomId, game);
+            return safeEndWave(roomId, game, 'end-wave');
           }
         }
       } catch (err) {
         console.error('[GemTD tick]', err);
-        return endWave(roomId, game);
+        return safeEndWave(roomId, game, 'end-wave');
       }
-      for (const msg of L.bossDownNotices(game)) notice(roomId, msg);
-      if (out.length) {
-        announceOut(roomId, game, out);
-        pushState(roomId);
+      try {
+        for (const msg of L.bossDownNotices(game)) notice(roomId, msg);
+        if (out.length) {
+          announceOut(roomId, game, out);
+          pushState(roomId);
+        }
+        if (++ticks % FRAME_EVERY_TICKS === 0) sendFrames(roomId, game);
+      } catch (err) {
+        // 通知或送畫面失敗：這一格跳過，遊戲照常（下一格再送）
+        console.error(`[GemTD frame] 房間 ${roomId}`, err);
       }
-      if (++ticks % FRAME_EVERY_TICKS === 0) sendFrames(roomId, game);
     }, TICK_MS);
     game._ticker.unref?.();
   }
@@ -161,7 +189,7 @@ function registerNamespace(io, db) {
     clearTimers(game);
     if (game.records) {
       refreshNames(roomId, game);
-      saveRecords(db, roomId, game.records, game.names);
+      saveRecords(db, roomId, game.records, game.names).catch(err => console.error('[GemTD leaderboard]', err));
       game.records = null; // 同一場只寫一次
     }
     _roomCache.updateRoom(roomId, { status: 'finished' });
