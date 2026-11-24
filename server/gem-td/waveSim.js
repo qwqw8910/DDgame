@@ -13,7 +13,8 @@ const MAX_FRAME_SHOTS = 80;
 
 const FLAG_SLOW = 1;
 const FLAG_POISON = 2;
-const FLAG_TRAIT_SHIFT = 2; // 特性佔後面的位元，順序同 C.TRAIT_IDS
+const FLAG_STUN = 4;
+const FLAG_TRAIT_SHIFT = 3; // 特性佔後面的位元，順序同 C.TRAIT_IDS
 
 const distance = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 
@@ -59,7 +60,7 @@ const newId = sim => (sim.relay ? sim.relay.hub.nextId++ : sim.nextId++);
 
 // pool 是這張地圖漏怪時扣血的對象：共用血量是 game，獨立血量是玩家自己
 // relay：環形接力時為 { zone, n, hub }；devBoss：開發測試的首領波
-function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research, relay = null, devBoss = false }) {
+function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research, relay = null, devBoss = false, skillCd = null }) {
   // waveDef 有快取；這一波會改動 def 與各組（測試也會），所以複製一份
   const cached = devBoss ? C.bossWaveDef(wave, totalWaves, difficulty)
     : testAt === null ? C.waveDef(wave, totalWaves, difficulty) : C.testWaveDef(testAt, difficulty, totalWaves);
@@ -91,6 +92,8 @@ function createWave({ board, towers: placed, path, wave, totalWaves, testAt = nu
     bossDownAt: null,
     earned: 0,
     shots: [],
+    skillCd: skillCd ?? Object.fromEntries(C.SKILL_IDS.map(id => [id, 0])), // 各技能還要等幾波（跨波保留，由玩家持有）
+    noSkills: testAt !== null || !!relay,
     done: false,
   };
 }
@@ -122,7 +125,7 @@ function spawn(sim) {
     pos: 0,
     x: start.x,
     y: start.y,
-    slowPct: 0, slowUntil: 0,
+    slowPct: 0, slowUntil: 0, stunUntil: 0,
     poisonDps: 0, poisonUntil: 0, poisonBy: null,
     shredAmount: 0, shredUntil: 0,
     gold: baseGold,
@@ -151,6 +154,7 @@ function pathLength(sim, m) {
 }
 
 function moveMonster(sim, m, dt) {
+  if (sim.time < m.stunUntil) return;
   const slowed = sim.time < m.slowUntil ? m.slowPct : 0;
   m.pos += m.speed * (1 - slowed) * dt;
 
@@ -323,7 +327,7 @@ function stepWave(sim, dt, rng = Math.random) {
 
 // 蟲的狀態旗標（緩速、中毒、特性），單人與環形接力的快照共用
 function monsterFlags(sim, m) {
-  return (sim.time < m.slowUntil ? FLAG_SLOW : 0) | (sim.time < m.poisonUntil ? FLAG_POISON : 0) | traitFlag(m);
+  return (sim.time < m.slowUntil ? FLAG_SLOW : 0) | (sim.time < m.poisonUntil ? FLAG_POISON : 0) | (sim.time < m.stunUntil ? FLAG_STUN : 0) | traitFlag(m);
 }
 
 function traitFlag(m) {
@@ -347,4 +351,27 @@ function buildSimFrame(sim) {
   return frame;
 }
 
-module.exports = { createWave, stepWave, buildSimFrame, prepareTowers, monsterFlags, typeIndex };
+// 主動技能：成功回傳 true；不能用丟 Error('原因')
+function castSkill(sim, id) {
+  const skill = C.SKILLS[id];
+  if (!skill) throw new Error('沒有這個技能');
+  if (sim.noSkills) throw new Error('這一波不能使用技能');
+  if (sim.done) throw new Error('這一波已經結束');
+  if (sim.skillCd[id] > 0) throw new Error('技能冷卻中');
+  sim.skillCd[id] = skill.cooldownWaves;
+  for (const m of sim.monsters) {
+    if (m.dead || m.trait === 'immune') continue;
+    if (id === 'freeze') {
+      const pct = m.boss ? skill.slow * C.BOSS_SLOW_RESIST : skill.slow;
+      if (pct >= m.slowPct || sim.time >= m.slowUntil) { m.slowPct = pct; m.slowUntil = sim.time + skill.duration; }
+    } else {
+      m.stunUntil = Math.max(m.stunUntil, sim.time + skill.duration * (m.boss ? C.BOSS_STUN_RESIST : 1));
+    }
+  }
+  return true;
+}
+
+// 各技能還要等幾波（0 = 可用），給前端顯示
+const skillCooldowns = sim => C.SKILL_IDS.map(id => sim.skillCd[id]);
+
+module.exports = { castSkill, skillCooldowns, createWave, stepWave, buildSimFrame, prepareTowers, monsterFlags, typeIndex };

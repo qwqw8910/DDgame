@@ -40,12 +40,33 @@ const lifeCost = wave => Math.min(LIFE_MAX, LIFE_BASE + wave * LIFE_PER_WAVE);
 // 每位玩家各一張地圖，大小固定
 const BOARD_SIZE = 25;
 
-// 路徑點（相對座標）：起點 → 1~5 → 終點，同原版的 5 個檢查點。第 2、4、5 段都穿過地圖中央，把 3 號點圍進迷宮就能讓怪物反覆進出
-const WAYPOINTS = {
-  start: [0.08, 0.08],
-  checkpoints: [[0.92, 0.08], [0.08, 0.92], [0.5, 0.5], [0.92, 0.5], [0.08, 0.5]],
-  end: [0.92, 0.92],
+// 地圖：每局開始時隨機抽一張（環形接力固定用 0 號，環形版面依它的起終點排）。
+// 路徑點為相對座標：起點 → 1~5 → 終點，七個點都不可重疊，空地圖時每段都走得通。
+// 經典圖的第 2、4、5 段都穿過地圖中央，把 3 號點圍進迷宮就能讓怪物反覆進出
+const MAP_LAYOUTS = [
+  { id: 0, name: '經典對角',
+    start: [0.08, 0.08], checkpoints: [[0.92, 0.08], [0.08, 0.92], [0.5, 0.5], [0.92, 0.5], [0.08, 0.5]], end: [0.92, 0.92] },
+  { id: 1, name: '上下夾擊',
+    start: [0.5, 0.04], checkpoints: [[0.92, 0.3], [0.08, 0.3], [0.5, 0.5], [0.08, 0.78], [0.92, 0.78]], end: [0.5, 0.96] },
+  { id: 2, name: '外圈螺旋',
+    start: [0.08, 0.08], checkpoints: [[0.92, 0.08], [0.92, 0.92], [0.08, 0.92], [0.08, 0.4], [0.6, 0.4]], end: [0.5, 0.62] },
+  { id: 3, name: '長 Z 字',
+    start: [0.08, 0.5], checkpoints: [[0.3, 0.08], [0.3, 0.92], [0.6, 0.08], [0.6, 0.92], [0.8, 0.5]], end: [0.92, 0.5] },
+  { id: 4, name: '十字路口',
+    start: [0.5, 0.08], checkpoints: [[0.5, 0.45], [0.08, 0.5], [0.5, 0.55], [0.92, 0.5], [0.7, 0.8]], end: [0.5, 0.92] },
+];
+const MAP_COUNT = MAP_LAYOUTS.length;
+
+// 主動技能：波次中玩家手動施放，作用在自己地圖上所有的蟲。冷卻以「波」計：施放後要再打 cooldownWaves 波才能再用（每波結束扣 1，含傷害測試），開局可用。
+// 傷害測試波不能用（會灌水成績）；環形接力暫不開放。免控怪不受影響，首領效果打折
+const SKILLS = {
+  freeze: { name: '糖霜冰凍', desc: '全場的蟲大幅減速', slow: 0.65, duration: 5, cooldownWaves: 2, key: 'Q' },
+  stun: { name: '焦糖暈眩', desc: '全場的蟲定住不動', duration: 2.5, cooldownWaves: 5, key: 'W' },
 };
+const SKILL_IDS = Object.keys(SKILLS);
+const BOSS_STUN_RESIST = 0.4; // 首領只暈 40% 時間
+// 有了主動技能，一般波次的蟲血量略增（傷害測試的巨獸不變，那一波不能用技能）
+const SKILL_HP_MULT = 1.08;
 
 // 至尊（Lv7）不會直接抽到，只能由兩顆巨型合成而來；8 種基礎甜點各一顆至尊可合成隱藏塔
 const LEVEL_NAMES = ['碎屑', '迷你', '小份', '標準', '精緻', '巨型', '至尊'];
@@ -306,7 +327,7 @@ function monsterGroup(type, count, wave, trait = null, difficulty = 'easy') {
     type,
     count,
     trait,
-    hp: Math.max(1, Math.round(WAVE_BASE_HP * Math.pow(WAVE_HP_GROWTH, wave - 1) * earlyRamp * def.hp * diff.hp)),
+    hp: Math.max(1, Math.round((type === 'titan' ? 1 : SKILL_HP_MULT) * WAVE_BASE_HP * Math.pow(WAVE_HP_GROWTH, wave - 1) * earlyRamp * def.hp * diff.hp)),
     armor: (def.armor + wave * WAVE_ARMOR_GROWTH) * diff.armor,
     speed: def.speed,
   };
@@ -437,6 +458,8 @@ function catalog() {
       stackCostMult: WISH_STACK_COST_MULT,
     },
     interest: { rate: INTEREST_RATE, cap: INTEREST_CAP },
+    skills: SKILLS,
+    maps: MAP_LAYOUTS.map(m => ({ id: m.id, name: m.name })),
     traits: TRAITS,
     traitIds: TRAIT_IDS,
     gemsPerRound: GEMS_PER_ROUND,
@@ -450,7 +473,7 @@ module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
   MODES, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_PASSES, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
   RELAY_EVENT_KEEP, RELAY_EVENT_SHOW, RELAY_ZONE_COLORS,
-  ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, WAYPOINTS,
+  ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, MAP_LAYOUTS, MAP_COUNT, SKILLS, SKILL_IDS, BOSS_STUN_RESIST, SKILL_HP_MULT,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
 
   SWAP_COST, GEM_CATEGORIES, WISH_STACK_RATES, WISH_LEVEL_STACK, WISH_MAX_STACKS, wishCost, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, RESEARCH_BASE_LEVELS, researchValue, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
