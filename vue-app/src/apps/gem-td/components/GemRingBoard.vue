@@ -35,6 +35,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
 import { zoneLabels, CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, ZONE_COLORS, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
 import { fullPathLength } from '../data/pathing.js'
+import { drawTableProp } from '../data/tableware.js'
 
 const props = defineProps({
     view: { type: Object, required: true },
@@ -43,6 +44,7 @@ const props = defineProps({
     myId: { type: String, default: '' }, // 目前操作的區（單一真人時是正在看的那區）
     pendingGem: { type: Object, default: null },
     selectedId: { type: Number, default: null },
+    highlightIds: { type: Array, default: () => [] }, // 合成選位置：可以選的材料塔
     keys: { type: Boolean, default: false },
 })
 const emit = defineEmits(['cell', 'tower', 'clear', 'arm', 'zone', 'camera'])
@@ -668,6 +670,57 @@ function visible(rect, pad = 0) {
     return rect.x1 + pad >= camX && rect.x0 - pad <= camX + vw && rect.y1 + pad >= camY && rect.y0 - pad <= camY + vh
 }
 
+// ── 桌面擺設：碗盤、刀叉、馬克杯、烤模、餅乾。只畫在區域之間與上下的空桌面（世界座標，跟著鏡頭走）。
+//    每個「區距」一組，用編號當種子 → 每次畫都一樣 ──
+function seeded(k) {
+    let a = (k * 2654435761 + 12345) >>> 0
+    return () => {
+        a = (a + 0x6D2B79F5) >>> 0
+        let t = a
+        t = Math.imul(t ^ (t >>> 15), t | 1)
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+}
+const tableProp = (kind, x, y, s, rot = 0) => drawTableProp(ctx, dpr, kind, x, y, s, rot)
+// 一個區距（區 + 右邊的空隙）的擺設；位置相對「空隙中心」，隨機翻轉讓每組看起來不一樣
+function drawTableTile(k, l) {
+    const r = seeded(k)
+    const fx = r() < 0.5 ? -1 : 1
+    const fy = r() < 0.5 ? -1 : 1
+    const gx = k * l.pitch + l.pitch / 2
+    const at = (dx, dy) => [gx + dx * fx, dy * fy]
+    const pool = arr => arr[Math.floor(r() * arr.length)]
+    let [x, y] = at(-7, -8)
+    tableProp('plate', x, y, 4.2); tableProp('fork', x - 6.2 * fx, y, 1.3, 0.08); tableProp('knife', x + 6.2 * fx, y, 1.3, -0.06);
+    [x, y] = at(7, 7); tableProp(pool(['bowl', 'jar', 'bowl']), x, y, 5);
+    [x, y] = at(-8, 9); tableProp('mug', x, y, 2.4);
+    [x, y] = at(6, -10); tableProp(pool(['tin', 'plate', 'tin']), x, y, 1.2);
+    [x, y] = at(0, 1); tableProp('cookie', x, y, 1.5); tableProp('cookie', x + 2.6 * fx, y + 1.8, 1.1);
+    // 區域上下方的空桌面
+    [x, y] = at(-18, -21); tableProp('pin', x, y, 1.6, 0.05);
+    [x, y] = at(14, -21); tableProp('whisk', x, y, 1.8, 0.6);
+    [x, y] = at(-14, 21); tableProp('plate', x, y, 3.6); tableProp('spoon', x - 5.4 * fx, y, 1.3, 0.1);
+    [x, y] = at(17, 20); tableProp('mug', x, y, 2); tableProp('cookie', x - 4, y + 2.4, 1.2);
+    [x, y] = at(0, 20); tableProp('bowl', x, y, 3.4);
+    [x, y] = at(2, -20); tableProp('jar', x, y, 2.4)
+    // 糖粒
+    const cols = ['#FF6B86', '#FFD166', '#6FE0A9', '#7F9BF0', '#FFFFFF']
+    for (let i = 0; i < 36; i++) {
+        const sx = k * l.pitch + (r() - 0.5) * l.pitch
+        const sy = (r() - 0.5) * 50
+        if (Math.abs(sy) < l.size / 2 + 1 && Math.abs(sx - k * l.pitch) < l.size / 2 + 1) continue
+        ctx.save(); ctx.translate(sx, sy); ctx.rotate(r() * 3); ctx.fillStyle = cols[i % 5]; ctx.fillRect(-0.3, -0.08, 0.6, 0.16); ctx.restore()
+    }
+}
+function drawTableware(l) {
+    const vw = cw / scale
+    const k0 = Math.floor((camX - l.pitch / 2 - 30) / l.pitch)
+    const k1 = Math.ceil((camX + vw + 30) / l.pitch)
+    if (k1 - k0 > 12) return // 縮得很小時整排太密，不畫
+    for (let k = k0; k <= k1; k++) drawTableTile(k, l)
+}
+
 function drawZones(l, simple, now) {
     const board = toRaw(props.view).board
     const view = toRaw(props.view)
@@ -1045,6 +1098,16 @@ function drawOverlays(l) {
     const view = toRaw(props.view)
     const o = l.zones[watchIndex()]?.origin
     if (!o) return
+    // 合成選位置：材料塔打上金框，點哪一座，合成後的塔就出現在那裡
+    for (const id of props.highlightIds) {
+        const t = view.towers.find(o => o.id === id)
+        if (!t) continue
+        ctx.fillStyle = 'rgba(255,210,63,0.35)'
+        ctx.fillRect(o.x + t.x, o.y + t.y, 1, 1)
+        ctx.strokeStyle = '#E8A800'
+        ctx.lineWidth = Math.max(px(3), 0.14)
+        ctx.strokeRect(o.x + t.x + 0.05, o.y + t.y + 0.05, 0.9, 0.9)
+    }
     const selected = view.towers.find(t => t.id === props.selectedId)
     if (selected) {
         if (selected.kind !== 'stone') drawRange(selected.kind, selected.level, o.x + selected.x + 0.5, o.y + selected.y + 0.5, '#4A2C2A')
@@ -1143,6 +1206,7 @@ function draw(now) {
     ctx.clearRect(0, 0, cw, ch) // 桌面由外層 CSS 畫（木紋＋暗角）
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, -dpr * scale * camX, -dpr * scale * camY)
 
+    drawTableware(l)
     drawZones(l, simple, now)
     if (!simple) drawOverlays(l)
     drawShots(now)
@@ -1171,7 +1235,7 @@ watch(() => props.view.watching, () => {
     if (cw && zoomLevel() >= SIMPLE_BELOW && !anim && !follow.value) focusZone(i)
     invalidate()
 })
-watch([() => props.selectedId, () => props.pendingGem, () => props.catalog, hover, armed, showRoutes, follow], invalidate)
+watch([() => props.selectedId, () => props.highlightIds, () => props.pendingGem, () => props.catalog, hover, armed, showRoutes, follow], invalidate)
 
 onMounted(() => {
     resize()
