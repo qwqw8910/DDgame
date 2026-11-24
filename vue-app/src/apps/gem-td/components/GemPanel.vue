@@ -118,7 +118,7 @@
                     <span aria-hidden="true">↩ 還原</span><kbd v-if="keys && me.canUndo" class="gt-kbd ml-2 max-xl:hidden" aria-hidden="true">Z</kbd>
                 </button>
                 <button class="gt-btn gt-btn--lamp gt-btn--hero min-w-0 flex-1" :disabled="me.ready || !me.resolved" :title="readyHint" :aria-label="readyHint" aria-keyshortcuts="R" @click="$emit('ready')">
-                    {{ readyLabel }}<kbd v-if="keys && me.resolved && !me.ready" class="gt-kbd ml-2" aria-hidden="true">R</kbd>
+                    {{ readyLabel }}<small v-if="readySub" class="gt-ready-sub">{{ readySub }}</small><kbd v-if="keys && me.resolved && !me.ready" class="gt-kbd ml-2" aria-hidden="true">R</kbd>
                 </button>
             </div>
         </GemSection>
@@ -291,6 +291,7 @@ const props = defineProps({
     dockTarget: { type: Object, default: null }, // 電腦版：右側圖示列的元素
     armedCell: { type: Object, default: null }, // 手機與平板：地圖上預覽中、還沒確認的格子
     ring: { type: Number, default: null }, // 建造倒數剩餘比例 0~1（準備鈕外圈）
+    readyStat: { type: Object, default: () => ({ done: 0, total: 0 }) }, // 建造階段：幾位真人已準備
     relayTab: { type: String, default: '' }, // 環形接力電腦版：右上頁籤（build／shop／codex／stats）；空字串 = 照原本的圖示列切換
 })
 
@@ -346,10 +347,18 @@ const readyLabel = computed(() => {
     if (m.ready) return '等待中'
     return '開始'
 })
-// 按不下去的原因：只放在提示與讀屏文字，鈕上只寫「開始」
+// 按不下去的原因與等待進度：直接寫在鈕上（手機沒有滑鼠提示可看），同時也是提示與讀屏文字
+const readySub = computed(() => {
+    const m = me.value
+    const { done, total } = props.readyStat
+    if (m.ready) return total > 1 ? `${done}／${total} 已準備` : ''
+    if (m.pending.length) return `還要放 ${m.pending.length} 顆`
+    if (m.choosing) return '先選 1 顆留下'
+    return ''
+})
 const readyHint = computed(() => {
     const m = me.value
-    if (m.ready) return '已準備，等其他玩家'
+    if (m.ready) return `已準備，等其他玩家${props.readyStat.total > 1 ? `（${readySub.value}）` : ''}`
     if (m.pending.length) return `還要放 ${m.pending.length} 顆甜點`
     if (m.choosing) return '先選 1 顆留下'
     return '開始出怪'

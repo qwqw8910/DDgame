@@ -16,6 +16,13 @@ export const BUILD_CHOICES = [
   { value: 0, label: '不限時' },
 ]
 
+// 等待大廳的快速設定：三個旋鈕（波數、難度、建造時間）一次設好；預設值（30 波、簡單、60 秒）是「標準」
+export const PRESETS = [
+  { id: 'casual', label: '休閒', hint: '15 波・簡單・90 秒', options: { waves: 15, difficulty: 'easy', buildSeconds: 90 } },
+  { id: 'standard', label: '標準', hint: '30 波・簡單・60 秒', options: { waves: 30, difficulty: 'easy', buildSeconds: 60 } },
+  { id: 'challenge', label: '挑戰', hint: '50 波・普通・45 秒', options: { waves: 50, difficulty: 'normal', buildSeconds: 45 } },
+]
+
 export const DIFFICULTY_CHOICES = [
   { value: 'easy', label: '簡單（適合新手）' },
   { value: 'normal', label: '普通（怪物較硬）' },

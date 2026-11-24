@@ -48,9 +48,9 @@ export const KEY_HELP = [
   { keys: ['D'], text: '重骰手上的甜點（一個都還沒放時）' },
   { keys: ['S'], text: '選中的塔跟餅乾牆換位置／取消' },
   { keys: ['Del'], text: '拆除選中的餅乾牆' },
-  { keys: ['B'], text: '打開／關閉合成表' },
+  { keys: ['B'], text: '打開／關閉圖鑑' },
   { keys: ['V'], text: '切換到下一位玩家的地圖' },
   { keys: ['F'], text: '切換 1／2 倍速（房主）' },
   { keys: ['H'], text: '打開怎麼玩' },
-  { keys: ['Esc'], text: '取消選取、關閉合成表' },
+  { keys: ['Esc'], text: '取消選取、關閉圖鑑' },
 ]

@@ -54,13 +54,15 @@
         </GemSection>
 
         <button v-if="part !== 'rail' && isHost && view.relay.canBossWave" class="gt-btn gt-btn--small w-full" title="開發與測試用：直接放出一隻繞完整圈的首領，不推進波數、不發獎勵，這局不列入排行榜" @click="onBoss">首領波（測試）</button>
+        <GemConfirm :dialog="bossAsk" @confirm="confirmBoss" @cancel="bossAsk = null" />
     </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { zoneLabels, ZONE_COLORS } from '../data/gems.js'
 import GemSection from './GemSection.vue'
+import GemConfirm from './GemConfirm.vue'
 
 const props = defineProps({
     view: { type: Object, required: true },
@@ -129,7 +131,12 @@ function compact(n) {
     return String(n)
 }
 
+const bossAsk = ref(null)
 function onBoss() {
-    if (confirm('放出一隻繞完整圈的首領？這是測試功能：不推進波數、不發獎勵，這局不列入排行榜。')) emit('boss-wave')
+    bossAsk.value = { title: '放出首領？', text: '一隻首領會繞完整圈。這是測試功能：不推進波數、不發獎勵，這局不列入排行榜。', confirmText: '放出首領', cancelText: '先不要' }
+}
+function confirmBoss() {
+    bossAsk.value = null
+    emit('boss-wave')
 }
 </script>
