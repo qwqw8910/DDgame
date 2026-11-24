@@ -1,9 +1,9 @@
 <template>
-    <div ref="rootRef" class="relative">
-        <button class="header-icon-btn" title="音量設定" aria-label="音量設定" :aria-expanded="open"
+    <div ref="rootRef" :class="!inline && 'relative'">
+        <button v-if="!inline" class="header-icon-btn" title="音量設定" aria-label="音量設定" :aria-expanded="open"
             @click="toggleOpen"><GemHeaderIcon :name="audible ? 'volume' : 'mute'" /></button>
-        <div v-if="open"
-            class="absolute right-0 top-full z-50 mt-2 flex w-[220px] flex-col gap-2 rounded-[10px] border border-(--gt-line) bg-(--gt-surface) p-3 text-(--gt-ink) shadow-(--gt-shadow)">
+        <div v-if="open || inline"
+            :class="inline ? 'flex flex-col gap-2 px-2 py-1 text-(--gt-ink)' : 'absolute right-0 top-full z-50 mt-2 flex w-[220px] flex-col gap-2 rounded-[10px] border border-(--gt-line) bg-(--gt-surface) p-3 text-(--gt-ink) shadow-(--gt-shadow)'">
             <div class="flex items-center justify-between">
                 <span class="font-semibold">音量 {{ percent }}%</span>
                 <button class="gt-chip" :aria-pressed="!isSfxMuted" @click="toggleSfxMute">{{ isSfxMuted ? '關' : '開' }}</button>
@@ -19,6 +19,9 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useGemTdSfx } from '../composables/useGemTdSfx.js'
 import GemHeaderIcon from './GemHeaderIcon.vue'
+
+// inline：直接排在別的選單裡（例：「更多」），不要自己的按鈕與浮層
+defineProps({ inline: { type: Boolean, default: false } })
 
 const { isSfxMuted, sfxVolume, toggleSfxMute, unlockSfx, playSfx } = useGemTdSfx()
 const open = ref(false)

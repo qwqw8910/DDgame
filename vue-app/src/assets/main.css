@@ -1522,6 +1522,11 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-btn--lamp:hover:not(:disabled) { background: var(--gt-accent-hover); }
   .gt-btn--lamp:disabled { background: var(--gt-track); color: var(--gt-muted); }
   .gt-btn--small { padding: 6px 12px; white-space: nowrap; }
+  .gt-btn--on { border-color: var(--gt-accent); background: var(--gt-accent-soft); color: var(--gt-accent-ink); }
+  .gt-btn--danger { border-color: var(--gt-ink); background: var(--gt-ink); color: #FFFFFF; }
+  .gt-btn--danger:hover:not(:disabled) { background: var(--gt-text); }
+  /* 準備鈕上的第二行小字：還差什麼、幾位已準備 */
+  .gt-ready-sub { display: block; margin-top: 2px; font-size: 13px; font-weight: 600; line-height: 1.2; }
 
   .gt-chip {
     display: inline-flex; align-items: center; min-height: 44px; padding: 4px 12px; border: 1px solid var(--gt-line);
@@ -1594,6 +1599,13 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-hud { display: flex; align-items: center; gap: 20px; color: var(--gt-ink); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .gt-hud-item { display: inline-flex; align-items: center; gap: 6px; font-size: 20px; line-height: 1; }
   .gt-hud-sub { color: var(--gt-muted); font-size: 16px; font-weight: 400; }
+  /* 血量剩 30% 以下：變色、愛心跳動；扣血的瞬間閃一圈 */
+  .gt-hud-item--low, .gt-hud-item--hurt { color: var(--gt-accent-ink); }
+  .gt-hud-item--low svg { animation: gt-heartbeat 1.2s ease-in-out infinite; }
+  .gt-hud-item--hurt { border-radius: 8px; animation: gt-hurt 0.7s ease-out; }
+  @keyframes gt-heartbeat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+  @keyframes gt-hurt { 0% { box-shadow: 0 0 0 6px var(--gt-accent-soft); background: var(--gt-accent-soft); } 100% { box-shadow: 0 0 0 6px transparent; background: transparent; } }
+  @media (prefers-reduced-motion: reduce) { .gt-hud-item--low svg, .gt-hud-item--hurt { animation: none; } }
   .gt-hud-btn {
     display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 2px solid var(--gt-ink); border-radius: 10px;
     background: var(--gt-surface); color: var(--gt-ink); font-size: 16px; font-weight: 700; cursor: pointer; white-space: nowrap;

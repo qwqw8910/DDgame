@@ -18,23 +18,30 @@
                 </p>
             </div>
 
+            <!-- 暱稱只填一次，開房間與加入房間共用 -->
+            <div class="flex max-w-[400px] flex-col gap-3">
+                <label class="flex flex-col gap-1 text-(--gt-muted)">
+                    你的暱稱
+                    <input v-model="nickname" ref="nicknameRef" class="gt-input" type="text" placeholder="最多 8 個字" maxlength="8"
+                        autocomplete="nickname" enterkeyhint="go" @keydown.enter="hasRoomFromUrl ? handleJoin() : handleCreate()" />
+                </label>
+            </div>
+
             <div class="grid gap-8 sm:gap-10" :class="hasRoomFromUrl ? 'sm:max-w-[400px]' : 'sm:grid-cols-2'">
                 <section v-if="!hasRoomFromUrl" class="flex flex-col gap-3">
                     <h2 class="m-0 font-sans text-2xl font-bold text-(--gt-ink)">開新房間</h2>
-                    <input v-model="createNickname" ref="createRef" class="gt-input" type="text" placeholder="你的暱稱" maxlength="8"
-                        aria-label="你的暱稱" @keydown.enter="handleCreate" />
                     <select v-model.number="maxPlayers" class="gt-input cursor-pointer" aria-label="房間人數上限">
-                        <option v-for="n in counts" :key="n" :value="n">{{ n === 1 ? '單人' : `最多 ${n} 人` }}</option>
+                        <option v-for="n in counts" :key="n" :value="n">{{ n === 1 ? '單人（自己玩）' : `最多 ${n} 人` }}</option>
                     </select>
                     <button class="gt-btn gt-btn--lamp" @click="handleCreate">開房間</button>
+                    <p class="m-0 text-(--gt-muted)">一個人也能玩：人數選「單人」。</p>
                 </section>
 
                 <section class="flex flex-col gap-3">
                     <h2 class="m-0 font-sans text-2xl font-bold text-(--gt-ink)">{{ hasRoomFromUrl ? `加入房間 ${joinCode}` : '加入朋友的房間' }}</h2>
-                    <input v-model="joinNickname" ref="joinRef" class="gt-input" type="text" placeholder="你的暱稱" maxlength="8"
-                        aria-label="你的暱稱" @keydown.enter="handleJoin" />
-                    <input v-if="!hasRoomFromUrl" v-model="joinCode" class="gt-input" type="text" placeholder="6 碼房號" maxlength="6"
-                        aria-label="房號" @input="joinCode = joinCode.toUpperCase()" @keydown.enter="handleJoin" />
+                    <input v-if="!hasRoomFromUrl" v-model="joinCode" class="gt-input" type="text" placeholder="6 碼房號，或貼上邀請連結"
+                        aria-label="房號或邀請連結" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go"
+                        @input="joinCode = parseRoomCode(joinCode)" @keydown.enter="handleJoin" />
                     <button class="gt-btn" @click="handleJoin">加入房間</button>
                 </section>
             </div>
@@ -61,12 +68,10 @@ import GemLeaderboard from '../components/GemLeaderboard.vue'
 const router = useRouter()
 
 const showGuide = ref(false)
-const createNickname = ref('')
-const joinNickname = ref('')
+const nickname = ref('')
 const joinCode = ref('')
 const maxPlayers = ref(4)
-const createRef = ref(null)
-const joinRef = ref(null)
+const nicknameRef = ref(null)
 const hasRoomFromUrl = ref(false)
 
 const counts = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, i) => MIN_PLAYERS + i)
@@ -82,7 +87,7 @@ function showToast(msg, type = '', duration = 3000) {
 onMounted(() => {
     warmUpServer()
     const saved = getSavedNickname()
-    if (saved) { createNickname.value = saved.slice(0, 8); joinNickname.value = saved.slice(0, 8) }
+    if (saved) nickname.value = saved.slice(0, 8)
 
     const hash = window.location.hash
     const params = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '')
@@ -90,29 +95,44 @@ onMounted(() => {
     if (roomCode) {
         joinCode.value = roomCode
         hasRoomFromUrl.value = true
-        setTimeout(() => joinRef.value?.focus({ preventScroll: true }), 100)
-    } else {
-        createRef.value?.focus({ preventScroll: true })
     }
+    // 已經有暱稱就不搶焦點（手機上會一直彈出鍵盤）
+    if (!nickname.value) setTimeout(() => nicknameRef.value?.focus({ preventScroll: true }), 100)
 })
 
 onUnmounted(() => clearTimeout(_toastTimer))
 
 // 依房間系統統一規範：Lobby 只做輸入驗證 + 路由跳轉，不碰 DB / Socket
+// 房號欄：貼上整段邀請連結也能認出房號；其他輸入只留英數字、轉大寫、最多 6 碼
+function parseRoomCode(raw) {
+    const fromLink = /[?&](?:room|id)=([A-Za-z0-9]{6})(?![A-Za-z0-9])/.exec(raw)
+    if (fromLink) return fromLink[1].toUpperCase()
+    return raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6)
+}
+
+function requireNickname() {
+    const name = nickname.value.trim()
+    if (!name) {
+        showToast('請輸入暱稱', 'error')
+        nicknameRef.value?.focus()
+    }
+    return name
+}
+
 function handleCreate() {
-    const nickname = createNickname.value.trim()
-    if (!nickname) { showToast('請輸入暱稱', 'error'); return }
+    const name = requireNickname()
+    if (!name) return
     getOrCreatePlayerId()
-    saveNickname(nickname)
-    router.push({ name: 'gem-td-room', query: { id: generateRoomId(), nickname, create: '1', max: maxPlayers.value } })
+    saveNickname(name)
+    router.push({ name: 'gem-td-room', query: { id: generateRoomId(), nickname: name, create: '1', max: maxPlayers.value } })
 }
 
 function handleJoin() {
-    const code = joinCode.value.trim().toUpperCase()
-    const nickname = joinNickname.value.trim()
+    const code = parseRoomCode(joinCode.value)
     if (code.length !== 6) { showToast('請輸入 6 碼房號', 'error'); return }
-    if (!nickname) { showToast('請輸入暱稱', 'error'); return }
-    saveNickname(nickname)
-    router.push({ name: 'gem-td-room', query: { id: code, nickname } })
+    const name = requireNickname()
+    if (!name) return
+    saveNickname(name)
+    router.push({ name: 'gem-td-room', query: { id: code, nickname: name } })
 }
 </script>
