@@ -75,6 +75,8 @@ function resolveOptions(raw = {}) {
     livesMode: mode === 'relay' ? 'team' : C.LIVES_MODES.includes(raw.livesMode) ? raw.livesMode : C.DEFAULT_OPTIONS.livesMode,
     difficulty: C.DIFFICULTY_IDS.includes(raw.difficulty) ? raw.difficulty : C.DEFAULT_OPTIONS.difficulty,
     damageTest: typeof raw.damageTest === 'boolean' ? raw.damageTest : C.DEFAULT_OPTIONS.damageTest,
+    // 地圖：0~MAP_COUNT-1 指定一張，'random' 每局隨機（環形接力開局時固定用 0 號）
+    map: raw.map === 'random' || (Number.isInteger(raw.map) && raw.map >= 0 && raw.map < C.MAP_COUNT) ? raw.map : C.DEFAULT_OPTIONS.map,
   };
 }
 
@@ -187,7 +189,8 @@ function startGame(game, ids, { now, rng = Math.random }) {
   game.startCount = zoneIds.length;
   game.startedAt = now;
   game.lives = maxLives(game);
-  game.board = makeBoard(relay ? 0 : Math.floor(rng() * C.MAP_COUNT));
+  const mapOpt = game.options.map ?? C.DEFAULT_OPTIONS.map;
+  game.board = makeBoard(relay ? 0 : mapOpt === 'random' ? Math.floor(rng() * C.MAP_COUNT) : mapOpt);
   if (relay && zoneIds.length > 1) game.ring = { layout: ringLayout(zoneIds.length, game.board), events: [], hub: null, eventsFor: null };
   for (const id of zoneIds) {
     const p = {

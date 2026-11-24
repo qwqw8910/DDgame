@@ -139,6 +139,13 @@
                         <option v-for="c in MODE_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
                     </select>
                 </label>
+                <label v-if="view.options.mode !== 'relay'" class="flex flex-col gap-1 text-(--gt-muted)">
+                    地圖
+                    <select class="gt-input cursor-pointer" :value="view.options.map ?? 0"
+                        @change="setOptions({ map: $event.target.value === 'random' ? 'random' : Number($event.target.value) })">
+                        <option v-for="c in mapChoices" :key="c.value" :value="c.value">{{ c.label }}</option>
+                    </select>
+                </label>
                 <label v-if="view.options.mode === 'relay'" class="flex flex-col gap-1 text-(--gt-muted)">
                     區域數
                     <select class="gt-input cursor-pointer" :value="roomState.players.length > 1 ? roomState.players.length : view.options.zones" :disabled="roomState.players.length > 1"
@@ -961,6 +968,12 @@ function handleFinish() {
     }, finishNow)
 }
 
+// 地圖選項：清單由伺服器型錄提供，最前面是原本的經典圖（0 號），最後加「隨機」
+const mapChoices = computed(() => [
+    ...(state.catalog?.maps ?? [{ id: 0, name: '經典對角' }]).map(m => ({ value: m.id, label: m.name })),
+    { value: 'random', label: '隨機（每局抽一張）' },
+])
+
 // ── 等待大廳：目前設定的摘要（房主看一行，其他人看清單）與快速設定 ──
 const shortLabel = (choices, value) => (choices.find(c => c.value === value)?.label ?? '').replace(/（.*$/, '')
 const settingRows = computed(() => {
@@ -970,7 +983,7 @@ const settingRows = computed(() => {
     const zones = roomState.players.length > 1 ? roomState.players.length : o.zones
     return [
         ['模式', shortLabel(MODE_CHOICES, o.mode)],
-        ...(relay ? [['區域數', `${zones} 區`]] : [['血量', shortLabel(LIVES_CHOICES, o.livesMode)]]),
+        ...(relay ? [['區域數', `${zones} 區`]] : [['地圖', shortLabel(mapChoices.value, o.map ?? 0)], ['血量', shortLabel(LIVES_CHOICES, o.livesMode)]]),
         ['難度', shortLabel(DIFFICULTY_CHOICES, o.difficulty)],
         ['波數', shortLabel(WAVE_CHOICES, o.waves)],
         ['建造時間', shortLabel(BUILD_CHOICES, o.buildSeconds)],

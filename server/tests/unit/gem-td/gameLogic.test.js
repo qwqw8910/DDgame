@@ -1082,3 +1082,18 @@ test('還原：重骰後不能退回重骰之前；按準備後不能還原', ()
   L.setReady(game, 'a');
   assert.throws(() => L.undo(game, 'a'), /準備/);
 });
+
+test('地圖選項：預設經典圖、可指定、可隨機，非法值退回預設，環形接力固定經典圖', () => {
+  assert.equal(L.createGame().options.map, 0);
+  assert.equal(newGame(['a']).board.mapId, 0);
+  for (let id = 0; id < C.MAP_COUNT; id++) {
+    assert.equal(newGame(['a'], { options: { map: id } }).board.mapId, id);
+  }
+  assert.equal(L.resolveOptions({ map: 99 }).map, 0);
+  assert.equal(L.resolveOptions({ map: '2' }).map, 0);
+  assert.equal(L.resolveOptions({ map: 'random' }).map, 'random');
+  const seen = new Set();
+  for (let seed = 1; seed <= 40; seed++) seen.add(newGame(['a'], { rng: seededRng(seed), options: { map: 'random' } }).board.mapId);
+  assert.ok(seen.size > 1);
+  assert.equal(newGame(['a'], { options: { mode: 'relay', map: 3 } }).board.mapId, 0);
+});
