@@ -4,9 +4,9 @@
             <h2 id="gt-lb-title" class="m-0 font-sans text-2xl font-bold text-(--gt-ink)">排行榜</h2>
             <div class="mt-2 flex flex-wrap items-center gap-2" role="group" aria-label="選擇排行榜">
                 <button class="gt-chip" :aria-pressed="board === 'single'" @click="pick('single')">一般</button>
-                <button v-for="n in ZONES" :key="n" class="gt-chip" :aria-pressed="board === 'relay' && zones === n" @click="pick('relay', n)">環形接力 {{ n }} 區</button>
+                <button class="gt-chip" :aria-pressed="board === 'relay'" @click="pick('relay')">環形接力</button>
             </div>
-            <p v-if="board === 'relay'" class="mt-2 mb-0 text-(--gt-muted)">環形接力依區域數各一個榜，成績是整隊的（隊伍到達波數與隊伍傷害），每位真人各一筆；用過「首領波」測試的局不列入。計分方式同一般榜。</p>
+            <p v-if="board === 'relay'" class="mt-2 mb-0 text-(--gt-muted)">1～6 區合併排名，前 50 名。成績是整隊的（隊伍到達波數與隊伍傷害），每位真人各一筆；用過「首領波」測試的局不列入。計分方式同一般榜。</p>
             <p v-else class="mt-1 mb-0 text-(--gt-muted)">15 波、30 波、50 波與無盡合併排名，前 50 名。分數 =（到達波數 × 100 + 最高傷害測試的傷害比率 × 100）× 難度倍率（簡單 ×1、普通 ×1.5、困難 ×2），挑戰越長、越難，分數越高。</p>
         </div>
 
@@ -41,9 +41,7 @@ import { SERVER_URL } from '@/shared/api/config.js'
 
 const DIFFICULTIES = { easy: '簡單', normal: '普通', hard: '困難' }
 
-const ZONES = [1, 2, 3, 4, 5, 6]
 const board = ref('single')
-const zones = ref(3)
 const rows = ref([])
 const loading = ref(false)
 const error = ref('')
@@ -66,9 +64,8 @@ function sub(r) {
     return parts.join(' · ')
 }
 
-function pick(kind, n) {
+function pick(kind) {
     board.value = kind
-    if (n) zones.value = n
     load()
 }
 
@@ -76,7 +73,7 @@ async function load() {
     loading.value = true
     error.value = ''
     try {
-        const res = await fetch(`${SERVER_URL}/api/gem-td/leaderboard${board.value === 'relay' ? `?mode=relay&zones=${zones.value}` : ''}`)
+        const res = await fetch(`${SERVER_URL}/api/gem-td/leaderboard${board.value === 'relay' ? '?mode=relay' : ''}`)
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || '讀取失敗')
         rows.value = data.rows

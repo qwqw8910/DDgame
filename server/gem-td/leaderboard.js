@@ -4,13 +4,13 @@
 //  甜點守衛戰 — 排行榜（Supabase 表 gem_td_scores，見 sql/001_leaderboard.sql）
 //  寫入：遊戲正常結束時，每位玩家一筆
 //  讀取：GET /api/gem-td/leaderboard，15／30／50／無盡合成一個榜，前 50 名
+//        GET /api/gem-td/leaderboard?mode=relay，環形接力 1～6 區合成一個榜，前 50 名
 // ================================================================
 
 const express = require('express');
-const C = require('./config');
 
 const TABLE = 'gem_td_scores';
-const RELAY_TABLE = 'gem_td_relay_scores'; // 環形接力：依區域數各一個榜，見 sql/002_relay_leaderboard.sql
+const RELAY_TABLE = 'gem_td_relay_scores'; // 環形接力：各區域數合成一個榜（2026-11-25 已在 Supabase 建立，欄位同 TABLE 但沒有 lives_mode、多了 zones）
 const LIMIT = 50;
 const FETCH_CAP = 2000; // 同一組最多撈這麼多筆再排序，避免全表掃描
 
@@ -98,23 +98,32 @@ async function fetchBoard(db) {
   return rank(data ?? []);
 }
 
-// 環形接力：只看指定區域數的榜
-async function fetchRelayBoard(db, zones) {
-  const { data, error } = await db.from(RELAY_TABLE).select('*').eq('zones', zones)
+// 環形接力：1～6 區合成一個榜（怪物血量本來就依區域數與人數換算），每筆的 zones 欄位標示幾區
+async function fetchRelayBoard(db) {
+  const { data, error } = await db.from(RELAY_TABLE).select('*')
     .order('reached_wave', { ascending: false }).limit(FETCH_CAP);
   if (error) throw error;
   return rank(data ?? []);
 }
 
+// 啟動時確認兩張表都在：表不存在時寫入會默默失敗（只記一行 log），玩家會以為沒上榜
+async function checkTables(db) {
+  for (const table of [TABLE, RELAY_TABLE]) {
+    try {
+      const { error } = await db.from(table).select('id').limit(1);
+      if (error) console.error(`[GemTD leaderboard] 讀不到表 ${table}，成績不會寫入：${error.message}（請到 Supabase 確認表是否存在）`);
+    } catch (err) {
+      console.error(`[GemTD leaderboard] 檢查表 ${table} 失敗：${err.message}`);
+    }
+  }
+}
+
 function createRouter(db) {
+  if (db) checkTables(db);
   const router = express.Router();
   router.get('/leaderboard', async (req, res) => {
     try {
-      if (req.query.mode === 'relay') {
-        const zones = Number(req.query.zones);
-        if (!Number.isInteger(zones) || zones < C.MIN_ZONES || zones > C.MAX_ZONES) return res.status(400).json({ error: '區域數不對', rows: [] });
-        return res.json({ rows: await fetchRelayBoard(db, zones) });
-      }
+      if (req.query.mode === 'relay') return res.json({ rows: await fetchRelayBoard(db) });
       res.json({ rows: await fetchBoard(db) });
     } catch (err) {
       console.error('[GemTD leaderboard] fetch', err.message);
