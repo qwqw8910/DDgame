@@ -1,6 +1,8 @@
 <template>
     <div ref="wrapRef" class="relative h-full w-full overflow-hidden">
-        <canvas ref="canvasRef" class="block touch-none select-none"
+        <!-- 背景層：桌面擺設與烤盤陰影，鏡頭不動就不重畫 -->
+        <canvas ref="bgRef" class="pointer-events-none absolute top-0 left-0" aria-hidden="true" />
+        <canvas ref="canvasRef" class="relative block touch-none select-none"
             :class="spaceDown ? 'cursor-grab' : placing ? 'cursor-crosshair' : 'cursor-default'"
             role="img" aria-label="環形接力地圖：多個區域排成一圈，蟲群沿外環輸送帶傳給下一區"
             @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp"
@@ -51,6 +53,7 @@ const emit = defineEmits(['cell', 'tower', 'clear', 'arm', 'zone', 'camera'])
 
 const wrapRef = ref(null)
 const canvasRef = ref(null)
+const bgRef = ref(null)
 const hover = ref(null) // { zone, x, y }
 const armed = ref(null) // 觸控：第一次點選的格子 { x, y }（在操作中的那一區）
 const showRoutes = ref(true) // 預設打開路線：一眼看出每區的蟲怎麼走
@@ -86,6 +89,8 @@ const labelOf = i => labels[i] ?? `P${i + 1}`
 const zoneColor = i => props.catalog?.relay?.colors?.[i] ?? ZONE_COLORS[i % ZONE_COLORS.length]
 
 let ctx = null
+let bgCtx = null // 背景層（桌面擺設＋烤盤），只在鏡頭或排版變了才重畫
+let bgKey = ''
 let cw = 0
 let ch = 0
 let dpr = 1
@@ -223,6 +228,15 @@ function resize() {
     canvas.width = cw * dpr
     canvas.height = ch * dpr
     ctx = canvas.getContext('2d')
+    const bg = bgRef.value
+    if (bg) {
+        bg.style.width = `${cw}px`
+        bg.style.height = `${ch}px`
+        bg.width = cw * dpr
+        bg.height = ch * dpr
+        bgCtx = bg.getContext('2d')
+        bgKey = ''
+    }
     if (layout() && (!fitted || oldCx === null)) { focusZone(watchIndex(), false); fitted = true } else if (oldCx !== null) setCamera(scale, oldCx, oldCy)
     invalidate()
 }
@@ -691,9 +705,10 @@ function seeded(k) {
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296
     }
 }
-const tableProp = (kind, x, y, s, rot = 0) => drawTableProp(ctx, dpr, kind, x, y, s, rot)
+// 背景層會隨鏡頭重畫，用假陰影（不跑 shadowBlur）
+const tableProp = (c, kind, x, y, s, rot = 0) => drawTableProp(c, dpr, kind, x, y, s, rot, true)
 // 一個區距（區 + 右邊的空隙）的擺設；位置相對「空隙中心」，隨機翻轉讓每組看起來不一樣
-function drawTableTile(k, l) {
+function drawTableTile(c, k, l) {
     const r = seeded(k)
     const fx = r() < 0.5 ? -1 : 1
     const fy = r() < 0.5 ? -1 : 1
@@ -701,33 +716,33 @@ function drawTableTile(k, l) {
     const at = (dx, dy) => [gx + dx * fx, dy * fy]
     const pool = arr => arr[Math.floor(r() * arr.length)]
     let [x, y] = at(-7, -8)
-    tableProp('plate', x, y, 4.2); tableProp('fork', x - 6.2 * fx, y, 1.3, 0.08); tableProp('knife', x + 6.2 * fx, y, 1.3, -0.06);
-    [x, y] = at(7, 7); tableProp(pool(['bowl', 'jar', 'bowl']), x, y, 5);
-    [x, y] = at(-8, 9); tableProp('mug', x, y, 2.4);
-    [x, y] = at(6, -10); tableProp(pool(['tin', 'plate', 'tin']), x, y, 1.2);
-    [x, y] = at(0, 1); tableProp('cookie', x, y, 1.5); tableProp('cookie', x + 2.6 * fx, y + 1.8, 1.1);
+    tableProp(c, 'plate', x, y, 4.2); tableProp(c, 'fork', x - 6.2 * fx, y, 1.3, 0.08); tableProp(c, 'knife', x + 6.2 * fx, y, 1.3, -0.06);
+    [x, y] = at(7, 7); tableProp(c, pool(['bowl', 'jar', 'bowl']), x, y, 5);
+    [x, y] = at(-8, 9); tableProp(c, 'mug', x, y, 2.4);
+    [x, y] = at(6, -10); tableProp(c, pool(['tin', 'plate', 'tin']), x, y, 1.2);
+    [x, y] = at(0, 1); tableProp(c, 'cookie', x, y, 1.5); tableProp(c, 'cookie', x + 2.6 * fx, y + 1.8, 1.1);
     // 區域上下方的空桌面
-    [x, y] = at(-18, -21); tableProp('pin', x, y, 1.6, 0.05);
-    [x, y] = at(14, -21); tableProp('whisk', x, y, 1.8, 0.6);
-    [x, y] = at(-14, 21); tableProp('plate', x, y, 3.6); tableProp('spoon', x - 5.4 * fx, y, 1.3, 0.1);
-    [x, y] = at(17, 20); tableProp('mug', x, y, 2); tableProp('cookie', x - 4, y + 2.4, 1.2);
-    [x, y] = at(0, 20); tableProp('bowl', x, y, 3.4);
-    [x, y] = at(2, -20); tableProp('jar', x, y, 2.4)
+    [x, y] = at(-18, -21); tableProp(c, 'pin', x, y, 1.6, 0.05);
+    [x, y] = at(14, -21); tableProp(c, 'whisk', x, y, 1.8, 0.6);
+    [x, y] = at(-14, 21); tableProp(c, 'plate', x, y, 3.6); tableProp(c, 'spoon', x - 5.4 * fx, y, 1.3, 0.1);
+    [x, y] = at(17, 20); tableProp(c, 'mug', x, y, 2); tableProp(c, 'cookie', x - 4, y + 2.4, 1.2);
+    [x, y] = at(0, 20); tableProp(c, 'bowl', x, y, 3.4);
+    [x, y] = at(2, -20); tableProp(c, 'jar', x, y, 2.4)
     // 糖粒
     const cols = ['#FF6B86', '#FFD166', '#6FE0A9', '#7F9BF0', '#FFFFFF']
     for (let i = 0; i < 36; i++) {
         const sx = k * l.pitch + (r() - 0.5) * l.pitch
         const sy = (r() - 0.5) * 50
         if (Math.abs(sy) < l.size / 2 + 1 && Math.abs(sx - k * l.pitch) < l.size / 2 + 1) continue
-        ctx.save(); ctx.translate(sx, sy); ctx.rotate(r() * 3); ctx.fillStyle = cols[i % 5]; ctx.fillRect(-0.3, -0.08, 0.6, 0.16); ctx.restore()
+        c.save(); c.translate(sx, sy); c.rotate(r() * 3); c.fillStyle = cols[i % 5]; c.fillRect(-0.3, -0.08, 0.6, 0.16); c.restore()
     }
 }
-function drawTableware(l) {
+function drawTableware(c, l) {
     const vw = cw / scale
     const k0 = Math.floor((camX - l.pitch / 2 - 30) / l.pitch)
     const k1 = Math.ceil((camX + vw + 30) / l.pitch)
     if (k1 - k0 > 12) return // 縮得很小時整排太密，不畫
-    for (let k = k0; k <= k1; k++) drawTableTile(k, l)
+    for (let k = k0; k <= k1; k++) drawTableTile(c, k, l)
 }
 
 function drawZones(l, simple, now) {
@@ -740,7 +755,6 @@ function drawZones(l, simple, now) {
         if (!visible(rect)) continue
         const color = zoneColor(i)
         const isWatched = i === watchIndex()
-        drawTray(o, l.size)
         if (simple) {
             ctx.fillStyle = '#FFFFFF'
             ctx.fillRect(o.x, o.y, l.size, l.size)
@@ -778,18 +792,18 @@ function drawZones(l, simple, now) {
 }
 
 // 烤盤：銀色金屬邊加一圈落地陰影，讓每一區像放在桌上的一個盤子
-function drawTray(o, size) {
+function drawTray(c, o, size) {
     const rim = Math.max(0.55, px(7))
-    ctx.save()
-    ctx.shadowColor = 'rgba(40,20,5,0.5)'
-    ctx.shadowBlur = 18 * dpr
-    ctx.shadowOffsetY = 7 * dpr
-    const g = ctx.createLinearGradient(o.x, o.y, o.x + size, o.y + size)
+    c.save()
+    c.shadowColor = 'rgba(40,20,5,0.5)'
+    c.shadowBlur = 18 * dpr
+    c.shadowOffsetY = 7 * dpr
+    const g = c.createLinearGradient(o.x, o.y, o.x + size, o.y + size)
     g.addColorStop(0, '#E6E9EC')
     g.addColorStop(1, '#A2A8AF')
-    ctx.fillStyle = g
-    ctx.fillRect(o.x - rim, o.y - rim, size + rim * 2, size + rim * 2)
-    ctx.restore()
+    c.fillStyle = g
+    c.fillRect(o.x - rim, o.y - rim, size + rim * 2, size + rim * 2)
+    c.restore()
 }
 
 // 每區角落：P1～P6 與目前路徑長度
@@ -1103,6 +1117,20 @@ function drawRange(kind, level, cx, cy, color) {
 }
 
 // 選中的塔、擺放預覽（只在正在看的那一區）
+// 放置預覽的路線長度：只跟「游標在哪一格」與「場上的塔」有關。塔只會隨伺服器推送的新 view 改變，
+// 所以用 view 物件本身＋格子座標當快取鍵，游標換格才重跑兩次尋路（原本每幀都跑）
+let preview = { view: null, x: -1, y: -1, label: '', blocked: false }
+function pathPreview(view, ghost) {
+    if (preview.view === view && preview.x === ghost.x && preview.y === ghost.y) return preview
+    const { board } = view
+    const taken = new Set(view.towers.map(t => t.y * board.width + t.x))
+    const now = fullPathLength(board, (x, y) => taken.has(y * board.width + x))
+    const next = fullPathLength(board, (x, y) => taken.has(y * board.width + x) || (x === ghost.x && y === ghost.y))
+    const blocked = next < 0
+    preview = { view, x: ghost.x, y: ghost.y, blocked, label: blocked ? '封路，不能放' : `路線 ${next - now >= 0 ? '+' : ''}${next - now}` }
+    return preview
+}
+
 function drawOverlays(l) {
     const view = toRaw(props.view)
     const o = l.zones[watchIndex()]?.origin
@@ -1131,13 +1159,7 @@ function drawOverlays(l) {
     const onStop = [board.start, board.end, ...board.checkpoints].some(p => p.x === ghost.x && p.y === ghost.y)
     let label = ''
     let blocked = false
-    if (!onStop) {
-        const taken = new Set(view.towers.map(t => t.y * board.width + t.x))
-        const now = fullPathLength(board, (x, y) => taken.has(y * board.width + x))
-        const next = fullPathLength(board, (x, y) => taken.has(y * board.width + x) || (x === ghost.x && y === ghost.y))
-        blocked = next < 0
-        label = blocked ? '封路，不能放' : `路線 ${next - now >= 0 ? '+' : ''}${next - now}`
-    }
+    if (!onStop) ({ label, blocked } = pathPreview(view, ghost))
     const cx = o.x + ghost.x + 0.5
     const cy = o.y + ghost.y + 0.5
     if (blocked) {
@@ -1197,6 +1219,22 @@ function emitCamera(now) {
     emit('camera', { x: camX + insets.l / scale, y: camY + insets.t / scale, w: freeW() / scale, h: freeH() / scale })
 }
 
+// 背景層：桌面擺設與烤盤是靜態的，鏡頭（位置、縮放）、畫布大小與排版都沒變就沿用上一張
+function drawBackground(l) {
+    if (!bgCtx) return
+    const key = `${camX},${camY},${scale},${cw},${ch},${dpr},${l.zones.length},${l.size},${l.pitch}`
+    if (key === bgKey) return
+    bgKey = key
+    bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    bgCtx.clearRect(0, 0, cw, ch)
+    bgCtx.setTransform(dpr * scale, 0, 0, dpr * scale, -dpr * scale * camX, -dpr * scale * camY)
+    drawTableware(bgCtx, l)
+    for (const z of l.zones) {
+        const o = z.origin
+        if (visible({ x0: o.x, y0: o.y, x1: o.x + l.size, y1: o.y + l.size })) drawTray(bgCtx, o, l.size)
+    }
+}
+
 function draw(now) {
     raf = requestAnimationFrame(draw)
     const view = toRaw(props.view)
@@ -1208,6 +1246,7 @@ function draw(now) {
     stepAnim(now)
     followBoss(now)
     emitCamera(now)
+    drawBackground(l)
     const catalog = catalogRaw()
     const simple = zoomLevel() < SIMPLE_BELOW
 
@@ -1215,7 +1254,6 @@ function draw(now) {
     ctx.clearRect(0, 0, cw, ch) // 桌面由外層 CSS 畫（木紋＋暗角）
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, -dpr * scale * camX, -dpr * scale * camY)
 
-    drawTableware(l)
     drawZones(l, simple, now)
     if (!simple) drawOverlays(l)
     drawShots(now)
