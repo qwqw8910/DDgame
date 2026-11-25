@@ -48,8 +48,8 @@ function applyRelayDef(def, { zone, n }) {
     def.groups = def.groups.map(g => ({ ...g, count: 0 }));
     return;
   }
-  const hpMult = boss ? (test ? n * C.RELAY_BOSS_HP_MULT : C.RELAY_BOSS_HP_MULT) : C.relayGroupHpMult(n);
-  const armorMult = boss ? 1 : C.RELAY_ARMOR_MULT;
+  const hpMult = boss ? (test ? C.relayTestHpMult(n) :C.RELAY_BOSS_HP_MULT) : C.relayGroupHpMult(n);
+  const armorMult = test ? C.RELAY_TEST_ARMOR_MULT : boss ? 1 : C.RELAY_ARMOR_MULT;
   def.groups = def.groups.map(g => ({ ...g, hp: Math.max(1, Math.round(g.hp * hpMult)), armor: Math.round(g.armor * armorMult) }));
   def.hp = def.groups[0].hp;
   def.armor = Math.round(def.armor * armorMult);
@@ -216,7 +216,15 @@ function kill(sim, tower, m) {
     sim.rs.kills += 1;
     if (m.hop >= 1) sim.rs.relief += 1; // 在自己的區打死別區傳來的蟲
   }
-  sim.earned += m.gold;
+  // 環形接力：擊殺金一半給擊殺區、一半給蟲的出生區（自己打死自己漏的 = 100%）
+  if (sim.relay && m.born !== undefined && m.born !== sim.relay.zone) {
+    const born = Math.floor(m.gold * C.RELAY_KILL_GOLD_BORN_SHARE);
+    sim.earned += m.gold - born;
+    const credit = (sim.relay.hub.credit ??= {});
+    credit[m.born] = (credit[m.born] ?? 0) + born;
+  } else {
+    sim.earned += m.gold;
+  }
   tower.ref.kills += 1;
   if (m.boss) sim.bossDownAt = sim.time;
   if (m.trait === 'split') splitMonster(sim, m);

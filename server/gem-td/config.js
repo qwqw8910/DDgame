@@ -282,8 +282,16 @@ const relayGroupHpMult = zones => relayPasses(zones) * (1 + RELAY_PLAYER_HP_STEP
 const RELAY_GROUP_HP_MULT = relayGroupHpMult(1); // 單區基準（= 走過的區數）
 // 首領每區各出一隻、各自繞完整圈：每隻血量 = 單人 × 這個倍數（n 隻 × 繞 n 區，每區的負擔與單隻時相同）；傷害測試的巨獸只有一隻，再 × 區域數
 const RELAY_BOSS_HP_MULT = 0.8;
+// 環形接力的傷害測試巨獸再加碼：實測第一區就把巨獸打死，整圈沒派上用場（血量 = 單人 × 區域數 × 0.8 × 這個倍數）
+const RELAY_TEST_HP_MULT = 2;
+// 傷害測試巨獸的總倍數：區域數 × 0.8 × 加碼 × 人數加成（同一般蟲，每多一位 +RELAY_PLAYER_HP_STEP）
+// 傷害測試巨獸的護甲倍數（一般首領不變）；傷害 = 1 / (1 + 0.06 × 護甲)，護甲越高每發越痛不起來
+const RELAY_TEST_ARMOR_MULT = 1.5;
+const relayTestHpMult =zones => zones * RELAY_BOSS_HP_MULT * RELAY_TEST_HP_MULT * (1 + RELAY_PLAYER_HP_STEP * Math.max(0, zones - 1));
 // 過關獎勵：每區拿到同樣的額度（總額 = 單人獎勵 × 區域數，平分後每區等於單人獎勵）；擊殺金則歸實際擊殺的那一區
 const RELAY_CLEAR_BONUS_SHARE = 1;
+// 擊殺金分帳：別區打死我出生的蟲時，出生區拿這個比例、擊殺區拿其餘（自己打死 = 100%）
+const RELAY_KILL_GOLD_BORN_SHARE = 0.5;
 // 排版：相鄰區域中心距 ≥ 區域對角線 + 間距；外環輸送帶半徑 = 環半徑 + 對角線的一半 + 邊距（單位：格）
 const RELAY_ZONE_GAP = 32; // 區與區隔得夠遠：看自己這區時左右看不到別人，要用 ‹ › 或點整體地圖才過去（畫面外的區不畫、不吃效能）
 const RELAY_ARC_MARGIN = 3;
@@ -473,7 +481,7 @@ function catalog() {
 
 module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
-  MODES, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_PASSES, relayPasses, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
+  MODES, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_TEST_HP_MULT, RELAY_TEST_ARMOR_MULT, relayTestHpMult, RELAY_PASSES, relayPasses, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_KILL_GOLD_BORN_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
   RELAY_EVENT_KEEP, RELAY_EVENT_SHOW, RELAY_ZONE_COLORS,
   ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, MAP_LAYOUTS, MAP_COUNT, SKILLS, SKILL_IDS, BOSS_STUN_RESIST, SKILL_HP_MULT,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,

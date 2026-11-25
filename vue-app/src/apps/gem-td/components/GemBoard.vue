@@ -5,7 +5,7 @@
             role="img" aria-label="遊戲地圖"
             @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp"
             @pointerleave="hover = null" @wheel.prevent="onWheel" />
-        <!-- 縮放：滾輪、雙指也可以；放大後拖曳平移 -->
+        <!-- 縮放：按鈕或雙指（滾輪不縮放）；放大後拖曳平移 -->
         <div class="absolute top-2 right-2 flex flex-col gap-1" role="group" aria-label="地圖縮放">
             <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="放大地圖" title="放大" :disabled="zoom >= 5" @click="zoomBy(1.4)">＋</button>
             <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="縮小地圖" title="縮小" :disabled="zoom <= 1.01" @click="zoomBy(1 / 1.4)">－</button>
@@ -21,7 +21,7 @@
 
 <script setup>
 // 地圖畫布：只負責畫面與輸入。座標以「格」為單位，格子中心是 (x + .5, y + .5)。
-// 手機點一下先預覽、同一格再點一下才放；滑鼠直接放。雙指或滾輪縮放，放大後拖曳平移。
+// 手機點一下先預覽、同一格再點一下才放；滑鼠直接放。按鈕或雙指縮放（滾輪不縮放），放大後拖曳平移。
 import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
 import { CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
 import { fullPathLength } from '../data/pathing.js'
@@ -192,9 +192,18 @@ function tap(cell, pointerType) {
     }
 }
 
+// 滾輪不縮放地圖（縮放用按鈕或雙指）；滑鼠在浮動的左欄或右欄範圍內（含卡片間的空隙）時，滾輪只捲那一欄
 function onWheel(e) {
-    const { x, y } = localPos(e)
-    zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, x, y)
+    const game = canvasRef.value?.closest('.gt-game')
+    for (const [panel, scroller] of [['.gt-side', '.gt-side'], ['.gt-rail', '.gt-rail-top']]) {
+        const el = game?.querySelector(panel)
+        if (!el || getComputedStyle(el).position !== 'absolute') continue
+        const r = el.getBoundingClientRect()
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+            ;(el.matches(scroller) ? el : el.querySelector(scroller))?.scrollBy({ top: e.deltaY })
+            return
+        }
+    }
 }
 
 // ── 蟲子補間（伺服器 5 幀 / 秒）──────────────────────────────────

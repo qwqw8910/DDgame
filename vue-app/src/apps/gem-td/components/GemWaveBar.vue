@@ -33,9 +33,18 @@
 
         <!-- 主動技能：全場減速、全場暈眩，冷卻跑完才能再用 -->
         <div v-if="!view.relay && skillList.length" class="flex shrink-0 items-center gap-2" aria-label="主動技能">
-            <button v-for="s in skillList" :key="s.id" class="gt-btn gt-btn--small" :disabled="!canCast || !s.ready"
-                :title="s.disabledReason || `${s.desc}（${s.duration} 秒，施放後 ${s.cooldownWaves} 波才能再用）`" :aria-keyshortcuts="s.key" @click="$emit('skill', s.id)">
-                {{ s.name }}<span v-if="canCast && s.sk > 0" class="ml-2 tabular-nums text-(--gt-muted)">{{ s.sk }} 波</span><kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">{{ s.key }}</kbd>
+            <button v-for="s in skillList" :key="s.id" class="gt-skill" :class="[`gt-skill--${s.id}`, canCast && s.ready && 'gt-skill--ready']" :disabled="!canCast || !s.ready"
+                :aria-label="`${s.name}：${s.desc}`" :title="s.disabledReason || `${s.name}：${s.desc}（${s.duration} 秒，施放後 ${s.cooldownWaves} 波才能再用）`" :aria-keyshortcuts="s.key" @click="$emit('skill', s.id)">
+                <svg v-if="s.id === 'freeze'" class="gt-skill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7" />
+                    <path d="M9.5 3.8L12 6.3l2.5-2.5M9.5 20.2L12 17.7l2.5 2.5M2.9 10.6l3.4 1-1 3.4M21.1 13.4l-3.4-1 1-3.4M2.9 13.4l3.4-1-1-3.4M21.1 10.6l-3.4 1 1 3.4" />
+                </svg>
+                <svg v-else class="gt-skill-icon" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 2.5l2.7 5.9 6.4.7-4.8 4.3 1.4 6.3L12 16.4 6.3 19.7l1.4-6.3-4.8-4.3 6.4-.7z" />
+                </svg>
+                <span class="gt-skill-name">{{ s.name }}</span>
+                <span v-if="canCast && s.sk > 0" class="gt-skill-cd tabular-nums" :aria-label="`還要 ${s.sk} 波`">{{ s.sk }}</span>
+                <kbd v-if="keys" class="gt-skill-key" aria-hidden="true">{{ s.key }}</kbd>
             </button>
         </div>
 

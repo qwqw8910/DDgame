@@ -7,7 +7,7 @@
             @pointerleave="hover = null" @wheel.prevent="onWheel" @dblclick="onDblClick" />
         <!-- 浮動按鈕放在「沒被面板蓋住」的那塊裡 -->
         <div class="pointer-events-none absolute [&>*]:pointer-events-auto" :style="frameStyle">
-        <!-- 視角：縮放、整圈、顯示路線。電腦版另有滾輪、左鍵拖拉、空白鍵拖拉、F、雙擊聚焦 -->
+        <!-- 視角：縮放、整圈、顯示路線。電腦版另有 Shift＋滾輪平移（滾輪不縮放）、左鍵拖拉、空白鍵拖拉、F、雙擊聚焦 -->
         <div class="absolute top-2 right-2 flex flex-col gap-1" role="group" aria-label="地圖視角">
             <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="放大地圖" title="放大" @click="zoomBy(1.4)">＋</button>
             <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="縮小地圖" title="縮小" @click="zoomBy(1 / 1.4)">－</button>
@@ -368,7 +368,18 @@ function onDblClick(e) {
 }
 
 function onWheel(e) {
-    // 橫向滾動或 Shift＋滾輪：左右平移；一般滾輪：縮放
+    // 滑鼠在左欄或右欄範圍內（含卡片之間的空隙）：滾輪只捲那一欄，不動背景地圖
+    const game = canvasRef.value?.closest('.gt-game')
+    for (const [panel, scroller] of [['.gt-side', '.gt-side'], ['.gt-rail', '.gt-rail-top']]) {
+        const el = game?.querySelector(panel)
+        if (!el || getComputedStyle(el).position !== 'absolute') continue
+        const r = el.getBoundingClientRect()
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+            ;(el.matches(scroller) ? el : el.querySelector(scroller))?.scrollBy({ top: e.deltaY })
+            return
+        }
+    }
+    // 滾輪不再縮放地圖（縮放用按鈕）；只有橫向滾動或 Shift＋滾輪：左右平移
     if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         follow.value = false
         anim = null
@@ -377,8 +388,6 @@ function onWheel(e) {
         invalidate()
         return
     }
-    const { x, y } = localPos(e)
-    zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, x, y)
 }
 
 const zoneChips = computed(() => {

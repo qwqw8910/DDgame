@@ -11,14 +11,17 @@
         <!-- 區域：點一下切換正在看（單人還能操作）的區；Tab 也可以 -->
         <GemSection v-if="part !== 'stats'" title="玩家" :meta="`${zones.length} 人`" class="gt-card" aria-label="區域">
             <nav class="flex flex-col gap-1" aria-label="切換區域">
-                <button v-for="z in zoneRows" :key="z.id" class="gt-tab" :class="{ 'gt-tab--on': z.id === view.watching }"
-                    :aria-pressed="z.id === view.watching" @click="$emit('watch', z.id)">
+                <button v-for="z in zoneRows" :key="z.id" class="gt-tab gt-tab--compact" :class="{ 'gt-tab--on': z.id === view.watching }"
+                    :aria-pressed="z.id === view.watching" :title="z.id === view.watching ? (operateAny ? '操作中' : '正在看') : ''" @click="$emit('watch', z.id)">
                     <span class="flex items-center gap-1.5">
                         <span class="size-2.5 shrink-0 rounded-full" :style="{ background: z.color }" aria-hidden="true" />
-                        <span class="truncate font-semibold text-(--gt-ink)">{{ z.label }}{{ z.label === z.name || z.bot ? '' : `　${z.name}` }}{{ z.index === view.relay.myZone ? '（我）' : '' }}</span>
-                        <span v-if="z.id === view.watching" class="ml-auto shrink-0 text-(--gt-accent-ink)">{{ operateAny ? '操作中' : '正在看' }}</span>
+                        <span class="min-w-0 flex-1 truncate font-semibold text-(--gt-ink)">{{ z.label }}{{ z.label === z.name || z.bot ? '' : ` ${z.name}` }}{{ z.index === view.relay.myZone ? '（我）' : '' }}</span>
+                        <span v-if="z.gold !== null" class="shrink-0 text-xs font-semibold tabular-nums text-(--gt-ink)" :aria-label="`金幣 ${z.gold}`">💰{{ z.gold }}</span>
                     </span>
-                    <span class="truncate text-(--gt-muted)">{{ z.status }}</span>
+                    <span class="flex items-center gap-1 pl-4 text-xs leading-tight">
+                        <span class="min-w-0 flex-1 truncate text-(--gt-muted)">{{ z.status }}</span>
+                        <span v-if="z.id === view.watching" class="shrink-0 text-(--gt-accent-ink)">{{ operateAny ? '操作中' : '正在看' }}</span>
+                    </span>
                 </button>
             </nav>
         </GemSection>
@@ -112,7 +115,15 @@ const zoneRows = computed(() => zones.value.map(z => ({
     color: colorOf(z.index),
     name: props.view.names?.[z.id] ?? '玩家',
     status: statusOf(z),
+    gold: goldOf(z),
 })))
+
+// 每區的金幣（所有玩家都看得到）；波次中本波收入還沒入帳，把即時收入加上去，跟標題列一致。假人與已離開的區不顯示
+function goldOf(z) {
+    const p = props.view.players[z.id]
+    if (z.bot || z.left || !p || p.out || p.gold == null) return null
+    return p.gold + (props.frame?.players?.[z.id]?.earned ?? 0)
+}
 
 // 波次中的統計來自快照（即時），其他時候來自視圖
 const statRows = computed(() => {

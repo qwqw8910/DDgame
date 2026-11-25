@@ -2024,6 +2024,34 @@ html[data-app="lodge"] .lodge-bg :is(h1, h2, h3, .neon-heading) {
   .gt-tab--out { opacity: 0.6; }
   .gt-tabs--vertical .gt-tab { flex: none; max-width: none; padding: 6px 10px; }
   .gt-tabs--vertical .gt-tab--on { padding: 5px 9px; }
+  /* 主動技能：圖示方塊，右上角快捷鍵、冷卻中蓋灰並顯示剩餘波數 */
+  .gt-skill {
+    --skill: #4FA8E8;
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; flex: none;
+    width: 62px; height: 52px; padding: 2px; border: 2px solid var(--skill); border-radius: 12px; cursor: pointer;
+    background: var(--gt-surface); color: var(--skill); box-shadow: 0 2px 0 rgba(30, 15, 5, 0.25);
+    transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.15s ease;
+  }
+  .gt-skill--stun { --skill: #E8A020; }
+  .gt-skill-icon { width: 24px; height: 24px; }
+  .gt-skill-name { font-size: 10px; font-weight: 700; line-height: 1; color: var(--gt-ink); white-space: nowrap; }
+  .gt-skill--ready:hover { transform: translateY(-1px); box-shadow: 0 3px 0 rgba(30, 15, 5, 0.25), 0 0 10px var(--skill); }
+  .gt-skill--ready:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(30, 15, 5, 0.25); }
+  .gt-skill:focus-visible { outline: 2px solid var(--gt-accent); outline-offset: 2px; }
+  .gt-skill:disabled { cursor: not-allowed; border-color: var(--gt-line); color: var(--gt-muted); filter: grayscale(1); opacity: 0.75; }
+  .gt-skill-cd {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border-radius: 10px;
+    background: rgba(30, 15, 5, 0.55); color: #FFFFFF; font-size: 20px; font-weight: 900;
+  }
+  .gt-skill-key {
+    position: absolute; top: -7px; right: -6px; min-width: 18px; padding: 0 4px; border: 1px solid var(--gt-line); border-radius: 5px;
+    background: var(--gt-surface); color: var(--gt-ink); font-size: 11px; font-weight: 700; line-height: 16px; text-align: center;
+  }
+  /* 環形接力的玩家卡：兩行精簡版（名字＋金幣、狀態），比一般分頁窄 */
+  .gt-tab--compact { flex: none; max-width: none; min-height: 0; padding: 4px 8px; gap: 0; font-size: 13px; }
+  .gt-tab--compact.gt-tab--on { padding: 3px 7px; }
+  .gt-game--tabs .gt-rail .gt-tab.gt-tab--compact { padding: 4px 8px; }
+  .gt-game--tabs .gt-rail .gt-tab.gt-tab--compact.gt-tab--on { padding: 3px 7px; }
 
   /* 可合成特殊塔的效果說明：疊在該行下方，不吃滑鼠事件，避免擋住下一行的按鈕 */
   .gt-tip {
