@@ -929,7 +929,8 @@ function finishWave(game, { now, rng = Math.random }) {
   const bonus = Math.round(C.waveClearBonus(game.wave) * (isRelay(game) ? C.RELAY_CLEAR_BONUS_SHARE : 1));
   for (const id of activeIds(game)) {
     const p = game.players[id];
-    p.gold += p.sim.earned + bonus + C.interestOn(p.gold);
+    const bornShare = p.sim.relay?.hub.credit?.[p.sim.relay.zone] ?? 0; // 別區補救我漏出去的蟲，我分到的擊殺金
+    p.gold += p.sim.earned + bornShare + bonus + C.interestOn(p.gold);
     p.stats.peakGold = Math.max(p.stats.peakGold, p.gold);
   }
 
@@ -1032,10 +1033,10 @@ function buildView(game, viewerId, watchId) {
     const n = game.ring ? game.playerIds.length : 1;
     const hpMult = (g) => {
       if (!game.ring) return 1;
-      if (C.MONSTERS[g.type].boss) return test ? n * C.RELAY_BOSS_HP_MULT : C.RELAY_BOSS_HP_MULT;
+      if (C.MONSTERS[g.type].boss) return test ? C.relayTestHpMult(n) :C.RELAY_BOSS_HP_MULT;
       return C.relayGroupHpMult(n);
     };
-    const armorMult = g => (game.ring && !C.MONSTERS[g.type].boss ? C.RELAY_ARMOR_MULT : 1);
+    const armorMult = g => (!game.ring ? 1 : test && C.MONSTERS[g.type].boss ? C.RELAY_TEST_ARMOR_MULT : C.MONSTERS[g.type].boss ? 1 : C.RELAY_ARMOR_MULT);
     const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: Math.max(1, Math.round(g.hp * hpMult(g))), armor: Math.round(g.armor * armorMult(g)), trait: g.trait, leak: g.leak }));
     return { number, type: def.type, count: def.count, hp: groups[0].hp, armor: groups[0].armor, groups, test: !!def.test, perZone: !!game.ring && !test };
   })();
