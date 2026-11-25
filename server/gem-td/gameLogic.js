@@ -843,7 +843,7 @@ function buildRecords(game, winnerIds) {
   });
 }
 
-// 環形接力的成績是整隊的：每位在場的真人一筆，內容相同；依區域數各開一個榜
+// 環形接力的成績是整隊的：每位在場的真人一筆，內容相同；1～6 區合成一個榜（zones 欄位標示幾區）
 function buildRelayRecords(game, winnerIds, { waves, difficulty, endless, lastCleared, seconds }) {
   const cleared = lastCleared && winnerIds.length > 0;
   const reached = game.wave + 1;
