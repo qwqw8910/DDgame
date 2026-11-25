@@ -11,6 +11,7 @@ import { getOrCreatePlayerId } from '@/shared/data/identity.js'
 import { useRoom } from '@/shared/composables/useRoom.js'
 import { SERVER_URL } from '@/shared/api/config.js'
 import { APP_ID } from '../data/gems.js'
+import { unpackView, WIRE_VERSION } from '../data/wire.js'
 
 let _socket = null
 
@@ -22,6 +23,7 @@ function getSocket() {
       timeout:              10000,
       transports: ['websocket', 'polling'],
       autoConnect: false,
+      auth: { gtWire: WIRE_VERSION }, // 看得懂壓縮的 gt:state（見 data/wire.js）
     })
   }
   return _socket
@@ -44,7 +46,8 @@ let _handlersRegistered = false
 let _currentRoom = null
 let _reconnectListenerAttached = false
 
-function applyView(view) {
+function applyView(packed) {
+  const view = unpackView(packed) // 伺服器送來的是壓縮格式（server/gem-td/wire.js）
   // 環形接力整圈只有一份快照，切換視角不必清掉
   const switched = !view.relay && view.watching !== gem.view?.watching
   gem.view = view

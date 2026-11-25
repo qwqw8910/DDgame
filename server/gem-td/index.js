@@ -15,6 +15,7 @@
 const { registerRoomHandlers } = require('../room');
 const EV = require('../room/events');
 const L = require('./gameLogic');
+const { packView, WIRE_VERSION } = require('./wire');
 const { saveRecords } = require('./leaderboard');
 
 const APP_ID = 'gem-td';
@@ -65,7 +66,9 @@ function registerNamespace(io, db) {
     view.names = game.names;
     view.hostId = hostOf(roomId);
     view.serverNow = Date.now();
-    return view;
+    // 送出前壓縮（去掉重複的塔清單），前端 applyView 還原。只給連線時聲明支援的前端：
+    // PWA 可能還跑著舊版，舊版收到壓縮格式會壞，所以沒聲明的照舊送原格式
+    return Number(socket.handshake.auth?.gtWire) === WIRE_VERSION ? packView(view) : view;
   }
 
   function pushState(roomId) {

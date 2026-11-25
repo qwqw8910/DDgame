@@ -11,6 +11,7 @@ const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
 const { registerNamespace } = require('../../gem-td/index');
 const { MAX_LEVEL } = require('../../gem-td/config');
+const { unpackView } = require('../../gem-td/wire');
 
 // ── Mock DB（rooms / players 兩張表）────────────────────────────
 function makeMockDb() {
@@ -63,11 +64,11 @@ after(() => {
 
 async function connect(name) {
   const socket = ioc(`http://localhost:${port}/gem-td`, {
-    transports: ['websocket'], reconnection: false, forceNew: true,
+    transports: ['websocket'], reconnection: false, forceNew: true, auth: { gtWire: 1 },
   });
   clients.push(socket);
   const p = { name, id: `id-${name}`, socket, view: null, ack: null, catalog: null, frames: [], errors: [] };
-  socket.on('gt:state', v => { p.view = v; });
+  socket.on('gt:state', v => { p.view = unpackView(v); }); // 跟前端一樣先還原傳輸格式
   socket.on('gt:catalog', c => { p.catalog = c; });
   socket.on('gt:frame', f => p.frames.push(f));
   socket.on('gt:error', e => p.errors.push(e));

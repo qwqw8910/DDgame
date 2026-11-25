@@ -858,6 +858,20 @@ function drawSkillFx(now) {
     }
 }
 
+// 放置預覽的路線長度：只跟「游標在哪一格」與「場上的塔」有關。塔只會隨伺服器推送的新 view 改變，
+// 所以用 view 物件本身＋格子座標當快取鍵，游標換格才重跑兩次尋路（原本每幀都跑）
+let preview = { view: null, x: -1, y: -1, label: '', blocked: false }
+function pathPreview(view, ghost) {
+    if (preview.view === view && preview.x === ghost.x && preview.y === ghost.y) return preview
+    const { board } = view
+    const taken = new Set(view.towers.map(t => t.y * board.width + t.x))
+    const now = fullPathLength(board, (x, y) => taken.has(y * board.width + x))
+    const next = fullPathLength(board, (x, y) => taken.has(y * board.width + x) || (x === ghost.x && y === ghost.y))
+    const blocked = next < 0
+    preview = { view, x: ghost.x, y: ghost.y, blocked, label: blocked ? '封路，不能放' : `路線 ${next - now >= 0 ? '+' : ''}${next - now}` }
+    return preview
+}
+
 function drawOverlays(view, cell) {
     // 合成選位置：材料塔打上金框，點哪一座，合成後的塔就出現在那裡
     for (const id of props.highlightIds) {
@@ -890,13 +904,7 @@ function drawOverlays(view, cell) {
         const inside = ghost.x >= 0 && ghost.y >= 0 && ghost.x < board.width && ghost.y < board.height
         let label = ''
         let blocked = false
-        if (inside && !onStop) {
-            const taken = new Set(view.towers.map(t => t.y * board.width + t.x))
-            const now = fullPathLength(board, (x, y) => taken.has(y * board.width + x))
-            const next = fullPathLength(board, (x, y) => taken.has(y * board.width + x) || (x === ghost.x && y === ghost.y))
-            blocked = next < 0
-            label = blocked ? '封路，不能放' : `路線 ${next - now >= 0 ? '+' : ''}${next - now}`
-        }
+        if (inside && !onStop) ({ label, blocked } = pathPreview(view, ghost))
         if (blocked) {
             ctx.fillStyle = 'rgba(214,48,90,0.35)'
             ctx.fillRect(ghost.x * cell, ghost.y * cell, cell, cell)
