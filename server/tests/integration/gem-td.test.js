@@ -404,3 +404,49 @@ test('合作迷宮建造者：移動、施工、取消、完成，兩邊同步�
   await until(() => b.errors.length === 2, 'b cannot demolish');
   assert.equal(b.errors[1].code, 'BAD_TOWER');
 });
+
+test('合作迷宮試玩紀錄：房主中途結束也寫一行 JSON（aborted），不進排行榜；其他模式不寫', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gt-playtest-')), 'log.jsonl');
+  const saved = process.env.GEM_TD_PLAYTEST_LOG;
+  process.env.GEM_TD_PLAYTEST_LOG = file;
+  try {
+    const roomId = 'GT0010';
+    const [a, b] = await makeRoom(roomId, ['pa', 'pb']);
+    emit(roomId, a, 'gt:set-options', { options: { mode: 'coop', waves: 15, buildSeconds: 0 } });
+    await until(() => b.view.options.mode === 'coop', 'coop');
+    emit(roomId, a, 'gt:start');
+    await until(() => [a, b].every(p => p.view?.phase === 'build'), 'build');
+    // 兩人搶同一格：b 收到 CELL_TAKEN，會算進紀錄
+    emit(roomId, a, 'gt:build', { slot: 0, x: 6, y: 4 });
+    await until(() => b.view.builders.find(x => x.id === a.id).job?.started, 'started');
+    emit(roomId, b, 'gt:build', { slot: 0, x: 6, y: 4 });
+    await until(() => b.errors.length === 1, 'b CELL_TAKEN');
+    emit(roomId, a, 'gt:cancel-job');
+    await until(() => a.view.builders.find(x => x.id === a.id).job === null, 'cancelled');
+    emit(roomId, a, 'gt:finish-now');
+    await until(() => a.view.phase === 'finished', 'finished');
+    const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
+    assert.equal(lines.length, 1);
+    const rec = JSON.parse(lines[0]);
+    assert.equal(rec.mode, 'coop');
+    assert.equal(rec.aborted, true);
+    assert.equal(rec.players, 2);
+    assert.equal(rec.cellTaken, 1);
+    assert.equal(rec.cancels, 1);
+    assert.equal(rec.byPlayer[1].cellTaken, 1);
+    assert.equal(games[roomId].playtest, null, '寫完就清掉，同一局不重複寫');
+
+    // 一般模式結束：不寫紀錄
+    const [c] = await makeRoom('GT0011', ['pc']);
+    emit('GT0011', c, 'gt:start');
+    await until(() => c.view?.phase === 'build', 'single build');
+    emit('GT0011', c, 'gt:finish-now');
+    await until(() => c.view.phase === 'finished', 'single finished');
+    assert.equal(fs.readFileSync(file, 'utf8').trim().split('\n').length, 1);
+  } finally {
+    if (saved === undefined) delete process.env.GEM_TD_PLAYTEST_LOG; else process.env.GEM_TD_PLAYTEST_LOG = saved;
+  }
+});

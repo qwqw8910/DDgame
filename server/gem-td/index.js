@@ -17,6 +17,7 @@ const EV = require('../room/events');
 const L = require('./gameLogic');
 const { packView, WIRE_VERSION } = require('./wire');
 const { saveRecords } = require('./leaderboard');
+const { appendPlaytest } = require('./playtestLog');
 
 const APP_ID = 'gem-td';
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -190,6 +191,13 @@ function registerNamespace(io, db) {
     for (const id of ids) notice(roomId, `${game.names[id] ?? '玩家'} 出局了`);
   }
 
+  // 合作迷宮試玩紀錄：只寫檔，不進排行榜；同一局只寫一次（房主中途結束也會寫，aborted = true）
+  function savePlaytest(game) {
+    if (!game.playtest) return;
+    appendPlaytest(game.playtest);
+    game.playtest = null;
+  }
+
   function closeFinished(roomId, game) {
     clearTimers(game);
     if (game.records) {
@@ -197,6 +205,7 @@ function registerNamespace(io, db) {
       saveRecords(db, roomId, game.records, game.names);
       game.records = null; // 同一場只寫一次
     }
+    savePlaytest(game);
     _roomCache.updateRoom(roomId, { status: 'finished' });
     pushState(roomId);
     for (const s of socketsInRoom(roomId)) if (s.data.isSpectator) s.emit(EV.ROOM_SPECTATOR_CAN_JOIN);
@@ -415,6 +424,7 @@ function registerNamespace(io, db) {
         const c = asHost(roomId); if (!c) return;
         clearTimers(c.game);
         L.finishNow(c.game);
+        savePlaytest(c.game);
         _roomCache.updateRoom(roomId, { status: 'finished' });
         pushState(roomId);
       } catch (err) { fail(socket, err); }

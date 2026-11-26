@@ -44,6 +44,46 @@ export function centerOn(cam, cellX, cellY, board, viewSize) {
   return clampCamera({ ...cam, panX: viewSize / 2 - cellX * cell, panY: viewSize / 2 - cellY * cell }, board, viewSize)
 }
 
+// 位置輸入先正規化：只收有限數字的 { x, y }（格座標，可有小數），其他一律 null
+export function normalizePoint(p) {
+  const x = Number(p?.x)
+  const y = Number(p?.y)
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+}
+
+// 格座標 → 螢幕像素（relative to canvas 左上角）；screenToCell 的反向
+export function cellToScreen(cam, x, y, board, viewSize) {
+  const cell = cellSizeOf(board, viewSize) * cam.zoom
+  return { x: cam.panX + x * cell, y: cam.panY + y * cell }
+}
+
+// 目標（格座標）在畫面外時，回傳貼著畫面邊緣的提示箭頭：
+//   { x, y, angle, distance }：x、y 是螢幕像素（離邊 inset），angle 是指向目標的弧度，distance 是離畫面中心幾格
+// 目標在畫面內（含 margin 像素的容許）或輸入不正確回傳 null
+export function offscreenMarker(cam, target, board, viewSize, { inset = 26, margin = 0 } = {}) {
+  const pt = normalizePoint(target)
+  if (!pt || !(viewSize > 0)) return null
+  const p = cellToScreen(cam, pt.x, pt.y, board, viewSize)
+  if (p.x >= margin && p.x <= viewSize - margin && p.y >= margin && p.y <= viewSize - margin) return null
+  const c = viewSize / 2
+  const dx = p.x - c
+  const dy = p.y - c
+  const reach = Math.max(1, c - inset)
+  const t = Math.min(dx === 0 ? Infinity : reach / Math.abs(dx), dy === 0 ? Infinity : reach / Math.abs(dy))
+  const cell = cellSizeOf(board, viewSize) * cam.zoom
+  return { x: c + dx * t, y: c + dy * t, angle: Math.atan2(dy, dx), distance: Math.hypot(dx, dy) / cell }
+}
+
+// 持續跟隨：每一幀把相機往「目標置中」靠近 k（0～1）；差不到半個像素就直接到位。範圍照常夾住
+export function followToward(cam, target, board, viewSize, k = 0.2) {
+  const pt = normalizePoint(target)
+  if (!pt) return cam
+  const goal = centerOn(cam, pt.x, pt.y, board, viewSize)
+  const kk = clamp(Number.isFinite(k) ? k : 1, 0, 1)
+  const near = Math.abs(goal.panX - cam.panX) < 0.5 && Math.abs(goal.panY - cam.panY) < 0.5
+  return near ? goal : { ...cam, panX: cam.panX + (goal.panX - cam.panX) * kk, panY: cam.panY + (goal.panY - cam.panY) * kk }
+}
+
 // 螢幕座標（相對畫布左上角的像素）→ 格子座標；點在地圖外回傳 null。座標轉換只在這裡
 export function screenToCell(cam, point, board, viewSize) {
   const cell = cellSizeOf(board, viewSize) * cam.zoom
@@ -142,6 +182,7 @@ export function createCameraController({ ctx, onChange, onTap, onHover, wheelZoo
     // 按鈕縮放、小地圖跳轉、重設視角、視窗大小改變時重新夾住範圍：都走這幾個，保持狀態只有一份
     zoomBy: factor => { const { board, viewSize } = ctx(); set(zoomAt(cam, factor, viewSize / 2, viewSize / 2, board, viewSize)) },
     centerOn: (x, y) => { const { board, viewSize } = ctx(); set(centerOn(cam, x, y, board, viewSize)) },
+    followToward: (target, k) => { const { board, viewSize } = ctx(); set(followToward(cam, target, board, viewSize, k)) },
     reset: () => set(createCamera()),
     clamp: () => { const { board, viewSize } = ctx(); set(clampCamera(cam, board, viewSize)) },
   }
