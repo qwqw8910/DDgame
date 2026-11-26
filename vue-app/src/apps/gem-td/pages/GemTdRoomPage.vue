@@ -220,11 +220,11 @@
                 <!-- 電腦版：上面是玩家與波次（依內容高度），下面的合成表吃掉剩下的高度，各自捲動 -->
                 <div class="gt-rail-top">
 
-                    <!-- 環形接力：左欄只放隊伍血量與玩家（電腦版統計與事件在右上「戰況」頁籤）；一般模式是玩家分頁 -->
+                    <!-- 環形接力：左欄只放隊伍血量與玩家（電腦版統計與事件在右上「戰況」頁籤）；合作迷宮的隊伍放右欄；一般模式的玩家分頁在波次預告下面 -->
                     <GemRelayInfo v-if="view.relay && !isLg" :class="phoneShow('status')" :part="isWide ? 'rail' : 'all'" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @watch="watchMap" @boss-wave="bossWave" />
-                    <Teleport v-else-if="!view.relay" :to="sideTopEl" :disabled="!isTray || !sideTopEl">
-                    <GemSection v-if="isCoop" title="隊伍" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="隊伍">
+                    <Teleport v-else-if="isCoop" :to="sideTopEl" :disabled="!isTray || !sideTopEl">
+                    <GemSection title="隊伍" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="隊伍">
                         <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
                             <li v-for="r in teamRows" :key="r.id" class="flex items-center gap-1.5">
                                 <span class="size-2.5 shrink-0 rounded-full" :style="{ background: r.mark }" aria-hidden="true" />
@@ -232,9 +232,6 @@
                                 <span class="ml-auto shrink-0" :class="r.alert ? 'text-(--gt-accent-ink)' : 'text-(--gt-muted)'">{{ r.status }}</span>
                             </li>
                         </ul>
-                    </GemSection>
-                    <GemSection v-else-if="view.playerIds.length > 1" title="玩家" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="玩家">
-                        <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
                     </GemSection>
                     </Teleport>
                     <!-- 看別人的地圖：提示放在左欄，不疊在地圖上 -->
@@ -251,6 +248,10 @@
                     <GemWaveInfo v-if="!relayCodexLeft" :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @speed="setSpeed" />
                     </Teleport>
+                    <!-- 一般模式：玩家分頁排在波次預告下面，右欄的操作區留給選塔與合成 -->
+                    <GemSection v-if="!view.relay && !isCoop && view.playerIds.length > 1" title="玩家" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="玩家">
+                        <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
+                    </GemSection>
                     <!-- 手機標題列放不下暫停，留在「戰況」分頁；電腦與平板在標題列 -->
                     <button v-if="isSolo && (view.phase === 'build' || view.phase === 'wave')" class="gt-btn gt-btn--small w-full sm:hidden" :class="phoneShow('status')" aria-keyshortcuts="P" @click="setPaused(true)">
                         暫停<kbd v-if="hasKeyboard" class="gt-kbd ml-2" aria-hidden="true">P</kbd>
