@@ -7,6 +7,7 @@
 // ================================================================
 
 const C = require('./config');
+const { findFullRoute } = require('./pathing');
 
 const typeIndex = Object.fromEntries(C.MONSTER_TYPES.map((t, i) => [t, i]));
 const MAX_FRAME_SHOTS = 80;
@@ -19,14 +20,25 @@ const FLAG_TRAIT_SHIFT = 3; // 特性佔後面的位元，順序同 C.TRAIT_IDS
 const distance = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 
 // 塔的戰鬥數值在開波時算好（包含蛋白石光環），波次中不再變動
+// research 可以是一份研究（每座塔套同一份），或函式 tower → 研究（合作迷宮：各依擁有者）
 function prepareTowers(towers, research) {
-  const bonus = C.researchBonus(research);
+  const bonusFor = typeof research === 'function'
+    ? (() => {
+      const cache = new Map();
+      return (t) => {
+        const r = research(t);
+        if (!cache.has(r)) cache.set(r, C.researchBonus(r));
+        return cache.get(r);
+      };
+    })()
+    : (() => { const fixed = C.researchBonus(research); return () => fixed; })();
   const armed = towers.filter(t => t.kind !== 'stone');
   const auras = armed
     .map(t => ({ t, aura: C.gemStats(t.kind, t.level).aura }))
     .filter(a => a.aura);
 
   return armed.map((ref) => {
+    const bonus = bonusFor(ref);
     const base = C.gemStats(ref.kind, ref.level);
     const rank = C.masteryRank(ref.kills);
     const stats = { ...base, damage: base.damage * (bonus.damage + rank * C.MASTERY_DAMAGE), range: base.range + bonus.range };
@@ -55,25 +67,35 @@ function applyRelayDef(def, { zone, n }) {
   def.armor = Math.round(def.armor * armorMult);
 }
 
+// 合作迷宮：全隊一張圖，怪物血量依人數加成
+function applyCoopDef(def, { n }) {
+  const mult = C.coopHpMult(n);
+  def.groups = def.groups.map(g => ({ ...g, hp: Math.max(1, Math.round(g.hp * mult)) }));
+  def.hp = def.groups[0].hp;
+}
+
 // 蟲的編號：環形接力整圈共用同一組編號，前端才不會把不同區的蟲混在一起
 const newId = sim => (sim.relay ? sim.relay.hub.nextId++ : sim.nextId++);
 
 // pool 是這張地圖漏怪時扣血的對象：共用血量是 game，獨立血量是玩家自己
 // relay：環形接力時為 { zone, n, hub }；devBoss：開發測試的首領波
-function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research, relay = null, devBoss = false, skillCd = null }) {
+function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research, relay = null, coop = null, devBoss = false, skillCd = null, route = null, breach = null }) {
   // waveDef 有快取；這一波會改動 def 與各組（測試也會），所以複製一份
   const cached = devBoss ? C.bossWaveDef(wave, totalWaves, difficulty)
     : testAt === null ? C.waveDef(wave, totalWaves, difficulty) : C.testWaveDef(testAt, difficulty, totalWaves);
   const def = { ...cached, groups: cached.groups.map(g => ({ ...g })) };
   if (relay) applyRelayDef(def, relay);
+  if (coop) applyCoopDef(def, coop);
   const towers = prepareTowers(placed, research);
   const air = airRoute(board);
-  return {
+  const sim = {
     wave,
     def,
     board,
     pool,
     relay, // 環形接力：{ zone, n, hub }；單人模式是 null
+    coop: !!coop, // 合作迷宮：全隊共用一張圖；擊殺金記在 earnedBy（依塔的擁有者）
+    earnedBy: {},
     rs: { kills: 0, handoff: 0, relief: 0, leaks: 0 }, // 分區統計（只在環形接力有意義）
     time: 0,
     queue: spawnQueue(def),
@@ -95,7 +117,14 @@ function createWave({ board, towers: placed, path, wave, totalWaves, testAt = nu
     skillCd: skillCd ?? Object.fromEntries(C.SKILL_IDS.map(id => [id, 0])), // 各技能還要等幾波（跨波保留，由玩家持有）
     noSkills: testAt !== null || !!relay,
     done: false,
+    // 合作迷宮 breach：{ grid, costOf, hpOf(cellValue, wave), onBroken(tower), onRepath(route) }；其他模式是 null
+    breach,
+    walls: new Map(), // "x,y" → { x, y, hp, maxHp }：被怪物攻擊過的牆
+    legStarts: route?.legStarts ?? null,
+    wallIdx: (route?.breaches ?? []).map(b => b.index),
+    changed: false, // 有牆被打破（呼叫端要推送新狀態）
   };
+  return sim;
 }
 
 // 各組依比例交錯出場，護衛不會全擠在最後
@@ -153,9 +182,79 @@ function pathLength(sim, m) {
   return m.flying ? sim.airLength : sim.path.length - 1;
 }
 
+// ── 堵死拆牆（合作迷宮 breach）────────────────────────────────────
+// 路線上的牆在 path 裡的索引是 sim.wallIdx；地面蟲走到牆前半格停下，攻擊那面牆，牆破了就重新尋路
+const cellKey = (c) => `${c.x},${c.y}`;
+
+function wallAhead(sim, pos) {
+  for (const k of sim.wallIdx) if (k - 0.5 >= pos - 1e-9) return k;
+  return -1;
+}
+
+function attackWall(sim, m, k, dt) {
+  const cell = sim.path[k];
+  const key = cellKey(cell);
+  const target = sim.breach.grid.get(key);
+  if (!target) return; // 這面牆剛被別隻蟲打破，下一次重新尋路
+  let wall = sim.walls.get(key);
+  if (!wall) {
+    const hp = sim.breach.hpOf(target, sim.wave);
+    wall = { x: cell.x, y: cell.y, hp, maxHp: hp };
+    sim.walls.set(key, wall);
+  }
+  wall.hp -= C.COOP.breachDps * (m.boss ? 4 : 1) * dt;
+  if (wall.hp <= 0) breakWall(sim, key, target);
+}
+
+function legOf(legStarts, pos) {
+  let leg = 0;
+  while (leg + 1 < legStarts.length && legStarts[leg + 1] <= Math.floor(pos)) leg++;
+  return leg;
+}
+
+function breakWall(sim, key, target) {
+  const { breach } = sim;
+  breach.grid.delete(key);
+  sim.walls.delete(key);
+  sim.towers = sim.towers.filter(t => t.ref !== target);
+  sim.armorAuras = sim.armorAuras.filter(t => t.ref !== target);
+  breach.onBroken(target);
+  // 舊路線上每隻地面蟲在第幾段，新路線上就找那一段裡離它最近的格子
+  const oldStarts = sim.legStarts;
+  const legs = new Map(sim.monsters.filter(m => !m.flying && !m.dead).map(m => [m, legOf(oldStarts, m.pos)]));
+  const route = findFullRoute(sim.board, breach.costOf);
+  sim.path = route.path;
+  sim.legStarts = route.legStarts;
+  sim.wallIdx = route.breaches.map(b => b.index);
+  for (const [m, leg] of legs) {
+    const from = route.legStarts[leg];
+    const to = route.legStarts[leg + 1] ?? route.path.length - 1;
+    let best = from;
+    let bestD = Infinity;
+    for (let i = from; i <= to; i++) {
+      const d = distance(route.path[i].x, route.path[i].y, m.x, m.y);
+      if (d < bestD - 1e-9) { bestD = d; best = i; }
+    }
+    m.pos = best;
+  }
+  breach.onRepath(route);
+  sim.changed = true;
+}
+
 function moveMonster(sim, m, dt) {
   if (sim.time < m.stunUntil) return;
   const slowed = sim.time < m.slowUntil ? m.slowPct : 0;
+  if (sim.breach && !m.flying) {
+    const k = wallAhead(sim, m.pos);
+    if (k >= 0) {
+      const next = m.pos + m.speed * (1 - slowed) * dt;
+      if (next >= k - 0.5 - 1e-9) {
+        m.pos = k - 0.5;
+        attackWall(sim, m, k, dt);
+        return placeOnPath(sim, m);
+      }
+    }
+  }
   m.pos += m.speed * (1 - slowed) * dt;
 
   const length = pathLength(sim, m);
@@ -179,9 +278,13 @@ function moveMonster(sim, m, dt) {
     m.y = a.y + (b.y - a.y) * t;
     return;
   }
+  placeOnPath(sim, m);
+}
+
+function placeOnPath(sim, m) {
   const i = Math.floor(m.pos);
   const a = sim.path[i];
-  const b = sim.path[i + 1];
+  const b = sim.path[i + 1] ?? a;
   const t = m.pos - i;
   m.x = a.x + (b.x - a.x) * t;
   m.y = a.y + (b.y - a.y) * t;
@@ -224,6 +327,7 @@ function kill(sim, tower, m) {
     credit[m.born] = (credit[m.born] ?? 0) + born;
   } else {
     sim.earned += m.gold;
+    if (sim.coop) sim.earnedBy[tower.ref.owner] = (sim.earnedBy[tower.ref.owner] ?? 0) + m.gold;
   }
   tower.ref.kills += 1;
   if (m.boss) sim.bossDownAt = sim.time;
@@ -354,6 +458,8 @@ function buildSimFrame(sim) {
       monsterFlags(sim, m),
     ]),
     s: sim.shots,
+    // 被攻擊中的牆 [x, y, 剩餘血量%]（合作迷宮 breach）
+    ...(sim.walls.size ? { w: [...sim.walls.values()].map(w => [w.x, w.y, Math.max(1, Math.ceil((w.hp / w.maxHp) * 100))]) } : {}),
   };
   sim.shots = [];
   return frame;

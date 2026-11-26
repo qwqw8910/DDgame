@@ -34,6 +34,7 @@ const getGame = roomId => games[roomId] ?? null;
 function clearTimers(game) {
   if (game._timer) { clearTimeout(game._timer); game._timer = null; }
   if (game._ticker) { clearInterval(game._ticker); game._ticker = null; }
+  if (game._builderTicker) { clearInterval(game._builderTicker); game._builderTicker = null; }
 }
 
 function registerNamespace(io, db) {
@@ -92,8 +93,31 @@ function registerNamespace(io, db) {
   }
 
   // ── 計時 ─────────────────────────────────────────────────────
+  // 合作迷宮的建造者：建造階段每 100ms 往前走一步；位置進度走 volatile 的 gt:builders，工作起訖走 gt:state
+  function startBuilderTicker(roomId, game) {
+    if (!L.isBuilderMode(game)) return;
+    game._builderTicker = setInterval(() => {
+      if (getGame(roomId) !== game || game.phase !== 'build') return clearTimers(game);
+      if (game.paused || !onlineIds(roomId).length) return;
+      let step;
+      try {
+        step = L.stepBuilders(game, TICK_SECONDS);
+      } catch (err) {
+        return console.error('[GemTD builder]', err);
+      }
+      for (const e of step.errors) {
+        for (const s of socketsInRoom(roomId)) if (s.data.playerId === e.playerId) s.emit('gt:error', { code: e.code, message: e.message });
+      }
+      if (step.changed) pushState(roomId);
+      const frame = L.builderFrame(game);
+      if (frame) ns.to(roomId).volatile.emit('gt:builders', frame);
+    }, TICK_MS);
+    game._builderTicker.unref?.();
+  }
+
   function scheduleBuild(roomId, game) {
     clearTimers(game);
+    if (!game.paused) startBuilderTicker(roomId, game);
     if (game.buildEndsAt === null || game.paused) return;
     game._timer = setTimeout(() => {
       game._timer = null;
@@ -119,10 +143,12 @@ function registerNamespace(io, db) {
       if (game.paused || !onlineIds(roomId).length) return; // 暫停或全員離線
 
       const out = [];
+      let changed = false;
       try {
         for (let i = 0; i < game.speed; i++) {
           const step = L.tick(game, TICK_SECONDS);
           out.push(...step.out);
+          if (step.changed) changed = true;
           if (step.done) {
             announceOut(roomId, game, out);
             return endWave(roomId, game);
@@ -133,10 +159,8 @@ function registerNamespace(io, db) {
         return endWave(roomId, game);
       }
       for (const msg of L.bossDownNotices(game)) notice(roomId, msg);
-      if (out.length) {
-        announceOut(roomId, game, out);
-        pushState(roomId);
-      }
+      if (out.length) announceOut(roomId, game, out);
+      if (out.length || changed) pushState(roomId); // changed：有牆被打破，路線與塔變了
       if (++ticks % FRAME_EVERY_TICKS === 0) sendFrames(roomId, game);
     }, TICK_MS);
     game._ticker.unref?.();
@@ -319,7 +343,12 @@ function registerNamespace(io, db) {
       } catch (err) { fail(socket, err); }
     });
 
-    action('gt:place', ({ playerId, game }, { slot, x, y }) => L.placeGem(game, playerId, slot, x, y));
+    action('gt:place', ({ playerId, game }, { slot, x, y }) => L.requestPlace(game, playerId, slot, x, y));
+    // 合作迷宮的建造者：移動、指派施工／拆除、取消目前的工作
+    action('gt:move', ({ playerId, game }, { x, y }) => L.moveBuilder(game, playerId, x, y));
+    action('gt:build', ({ playerId, game }, { slot, x, y }) => L.buildAt(game, playerId, slot, x, y));
+    action('gt:demolish', ({ playerId, game }, { towerId }) => L.demolishAt(game, playerId, towerId));
+    action('gt:cancel-job', ({ playerId, game }) => L.cancelJobCommand(game, playerId));
     action('gt:keep', ({ playerId, game }, { towerId }) => L.keepGem(game, playerId, towerId));
     action('gt:merge', ({ playerId, game }, { towerId }) => L.mergeGem(game, playerId, towerId));
     action('gt:combine', ({ playerId, game }, { roomId, recipeId, towerId }) => {

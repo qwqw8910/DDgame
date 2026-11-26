@@ -25,10 +25,50 @@ const DIFFICULTIES = {
 const DIFFICULTY_IDS = Object.keys(DIFFICULTIES);
 const SPEED_CHOICES = [1, 2, 4];
 // 模式：single = 每人一張獨立地圖；relay = 環形接力（多個區域排成環，蟲群主防後傳給下一區）
-const MODES = ['single', 'relay'];
+// coop = 合作迷宮：全隊共用一張大地圖、一起蓋同一條迷宮（見 docs/gem-td-coop-maze-spec.md）
+const MODES = ['single', 'relay', 'coop'];
 const MIN_ZONES = 1;
 const MAX_ZONES = MAX_PLAYERS;
 const DEFAULT_OPTIONS = { waves: 30, buildSeconds: 60, livesMode: 'team', damageTest: true, difficulty: 'easy', mode: 'single', zones: 3, map: 0 };
+
+// 合作迷宮：地圖尺寸與路徑點數依人數放大（4～6 人先保留，尚未開放）；怪物血量隨人數加成
+const COOP = {
+  minPlayers: 2,
+  maxPlayers: 3,
+  sizes: { 2: 35, 3: 40, 4: 45, 5: 50, 6: 55 },
+  checkpoints: { 2: 8, 3: 9, 4: 10, 5: 11, 6: 12 },
+  hpMults: { 3: 4.5 }, // 人數 → 血量倍數；沒列的人數照 hpPerPlayer（2 人 ×1.8）。3 人的圖更大、路更長，機器人實測要 ×4.5 才跟 2 人同樣吃力（M6）
+  hpPerPlayer: 0.8, // 每多一人，怪物血量 +80%（暫定，待 balanceSim 調整）
+  // 建造方式：'builder' = 每人一個建造者，要走到現場施工；'instant' = 點了立刻蓋好（比較與除錯用）
+  buildModes: ['builder', 'instant'],
+  buildMode: 'builder',
+  builderSpeed: 4, // 建造者每秒走幾格（自由移動，不碰撞）
+  buildRange: 3, // 走到目標格幾格內就開始施工／拆除
+  buildSeconds: 3, // 每顆寶石的施工秒數
+  demolishSeconds: 3, // 拆一面餅乾牆的秒數
+  // 堵死策略：'validate' = 放置時檢查、會封路就拒絕；'breach' = 允許堵死，怪物停在成本最低的牆前拆牆通過
+  blockPolicy: 'breach',
+  wallCost: 2000, // 尋路成本：空地 1；餅乾牆與塔遠高於繞路的長度，所以有通路一定走通路
+  towerCost: 6000,
+  wallHpBase: 100, // 餅乾牆血量 = base + perWave × 波數；塔再乘 towerHpMult（M6 機器人實測）
+  wallHpPerWave: 25,
+  towerHpMult: 5,
+  breachDps: 12, // 每隻地面蟲停在牆前時每秒對牆的傷害；首領 ×4
+};
+// 怪物血量倍數：hpMults 有指定的人數用表，其餘照 hpPerPlayer 線性加（地圖越大、路越長，每人貢獻的火力不同，所以不一定線性）
+const coopHpMult = n => COOP.hpMults[n] ?? 1 + COOP.hpPerPlayer * (Math.max(1, n) - 1);
+
+// 合作迷宮的版型：蛇行。起點在左上，路徑點左右交錯逐列往下，終點在最後一列的另一側。
+// 回傳相對座標，格子由 makeCoopBoard 換算；空地圖時每段都走得通、七個點以上都不重疊
+function coopLayout(n) {
+  const count = COOP.checkpoints[n] ?? COOP.checkpoints[2];
+  const rows = count + 2; // 起點列 + 各路徑點列 + 終點列
+  const rowY = i => 0.04 + (0.92 * i) / (rows - 1);
+  const left = 0.06;
+  const right = 0.94;
+  const checkpoints = Array.from({ length: count }, (_, i) => [i % 2 === 0 ? right : left, rowY(i + 1)]);
+  return { id: 'coop', name: '合作迷宮', start: [left, rowY(0)], checkpoints, end: [count % 2 === 0 ? right : left, rowY(rows - 1)] };
+}
 
 // 用金幣換血量：建造階段每次換 1 點，最多補到開局血量
 // 單價隨波次上漲，上限 30 金；連續購買不會變貴
@@ -475,13 +515,15 @@ function catalog() {
     gemsPerRound: GEMS_PER_ROUND,
     difficulties: DIFFICULTIES,
     speedChoices: SPEED_CHOICES,
+    coop: { minPlayers: COOP.minPlayers, maxPlayers: COOP.maxPlayers, sizes: COOP.sizes, checkpoints: COOP.checkpoints, hpPerPlayer: COOP.hpPerPlayer, hpMults: COOP.hpMults,
+      buildModes: COOP.buildModes, buildMode: COOP.buildMode, blockPolicy: COOP.blockPolicy, builderSpeed: COOP.builderSpeed, buildRange: COOP.buildRange, buildSeconds: COOP.buildSeconds, demolishSeconds: COOP.demolishSeconds },
     relay: { maxZones: MAX_ZONES, colors: RELAY_ZONE_COLORS, passes: RELAY_PASSES, playerHpStep: RELAY_PLAYER_HP_STEP, bossHpMult: RELAY_BOSS_HP_MULT },
   };
 }
 
 module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
-  MODES, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_TEST_HP_MULT, RELAY_TEST_ARMOR_MULT, relayTestHpMult, RELAY_PASSES, relayPasses, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_KILL_GOLD_BORN_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
+  MODES, COOP, coopHpMult, coopLayout, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_TEST_HP_MULT, RELAY_TEST_ARMOR_MULT, relayTestHpMult, RELAY_PASSES, relayPasses, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_KILL_GOLD_BORN_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
   RELAY_EVENT_KEEP, RELAY_EVENT_SHOW, RELAY_ZONE_COLORS,
   ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, MAP_LAYOUTS, MAP_COUNT, SKILLS, SKILL_IDS, BOSS_STUN_RESIST, SKILL_HP_MULT,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
