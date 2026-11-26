@@ -12,7 +12,7 @@
         </div>
         <button v-if="zoom > 1.01" class="gt-chip absolute right-2 bottom-2" @click="controller.reset()">看全圖</button>
         <!-- 合作迷宮：小地圖（點擊或拖曳跳轉），放左下角 -->
-        <GemMiniMap v-if="isCoop" class="absolute bottom-2 left-2" :view="view" :frame="frame" :colors="ownerColors" :viewport="viewport" @goto="p => controller.centerOn(p.x, p.y)" />
+        <GemMiniMap v-if="isCoop" class="absolute bottom-2 left-2" :view="view" :frame="frame" :colors="ownerColors" :viewport="viewport" :builders="builders" :my-id="myId" :size="miniSize" @goto="p => controller.centerOn(p.x, p.y)" />
         <!-- 多人：切換看誰的地圖（一次只畫一張，其他人的地圖不吃效能） -->
         <template v-if="!isCoop && (view.playerIds?.length ?? 0) > 1">
             <button class="gt-chip absolute top-1/2 left-2 !min-h-12 !w-10 -translate-y-1/2 justify-center !px-0 text-xl font-bold opacity-90 [@media(pointer:coarse)]:!w-11" aria-label="看上一位玩家的地圖" title="上一位玩家" @click="emit('step', -1)">‹</button>
@@ -30,7 +30,8 @@ import { fullPathLength } from '../data/pathing.js'
 import GemTableDecor from './GemTableDecor.vue'
 import GemMiniMap from './GemMiniMap.vue'
 import { MAX_ZOOM, createCameraController, normalizePointer, normalizeWheel, screenToCell, cellSizeOf, visibleRect } from '../composables/useGemCamera.js'
-import { spawnHit, spawnDeath, clearFx, drawFx, hasFx } from '../composables/usePixelFx.js'
+import { spawnHit, spawnDeath, spawnDust, clearFx, drawFx, hasFx } from '../composables/usePixelFx.js'
+import { createPrediction, predictMove, predictJob, stopPrediction, stepPrediction, reconcilePrediction } from '../composables/useGemBuilderPrediction.js'
 
 const props = defineProps({
     view: { type: Object, required: true },
@@ -48,6 +49,8 @@ const emit = defineEmits(['cell', 'tower', 'clear', 'arm', 'step', 'move'])
 const wrapRef = ref(null)
 const canvasRef = ref(null)
 const zoom = ref(1)
+const viewSize = ref(0) // 畫布邊長（px），給小地圖決定自己多大
+const miniSize = computed(() => Math.round(Math.min(148, Math.max(88, viewSize.value * 0.26))))
 const viewport = ref({ x: 0, y: 0, w: 1, h: 1 }) // 目前看到的範圍（格），給小地圖畫視窗框
 const hover = ref(null)
 const armed = ref(null) // 手機：第一次點選的格子
@@ -58,7 +61,7 @@ const ownerColors = computed(() => (isCoop.value ? Object.fromEntries((props.vie
 // 預覽中的格子交給外面（底部操作列顯示「放在這裡」）；放下一顆、或回合結束就不再預覽
 watch(armed, c => emit('arm', c ? { x: c.x, y: c.y } : null))
 watch(() => [props.view.phase, props.view.me?.pending?.length ?? 0, props.view.watching], () => { armed.value = null })
-defineExpose({ disarm: () => { armed.value = null }, panTo: (x, y) => controller.centerOn(x, y) })
+defineExpose({ disarm: () => { armed.value = null }, panTo: (x, y) => controller.centerOn(x, y), stopPrediction: () => stopPrediction(pred), predictDemolish: t => predictBuildMine(t, 'demolish') })
 
 let ctx = null
 let size = 0
@@ -95,6 +98,7 @@ function resize() {
     const canvas = canvasRef.value
     if (!el || !canvas) return
     size = Math.floor(Math.min(el.clientWidth, el.clientHeight))
+    viewSize.value = size
     dpr = Math.min(window.devicePixelRatio || 1, 2)
     canvas.style.width = `${size}px`
     canvas.style.height = `${size}px`
@@ -121,13 +125,14 @@ function tap(cell, pointerType) {
         return
     }
     if (!props.pendingGem) {
-        if (props.builderMode) emit('move', { x: cell.x + 0.5, y: cell.y + 0.5 })
+        if (props.builderMode) moveMine(cell.x + 0.5, cell.y + 0.5)
         emit('clear')
         return
     }
     const confirmed = pointerType === 'mouse' || (armed.value?.x === cell.x && armed.value?.y === cell.y)
     if (confirmed) {
         armed.value = null
+        if (props.builderMode) predictBuildMine(cell)
         emit('cell', cell.x, cell.y)
     } else {
         armed.value = cell
@@ -139,7 +144,24 @@ function onContext(e) {
     if (!props.builderMode) return
     const r = canvasRef.value.getBoundingClientRect()
     const cell = screenToCell(controller.camera, { x: e.clientX - r.left, y: e.clientY - r.top }, props.view.board, size)
-    if (cell) emit('move', { x: cell.x + 0.5, y: cell.y + 0.5 })
+    if (cell) moveMine(cell.x + 0.5, cell.y + 0.5)
+}
+
+// ── 自己的建造者：送出指令的同一幀就開始走（預測），伺服器的快照之後接手 ──────────
+// 預測的細節與放棄條件見 useGemBuilderPrediction.js；畫面上位置的唯一來源是 bst（見 drawBuilders）
+const pred = createPrediction()
+function serverOfMine() {
+    const s = props.builders?.builders?.find(b => b.id === props.myId) ?? props.view.builders?.find(b => b.id === props.myId)
+    return s ? { x: s.x, y: s.y } : null
+}
+function moveMine(x, y) {
+    const from = bst.get(props.myId)
+    if (from) predictMove(pred, from, x, y, performance.now(), serverOfMine())
+    emit('move', { x, y })
+}
+function predictBuildMine(cell, type = 'build') {
+    const from = bst.get(props.myId)
+    if (from) predictJob(pred, from, cell, props.catalog?.coop?.buildRange ?? 3, type, performance.now(), serverOfMine())
 }
 
 // 滑鼠在浮動的左欄或右欄範圍內（含卡片間的空隙）時，滾輪只捲那一欄；在地圖上時：
@@ -924,24 +946,44 @@ function drawBreaches(view, cell, now) {
 }
 
 // ── 建造者與施工中的工作 ───────────────────────────────────────────
-// 位置往伺服器的最新快照靠過去（10Hz → 平滑）；縮得太小（每格 < BUILDER_MIN_CELL 像素）就只畫玩家色圓點加名字
+// 畫面上的位置往伺服器的最新快照靠過去（10Hz → 平滑）；自己的建造者在送出指令後先用前端預測的位置
+// （見 useGemBuilderPrediction.js）。縮得太小（每格 < BUILDER_MIN_CELL 像素）就只畫玩家色圓點加名字。
+// 動畫：待機輕輕浮動呼吸；走路一蹦一蹦、落地壓扁、身體往前傾、腳邊揚灰塵；施工時左右搖晃、一下一下敲，
+// 工地冒灰塵，完成時一大團。偏好減少動態時全部關掉（只剩位置移動）。
 const BUILDER_MIN_CELL = 14
-const bpos = new Map()
+const bst = new Map() // 建造者 id → 畫面位置與動畫狀態 { x, y, vx, speed, phase, stepAt, workAt, job, p }
 function drawBuilders(view, cell, now, dt) {
     const list = view.builders
-    if (!list?.length) { bpos.clear(); return }
+    if (!list?.length) { bst.clear(); stopPrediction(pred); return }
     const live = new Map((props.builders?.builders ?? []).map(b => [b.id, b]))
     const k = 1 - Math.exp(-dt * 14)
     const small = zoom.value * cell < BUILDER_MIN_CELL
     const px = 1 / zoom.value // 一個螢幕像素有幾個世界單位
+    const speedCfg = props.catalog?.coop?.builderSpeed ?? 4
+    const mineView = list.find(b => b.id === props.myId)
+    if (mineView) {
+        const s = live.get(mineView.id) ?? mineView
+        reconcilePrediction(pred, { x: s.x, y: s.y, job: mineView.job }, now)
+        stepPrediction(pred, dt, speedCfg)
+    }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'alphabetic'
     for (const [i, b] of list.entries()) {
         const color = ownerColors.value?.[b.id] ?? COLOR.ink
         const src = live.get(b.id) ?? b
-        let pos = bpos.get(b.id)
-        if (!pos) { pos = { x: src.x, y: src.y }; bpos.set(b.id, pos) } else { pos.x += (src.x - pos.x) * k; pos.y += (src.y - pos.y) * k }
-        const job = b.job
+        const mine = b.id === props.myId
+        let st = bst.get(b.id)
+        if (!st) { st = { x: src.x, y: src.y, vx: 0, speed: 0, phase: i * 1.7, stepAt: 0, workAt: 0, job: null, p: 0 }; bst.set(b.id, st) }
+        const lastX = st.x
+        const lastY = st.y
+        if (mine && pred.active) { st.x = pred.x; st.y = pred.y } else { st.x += (src.x - st.x) * k; st.y += (src.y - st.y) * k }
+        if (mine && window.__gtBuilderLog) window.__gtBuilderLog.push([now, st.x, st.y, src.x, src.y, pred.active]) // 量測用：畫面位置 vs 伺服器位置
+        const step = Math.hypot(st.x - lastX, st.y - lastY)
+        st.speed += (step / Math.max(dt, 0.001) - st.speed) * Math.min(1, dt * 12)
+        st.vx += ((st.x - lastX) / Math.max(dt, 0.001) - st.vx) * Math.min(1, dt * 10)
+
+        // 要畫的工作：伺服器還沒回報時，自己剛下的指令先用預測的目標格頂著（點了立刻有反應）
+        const job = b.job ?? (mine && pred.job ? { ...pred.job, started: false, p: 0 } : null)
         if (job) {
             const jx = job.x * cell
             const jy = job.y * cell
@@ -954,6 +996,7 @@ function drawBuilders(view, cell, now, dt) {
                 ctx.fillRect(jx, jy + cell * 0.8, cell, cell * 0.2)
                 ctx.fillStyle = color
                 ctx.fillRect(jx, jy + cell * 0.8, cell * p, cell * 0.2)
+                st.p = p
                 if (demolish) {
                     ctx.strokeStyle = '#F0506E'
                     ctx.lineWidth = Math.max(2, cell * 0.12)
@@ -971,48 +1014,105 @@ function drawBuilders(view, cell, now, dt) {
                 ctx.setLineDash([cell * 0.2, cell * 0.14])
                 ctx.strokeRect(jx + cell * 0.06, jy + cell * 0.06, cell * 0.88, cell * 0.88)
                 ctx.beginPath()
-                ctx.moveTo(pos.x * cell, pos.y * cell)
+                ctx.moveTo(st.x * cell, st.y * cell)
                 ctx.lineTo((job.x + 0.5) * cell, (job.y + 0.5) * cell)
                 ctx.globalAlpha = 0.5
                 ctx.stroke()
                 ctx.globalAlpha = 1
                 ctx.setLineDash([])
             }
+        } else if (mine && pred.active && !pred.job) {
+            // 右鍵移動：目的地畫一圈小記號
+            ctx.strokeStyle = `${color}B3`
+            ctx.lineWidth = Math.max(1.5, cell * 0.07)
+            ctx.beginPath()
+            ctx.arc(pred.tx * cell, pred.ty * cell, cell * (0.3 + 0.06 * Math.sin(now / 140)), 0, Math.PI * 2)
+            ctx.stroke()
         }
-        const cx = pos.x * cell
-        const walking = Math.hypot(src.x - pos.x, src.y - pos.y) > 0.05
-        const working = !!job?.started
-        const bob = reducedMotion ? 0 : (working ? Math.sin(now / 70 + i) * cell * 0.04 : Math.sin(now / (walking ? 90 : 320) + i) * cell * (walking ? 0.07 : 0.04))
-        const cy = pos.y * cell + bob
+
+        // 施工剛完成：工地噴一大團灰塵（上一幀還在施工、進度快滿，這一幀工作沒了）
+        if (st.job && !b.job && st.p > 0.7 && !small && !reducedMotion) spawnDust(st.job.x + 0.5, st.job.y + 0.85, true)
+        st.job = b.job?.started ? b.job : null
+        if (!b.job?.started) st.p = 0
+
+        const working = !!b.job?.started
+        const walking = !working && st.speed > 0.8
+        let hop = 0 // 往上離地的高度（格）
+        let sx = 1
+        let sy = 1
+        let rot = 0
+        if (!reducedMotion) {
+            if (working) {
+                const beat = now / 115 + i
+                const hit = Math.abs(Math.sin(beat))
+                rot = Math.sin(beat * 2) * 0.1 + Math.sign(b.job.x + 0.5 - st.x) * 0.05
+                sy = 1 - 0.07 * hit
+                sx = 1 + 0.05 * hit
+                if (!small && now >= st.workAt) {
+                    spawnDust(b.job.x + 0.5 + (Math.random() - 0.5) * 0.4, b.job.y + 0.85)
+                    st.workAt = now + 260
+                }
+            } else if (walking) {
+                st.phase += dt * (7 + st.speed * 1.3)
+                const w = Math.abs(Math.sin(st.phase))
+                hop = w * 0.13
+                sy = 1 + (w - 0.5) * 0.1
+                sx = 1 - (w - 0.5) * 0.08
+                rot = Math.sin(st.phase) * 0.05 + Math.max(-1, Math.min(1, st.vx / speedCfg)) * 0.1
+                if (!small && now >= st.stepAt) {
+                    spawnDust(st.x, st.y + 0.38)
+                    st.stepAt = now + 170
+                }
+            } else {
+                st.phase += dt * 2.4
+                const s = Math.sin(st.phase)
+                hop = (s * 0.5 + 0.5) * 0.05
+                sy = 1 + s * 0.015
+                sx = 1 - s * 0.012
+            }
+        }
+        const cx = st.x * cell
+        const foot = st.y * cell + cell * 0.36
         const img = small ? null : imageOf(BUILDER_IMAGE)
+        let labelY
         if (img) {
             ctx.fillStyle = `${color}99`
             ctx.beginPath()
-            ctx.ellipse(cx, pos.y * cell + cell * 0.38, cell * 0.42, cell * 0.16, 0, 0, Math.PI * 2)
+            ctx.ellipse(cx, foot + cell * 0.02, cell * 0.42 * (1 - hop * 0.8), cell * 0.16 * (1 - hop * 0.8), 0, 0, Math.PI * 2)
             ctx.fill()
             ctx.strokeStyle = color
             ctx.lineWidth = Math.max(1.5, cell * 0.07)
             ctx.stroke()
-            ctx.drawImage(img, cx - cell * 0.6, cy - cell * 0.85, cell * 1.2, cell * 1.2)
+            ctx.save()
+            ctx.translate(cx, foot - hop * cell)
+            ctx.rotate(rot)
+            ctx.scale(sx, sy)
+            ctx.drawImage(img, -cell * 0.6, -cell * 1.2, cell * 1.2, cell * 1.2)
+            ctx.restore()
+            labelY = foot - hop * cell + cell * 0.22
         } else {
+            const cy = st.y * cell - hop * cell
+            const rad = Math.max(cell * 0.4, 4 * px)
             ctx.fillStyle = color
             ctx.strokeStyle = '#FFFFFF'
             ctx.lineWidth = 1.5 * px
             ctx.beginPath()
-            ctx.arc(cx, cy, Math.max(cell * 0.4, 4 * px), 0, Math.PI * 2)
+            ctx.arc(cx, cy, rad, 0, Math.PI * 2)
             ctx.fill()
             ctx.stroke()
+            labelY = cy - rad - 2 * px
         }
         const name = view.names?.[b.id] ?? ''
-        if (name && (small || b.id === props.myId || zoom.value * cell >= 22)) {
+        if (name && (small || mine || zoom.value * cell >= 22)) {
             const fs = Math.max(11 * px, cell * 0.38)
+            const ty = img ? labelY + fs * 0.7 : labelY
             ctx.font = `700 ${fs}px 'Noto Sans TC', sans-serif`
             ctx.lineJoin = 'round'
             ctx.lineWidth = fs * 0.28
             ctx.strokeStyle = '#FFFFFF'
-            ctx.strokeText(name, cx, cy + (small ? -Math.max(cell * 0.4, 4 * px) - 2 * px : cell * 0.62 + fs * 0.7))
+            ctx.strokeText(name, cx, ty)
             ctx.fillStyle = color
-            ctx.fillText(name, cx, cy + (small ? -Math.max(cell * 0.4, 4 * px) - 2 * px : cell * 0.62 + fs * 0.7))
+            ctx.fillText(name, cx, ty)
         }
     }
 }
@@ -1034,6 +1134,12 @@ function draw(now) {
         || !!view.breaches?.length // 突破點的紅框會閃
     if (!animating && !dirty) return
     dirty = false
+    // 量測用（預設關閉）：瀏覽器 console 設 window.__gtPerf = [] 就會記每幀 [繪製毫秒, 蟲數, 塔數, 時間, 各段毫秒]
+    const perf = window.__gtPerf
+    const perfStart = perf ? performance.now() : 0
+    const laps = perf ? [] : null
+    let lapAt = perfStart
+    const lap = () => { if (laps) { const t = performance.now(); laps.push(+(t - lapAt).toFixed(2)); lapAt = t } }
     const cell = cellSizeOf(view.board, size)
     const cam = controller.camera
 
@@ -1052,16 +1158,26 @@ function draw(now) {
     ctx.setTransform(dpr * cam.zoom, 0, 0, dpr * cam.zoom, dpr * (cam.panX + sx), dpr * (cam.panY + sy))
 
     drawBoard(view, cell)
+    lap()
     drawTowers(view, catalog, cell, now)
+    lap()
     drawBreaches(view, cell, now)
     drawBuilders(view, cell, now, dt)
+    lap()
     drawShots(cell, now)
+    lap()
     drawMonsters(catalog, cell, now)
+    lap()
     drawGhosts(cell, now)
+    lap()
     drawFx(ctx, cell, dt)
+    lap()
     drawPops(cell, now)
     drawSkillFx(now)
+    lap()
     drawOverlays(view, cell)
+    lap()
+    if (perf) perf.push([performance.now() - perfStart, curMap.size, view.towers.length, now, laps])
 }
 
 watch(() => props.pendingGem, () => { armed.value = null })

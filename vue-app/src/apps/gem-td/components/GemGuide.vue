@@ -6,6 +6,19 @@
                 <li v-for="t in catalog.traits" :key="t.name"><b class="font-semibold text-heading">{{ t.name }}</b>：{{ t.desc }}。{{ t.tip }}。</li>
             </ul>
         </GameGuideSection>
+        <GameGuideSection title="合作迷宮（2～3 人共用一張大地圖）">
+            <p class="mt-0 mb-1 text-(--gt-muted)">上面的圖是一般模式；合作迷宮的規則不一樣：</p>
+            <ul class="gg-list">
+                <li><b class="font-semibold text-heading">共用地圖</b>：2 人 35×35、3 人 40×40。全隊共用血量；金幣、品質、研究、許願各人自己的。塔依擁有者上玩家顏色。</li>
+                <li><b class="font-semibold text-heading">建造者</b>：每人有一位小烘焙師。選手牌的一顆甜點、點地圖上的空格，建造者會走過去，進到 {{ coop.buildRange }} 格內開始施工，每顆 {{ coop.buildSeconds }} 秒；<b class="font-semibold text-heading">右鍵</b>點地圖是單純移動。同一時間只做一件事。</li>
+                <li><b class="font-semibold text-heading">取消不吃虧</b>：施工中點手牌裡那一顆（或按 Esc），甜點回到手牌、格子釋放，什麼都不會扣。</li>
+                <li><b class="font-semibold text-heading">先到先得</b>：同一格誰先開始施工誰蓋，後到的會收到提示、甜點留在手牌。</li>
+                <li><b class="font-semibold text-heading">可以堵死</b>：整條路被擋住時，蟲子會停在最便宜的牆前把牆拆掉再前進；建造階段用<b class="font-semibold text-heading">紅框</b>標出預計被拆的突破點，牆上的血條是剩餘血量。牆的血量隨波數增加，塔比餅乾牆硬很多。</li>
+                <li><b class="font-semibold text-heading">拆餅乾牆</b>：任何人都能拆（防止被亂堵），要建造者走過去花 {{ coop.demolishSeconds }} 秒；塔不能被別人拆。</li>
+                <li><b class="font-semibold text-heading">擊殺金</b>歸打死蟲子的那座塔的擁有者；合成與特殊塔只能用自己的塔；主動技能全隊共用同一組冷卻。</li>
+                <li><b class="font-semibold text-heading">看地圖</b>：滾輪或右上角＋－縮放、拖曳平移；左下角小地圖可以點擊或拖曳跳轉，上面也看得到各人的建造者。電腦限定。</li>
+            </ul>
+        </GameGuideSection>
         <GameGuideSection title="重骰">
             <ul class="gg-list">
                 <li>這回合的 5 個甜點<b class="font-semibold text-heading">一個都還沒放</b>時，可以花金幣把<b class="font-semibold text-heading">五顆一次全部換新</b>（只收一次錢），拿來賭湊出合成；放下第一個之後就不能再骰。</li>
@@ -79,6 +92,9 @@ const props = defineProps({
     keys: { type: Boolean, default: false },
 })
 defineEmits(['update:modelValue'])
+
+// 合作迷宮的數字由型錄帶來（還沒收到型錄時，大廳的「怎麼玩」用預設值）
+const coop = computed(() => ({ buildRange: 3, buildSeconds: 3, demolishSeconds: 3, ...(props.catalog?.coop ?? {}) }))
 
 // 跟伺服器 config.rerollCost 同一條公式，數字由型錄帶來
 const rerollCost = (quality, rerolls) => {

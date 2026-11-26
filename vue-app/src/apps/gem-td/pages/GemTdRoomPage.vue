@@ -238,7 +238,7 @@
                     </GemSection>
                     </Teleport>
                     <!-- 看別人的地圖：提示放在左欄，不疊在地圖上 -->
-                    <div v-if="!mine" class="gt-card flex flex-col gap-2" :class="phoneShow('place', 'tower')" role="status">
+                    <div v-if="!mine && !isCoop" class="gt-card flex flex-col gap-2" :class="phoneShow('place', 'tower')" role="status">
                         <p class="m-0">正在看 <b class="text-(--gt-ink)">{{ watchingName }}</b> 的地圖，不能操作。</p>
                         <button v-if="view.me" class="gt-btn gt-btn--small w-full" @click="watchMap(roomState.myPlayerId)">回到我的地圖</button>
                     </div>
@@ -324,14 +324,14 @@
                 </div>
                 <div ref="sideTopEl" v-show="relayPanelTab === '' || relayPanelTab === 'build'" class="gt-side-top" />
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
-                <GemPanel :phone-tab="phoneTab" :view="view" :my-job="myJob" @cancel-job="cancelJob" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
+                <GemPanel :phone-tab="phoneTab" :view="view" :my-job="myJob" @cancel-job="cancelMyJob" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="myId" :keys="hasKeyboard" :ready-stat="readyStat"
                     :hand-target="isTray ? trayHandEl : null" :preview-target="isTray && isLg ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="null" :ring="ring" :armed-cell="armedCell" :relay-tab="relayPanelTab"
                     @place-armed="placeArmed" @cancel-armed="boardRef?.disarm()"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
                     @combine="onCombine" @ready="ready" @undo="() => { undo(); clearSelection() }" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
-                    @remove="id => { builderMode ? demolish(id) : removeStone(id); clearSelection() }"
+                    @remove="id => { builderMode ? demolishTower(id) : removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
                 <GemRelayInfo v-if="relayPanelTab === 'stats'" part="stats" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
                     :is-host="roomState.isHost" :keys="hasKeyboard" @watch="watchMap" @boss-wave="bossWave" />
@@ -358,7 +358,24 @@
                     <img :src="view.result.win ? RESULT_WIN_IMAGE : RESULT_LOSE_IMAGE" alt="" class="mx-auto block h-auto max-h-36 w-auto max-w-full object-contain" />
                     <h2 class="m-0 font-sans text-4xl font-black text-(--gt-ink)">{{ resultTitle }}</h2>
                     <p class="m-0">{{ resultText }}</p>
-                    <ul class="m-0 flex list-none flex-col gap-1 p-0">
+                    <!-- 合作迷宮：血量與漏怪是全隊共用的，個人成績看下面的「隊伍貢獻」 -->
+                    <p v-if="coopRows.length" class="m-0 text-(--gt-muted)">全隊漏掉 {{ view.result.scores[0].leaked }} 隻。</p>
+                    <details v-if="coopRows.length" class="gt-fold" open>
+                        <summary class="gt-heading !mb-1">隊伍貢獻<GemHeaderIcon name="chevron" class="gt-fold-arrow text-(--gt-muted)" /></summary>
+                        <table class="w-full border-collapse text-center text-sm tabular-nums">
+                            <thead><tr class="text-(--gt-muted)"><th class="py-1 text-left font-normal">玩家</th><th class="font-normal">擊殺金</th><th class="font-normal">擊殺</th><th class="font-normal">傷害</th><th class="font-normal">塔</th></tr></thead>
+                            <tbody>
+                                <tr v-for="r in coopRows" :key="r.id" class="border-t border-(--gt-line-soft) align-top">
+                                    <th scope="row" class="py-1 text-left font-semibold">
+                                        <span class="flex items-center gap-1.5"><span class="size-2.5 shrink-0 rounded-full" :style="{ background: r.mark }" aria-hidden="true" /><span class="truncate">{{ nameOf(r.id) }}</span></span>
+                                        <span class="mt-1 block h-1 w-full overflow-hidden rounded-full bg-(--gt-line-soft)" role="img" :aria-label="`傷害占全隊 ${Math.round(r.share * 100)}%`"><span class="block h-full rounded-full" :style="{ width: `${Math.round(r.share * 100)}%`, background: r.mark }" /></span>
+                                    </th>
+                                    <td v-for="k in ['killGold', 'kills', 'damage', 'towers']" :key="k" class="py-1" :class="r.s[k] > 0 && r.s[k] === coopMax[k] ? 'font-black text-(--gt-ink)' : ''">{{ r.s[k].toLocaleString() }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </details>
+                    <ul v-else class="m-0 flex list-none flex-col gap-1 p-0">
                         <li v-for="s in view.result.scores" :key="s.id" class="flex justify-between gap-3">
                             <span class="truncate">{{ view.names?.[s.id] ?? '玩家' }}</span>
                             <span class="shrink-0 tabular-nums">{{ scoreText(s) }}</span>
@@ -663,6 +680,17 @@ function onCell(x, y) {
 }
 
 const boardRef = ref(null)
+// 取消目前的工作：伺服器取消的同時，前端預測的建造者也停在原地
+function cancelMyJob() {
+    boardRef.value?.stopPrediction?.()
+    cancelJob()
+}
+// 拆餅乾牆：建造者先預測著走過去
+function demolishTower(id) {
+    const t = view.value?.towers.find(o => o.id === id)
+    if (t) boardRef.value?.predictDemolish?.(t)
+    demolish(id)
+}
 const armedCell = ref(null)
 function placeArmed() {
     const c = armedCell.value
@@ -789,6 +817,16 @@ const resultText = computed(() => {
     return r.win ? `撐過全部 ${view.value.options.waves} 波，還剩 ${r.lives} 點血。` : `撐到第 ${r.wave} 波。`
 })
 
+// 合作迷宮的結算：各人的擊殺金、擊殺、傷害、塔數與傷害占比（顏色與地圖上塔的顏色一致）；每欄最高的加粗
+const coopRows = computed(() => {
+    const v = view.value
+    const scores = v?.result?.scores
+    if (!scores?.length || scores[0].killGold === undefined) return []
+    const total = scores.reduce((n, s) => n + s.damage, 0)
+    return v.playerIds.map((id, i) => ({ id, mark: PLAYER_MARKS[i % PLAYER_MARKS.length], s: scores.find(s => s.id === id) })).filter(r => r.s).map(r => ({ ...r, share: total > 0 ? r.s.damage / total : 0 }))
+})
+const coopMax = computed(() => Object.fromEntries(['killGold', 'kills', 'damage', 'towers'].map(k => [k, Math.max(0, ...coopRows.value.map(r => r.s[k]))])))
+
 // 結算的分區統計：每欄最高的格子加粗
 const relayMax = computed(() => {
     const zones = view.value?.result?.relay?.zones ?? []
@@ -843,6 +881,7 @@ function showToast(msg, type = '', duration = 2600) {
 
 watch(() => state.error, (message) => {
     if (!message || !roomState.room) return
+    boardRef.value?.stopPrediction?.() // 伺服器沒接受的指令：預測的建造者別再往前走
     showToast(state.errorCode === 'CELL_TAKEN' ? '這格剛被隊友搶先放了，換一格吧' : message, 'error')
     playSfx('error')
     clearError()
@@ -942,7 +981,7 @@ function handleKey(code, e) {
     case 'Delete':
     case 'Backspace':
         if (!building || selected?.kind !== 'stone' || swapFrom.value || (!builderMode.value && selected.owner && selected.owner !== myId.value)) return false
-        if (builderMode.value) demolish(selected.id)
+        if (builderMode.value) demolishTower(selected.id)
         else removeStone(selected.id)
         clearSelection()
         return true
@@ -991,7 +1030,7 @@ function handleKey(code, e) {
         if (playersOpen.value) { playersOpen.value = false; return true }
         if (showRecipes.value) { showRecipes.value = false; return true }
         if (combinePick.value) { cancelCombinePick(); return true }
-        if (myJob.value) { cancelJob(); return true }
+        if (myJob.value) { cancelMyJob(); return true }
         if (swapFrom.value || selectedId.value !== null) { clearSelection(); return true }
         return false
     default:

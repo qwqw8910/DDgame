@@ -253,7 +253,7 @@ function startGame(game, ids, { now, rng = Math.random }) {
       bot: !ids.includes(id), left: false, rstats: R.blankStats(),
       gold: C.START_GOLD, quality: 1, research: { damage: 0, speed: 0, range: 0 }, pending: [], rerolls: 0, resolved: false, ready: false,
       lives: C.START_LIVES, out: false, outWave: 0,
-      stats: { leaked: 0, peakGold: 0, lifeBought: 0, tests: [] },
+      stats: { leaked: 0, peakGold: 0, lifeBought: 0, killGold: 0, tests: [] },
       towers: [],
       skillCd: game.shared ? game.shared.skillCd : Object.fromEntries(C.SKILL_IDS.map(sid => [sid, 0])), // 技能冷卻（波數）；合作迷宮全隊共用同一份
       grid: new Map(), // "x,y" → tower
@@ -970,6 +970,8 @@ function buildResult(game, winnerIds) {
       gold: p.gold,
       peakGold: p.stats.peakGold,
       lifeBought: p.stats.lifeBought,
+      // 合作迷宮的貢獻：入帳的擊殺金累計、場上的塔數（不含餅乾牆）；其他模式的結算內容不變
+      ...(isCoop(game) ? { killGold: p.stats.killGold, towers: p.towers.filter(t => t.kind !== 'stone').length } : {}),
     };
   }).sort((a, b) => (isTeam(game) ? 0 : b.lives - a.lives || b.outWave - a.outWave) || b.damage - a.damage);
   const top = game.playerIds
@@ -1181,6 +1183,7 @@ function finishWave(game, { now, rng = Math.random }) {
     const bornShare = sim.relay?.hub.credit?.[sim.relay.zone] ?? 0; // 別區補救我漏出去的蟲，我分到的擊殺金
     const earned = sim.coop ? (sim.earnedBy[id] ?? 0) : sim.earned; // 合作迷宮：只拿自己的塔打出的擊殺金
     p.gold += earned + bornShare + bonus + C.interestOn(p.gold);
+    if (sim.coop) p.stats.killGold += earned; // 結算畫面的「各人擊殺金」
     p.stats.peakGold = Math.max(p.stats.peakGold, p.gold);
   }
 
