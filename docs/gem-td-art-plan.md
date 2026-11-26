@@ -81,3 +81,5 @@
 | 2026-11-16 | 入口蟻窩 | gemini-3.1-flash-lite-image | 1024 | 約 6 | 採用 |
 | 2026-11-16 | 檢查點糖果底圖 | gemini-3.1-flash-lite-image | 1024 | 約 6 | 採用 |
 | 2026-11-16 | 結算勝利＋失敗插圖（同一張） | gemini-3.1-flash-lite-image | 1376×768 | 約 6 | 採用 |
+| 2026-11-25 | 合作迷宮建造者概念稿（5 款小烘焙師，`builder-concept.jpg`） | gemini-3.1-flash-lite-image | 1376×768 | 約 6 | 選第 1 款（大湯匙）|
+| 2026-11-25 | 建造者小烘焙師定稿（單張，洋紅底方便去背，`builder.jpg`）→ `public/gem-td/builder/chef.webp`（128px）| gemini-3.1-flash-lite-image | 1024×1024 | 約 6 | 採用；紅色的帽帶與圍裙由程式換成 6 種玩家色 |

@@ -1097,3 +1097,121 @@ test('地圖選項：預設經典圖、可指定、可隨機，非法值退回�
   assert.ok(seen.size > 1);
   assert.equal(newGame(['a'], { options: { mode: 'relay', map: 3 } }).board.mapId, 0);
 });
+
+test('boardOf：現有模式每人一張地圖，棋盤狀態就是玩家自己的', () => {
+  const game = newGame(['a', 'b']);
+  for (const id of ['a', 'b']) {
+    const p = game.players[id];
+    const b = L.boardOf(game, p);
+    assert.equal(b, p);
+    assert.ok(b.grid instanceof Map);
+    assert.ok(Array.isArray(b.path) && b.path.length > 1);
+  }
+  assert.notEqual(L.boardOf(game, game.players.a).grid, L.boardOf(game, game.players.b).grid);
+});
+
+// ── 合作迷宮（coop）────────────────────────────────────────────
+const coopOptions = { mode: 'coop', waves: 15, buildSeconds: 0, difficulty: 'easy' };
+const newCoop = (ids = ['a', 'b']) => newGame(ids, { options: coopOptions });
+
+test('合作迷宮：人數限制 2～3，其他人數開不了局', () => {
+  assert.throws(() => newCoop(['a']), /合作迷宮需要/);
+  assert.throws(() => newCoop(['a', 'b', 'c', 'd']), /合作迷宮需要/);
+  assert.doesNotThrow(() => newCoop(['a', 'b', 'c']));
+});
+
+test('合作迷宮：地圖依人數放大、路徑點增加，空地圖每一段都走得通', () => {
+  const g2 = newCoop(['a', 'b']);
+  const g3 = newCoop(['a', 'b', 'c']);
+  assert.equal(g2.board.width, 35);
+  assert.equal(g3.board.width, 40);
+  assert.equal(g2.board.checkpoints.length, 8);
+  assert.equal(g3.board.checkpoints.length, 9);
+  for (const g of [g2, g3]) {
+    assert.ok(g.shared.path.length > g.board.width, '共用路線存在');
+    const stops = [g.board.start, ...g.board.checkpoints, g.board.end].map(c => `${c.x},${c.y}`);
+    assert.equal(new Set(stops).size, stops.length, '路徑點不重疊');
+  }
+});
+
+test('合作迷宮：全隊共用一份格子與路線，塔仍屬於放下的人', () => {
+  const game = newCoop();
+  const [ta] = placeAll(game, 'a', 4).slice(0, 1);
+  assert.equal(L.boardOf(game, game.players.a), L.boardOf(game, game.players.b));
+  assert.equal(L.boardOf(game, game.players.a), game.shared);
+  // b 不能放在 a 已經放的格子
+  assert.throws(() => L.placeGem(game, 'b', game.players.b.pending[0].slot, ta.x, ta.y), /這格已經有東西/);
+  const tb = L.placeGem(game, 'b', game.players.b.pending[0].slot, ta.x + 1, ta.y);
+  assert.equal(ta.owner, 'a');
+  assert.equal(tb.owner, 'b');
+  assert.equal(game.players.a.towers.includes(tb), false);
+  assert.equal(game.shared.grid.size, 6); // a 放了 5 顆 + b 放了 1 顆
+});
+
+test('合作迷宮：不能還原（會動到別人的格子）', () => {
+  const game = newCoop();
+  L.placeGem(game, 'a', game.players.a.pending[0].slot, 4, 4);
+  assert.throws(() => L.undo(game, 'a'), /不能還原/);
+});
+
+test('合作迷宮：一場打完，擊殺金只給塔的擁有者，怪物血量依人數加成', () => {
+  const game = newCoop();
+  // a 留下 3 級塔，b 讓系統代選：各人的金幣 = 自己塔的擊殺金 + 過關獎勵 + 利息
+  setPending(game, 'a', [['B', 3], ['B', 3], ['B', 3], ['B', 3], ['B', 3]]);
+  placeAll(game, 'a', 4);
+  const keep = game.players.a.towers[0];
+  L.keepGem(game, 'a', keep.id);
+  L.autoResolve(game, 'b', seededRng(3));
+  const goldB = game.players.b.gold;
+  const goldA = game.players.a.gold;
+  L.startWave(game, { rng: seededRng(2) });
+  assert.equal(game.shared.sim.coop, true);
+  assert.equal(game.shared.sim.def.hp, Math.round(C.waveDef(1, 15, 'easy').groups[0].hp * C.coopHpMult(2)));
+  const rng = seededRng(7);
+  for (let i = 0; i < 20000; i++) if (L.tick(game, 0.1, rng).done) break;
+  const earnedBy = { ...game.shared.sim.earnedBy };
+  L.finishWave(game, { now: 0, rng });
+  const base = Math.round(C.waveClearBonus(1));
+  assert.equal(game.players.b.gold - goldB - base - C.interestOn(goldB), earnedBy.b ?? 0);
+  assert.equal(game.players.a.gold - goldA - base - C.interestOn(goldA), earnedBy.a ?? 0);
+  assert.ok((earnedBy.a ?? 0) + (earnedBy.b ?? 0) > 0, '這一波有擊殺');
+});
+
+test('合作迷宮：研究依塔的擁有者，兩人的塔在同一張圖各用各的研究', () => {
+  const { prepareTowers } = require('../../../gem-td/waveSim');
+  const towers = [
+    { id: 1, x: 3, y: 3, kind: 'B', level: 3, owner: 'a', kills: 0 },
+    { id: 2, x: 6, y: 3, kind: 'B', level: 3, owner: 'b', kills: 0 },
+  ];
+  const research = { a: { damage: 5, speed: 0, range: 0 }, b: { damage: 0, speed: 0, range: 0 } };
+  const [ta, tb] = prepareTowers(towers, t => research[t.owner]);
+  assert.ok(ta.stats.damage > tb.stats.damage);
+  // 傳一份研究的舊用法照舊
+  const [ua, ub] = prepareTowers(towers, research.a);
+  assert.equal(ua.stats.damage, ub.stats.damage);
+});
+
+test('合作迷宮：不寫排行榜，離開的玩家塔留著不收地圖', () => {
+  const game = newCoop(['a', 'b', 'c']);
+  placeAll(game, 'a', 4);
+  const before = game.shared.grid.size;
+  const res = L.leavePlayer(game, 'a');
+  assert.equal(res.changed, true);
+  assert.equal(game.shared.grid.size, before);
+  assert.deepEqual(L.buildRecords(game, []), []);
+});
+
+test('合作迷宮：視圖給全隊的塔，快照每人收到同一份', () => {
+  const game = newCoop();
+  placeAll(game, 'a', 4);
+  placeAll(game, 'b', 6);
+  L.autoResolve(game, 'a', seededRng(1));
+  L.autoResolve(game, 'b', seededRng(1));
+  const view = L.buildView(game, 'a', 'a');
+  assert.equal(view.towers.length, 10);
+  L.startWave(game, { rng: seededRng(2) });
+  for (let i = 0; i < 30; i++) L.tick(game, 0.1, seededRng(5));
+  const frames = L.buildFrames(game);
+  assert.equal(frames.a, frames.b);
+  assert.ok(frames.a.m.length > 0);
+});

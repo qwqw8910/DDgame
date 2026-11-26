@@ -19,14 +19,25 @@ const FLAG_TRAIT_SHIFT = 3; // 特性佔後面的位元，順序同 C.TRAIT_IDS
 const distance = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 
 // 塔的戰鬥數值在開波時算好（包含蛋白石光環），波次中不再變動
+// research 可以是一份研究（每座塔套同一份），或函式 tower → 研究（合作迷宮：各依擁有者）
 function prepareTowers(towers, research) {
-  const bonus = C.researchBonus(research);
+  const bonusFor = typeof research === 'function'
+    ? (() => {
+      const cache = new Map();
+      return (t) => {
+        const r = research(t);
+        if (!cache.has(r)) cache.set(r, C.researchBonus(r));
+        return cache.get(r);
+      };
+    })()
+    : (() => { const fixed = C.researchBonus(research); return () => fixed; })();
   const armed = towers.filter(t => t.kind !== 'stone');
   const auras = armed
     .map(t => ({ t, aura: C.gemStats(t.kind, t.level).aura }))
     .filter(a => a.aura);
 
   return armed.map((ref) => {
+    const bonus = bonusFor(ref);
     const base = C.gemStats(ref.kind, ref.level);
     const rank = C.masteryRank(ref.kills);
     const stats = { ...base, damage: base.damage * (bonus.damage + rank * C.MASTERY_DAMAGE), range: base.range + bonus.range };
@@ -55,17 +66,25 @@ function applyRelayDef(def, { zone, n }) {
   def.armor = Math.round(def.armor * armorMult);
 }
 
+// 合作迷宮：全隊一張圖，怪物血量依人數加成
+function applyCoopDef(def, { n }) {
+  const mult = C.coopHpMult(n);
+  def.groups = def.groups.map(g => ({ ...g, hp: Math.max(1, Math.round(g.hp * mult)) }));
+  def.hp = def.groups[0].hp;
+}
+
 // 蟲的編號：環形接力整圈共用同一組編號，前端才不會把不同區的蟲混在一起
 const newId = sim => (sim.relay ? sim.relay.hub.nextId++ : sim.nextId++);
 
 // pool 是這張地圖漏怪時扣血的對象：共用血量是 game，獨立血量是玩家自己
 // relay：環形接力時為 { zone, n, hub }；devBoss：開發測試的首領波
-function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research, relay = null, devBoss = false, skillCd = null }) {
+function createWave({ board, towers: placed, path, wave, totalWaves, testAt = null, difficulty = 'easy', pool, research, relay = null, coop = null, devBoss = false, skillCd = null }) {
   // waveDef 有快取；這一波會改動 def 與各組（測試也會），所以複製一份
   const cached = devBoss ? C.bossWaveDef(wave, totalWaves, difficulty)
     : testAt === null ? C.waveDef(wave, totalWaves, difficulty) : C.testWaveDef(testAt, difficulty, totalWaves);
   const def = { ...cached, groups: cached.groups.map(g => ({ ...g })) };
   if (relay) applyRelayDef(def, relay);
+  if (coop) applyCoopDef(def, coop);
   const towers = prepareTowers(placed, research);
   const air = airRoute(board);
   return {
@@ -74,6 +93,8 @@ function createWave({ board, towers: placed, path, wave, totalWaves, testAt = nu
     board,
     pool,
     relay, // 環形接力：{ zone, n, hub }；單人模式是 null
+    coop: !!coop, // 合作迷宮：全隊共用一張圖；擊殺金記在 earnedBy（依塔的擁有者）
+    earnedBy: {},
     rs: { kills: 0, handoff: 0, relief: 0, leaks: 0 }, // 分區統計（只在環形接力有意義）
     time: 0,
     queue: spawnQueue(def),
@@ -224,6 +245,7 @@ function kill(sim, tower, m) {
     credit[m.born] = (credit[m.born] ?? 0) + born;
   } else {
     sim.earned += m.gold;
+    if (sim.coop) sim.earnedBy[tower.ref.owner] = (sim.earnedBy[tower.ref.owner] ?? 0) + m.gold;
   }
   tower.ref.kills += 1;
   if (m.boss) sim.bossDownAt = sim.time;
