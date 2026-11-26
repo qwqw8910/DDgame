@@ -1,6 +1,6 @@
 <template>
     <canvas ref="canvasRef" class="gt-minimap block cursor-pointer touch-none select-none rounded-sm border border-(--gt-line) bg-(--gt-surface) shadow-(--gt-shadow)"
-        :style="{ width: `${SIZE}px`, height: `${SIZE}px` }" role="img" aria-label="小地圖：點擊或拖曳跳到該位置"
+        :style="{ width: `${size}px`, height: `${size}px` }" role="img" aria-label="小地圖：點擊或拖曳跳到該位置"
         @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" />
 </template>
 
@@ -9,12 +9,14 @@
 // 點擊或拖曳 → 發出 goto { x, y }（格座標，可有小數），由 GemBoard 的相機跳過去。
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 
-const SIZE = 148
 const props = defineProps({
+    size: { type: Number, default: 148 }, // 邊長（px）；小螢幕上固定 148 會蓋住三分之一的地圖，由 GemBoard 依畫面大小給
     view: { type: Object, required: true },
     frame: { type: Object, default: null },
     colors: { type: Object, default: null }, // 玩家 id → 顏色
     viewport: { type: Object, default: () => ({ x: 0, y: 0, w: 1, h: 1 }) }, // 主畫面看到的範圍（格）
+    builders: { type: Object, default: null }, // 建造者的即時快照 { builders: [{ id, x, y }] }；沒有就用 view.builders
+    myId: { type: String, default: '' },
 })
 const emit = defineEmits(['goto'])
 
@@ -22,7 +24,7 @@ const canvasRef = ref(null)
 let dragging = false
 let dpr = 1
 
-const scaleOf = () => SIZE / Math.max(props.view.board.width, props.view.board.height)
+const scaleOf = () => props.size /Math.max(props.view.board.width, props.view.board.height)
 
 function draw() {
     const canvas = canvasRef.value
@@ -31,7 +33,7 @@ function draw() {
     const ctx = canvas.getContext('2d')
     const k = scaleOf()
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, SIZE, SIZE)
+    ctx.clearRect(0, 0, props.size, props.size)
     ctx.fillStyle = '#FBE3E8'
     ctx.fillRect(0, 0, board.width * k, board.height * k)
 
@@ -63,6 +65,27 @@ function draw() {
         for (const m of props.frame.m) ctx.fillRect((m[2] / 10 + 0.5) * k - 1, (m[3] / 10 + 0.5) * k - 1, 2.5, 2.5)
     }
 
+    // 建造者：玩家色圓點加白邊，自己的外面多一圈
+    const live = new Map((props.builders?.builders ?? []).map(b => [b.id, b]))
+    for (const b of props.view.builders ?? []) {
+        const p = live.get(b.id) ?? b
+        const r = Math.max(2.6, k * 1.1)
+        const color = props.colors?.[b.id] ?? '#4A2C2A'
+        ctx.beginPath()
+        ctx.arc(p.x * k, p.y * k, r, 0, Math.PI * 2)
+        ctx.fillStyle = color
+        ctx.fill()
+        ctx.strokeStyle = '#FFFFFF'
+        ctx.lineWidth = 1.2
+        ctx.stroke()
+        if (b.id === props.myId) {
+            ctx.beginPath()
+            ctx.arc(p.x * k, p.y * k, r + 2.2, 0, Math.PI * 2)
+            ctx.strokeStyle = color
+            ctx.stroke()
+        }
+    }
+
     const v = props.viewport
     ctx.strokeStyle = '#4A2C2A'
     ctx.lineWidth = 1.5
@@ -88,14 +111,19 @@ function schedule() {
     queued = requestAnimationFrame(() => { queued = 0; draw() })
 }
 
-watch([() => props.view, () => props.frame, () => props.viewport, () => props.colors], schedule)
+watch([() => props.view, () => props.frame, () => props.viewport, () => props.colors, () => props.builders], schedule)
 
 onMounted(() => {
     dpr = Math.min(window.devicePixelRatio || 1, 2)
-    const canvas = canvasRef.value
-    canvas.width = SIZE * dpr
-    canvas.height = SIZE * dpr
-    draw()
+    resizeCanvas()
 })
+function resizeCanvas() {
+    const canvas = canvasRef.value
+    if (!canvas) return
+    canvas.width = props.size * dpr
+    canvas.height = props.size * dpr
+    draw()
+}
+watch(() => props.size, resizeCanvas)
 onUnmounted(() => cancelAnimationFrame(queued))
 </script>

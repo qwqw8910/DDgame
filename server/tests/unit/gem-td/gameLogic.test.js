@@ -1177,6 +1177,31 @@ test('合作迷宮：一場打完，擊殺金只給塔的擁有者，怪物血�
   assert.ok((earnedBy.a ?? 0) + (earnedBy.b ?? 0) > 0, '這一波有擊殺');
 });
 
+test('合作迷宮：結算附上各人的擊殺金累計與塔數；其他模式的結算欄位不變', () => {
+  const game = newCoop();
+  setPending(game, 'a', [['B', 3], ['B', 3], ['B', 3], ['B', 3], ['B', 3]]);
+  placeAll(game, 'a', 4);
+  L.keepGem(game, 'a', game.players.a.towers[0].id);
+  L.autoResolve(game, 'b', seededRng(3));
+  L.startWave(game, { rng: seededRng(2) });
+  const rng = seededRng(7);
+  for (let i = 0; i < 20000; i++) if (L.tick(game, 0.1, rng).done) break;
+  const earnedBy = { ...game.shared.sim.earnedBy };
+  L.finishWave(game, { now: 0, rng });
+  assert.equal(game.players.a.stats.killGold, earnedBy.a ?? 0);
+  assert.equal(game.players.b.stats.killGold, earnedBy.b ?? 0);
+  L.finishNow(game);
+  const sa = game.result.scores.find(s => s.id === 'a');
+  assert.equal(sa.killGold, earnedBy.a ?? 0);
+  assert.equal(sa.towers, 1, '只算塔、不含餅乾牆');
+  assert.equal(typeof game.result.scores.find(s => s.id === 'b').killGold, 'number');
+
+  const single = newGame(['a']);
+  L.finishNow(single);
+  assert.equal('killGold' in single.result.scores[0], false);
+  assert.equal('towers' in single.result.scores[0], false);
+});
+
 test('合作迷宮：研究依塔的擁有者，兩人的塔在同一張圖各用各的研究', () => {
   const { prepareTowers } = require('../../../gem-td/waveSim');
   const towers = [

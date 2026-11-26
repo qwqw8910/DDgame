@@ -96,12 +96,18 @@ function registerNamespace(io, db) {
   // 合作迷宮的建造者：建造階段每 100ms 往前走一步；位置進度走 volatile 的 gt:builders，工作起訖走 gt:state
   function startBuilderTicker(roomId, game) {
     if (!L.isBuilderMode(game)) return;
+    // setInterval(100) 實際約每 107ms 才跑一次（Windows 計時器精度），固定用 0.1 秒會讓建造者的走路與施工慢約 7%，
+    // 前端預測就會越走越領先。步進量改用真正經過的時間（上限 0.3 秒，暫停或離線後回來不會一次跳很遠）。
+    let lastAt = Date.now();
     game._builderTicker = setInterval(() => {
+      const at = Date.now();
+      const dt = Math.min(0.3, (at - lastAt) / 1000);
+      lastAt = at;
       if (getGame(roomId) !== game || game.phase !== 'build') return clearTimers(game);
       if (game.paused || !onlineIds(roomId).length) return;
       let step;
       try {
-        step = L.stepBuilders(game, TICK_SECONDS);
+        step = L.stepBuilders(game, dt);
       } catch (err) {
         return console.error('[GemTD builder]', err);
       }
