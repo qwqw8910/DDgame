@@ -282,12 +282,12 @@ function playCoop({ players, waves, difficulty, strategy, seed }) {
 
 // 調參：COOP_HP=0.8 COOP_WALL_HP=150 COOP_WALL_WAVE=40 COOP_TOWER_MULT=5 COOP_DPS=8 node gem-td/balanceSim.js coop 4 15 easy
 function runCoop(rounds, waves, difficulty) {
-  const env = { hpPerPlayer: 'COOP_HP', wallHpBase: 'COOP_WALL_HP', wallHpPerWave: 'COOP_WALL_WAVE', towerHpMult: 'COOP_TOWER_MULT', breachDps: 'COOP_DPS' };
+  const env = { hpPerPlayer: 'COOP_HP', wallHpBase: 'COOP_WALL_HP', wallHpPerWave: 'COOP_WALL_WAVE', towerHpMult: 'COOP_TOWER_MULT', breachDps: 'COOP_DPS', armorPerPlayer: 'COOP_ARMOR' };
   for (const [key, name] of Object.entries(env)) if (process.env[name]) C.COOP[key] = Number(process.env[name]);
   if (process.env.COOP_MULT2) C.COOP.hpMults[2] = Number(process.env.COOP_MULT2); // 直接指定 2 人／3 人的血量倍數
   if (process.env.COOP_MULT3) C.COOP.hpMults[3] = Number(process.env.COOP_MULT3);
   console.log(`合作迷宮平衡（${waves} 波、${difficulty}、每組 ${rounds} 局）`);
-  console.log(`血量倍數 2 人 ×${C.coopHpMult(2).toFixed(2)}、3 人 ×${C.coopHpMult(3).toFixed(2)}；牆血量 ${C.COOP.wallHpBase}+${C.COOP.wallHpPerWave}×波、塔 ×${C.COOP.towerHpMult}、每蟲每秒 ${C.COOP.breachDps}`);
+  console.log(`血量倍數 2 人 ×${C.coopHpMult(2).toFixed(2)}、3 人 ×${C.coopHpMult(3).toFixed(2)}；牆血量 ${C.COOP.wallHpBase}+${C.COOP.wallHpPerWave}×波、塔 ×${C.COOP.towerHpMult}、每蟲每秒 ${C.COOP.breachDps}；護甲每多一人 +${C.COOP.armorPerPlayer}`);
   console.log('人數  打法      通關率  平均到達波數  平均剩餘血量  每局牆被打破次數');
   for (const players of [2, 3]) {
     for (const strategy of ['corridor', 'turtle']) {

@@ -67,11 +67,13 @@ function applyRelayDef(def, { zone, n }) {
   def.armor = Math.round(def.armor * armorMult);
 }
 
-// 合作迷宮：全隊一張圖，怪物血量依人數加成
+// 合作迷宮：全隊一張圖，怪物血量與護甲依人數加成
 function applyCoopDef(def, { n }) {
   const mult = C.coopHpMult(n);
-  def.groups = def.groups.map(g => ({ ...g, hp: Math.max(1, Math.round(g.hp * mult)) }));
+  const armorAdd = C.coopArmorAdd(n);
+  def.groups = def.groups.map(g => ({ ...g, hp: Math.max(1, Math.round(g.hp * mult)), armor: g.armor + armorAdd }));
   def.hp = def.groups[0].hp;
+  def.armor += armorAdd;
 }
 
 // 蟲的編號：環形接力整圈共用同一組編號，前端才不會把不同區的蟲混在一起

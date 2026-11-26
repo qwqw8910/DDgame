@@ -36,8 +36,9 @@ const COOP = {
   minPlayers: 2,
   maxPlayers: 3,
   sizes: { 2: 35, 3: 40, 4: 45, 5: 50, 6: 55 },
-  checkpoints: { 2: 8, 3: 9, 4: 10, 5: 11, 6: 12 },
+  checkpoints: { 2: 5, 3: 5, 4: 5, 5: 5, 6: 5 }, // 路徑點固定 5 個，不隨人數增加（地圖尺寸仍依人數）
   hpMults: { 3: 4.5 }, // 人數 → 血量倍數；沒列的人數照 hpPerPlayer（2 人 ×1.8）。3 人的圖更大、路更長，機器人實測要 ×4.5 才跟 2 人同樣吃力（M6）
+  armorPerPlayer: 1, // 每多一人，所有怪物護甲 +N 點（和血量倍數一起隨人數變硬；0 = 不加）。機器人實測 +1 輕微變難、+2 對 3 人局太硬（M6 之後）
   hpPerPlayer: 0.8, // 每多一人，怪物血量 +80%（暫定，待 balanceSim 調整）
   // 建造方式：'builder' = 每人一個建造者，要走到現場施工；'instant' = 點了立刻蓋好（比較與除錯用）
   buildModes: ['builder', 'instant'],
@@ -56,6 +57,8 @@ const COOP = {
   breachDps: 12, // 每隻地面蟲停在牆前時每秒對牆的傷害；首領 ×4
 };
 // 怪物血量倍數：hpMults 有指定的人數用表，其餘照 hpPerPlayer 線性加（地圖越大、路越長，每人貢獻的火力不同，所以不一定線性）
+// 怪物護甲的人數加成（點數，加在原本的護甲上）
+const coopArmorAdd = n => COOP.armorPerPlayer * (Math.max(1, n) - 1);
 const coopHpMult = n => COOP.hpMults[n] ?? 1 + COOP.hpPerPlayer * (Math.max(1, n) - 1);
 
 // 合作迷宮的版型：蛇行。起點在左上，路徑點左右交錯逐列往下，終點在最後一列的另一側。
@@ -523,7 +526,7 @@ function catalog() {
 
 module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
-  MODES, COOP, coopHpMult, coopLayout, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_TEST_HP_MULT, RELAY_TEST_ARMOR_MULT, relayTestHpMult, RELAY_PASSES, relayPasses, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_KILL_GOLD_BORN_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
+  MODES, COOP, coopHpMult, coopArmorAdd, coopLayout, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_TEST_HP_MULT, RELAY_TEST_ARMOR_MULT, relayTestHpMult, RELAY_PASSES, relayPasses, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_KILL_GOLD_BORN_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
   RELAY_EVENT_KEEP, RELAY_EVENT_SHOW, RELAY_ZONE_COLORS,
   ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, MAP_LAYOUTS, MAP_COUNT, SKILLS, SKILL_IDS, BOSS_STUN_RESIST, SKILL_HP_MULT,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
