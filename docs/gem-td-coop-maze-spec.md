@@ -160,7 +160,8 @@
 - `gt:build`（client → server）：`{ slot, x, y }`，指派建造者去某格蓋手牌第 `slot` 顆。
 - `gt:cancel-job`（client → server）：無參數，取消目前的施工或拆除，寶石回手牌。
 - `gt:demolish`（client → server）：`{ towerId }`，指派拆除。
-- 建造者位置與工作進度走 `gt:frame`（volatile，約 10Hz），其餘變動走 `gt:state`。
+- 建造者位置與工作進度走 `gt:builders`（volatile，約 10Hz，建造階段才有；實作時與波次的 `gt:frame` 分開，避免互相干擾），工作的開始／作廢／完成與 `view.builders`（含每人目前的工作）走 `gt:state`。
+- 建造方式 `options.buildMode`：`'builder'`（預設）或 `'instant'`；builder 模式下 `gt:place` 回 `USE_BUILDER`。施工中途被搶格或會封路時，伺服器對該玩家送 `gt:error`（`CELL_TAKEN`／`PATH_BLOCKED`），工作作廢、寶石留在手牌。
 - `gt:hover`（client → server，volatile）：只在 `instant` 模式使用，`{ x, y }` 或 `null`。
 - `gt:state`：coop 時多 `shared` 區塊（棋盤、各塔 owner、預定標記、突破點）。
 
@@ -231,3 +232,20 @@ M1 先做，因為它同時降低所有後續階段的風險，也最容易獨�
 7. 建造秒數預設值與 `builderSpeed`、`buildSeconds` 的實測值。
 8. 波次中是否允許建造者補牆（第二版；第一版不行）。
 9. 研究是否新增「移動速度」項目作為金幣出口（第二版）。
+
+## 10. M6 平衡結果（機器人實測，2026-11-26）
+
+工具：`node gem-td/balanceSim.js coop <局數> <波數> <難度>`（可用 `COOP_HP`、`COOP_MULT2/3`、`COOP_WALL_HP`、`COOP_WALL_WAVE`、`COOP_TOWER_MULT`、`COOP_DPS` 覆寫）；單人基準 `node gem-td/balanceSim.js base ...`。機器人用 instant 放置，兩種打法：`corridor` 沿路線兩側蓋塔不堵路，`turtle` 先把整排堵死、再把塔蓋在突破點附近。
+
+**定案的數值**：2 人血量 ×1.8（每多一人 +80%）、3 人 ×4.5；餅乾牆血量 100＋25×波、塔 ×5、每隻地面蟲每秒 12（首領 ×4）。30 波簡單、8 局：
+
+| 人數 | corridor 通關率 | turtle 通關率 |
+|------|----------------|---------------|
+| 2 | 50%（平均到第 29.1 波）| 100% |
+| 3 | 63%（平均到第 29.4 波）| 50% |
+
+**發現**
+1. 3 人的圖（40×40、路更長）比 2 人容易很多：同樣線性 +80% 時，3 人 corridor 100% 通關、剩 136 血，2 人 0%。血量倍數對人數很敏感（3 人 ×4.0 全過、×5.0 只剩 20%），所以改成血量倍數表 `hpMults`，之後 4～6 人也要各自調。
+2. 全堵死（turtle）在 2 人局明顯比不堵強（100% vs 50%），但兩種機器人的塔位置不同（turtle 集中在突破點、corridor 集中在路線開頭），不能全歸因於拆牆停留。第一版不再壓低拆牆強度，等真人試玩看「堵死是否變成固定套路」再決定；若變成套路，調 `wallHpPerWave`、`breachDps` 比限制堵死好。
+3. 單人基準（25×25 經典圖、同一個機器人，30 波簡單）通關率 100%，2 人各一張圖 67%；合作迷宮的機器人沒有手工迷宮藍圖，所以不能直接比，只用來確認量級。
+4. 這個機器人不會合成以外的協作，也不會主動補洞，真人表現預期會比 corridor 好。

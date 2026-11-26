@@ -3,16 +3,18 @@
         <GemTableDecor />
         <canvas ref="canvasRef" class="relative block touch-none select-none max-sm:rounded-none rounded-sm" :class="placing ? 'cursor-crosshair' : 'cursor-default'"
             role="img" aria-label="遊戲地圖"
-            @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp"
-            @pointerleave="hover = null" @wheel.prevent="onWheel" />
+            @pointerdown="onPointer" @pointermove="onPointer" @pointerup="onPointer" @pointercancel="onPointer"
+            @pointerleave="onPointer" @wheel.prevent="onWheel" @contextmenu.prevent="onContext" />
         <!-- 縮放：按鈕或雙指（滾輪不縮放）；放大後拖曳平移 -->
         <div class="absolute top-2 right-2 flex flex-col gap-1" role="group" aria-label="地圖縮放">
-            <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="放大地圖" title="放大" :disabled="zoom >= 5" @click="zoomBy(1.4)">＋</button>
-            <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="縮小地圖" title="縮小" :disabled="zoom <= 1.01" @click="zoomBy(1 / 1.4)">－</button>
+            <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="放大地圖" title="放大" :disabled="zoom >= MAX_ZOOM" @click="controller.zoomBy(1.4)">＋</button>
+            <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="縮小地圖" title="縮小" :disabled="zoom <= 1.01" @click="controller.zoomBy(1 / 1.4)">－</button>
         </div>
-        <button v-if="zoom > 1.01" class="gt-chip absolute right-2 bottom-2" @click="resetView">看全圖</button>
+        <button v-if="zoom > 1.01" class="gt-chip absolute right-2 bottom-2" @click="controller.reset()">看全圖</button>
+        <!-- 合作迷宮：小地圖（點擊或拖曳跳轉），放左下角 -->
+        <GemMiniMap v-if="isCoop" class="absolute bottom-2 left-2" :view="view" :frame="frame" :colors="ownerColors" :viewport="viewport" @goto="p => controller.centerOn(p.x, p.y)" />
         <!-- 多人：切換看誰的地圖（一次只畫一張，其他人的地圖不吃效能） -->
-        <template v-if="(view.playerIds?.length ?? 0) > 1">
+        <template v-if="!isCoop && (view.playerIds?.length ?? 0) > 1">
             <button class="gt-chip absolute top-1/2 left-2 !min-h-12 !w-10 -translate-y-1/2 justify-center !px-0 text-xl font-bold opacity-90 [@media(pointer:coarse)]:!w-11" aria-label="看上一位玩家的地圖" title="上一位玩家" @click="emit('step', -1)">‹</button>
             <button class="gt-chip absolute top-1/2 right-14 !min-h-12 !w-10 -translate-y-1/2 justify-center !px-0 text-xl font-bold opacity-90 [@media(pointer:coarse)]:!w-11" aria-label="看下一位玩家的地圖" title="下一位玩家" @click="emit('step', 1)">›</button>
         </template>
@@ -23,9 +25,11 @@
 // 地圖畫布：只負責畫面與輸入。座標以「格」為單位，格子中心是 (x + .5, y + .5)。
 // 手機點一下先預覽、同一格再點一下才放；滑鼠直接放。按鈕或雙指縮放（滾輪不縮放），放大後拖曳平移。
 import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
-import { CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
+import { CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, PLAYER_MARKS, BUILDER_IMAGE, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
 import { fullPathLength } from '../data/pathing.js'
 import GemTableDecor from './GemTableDecor.vue'
+import GemMiniMap from './GemMiniMap.vue'
+import { MAX_ZOOM, createCameraController, normalizePointer, normalizeWheel, screenToCell, cellSizeOf, visibleRect } from '../composables/useGemCamera.js'
 import { spawnHit, spawnDeath, clearFx, drawFx, hasFx } from '../composables/usePixelFx.js'
 
 const props = defineProps({
@@ -36,25 +40,29 @@ const props = defineProps({
     pendingGem: { type: Object, default: null }, // 目前要放下的甜點
     selectedId: { type: Number, default: null },
     highlightIds: { type: Array, default: () => [] }, // 合成選位置：可以選的材料塔
+    builders: { type: Object, default: null }, // 合作迷宮建造者的即時快照 { builders: [{ id, x, y, p }] }
+    builderMode: { type: Boolean, default: false }, // 點空格 = 叫建造者走過去；右鍵一律是移動
 })
-const emit = defineEmits(['cell', 'tower', 'clear', 'arm', 'step'])
+const emit = defineEmits(['cell', 'tower', 'clear', 'arm', 'step', 'move'])
 
 const wrapRef = ref(null)
 const canvasRef = ref(null)
 const zoom = ref(1)
+const viewport = ref({ x: 0, y: 0, w: 1, h: 1 }) // 目前看到的範圍（格），給小地圖畫視窗框
 const hover = ref(null)
 const armed = ref(null) // 手機：第一次點選的格子
 const placing = computed(() => !!props.pendingGem)
+// 合作迷宮：全隊共用一張圖，每座塔依擁有者上玩家色（顏色跟玩家清單的順序一致）
+const isCoop = computed(() => props.view.options?.mode === 'coop')
+const ownerColors = computed(() => (isCoop.value ? Object.fromEntries((props.view.playerIds ?? []).map((id, i) => [id, PLAYER_MARKS[i % PLAYER_MARKS.length]])) : null))
 // 預覽中的格子交給外面（底部操作列顯示「放在這裡」）；放下一顆、或回合結束就不再預覽
 watch(armed, c => emit('arm', c ? { x: c.x, y: c.y } : null))
 watch(() => [props.view.phase, props.view.me?.pending?.length ?? 0, props.view.watching], () => { armed.value = null })
-defineExpose({ disarm: () => { armed.value = null } })
+defineExpose({ disarm: () => { armed.value = null }, panTo: (x, y) => controller.centerOn(x, y) })
 
 let ctx = null
 let size = 0
 let dpr = 1
-let panX = 0
-let panY = 0
 let raf = 0
 let observer = null
 // 畫面沒有動態（建造中、沒有特效）時只在有變化才重畫，不必每秒畫 60 次
@@ -66,7 +74,22 @@ const COLOR = {
     path: '#D6305A', cookie: '#D9A066', cookieEdge: '#A86B3C', chip: '#6B3F26',
 }
 
-// ── 尺寸 ─────────────────────────────────────────────────────────
+// ── 尺寸與相機 ────────────────────────────────────────────────────
+// 縮放、平移、手勢全在 useGemCamera.js（純函式）；這裡只把 DOM 事件正規化後交給它
+const controller = createCameraController({
+    ctx: () => ({ board: props.view.board, viewSize: size }),
+    wheelZoom: true,
+    onChange: syncCamera,
+    onHover: (cell) => { hover.value = cell },
+    onTap: ({ cell, pointerType }) => tap(cell, pointerType),
+})
+
+function syncCamera() {
+    zoom.value = controller.camera.zoom
+    if (size && props.view.board) viewport.value = visibleRect(controller.camera, props.view.board, size)
+    invalidate()
+}
+
 function resize() {
     const el = wrapRef.value
     const canvas = canvasRef.value
@@ -78,97 +101,15 @@ function resize() {
     canvas.width = size * dpr
     canvas.height = size * dpr
     ctx = canvas.getContext('2d')
-    clampPan()
-    invalidate()
-}
-
-function clampPan() {
-    const max = size * zoom.value - size
-    panX = Math.min(0, Math.max(-max, panX))
-    panY = Math.min(0, Math.max(-max, panY))
-    invalidate()
-}
-
-function resetView() {
-    zoom.value = 1
-    panX = 0
-    panY = 0
-    invalidate()
-}
-
-function zoomBy(factor) { zoomAt(factor, size / 2, size / 2) }
-
-function zoomAt(factor, cx, cy) {
-    const next = Math.min(5, Math.max(1, zoom.value * factor))
-    const k = next / zoom.value
-    panX = cx - (cx - panX) * k
-    panY = cy - (cy - panY) * k
-    zoom.value = next
-    clampPan()
+    controller.clamp()
+    syncCamera()
 }
 
 // ── 輸入 ─────────────────────────────────────────────────────────
-const pointers = new Map()
-let dragged = false
-let pinchDist = 0
-
-function localPos(e) {
-    const r = canvasRef.value.getBoundingClientRect()
-    return { x: e.clientX - r.left, y: e.clientY - r.top }
-}
-
-function cellAt({ x, y }) {
-    const w = props.view.board.width
-    const cell = (size * zoom.value) / w
-    const cx = Math.floor((x - panX) / cell)
-    const cy = Math.floor((y - panY) / cell)
-    return cx >= 0 && cy >= 0 && cx < w && cy < w ? { x: cx, y: cy } : null
-}
-
-function onDown(e) {
-    canvasRef.value.setPointerCapture(e.pointerId)
-    pointers.set(e.pointerId, { ...localPos(e), startX: e.clientX, startY: e.clientY })
-    dragged = false
-    if (pointers.size === 2) pinchDist = pinchLength()
-}
-
-const pinchLength = () => {
-    const [a, b] = [...pointers.values()]
-    return Math.hypot(a.x - b.x, a.y - b.y)
-}
-
-function onMove(e) {
-    const pos = localPos(e)
-    if (e.pointerType === 'mouse') hover.value = cellAt(pos)
-    const p = pointers.get(e.pointerId)
-    if (!p) return
-
-    if (pointers.size === 2) {
-        p.x = pos.x
-        p.y = pos.y
-        const [a, b] = [...pointers.values()]
-        const dist = pinchLength()
-        if (pinchDist > 0) zoomAt(dist / pinchDist, (a.x + b.x) / 2, (a.y + b.y) / 2)
-        pinchDist = dist
-        dragged = true
-        return
-    }
-
-    if (Math.hypot(e.clientX - p.startX, e.clientY - p.startY) > 6) dragged = true
-    if (dragged) {
-        panX += pos.x - p.x
-        panY += pos.y - p.y
-        clampPan()
-    }
-    p.x = pos.x
-    p.y = pos.y
-}
-
-function onUp(e) {
-    const wasTap = pointers.size === 1 && !dragged && e.type === 'pointerup'
-    const pos = localPos(e)
-    pointers.delete(e.pointerId)
-    if (wasTap) tap(cellAt(pos), e.pointerType)
+function onPointer(e) {
+    if (e.pointerType === 'mouse' && e.button > 0) return // 右鍵走 onContext，不當成點擊
+    if (e.type === 'pointerdown') canvasRef.value.setPointerCapture(e.pointerId)
+    controller.handle(normalizePointer(e, canvasRef.value.getBoundingClientRect()))
 }
 
 function tap(cell, pointerType) {
@@ -180,6 +121,7 @@ function tap(cell, pointerType) {
         return
     }
     if (!props.pendingGem) {
+        if (props.builderMode) emit('move', { x: cell.x + 0.5, y: cell.y + 0.5 })
         emit('clear')
         return
     }
@@ -192,7 +134,16 @@ function tap(cell, pointerType) {
     }
 }
 
-// 滾輪不縮放地圖（縮放用按鈕或雙指）；滑鼠在浮動的左欄或右欄範圍內（含卡片間的空隙）時，滾輪只捲那一欄
+// 建造者模式：右鍵 = 叫建造者走到那裡（會取消目前的工作）
+function onContext(e) {
+    if (!props.builderMode) return
+    const r = canvasRef.value.getBoundingClientRect()
+    const cell = screenToCell(controller.camera, { x: e.clientX - r.left, y: e.clientY - r.top }, props.view.board, size)
+    if (cell) emit('move', { x: cell.x + 0.5, y: cell.y + 0.5 })
+}
+
+// 滑鼠在浮動的左欄或右欄範圍內（含卡片間的空隙）時，滾輪只捲那一欄；在地圖上時：
+// 合作迷宮的大地圖用滾輪縮放，其他模式滾輪不縮放（縮放用按鈕或雙指）
 function onWheel(e) {
     const game = canvasRef.value?.closest('.gt-game')
     for (const [panel, scroller] of [['.gt-side', '.gt-side'], ['.gt-rail', '.gt-rail-top']]) {
@@ -204,6 +155,7 @@ function onWheel(e) {
             return
         }
     }
+    if (isCoop.value) controller.handle(normalizeWheel(e, canvasRef.value.getBoundingClientRect()))
 }
 
 // ── 蟲子補間（伺服器 5 幀 / 秒）──────────────────────────────────
@@ -516,14 +468,29 @@ function drawTowers(view, catalog, cell, now) {
     const steps = catalog?.mastery?.kills
     const showLevel = zoom.value * cell >= 22
     const showRank = steps && zoom.value * cell >= 16
+    const colors = ownerColors.value
     for (const t of view.towers) {
         const x = t.x * cell
         const y = t.y * cell
         const cx = x + cell / 2
         const cy = y + cell / 2
+        const ownerColor = colors?.[t.owner]
         if (t.kind === 'stone') {
             drawCookie(x, y, cell)
+            if (ownerColor) {
+                ctx.fillStyle = ownerColor
+                ctx.beginPath()
+                ctx.arc(x + cell * 0.8, y + cell * 0.2, Math.max(1.5, cell * 0.13), 0, Math.PI * 2)
+                ctx.fill()
+            }
             continue
+        }
+        if (ownerColor) {
+            ctx.fillStyle = `${ownerColor}38`
+            ctx.fillRect(x + cell * 0.06, y + cell * 0.06, cell * 0.88, cell * 0.88)
+            ctx.strokeStyle = ownerColor
+            ctx.lineWidth = Math.max(1.5, cell * 0.08)
+            ctx.strokeRect(x + cell * 0.06, y + cell * 0.06, cell * 0.88, cell * 0.88)
         }
         if (t.fresh && t.owner === props.myId) {
             ctx.strokeStyle = COLOR.path
@@ -865,6 +832,7 @@ function pathPreview(view, ghost) {
     if (preview.view === view && preview.x === ghost.x && preview.y === ghost.y) return preview
     const { board } = view
     const taken = new Set(view.towers.map(t => t.y * board.width + t.x))
+    for (const b of view.builders ?? []) if (b.job?.started && b.job.type === 'build') taken.add(b.job.y * board.width + b.job.x)
     const now = fullPathLength(board, (x, y) => taken.has(y * board.width + x))
     const next = fullPathLength(board, (x, y) => taken.has(y * board.width + x) || (x === ghost.x && y === ghost.y))
     const blocked = next < 0
@@ -904,7 +872,8 @@ function drawOverlays(view, cell) {
         const inside = ghost.x >= 0 && ghost.y >= 0 && ghost.x < board.width && ghost.y < board.height
         let label = ''
         let blocked = false
-        if (inside && !onStop) ({ label, blocked } = pathPreview(view, ghost))
+        // 合作迷宮 breach：允許堵死（view.breaches 不是 null），不做封路預覽；路線與突破點由伺服器算
+        if (inside && !onStop && view.breaches == null) ({ label, blocked } = pathPreview(view, ghost))
         if (blocked) {
             ctx.fillStyle = 'rgba(214,48,90,0.35)'
             ctx.fillRect(ghost.x * cell, ghost.y * cell, cell, cell)
@@ -926,6 +895,128 @@ function drawOverlays(view, cell) {
     }
 }
 
+// ── 堵死拆牆（合作迷宮 breach）：路線上必須打破的牆用紅框閃爍標出；被攻擊的牆顯示剩餘血量 ──
+function drawBreaches(view, cell, now) {
+    const pulse = reducedMotion ? 0.6 : 0.45 + 0.3 * Math.sin(now / 260)
+    for (const c of view.breaches ?? []) {
+        const x = c.x * cell
+        const y = c.y * cell
+        ctx.fillStyle = `rgba(214,48,90,${pulse * 0.45})`
+        ctx.fillRect(x, y, cell, cell)
+        ctx.strokeStyle = `rgba(214,48,90,${0.5 + pulse * 0.5})`
+        ctx.lineWidth = Math.max(2, cell * 0.12)
+        ctx.strokeRect(x + 1, y + 1, cell - 2, cell - 2)
+        ctx.beginPath()
+        ctx.moveTo(x + cell * 0.25, y + cell * 0.25)
+        ctx.lineTo(x + cell * 0.75, y + cell * 0.75)
+        ctx.moveTo(x + cell * 0.75, y + cell * 0.25)
+        ctx.lineTo(x + cell * 0.25, y + cell * 0.75)
+        ctx.stroke()
+    }
+    for (const [wx, wy, pct] of props.frame?.w ?? []) {
+        const x = wx * cell
+        const y = wy * cell
+        ctx.fillStyle = COLOR.ink
+        ctx.fillRect(x, y - cell * 0.02, cell, cell * 0.18)
+        ctx.fillStyle = pct > 50 ? '#3CCB72' : pct > 25 ? '#F2B233' : '#F0506E'
+        ctx.fillRect(x, y - cell * 0.02, (cell * pct) / 100, cell * 0.18)
+    }
+}
+
+// ── 建造者與施工中的工作 ───────────────────────────────────────────
+// 位置往伺服器的最新快照靠過去（10Hz → 平滑）；縮得太小（每格 < BUILDER_MIN_CELL 像素）就只畫玩家色圓點加名字
+const BUILDER_MIN_CELL = 14
+const bpos = new Map()
+function drawBuilders(view, cell, now, dt) {
+    const list = view.builders
+    if (!list?.length) { bpos.clear(); return }
+    const live = new Map((props.builders?.builders ?? []).map(b => [b.id, b]))
+    const k = 1 - Math.exp(-dt * 14)
+    const small = zoom.value * cell < BUILDER_MIN_CELL
+    const px = 1 / zoom.value // 一個螢幕像素有幾個世界單位
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    for (const [i, b] of list.entries()) {
+        const color = ownerColors.value?.[b.id] ?? COLOR.ink
+        const src = live.get(b.id) ?? b
+        let pos = bpos.get(b.id)
+        if (!pos) { pos = { x: src.x, y: src.y }; bpos.set(b.id, pos) } else { pos.x += (src.x - pos.x) * k; pos.y += (src.y - pos.y) * k }
+        const job = b.job
+        if (job) {
+            const jx = job.x * cell
+            const jy = job.y * cell
+            const demolish = job.type === 'demolish'
+            if (job.started) {
+                const p = live.get(b.id)?.p ?? job.p
+                ctx.fillStyle = `${color}59`
+                ctx.fillRect(jx, jy, cell, cell)
+                ctx.fillStyle = COLOR.ink
+                ctx.fillRect(jx, jy + cell * 0.8, cell, cell * 0.2)
+                ctx.fillStyle = color
+                ctx.fillRect(jx, jy + cell * 0.8, cell * p, cell * 0.2)
+                if (demolish) {
+                    ctx.strokeStyle = '#F0506E'
+                    ctx.lineWidth = Math.max(2, cell * 0.12)
+                    ctx.beginPath()
+                    ctx.moveTo(jx + cell * 0.2, jy + cell * 0.2)
+                    ctx.lineTo(jx + cell * 0.8, jy + cell * 0.7)
+                    ctx.moveTo(jx + cell * 0.8, jy + cell * 0.2)
+                    ctx.lineTo(jx + cell * 0.2, jy + cell * 0.7)
+                    ctx.stroke()
+                }
+            } else {
+                // 還在路上：虛線框標出目標格，再拉一條虛線連到建造者
+                ctx.strokeStyle = color
+                ctx.lineWidth = Math.max(1.5, cell * 0.07)
+                ctx.setLineDash([cell * 0.2, cell * 0.14])
+                ctx.strokeRect(jx + cell * 0.06, jy + cell * 0.06, cell * 0.88, cell * 0.88)
+                ctx.beginPath()
+                ctx.moveTo(pos.x * cell, pos.y * cell)
+                ctx.lineTo((job.x + 0.5) * cell, (job.y + 0.5) * cell)
+                ctx.globalAlpha = 0.5
+                ctx.stroke()
+                ctx.globalAlpha = 1
+                ctx.setLineDash([])
+            }
+        }
+        const cx = pos.x * cell
+        const walking = Math.hypot(src.x - pos.x, src.y - pos.y) > 0.05
+        const working = !!job?.started
+        const bob = reducedMotion ? 0 : (working ? Math.sin(now / 70 + i) * cell * 0.04 : Math.sin(now / (walking ? 90 : 320) + i) * cell * (walking ? 0.07 : 0.04))
+        const cy = pos.y * cell + bob
+        const img = small ? null : imageOf(BUILDER_IMAGE)
+        if (img) {
+            ctx.fillStyle = `${color}99`
+            ctx.beginPath()
+            ctx.ellipse(cx, pos.y * cell + cell * 0.38, cell * 0.42, cell * 0.16, 0, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.strokeStyle = color
+            ctx.lineWidth = Math.max(1.5, cell * 0.07)
+            ctx.stroke()
+            ctx.drawImage(img, cx - cell * 0.6, cy - cell * 0.85, cell * 1.2, cell * 1.2)
+        } else {
+            ctx.fillStyle = color
+            ctx.strokeStyle = '#FFFFFF'
+            ctx.lineWidth = 1.5 * px
+            ctx.beginPath()
+            ctx.arc(cx, cy, Math.max(cell * 0.4, 4 * px), 0, Math.PI * 2)
+            ctx.fill()
+            ctx.stroke()
+        }
+        const name = view.names?.[b.id] ?? ''
+        if (name && (small || b.id === props.myId || zoom.value * cell >= 22)) {
+            const fs = Math.max(11 * px, cell * 0.38)
+            ctx.font = `700 ${fs}px 'Noto Sans TC', sans-serif`
+            ctx.lineJoin = 'round'
+            ctx.lineWidth = fs * 0.28
+            ctx.strokeStyle = '#FFFFFF'
+            ctx.strokeText(name, cx, cy + (small ? -Math.max(cell * 0.4, 4 * px) - 2 * px : cell * 0.62 + fs * 0.7))
+            ctx.fillStyle = color
+            ctx.fillText(name, cx, cy + (small ? -Math.max(cell * 0.4, 4 * px) - 2 * px : cell * 0.62 + fs * 0.7))
+        }
+    }
+}
+
 let lastDraw = 0
 
 function draw(now) {
@@ -939,9 +1030,12 @@ function draw(now) {
     if (!ctx || !size || !view?.board) return
     const animating = view.phase === 'wave' || shots.length > 0 || hasFx() || pops.length > 0 || skillFx.length > 0 || ghosts.length > 0 || shakeAmp > 0.002
         || view.towers.some(t => t.fresh && t.owner === props.myId) // 剛放下的塔外框會閃
+        || !!view.builders?.length // 建造者會浮動、走動
+        || !!view.breaches?.length // 突破點的紅框會閃
     if (!animating && !dirty) return
     dirty = false
-    const cell = size / view.board.width
+    const cell = cellSizeOf(view.board, size)
+    const cam = controller.camera
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, size, size)
@@ -955,10 +1049,12 @@ function draw(now) {
     } else {
         shakeAmp = 0
     }
-    ctx.setTransform(dpr * zoom.value, 0, 0, dpr * zoom.value, dpr * (panX + sx), dpr * (panY + sy))
+    ctx.setTransform(dpr * cam.zoom, 0, 0, dpr * cam.zoom, dpr * (cam.panX + sx), dpr * (cam.panY + sy))
 
     drawBoard(view, cell)
     drawTowers(view, catalog, cell, now)
+    drawBreaches(view, cell, now)
+    drawBuilders(view, cell, now, dt)
     drawShots(cell, now)
     drawMonsters(catalog, cell, now)
     drawGhosts(cell, now)
@@ -970,6 +1066,7 @@ function draw(now) {
 
 watch(() => props.pendingGem, () => { armed.value = null })
 watch([() => props.view, () => props.selectedId, () => props.highlightIds, () => props.pendingGem, () => props.catalog, hover, armed, zoom], invalidate)
+watch(() => [props.view.board?.width, props.view.board?.height], () => { controller.clamp(); syncCamera() })
 
 onMounted(() => {
     resize()

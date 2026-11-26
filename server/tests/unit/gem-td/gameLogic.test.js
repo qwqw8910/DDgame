@@ -1215,3 +1215,241 @@ test('合作迷宮：視圖給全隊的塔，快照每人收到同一份', () =>
   assert.equal(frames.a, frames.b);
   assert.ok(frames.a.m.length > 0);
 });
+
+test('合作迷宮：同格先到先得，後到者收到 CELL_TAKEN；現有模式仍是 BAD_CELL', () => {
+  const game = newCoop();
+  const [ta] = placeAll(game, 'a', 4).slice(0, 1);
+  const slot = game.players.b.pending[0].slot;
+  assert.throws(() => L.placeGem(game, 'b', slot, ta.x, ta.y), e => e instanceof L.GameError && e.code === 'CELL_TAKEN');
+  assert.equal(game.players.b.pending.length, 5, '被拒絕時寶石還在手牌');
+  // 超出範圍、路徑點仍是 BAD_CELL
+  assert.throws(() => L.placeGem(game, 'b', slot, -1, 0), e => e.code === 'BAD_CELL');
+  assert.throws(() => L.placeGem(game, 'b', slot, game.board.start.x, game.board.start.y), e => e.code === 'BAD_CELL');
+
+  const single = newGame(['a']);
+  const t = L.placeGem(single, 'a', single.players.a.pending[0].slot, 4, 4);
+  assert.throws(() => L.placeGem(single, 'a', single.players.a.pending[0].slot, t.x, t.y), e => e.code === 'BAD_CELL');
+});
+
+test('合作迷宮：型錄下發 coop 設定（人數限制、尺寸表、路徑點數）', () => {
+  const { coop } = C.catalog();
+  assert.equal(coop.minPlayers, C.COOP.minPlayers);
+  assert.equal(coop.maxPlayers, C.COOP.maxPlayers);
+  assert.equal(coop.sizes[2], 35);
+  assert.equal(coop.sizes[3], 40);
+  assert.equal(coop.checkpoints[2], 8);
+  assert.equal(coop.checkpoints[3], 9);
+  assert.equal(coop.hpPerPlayer, C.COOP.hpPerPlayer);
+  assert.ok(C.catalog().relay, '現有的 relay 型錄沒被動到');
+});
+
+test('合作迷宮：只有一張圖，gt:watch 指定別人也看自己的視角', () => {
+  const game = newCoop();
+  assert.equal(L.resolveWatch(game, 'a', 'b'), 'a');
+  assert.equal(L.resolveWatch(game, 'b', 'a'), 'b');
+  assert.equal(L.resolveWatch(game, 'spectator', 'b'), 'a');
+  assert.equal(L.buildView(game, 'b', 'a').watching, 'b');
+});
+
+// ── 合作迷宮：建造者（M3b）─────────────────────────────────────
+const stepUntil = (game, fn, seconds = 30) => {
+  const out = { errors: [] };
+  for (let i = 0; i < seconds * 10 && !fn(); i++) out.errors.push(...L.stepBuilders(game, 0.1).errors);
+  return out;
+};
+const jobOf = (game, id) => game.shared.builders[id].job;
+const gridHas = (game, x, y) => game.shared.grid.has(`${x},${y}`);
+
+test('建造者：合作迷宮預設用建造者，直接放置被擋下；instant 可選', () => {
+  const game = newCoop();
+  assert.equal(game.options.buildMode, 'builder');
+  assert.equal(L.isBuilderMode(game), true);
+  assert.throws(() => L.requestPlace(game, 'a', 0, 4, 4), e => e.code === 'USE_BUILDER');
+  assert.equal(L.resolveOptions({ mode: 'coop', buildMode: 'instant' }).buildMode, 'instant');
+  assert.equal(L.resolveOptions({ mode: 'coop', buildMode: 'x' }).buildMode, 'builder');
+  assert.equal(L.resolveOptions({ mode: 'single' }).buildMode, undefined, '其他模式沒有這個選項');
+  const inst = newGame(['a', 'b'], { options: { ...coopOptions, buildMode: 'instant' } });
+  assert.doesNotThrow(() => L.requestPlace(inst, 'a', 0, 4, 4));
+  assert.throws(() => L.buildAt(inst, 'a', 1, 6, 4), e => e.code === 'BAD_MODE');
+});
+
+test('建造者：走到現場、施工 3 秒後寶石才放下並歸屬於自己', () => {
+  const game = newCoop();
+  const cell = { x: game.board.start.x + 6, y: game.board.start.y + 2 };
+  L.buildAt(game, 'a', 2, cell.x, cell.y);
+  assert.equal(gridHas(game, cell.x, cell.y), false, '還沒走到之前不佔格');
+  stepUntil(game, () => jobOf(game, 'a')?.started);
+  assert.equal(gridHas(game, cell.x, cell.y), true, '施工開始就佔格');
+  assert.equal(game.players.a.towers.length, 0, '施工中還不是塔');
+  assert.equal(game.players.a.pending.length, 5, '寶石還在手牌');
+  stepUntil(game, () => !jobOf(game, 'a'));
+  const [tower] = game.players.a.towers;
+  assert.equal(tower.owner, 'a');
+  assert.deepEqual([tower.x, tower.y, tower.slot], [cell.x, cell.y, 2]);
+  assert.equal(game.players.a.pending.length, 4);
+  assert.equal(game.shared.grid.get(`${cell.x},${cell.y}`), tower);
+});
+
+test('建造者：取消施工 → 格子釋放、寶石留在手牌、可以馬上重新指派', () => {
+  const game = newCoop();
+  const cell = { x: game.board.start.x + 5, y: game.board.start.y + 2 };
+  L.buildAt(game, 'a', 0, cell.x, cell.y);
+  stepUntil(game, () => jobOf(game, 'a')?.started);
+  assert.equal(gridHas(game, cell.x, cell.y), true);
+  L.cancelJobCommand(game, 'a');
+  assert.equal(gridHas(game, cell.x, cell.y), false);
+  assert.equal(jobOf(game, 'a'), null);
+  assert.equal(game.players.a.pending.length, 5);
+  assert.equal(game.players.a.gold, C.START_GOLD, '沒有扣任何東西');
+  L.buildAt(game, 'a', 0, cell.x + 1, cell.y);
+  assert.equal(jobOf(game, 'a').started, false);
+  // 施工中換另一顆或另一格 = 取消目前這件
+  stepUntil(game, () => jobOf(game, 'a')?.started);
+  L.buildAt(game, 'a', 1, cell.x + 2, cell.y);
+  assert.equal(gridHas(game, cell.x + 1, cell.y), false);
+});
+
+test('建造者：別人已經在施工的格子是 CELL_TAKEN；兩人同時趕往同一格，先到的蓋，後到的作廢', () => {
+  const game = newCoop();
+  const cell = { x: game.board.start.x + 5, y: game.board.start.y + 2 };
+  L.buildAt(game, 'a', 0, cell.x, cell.y);
+  game.shared.builders.b.x = cell.x + 0.5; // b 站在旁邊，一定先到
+  game.shared.builders.b.y = cell.y + 0.5;
+  L.buildAt(game, 'b', 0, cell.x, cell.y); // 都還沒開始施工，指派時都合法
+  const { errors } = stepUntil(game, () => !jobOf(game, 'a') && !jobOf(game, 'b'));
+  assert.equal(errors.length, 1);
+  assert.deepEqual([errors[0].playerId, errors[0].code], ['a', 'CELL_TAKEN']);
+  assert.equal(game.players.b.towers.length, 1);
+  assert.equal(game.players.a.towers.length, 0);
+  assert.equal(game.players.a.pending.length, 5, '作廢的寶石還在手牌');
+  assert.throws(() => L.buildAt(game, 'a', 0, cell.x, cell.y), e => e.code === 'CELL_TAKEN');
+});
+
+test('建造者：拆餅乾牆要時間、免費，任何人都能拆；塔不能被別人拆；施工中取消什麼都沒發生', () => {
+  const game = newCoop();
+  const [, , , , t] = (() => {
+    const placed = placeAll(game, 'a', 4);
+    return [0, 0, 0, 0, placed[4]];
+  })();
+  t.kind = 'stone';
+  t.level = 0;
+  const gem = game.players.a.towers[0]; // 還是塔，不能拆
+  assert.throws(() => L.demolishAt(game, 'b', gem.id), e => e.code === 'BAD_TOWER');
+  const gold = game.players.a.gold;
+  game.shared.builders.a.x = t.x + 0.5;
+  game.shared.builders.a.y = t.y + 0.5;
+  L.demolishAt(game, 'a', t.id);
+  stepUntil(game, () => jobOf(game, 'a')?.started);
+  L.cancelJobCommand(game, 'a');
+  assert.equal(gridHas(game, t.x, t.y), true, '取消後牆還在');
+  L.demolishAt(game, 'a', t.id);
+  stepUntil(game, () => !jobOf(game, 'a'));
+  assert.equal(gridHas(game, t.x, t.y), false);
+  assert.equal(game.players.a.gold, gold);
+  // 隊友 b 也能拆 a 放的餅乾牆
+  const t2 = game.players.a.towers[1];
+  t2.kind = 'stone';
+  game.shared.builders.b.x = t2.x + 0.5;
+  game.shared.builders.b.y = t2.y + 0.5;
+  L.demolishAt(game, 'b', t2.id);
+  stepUntil(game, () => !jobOf(game, 'b'));
+  assert.equal(gridHas(game, t2.x, t2.y), false);
+  assert.equal(game.players.a.towers.includes(t2), false);
+});
+
+test('建造者：時間到開波時，施工中的工作放棄，剩下的寶石由系統代放；視圖帶出建造者與工作', () => {
+  const game = newCoop();
+  const cell = { x: game.board.start.x + 5, y: game.board.start.y + 2 };
+  L.buildAt(game, 'a', 0, cell.x, cell.y);
+  stepUntil(game, () => jobOf(game, 'a')?.started);
+  const view = L.buildView(game, 'b', 'b');
+  assert.equal(view.builders.length, 2);
+  assert.equal(view.builders.find(b => b.id === 'a').job.started, true);
+  assert.equal(L.builderFrame(game).builders.length, 2);
+  L.startWave(game, { rng: seededRng(2) });
+  assert.equal(game.phase, 'wave');
+  assert.equal(game.players.a.pending.length, 0);
+  assert.equal(game.players.a.resolved, true);
+  assert.equal(L.buildView(game, 'a', 'a').builders.every(b => b.job === null), true);
+});
+
+// ── 合作迷宮：堵死拆牆（M4, breach）────────────────────────────
+// 在第 y 列從頭到尾排滿餅乾牆（整排封死），塔的擁有者是 owner
+function wallOff(game, y, owner = 'a') {
+  for (let x = 0; x < game.board.width; x++) {
+    const t = { id: game.nextTowerId++, x, y, kind: 'stone', level: 0, owner, fresh: false, slot: 0, kills: 0, damage: 0 };
+    game.players[owner].towers.push(t);
+    game.shared.grid.set(`${x},${y}`, t);
+  }
+  game.shared.route = null;
+}
+test('breach：整排堵死不會被拒絕，路線穿過成本最低的牆並標出突破點', () => {
+  const game = newCoop();
+  assert.equal(C.COOP.blockPolicy, 'breach');
+  wallOff(game, 3);
+  // 再放一顆：路線重算，堵死也能放
+  assert.doesNotThrow(() => L.placeGem(game, 'b', game.players.b.pending[0].slot, 10, 10));
+  const view = L.buildView(game, 'a', 'a');
+  assert.ok(view.breaches.length >= 1, '標出突破點');
+  assert.ok(view.breaches.every(c => c.y === 3 && c.tower === false), '突破點在那排餅乾牆上');
+  assert.ok(game.shared.path.length > game.board.width, '仍有一條完整路線');
+  // 單一模式與 validate 仍不能封路
+  assert.equal(L.buildView(newGame(['a']), 'a', 'a').breaches, null);
+  C.COOP.blockPolicy = 'validate';
+  try {
+    const g2 = newCoop();
+    wallOff(g2, 3);
+    assert.throws(() => L.placeGem(g2, 'b', g2.players.b.pending[0].slot, 10, 10), e => e.code === 'PATH_BLOCKED');
+    assert.equal(L.buildView(g2, 'a', 'a').breaches, null);
+  } finally {
+    C.COOP.blockPolicy = 'breach';
+  }
+});
+
+test('breach：留一個缺口時路線走缺口，不拆牆', () => {
+  const game = newCoop();
+  wallOff(game, 3);
+  game.shared.grid.delete('20,3');
+  game.players.a.towers = game.players.a.towers.filter(t => !(t.x === 20 && t.y === 3));
+  L.placeGem(game, 'b', game.players.b.pending[0].slot, 10, 10);
+  assert.deepEqual(L.buildView(game, 'a', 'a').breaches, []);
+  assert.ok(game.shared.path.some(c => c.x === 20 && c.y === 3), '路線穿過缺口');
+});
+
+test('breach：蟲停在牆前攻擊，牆破了消失、重新尋路，後面的蟲通過', () => {
+  const game = newCoop();
+  wallOff(game, 3);
+  for (const id of ['a', 'b']) Object.assign(game.players[id], { pending: [], resolved: true });
+  const before = game.players.a.towers.length;
+  L.startWave(game, { rng: seededRng(2) });
+  const { sim } = game.shared;
+  assert.equal(sim.wallIdx.length >= 1, true);
+  const rng = seededRng(3);
+  let sawWall = false;
+  let broke = false;
+  for (let i = 0; i < 20000 && !broke; i++) {
+    broke = L.tick(game, 0.1, rng).changed; // changed：有牆被打破，伺服器要推送新狀態
+    if (sim.walls.size && L.buildFrames(game).a?.w) sawWall = true;
+  }
+  assert.equal(sawWall, true, '被攻擊的牆有血量快照');
+  assert.equal(broke, true, '牆被打破了');
+  assert.equal(game.players.a.towers.length, before - 1, '被打破的牆從擁有者身上消失');
+  assert.equal(game.shared.grid.size, before - 1);
+  assert.deepEqual(sim.wallIdx, [], '缺口打開後路線不再需要拆牆');
+  assert.equal(game.lives, L.buildView(game, 'a', 'a').maxLives, '還沒有蟲漏過去');
+  // 之後蟲沿新路線走完
+  for (let i = 0; i < 20000 && !L.tick(game, 0.1, rng).done; i++);
+  assert.ok(game.shared.sim.done);
+});
+
+test('breach：牆的血量隨波數成長，塔比餅乾牆硬很多（開波時每面牆的血量）', () => {
+  const game = newCoop();
+  wallOff(game, 3);
+  for (const id of ['a', 'b']) Object.assign(game.players[id], { pending: [], resolved: true });
+  game.wave = 9; // 第 10 波
+  L.startWave(game, { rng: seededRng(2) });
+  const { sim } = game.shared;
+  const stone = sim.breach.grid.get(`${sim.path[sim.wallIdx[0]].x},${sim.path[sim.wallIdx[0]].y}`);
+  assert.equal(sim.breach.hpOf(stone, sim.wave), C.COOP.wallHpBase + C.COOP.wallHpPerWave * 10);
+  assert.equal(sim.breach.hpOf({ kind: 'B' }, sim.wave), (C.COOP.wallHpBase + C.COOP.wallHpPerWave * 10) * C.COOP.towerHpMult);
+});

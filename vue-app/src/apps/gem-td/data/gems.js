@@ -33,7 +33,10 @@ export const DIFFICULTY_CHOICES = [
 export const MODE_CHOICES = [
   { value: 'single', label: '一般（每人一張地圖）' },
   { value: 'relay', label: '環形接力（多區域排成一圈，蟲群主防後傳給下一區）' },
+  { value: 'coop', label: '合作迷宮（2～3 人共用一張大地圖，一起蓋同一條迷宮）' },
 ]
+// 合作迷宮的人數限制（伺服器的 catalog.coop 為準，這裡是沒收到型錄時的備用）
+export const COOP_LIMITS = { minPlayers: 2, maxPlayers: 3 }
 export const ZONE_CHOICES = [1, 2, 3, 4, 5, 6].map(n => ({ value: n, label: n === 1 ? '1 區（等同單人）' : `${n} 區` }))
 // 環形接力每區的代表色（伺服器的 catalog.relay.colors 為準，這裡是沒收到型錄時的備用）
 export const ZONE_COLORS = ['#D6305A', '#2F7FD1', '#2E9E5B', '#D9A21F', '#7C4DCC', '#E8741E']
@@ -80,6 +83,7 @@ export const RESULT_WIN_IMAGE = assetUrl('map/result-win.webp')
 export const RESULT_LOSE_IMAGE = assetUrl('map/result-lose.webp')
 export const CAKE_IMAGE = assetUrl('map/cake.webp')
 export const HERO_IMAGE = assetUrl('hero.webp')
+export const BUILDER_IMAGE = assetUrl('builder/chef.webp')
 
 // 等級越高顆粒越大
 export const gemScale = level => 0.56 + Math.min(level, 7) * 0.065

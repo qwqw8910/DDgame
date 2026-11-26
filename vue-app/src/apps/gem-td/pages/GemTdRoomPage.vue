@@ -142,7 +142,7 @@
                         <option v-for="c in MODE_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
                     </select>
                 </label>
-                <label v-if="view.options.mode !== 'relay'" class="flex flex-col gap-1 text-(--gt-muted)">
+                <label v-if="view.options.mode === 'single'" class="flex flex-col gap-1 text-(--gt-muted)">
                     地圖
                     <select class="gt-input cursor-pointer" :value="view.options.map ?? 0"
                         @change="setOptions({ map: $event.target.value === 'random' ? 'random' : Number($event.target.value) })">
@@ -157,6 +157,9 @@
                     </select>
                     <span class="text-sm">{{ roomState.players.length > 1 ? `多位真人時，區域數 = 玩家數（${roomState.players.length} 區）。` : '只有一位真人時，其餘區域由電腦控制；單人可切換到任何一區操作。' }}強制共用血量。</span>
                 </label>
+                <p v-if="coop" class="m-0 text-sm" :class="coopCountOk ? 'text-(--gt-muted)' : 'text-(--gt-accent-ink)'" role="status">
+                    合作迷宮需要 {{ coopLimits.minPlayers }}～{{ coopLimits.maxPlayers }} 位玩家（目前 {{ roomState.players.length }} 位）；{{ coopLimits.minPlayers }} 人 35×35、{{ coopLimits.maxPlayers }} 人 40×40 的大地圖，全隊共用血量，每人各自的金幣與研究。僅限電腦遊玩。
+                </p>
                 <details class="gt-fold">
                     <summary class="gt-heading !mb-0">進階設定<GemHeaderIcon name="chevron" class="gt-fold-arrow text-(--gt-muted)" /></summary>
                     <div class="flex flex-col gap-3 pt-2">
@@ -166,7 +169,7 @@
                                 <option v-for="c in DIFFICULTY_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
                             </select>
                         </label>
-                        <label v-if="view.options.mode !== 'relay'" class="flex flex-col gap-1 text-(--gt-muted)">
+                        <label v-if="view.options.mode === 'single'" class="flex flex-col gap-1 text-(--gt-muted)">
                             血量模式
                             <select class="gt-input cursor-pointer" :value="view.options.livesMode" @change="setOptions({ livesMode: $event.target.value })">
                                 <option v-for="c in LIVES_CHOICES" :key="c.value" :value="c.value">{{ c.label }}</option>
@@ -197,10 +200,18 @@
                 </dl>
             </section>
 
-            <button v-if="roomState.isHost" class="gt-btn gt-btn--lamp" @click="startGame">開始遊戲</button>
+            <p v-if="coop && isPhone" class="m-0 text-(--gt-accent-ink)" role="status">合作迷宮的大地圖請用電腦遊玩。</p>
+            <button v-if="roomState.isHost" class="gt-btn gt-btn--lamp" :disabled="coop && !coopCountOk" @click="startGame">{{ coop && !coopCountOk ? `合作迷宮需要 ${coopLimits.minPlayers}～${coopLimits.maxPlayers} 位玩家` : '開始遊戲' }}</button>
             <p v-else-if="roomState.isSpectator" class="m-0 text-(--gt-muted)">你正在觀戰。
                 <button class="gt-btn gt-btn--small" @click="upgradeFromSpectator">加入遊戲</button></p>
             <p v-else class="m-0 text-(--gt-muted)">等房主開始遊戲。</p>
+        </main>
+
+        <!-- 合作迷宮的大地圖沒有手機版：顯示提示而不是壞掉的畫面 -->
+        <main v-else-if="isCoop && isPhone && view?.board" class="mx-auto flex w-full max-w-[420px] flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+            <h1 class="m-0 font-sans text-2xl font-bold text-(--gt-ink)">請用電腦遊玩</h1>
+            <p class="m-0 text-(--gt-muted)">合作迷宮的共用大地圖還沒有手機版，請改用電腦（或較大的螢幕）加入這個房間。</p>
+            <button class="gt-btn" @click="goHome">離開房間</button>
         </main>
 
         <!-- 遊戲畫面：電腦三欄固定版面（左 波次預告與合成表、中 地圖、右 操作），窄螢幕由 CSS 改成上下堆疊 -->
@@ -213,7 +224,16 @@
                     <GemRelayInfo v-if="view.relay && !isLg" :class="phoneShow('status')" :part="isWide ? 'rail' : 'all'" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
                         :is-host="roomState.isHost" :keys="hasKeyboard" @watch="watchMap" @boss-wave="bossWave" />
                     <Teleport v-else-if="!view.relay" :to="sideTopEl" :disabled="!isTray || !sideTopEl">
-                    <GemSection v-if="view.playerIds.length > 1" title="玩家" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="玩家">
+                    <GemSection v-if="isCoop" title="隊伍" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="隊伍">
+                        <ul class="m-0 flex list-none flex-col gap-1.5 p-0">
+                            <li v-for="r in teamRows" :key="r.id" class="flex items-center gap-1.5">
+                                <span class="size-2.5 shrink-0 rounded-full" :style="{ background: r.mark }" aria-hidden="true" />
+                                <span class="min-w-0 truncate font-semibold text-(--gt-ink)">{{ r.name }}</span>
+                                <span class="ml-auto shrink-0" :class="r.alert ? 'text-(--gt-accent-ink)' : 'text-(--gt-muted)'">{{ r.status }}</span>
+                            </li>
+                        </ul>
+                    </GemSection>
+                    <GemSection v-else-if="view.playerIds.length > 1" title="玩家" :meta="`${view.playerIds.length} 人`" :class="phoneShow('status')" aria-label="玩家">
                         <GemPlayerTabs vertical :view="view" :catalog="state.catalog" :frame="frame" :my-id="roomState.myPlayerId" @watch="watchMap" />
                     </GemSection>
                     </Teleport>
@@ -223,6 +243,9 @@
                         <button v-if="view.me" class="gt-btn gt-btn--small w-full" @click="watchMap(roomState.myPlayerId)">回到我的地圖</button>
                     </div>
 
+                    <p v-if="view.breaches?.length && view.phase === 'build'" class="gt-card m-0 text-(--gt-accent-ink)" :class="phoneShow('place', 'status')" role="status">
+                        路被堵死了：怪物會停在紅色標記的牆前拆牆通過。想擋住就補洞，或把牆加厚。
+                    </p>
                     <Teleport :to="sideTopEl" :disabled="!isTray || !sideTopEl || !view.relay">
                     <!-- 環形接力電腦版：預告只留一行摘要在標題列波次後面（waveBrief），進度看底部戰況列 -->
                     <GemWaveInfo v-if="!relayCodexLeft" :class="phoneShow('status')" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
@@ -248,6 +271,7 @@
                         @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" @zone="watchMap" @camera="c => mapCamera = c" />
                     <GemBoard v-else ref="boardRef" :view="view" :frame="frame" :catalog="state.catalog" :my-id="roomState.myPlayerId"
                         :pending-gem="pendingGem" :selected-id="selectedId" :highlight-ids="combinePick?.ids ?? []"
+                        :builders="builders" :builder-mode="builderMode && mine" @move="c => moveBuilder(c.x, c.y)"
                         @cell="onCell" @tower="onTower" @clear="clearSelection" @arm="c => armedCell = c" @step="stepPlayer" />
                     <!-- 合成選位置：浮在地圖上方 -->
                     <div v-if="combinePick" class="gt-combine-pick" role="dialog" aria-label="選擇合成位置">
@@ -300,14 +324,14 @@
                 </div>
                 <div ref="sideTopEl" v-show="relayPanelTab === '' || relayPanelTab === 'build'" class="gt-side-top" />
                 <p v-if="roomState.isSpectator" class="m-0 text-(--gt-muted)" :class="phoneShow('place')">你正在觀戰。</p>
-                <GemPanel :phone-tab="phoneTab" :view="view" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
+                <GemPanel :phone-tab="phoneTab" :view="view" :my-job="myJob" @cancel-job="cancelJob" :catalog="state.catalog" :selected-slot="activeSlot" :selected-id="selectedId"
                     :swap-from="swapFrom" :my-id="myId" :keys="hasKeyboard" :ready-stat="readyStat"
                     :hand-target="isTray ? trayHandEl : null" :preview-target="isTray && isLg ? trayPrevEl : null" :act-target="isTray ? trayActEl : null" :dock-target="null" :ring="ring" :armed-cell="armedCell" :relay-tab="relayPanelTab"
                     @place-armed="placeArmed" @cancel-armed="boardRef?.disarm()"
                     @select-slot="onSelectSlot" @select-tower="onTower"
                     @keep="id => { keep(id); clearSelection() }" @merge="id => { merge(id); clearSelection() }"
                     @combine="onCombine" @ready="ready" @undo="() => { undo(); clearSelection() }" @upgrade="upgradeQuality" @buy-life="buyLife" @reroll="reroll" @wish="makeWish" @research="upgradeResearch"
-                    @remove="id => { removeStone(id); clearSelection() }"
+                    @remove="id => { builderMode ? demolish(id) : removeStone(id); clearSelection() }"
                     @start-swap="id => swapFrom = id" @cancel-swap="swapFrom = null" />
                 <GemRelayInfo v-if="relayPanelTab === 'stats'" part="stats" :view="view" :catalog="state.catalog" :frame="frame" :my-id="myId"
                     :is-host="roomState.isHost" :keys="hasKeyboard" @watch="watchMap" @boss-wave="bossWave" />
@@ -395,7 +419,7 @@ import PwaInstallButton from '@/shared/components/PwaInstallButton.vue'
 import { useGemTd } from '../composables/useGemTd.js'
 import { useGemTdCues, useGemTdSfx } from '../composables/useGemTdSfx.js'
 import { useGemTdKeys } from '../composables/useGemTdKeys.js'
-import { canHitAir, PRESETS, WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, MODE_CHOICES, ZONE_CHOICES, nextSpeed, PLAYER_MARKS, isSpecial, RESULT_WIN_IMAGE, RESULT_LOSE_IMAGE } from '../data/gems.js'
+import { canHitAir, COOP_LIMITS, PRESETS, WAVE_CHOICES, BUILD_CHOICES, LIVES_CHOICES, DIFFICULTY_CHOICES, MODE_CHOICES, ZONE_CHOICES, nextSpeed, PLAYER_MARKS, isSpecial, RESULT_WIN_IMAGE, RESULT_LOSE_IMAGE } from '../data/gems.js'
 import GemBoard from '../components/GemBoard.vue'
 import GemRingBoard from '../components/GemRingBoard.vue'
 import GemRelayInfo from '../components/GemRelayInfo.vue'
@@ -419,7 +443,8 @@ import { desktop as layoutDesktop, lgLayout } from '../composables/useGemLayout.
 const route = useRoute()
 const router = useRouter()
 const {
-    state, frame, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
+    state, frame, builders, roomState, connect, setOptions, watch: watchMap, startGame, place, keep, merge, combine,
+    moveBuilder, buildAt, demolish, cancelJob,
     upgradeQuality, buyLife, reroll, makeWish, upgradeResearch, removeStone, swap, undo, ready, setSpeed, setPaused, bossWave, finishNow, restart, castSkill,
     clearError, clearNotice, disconnect, copyInviteLink,
     kickPlayer, transferHost, leaveRoom, upgradeFromSpectator,
@@ -528,10 +553,38 @@ function onMiniGoto({ zone, x, y }) {
     boardRef.value?.focusZone(zone)
 }
 
+// 合作迷宮：全隊一張圖。人數限制、隊伍名單（顏色與地圖上塔的顏色一致）
+const coop = computed(() => view.value?.options?.mode === 'coop')
+const isCoop = computed(() => coop.value && !!view.value?.board)
+// 建造者模式：點地圖叫建造者走過去蓋；我的建造者正在做的工作（進度用即時串流，沒有就用狀態裡的）
+const builderMode = computed(() => !!view.value?.builders)
+const myJob = computed(() => {
+    const mineView = view.value?.builders?.find(b => b.id === roomState.myPlayerId)
+    if (!mineView?.job) return null
+    const live = builders.value?.builders?.find(b => b.id === roomState.myPlayerId)
+    return { ...mineView.job, p: mineView.job.started ? (live?.p ?? mineView.job.p) : 0 }
+})
+const coopLimits = computed(() => state.catalog?.coop ?? COOP_LIMITS)
+const coopCountOk = computed(() => {
+    const n = roomState.players.length
+    return n >= coopLimits.value.minPlayers && n <= coopLimits.value.maxPlayers
+})
+const teamRows = computed(() => {
+    const v = view.value
+    if (!v) return []
+    return v.playerIds.map((id, i) => {
+        const p = v.players[id]
+        const status = v.phase === 'build'
+            ? (p.ready ? '已準備' : p.resolved ? '還在調整' : `放置 ${p.placed}／${state.catalog.gemsPerRound}`)
+            : `擊殺金 ${(frame.value?.players[id]?.earned ?? 0)}`
+        return { id, mark: PLAYER_MARKS[i % PLAYER_MARKS.length], name: `${nameOf(id)}${id === roomState.myPlayerId ? '（我）' : ''}`, status, alert: false }
+    })
+})
+
 // 一般多人模式：‹ › 切換看誰的地圖
 function stepPlayer(d) {
     const ids = view.value?.playerIds ?? []
-    if (ids.length < 2) return
+    if (ids.length < 2 || isCoop.value) return
     watchMap(ids[(ids.indexOf(view.value.watching) + d + ids.length) % ids.length])
 }
 
@@ -605,7 +658,8 @@ function clearSelection() {
 
 function onCell(x, y) {
     if (activeSlot.value === null || !mine.value) return
-    place(activeSlot.value, x, y)
+    if (builderMode.value) buildAt(activeSlot.value, x, y)
+    else place(activeSlot.value, x, y)
 }
 
 const boardRef = ref(null)
@@ -700,6 +754,7 @@ const phaseHint = computed(() => {
     if (v?.phase !== 'build') return null
     if (!me) return { tag: '觀戰', text: '建造階段，等玩家準備' }
     if (me.out) return { tag: '已出局', text: '可以切換看其他人的地圖' }
+    if (me.pending.length && builderMode.value) return { tag: '建造階段', text: `選一顆、點地圖，建造者會走過去蓋（右鍵移動）；還剩 ${me.pending.length} 顆` }
     if (me.pending.length) return { tag: '建造階段', text: `點地圖放下 ${me.pending.length} 顆甜點，最後選 1 顆留下` }
     if (me.choosing) return { tag: '建造階段', text: '選 1 顆留下，其餘變成餅乾牆' }
     const tail = readyStat.value.total > 1 ? `（${readyStat.value.done}／${readyStat.value.total} 已準備）` : ''
@@ -788,7 +843,7 @@ function showToast(msg, type = '', duration = 2600) {
 
 watch(() => state.error, (message) => {
     if (!message || !roomState.room) return
-    showToast(message, 'error')
+    showToast(state.errorCode === 'CELL_TAKEN' ? '這格剛被隊友搶先放了，換一格吧' : message, 'error')
     playSfx('error')
     clearError()
 })
@@ -881,13 +936,14 @@ function handleKey(code, e) {
         return true
     case 'KeyS':
         if (swapFrom.value) { swapFrom.value = null; return true }
-        if (!building || !selected || selected.kind === 'stone' || selected.fresh) return false
+        if (!building || !selected || selected.kind === 'stone' || selected.fresh || (selected.owner && selected.owner !== myId.value)) return false
         if (me.gold >= catalog.swapCost) swapFrom.value = selected.id
         return true
     case 'Delete':
     case 'Backspace':
-        if (!building || selected?.kind !== 'stone' || swapFrom.value) return false
-        removeStone(selected.id)
+        if (!building || selected?.kind !== 'stone' || swapFrom.value || (!builderMode.value && selected.owner && selected.owner !== myId.value)) return false
+        if (builderMode.value) demolish(selected.id)
+        else removeStone(selected.id)
         clearSelection()
         return true
     case 'KeyB':
@@ -899,7 +955,7 @@ function handleKey(code, e) {
         return true
     case 'KeyV': {
         const ids = v.playerIds ?? []
-        if (ids.length < 2) return false
+        if (ids.length < 2 || isCoop.value) return false
         watchMap(ids[(ids.indexOf(v.watching) + 1) % ids.length])
         return true
     }
@@ -935,6 +991,7 @@ function handleKey(code, e) {
         if (playersOpen.value) { playersOpen.value = false; return true }
         if (showRecipes.value) { showRecipes.value = false; return true }
         if (combinePick.value) { cancelCombinePick(); return true }
+        if (myJob.value) { cancelJob(); return true }
         if (swapFrom.value || selectedId.value !== null) { clearSelection(); return true }
         return false
     default:
@@ -1026,7 +1083,7 @@ const settingRows = computed(() => {
     const zones = roomState.players.length > 1 ? roomState.players.length : o.zones
     return [
         ['模式', shortLabel(MODE_CHOICES, o.mode)],
-        ...(relay ? [['區域數', `${zones} 區`]] : [['地圖', shortLabel(mapChoices.value, o.map ?? 0)], ['血量', shortLabel(LIVES_CHOICES, o.livesMode)]]),
+        ...(o.mode === 'coop' ? [['人數', `${coopLimits.value.minPlayers}～${coopLimits.value.maxPlayers} 人`]] : relay ? [['區域數', `${zones} 區`]] : [['地圖', shortLabel(mapChoices.value, o.map ?? 0)], ['血量', shortLabel(LIVES_CHOICES, o.livesMode)]]),
         ['難度', shortLabel(DIFFICULTY_CHOICES, o.difficulty)],
         ['波數', shortLabel(WAVE_CHOICES, o.waves)],
         ['建造時間', shortLabel(BUILD_CHOICES, o.buildSeconds)],

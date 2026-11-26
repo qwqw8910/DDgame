@@ -28,6 +28,12 @@
                         <GemIcon :kind="g.kind" :level="g.level" :size="38" />
                         <span class="leading-none">已放</span>
                     </button>
+                    <button v-else-if="myJob?.type === 'build' && myJob.slot === g.slot" class="gt-gem-slot gt-gem-slot--on" :aria-label="`${gemName(g.kind, g.level)}，${myJob.started ? '施工中' : '前往中'}，點一下取消`"
+                        :title="`${myJob.started ? '施工中' : '建造者正在趕過去'}，點一下取消（寶石回到手牌，沒有損失）`"
+                        @mouseenter="hoverSlot = g.slot" @focus="hoverSlot = g.slot" @blur="hoverSlot = null" @click="$emit('cancel-job')">
+                        <GemIcon :kind="g.kind" :level="g.level" :size="38" />
+                        <span class="leading-none">{{ myJob.started ? `施工 ${Math.round(myJob.p * 100)}%` : '前往中' }}</span>
+                    </button>
                     <button v-else class="gt-gem-slot"
                         :class="{ 'gt-gem-slot--on': g.slot === selectedSlot }"
                         :aria-pressed="g.slot === selectedSlot" :aria-keyshortcuts="String(g.slot + 1)"
@@ -150,9 +156,10 @@
         <GemSection v-if="selected" :title="selectedTitle" :meta="selected.kind === 'stone' ? '' : `擊殺 ${selected.kills}`" class="gt-card" :class="[tabClass('tower', ...(me?.choosing ? ['place'] : [])), buildHide]" aria-label="選取的塔">
             <template v-if="selected.kind === 'stone'">
                 <h3 class="gt-heading">餅乾牆</h3>
-                <template v-if="phase === 'build' && me && mine">
+                <template v-if="phase === 'build' && me && mine && (owned || view.options.buildMode === 'builder')">
                     <button v-if="swapFrom" class="gt-btn w-full" aria-keyshortcuts="S Escape" @click="$emit('cancel-swap')">取消移動<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">Esc</kbd></button>
-                    <button v-else class="gt-btn w-full" aria-keyshortcuts="Delete" @click="$emit('remove', selected.id)">拆除（免費）<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">Del</kbd></button>
+                    <button v-else-if="myJob?.type === 'demolish' && myJob.towerId === selected.id" class="gt-btn w-full" @click="$emit('cancel-job')">{{ myJob.started ? `拆除中 ${Math.round(myJob.p * 100)}%・取消` : '前往中・取消' }}</button>
+                    <button v-else class="gt-btn w-full" aria-keyshortcuts="Delete" @click="$emit('remove', selected.id)">{{ view.options.buildMode === 'builder' ? '拆除（建造者走過去，免費）' : '拆除（免費）' }}<kbd v-if="keys" class="gt-kbd ml-2" aria-hidden="true">Del</kbd></button>
                 </template>
                 <p v-else-if="mine" class="m-0">只有建造階段可以拆除。</p>
             </template>
@@ -178,6 +185,7 @@
                     <p v-if="mastery.effect" class="mt-1 mb-0 text-xs text-(--gt-muted)">{{ mastery.effect }}</p>
                 </div>
                 <p class="mt-1 mb-0 leading-snug">{{ selectedTrait }}</p>
+                <p v-if="!owned" class="mt-1 mb-0 text-(--gt-muted)">隊友的塔：{{ view.names?.[selected.owner] ?? '玩家' }}，只有他能操作。</p>
                 <template v-if="canMove">
                     <button class="gt-btn gt-btn--small mt-2 w-full" :disabled="!swapFrom && shortOf(catalog.swapCost) > 0" aria-keyshortcuts="S"
                         @click="$emit(swapFrom ? 'cancel-swap' : 'start-swap', selected.id)">
@@ -281,6 +289,7 @@ const props = defineProps({
     catalog: { type: Object, required: true },
     selectedSlot: { type: Number, default: null },
     selectedId: { type: Number, default: null },
+    myJob: { type: Object, default: null }, // 合作迷宮：我的建造者正在做的工作 { type, slot, towerId, started, p }
     swapFrom: { type: Number, default: null },
     myId: { type: String, default: '' },
     keys: { type: Boolean, default: false }, // 有實體鍵盤時顯示快捷鍵提示
@@ -297,7 +306,7 @@ const props = defineProps({
 
 // 手機只顯示目前分頁的區塊；沒傳分頁（空字串）時全部顯示
 const tabClass = (...tabs) => (props.phoneTab && !tabs.includes(props.phoneTab) ? 'max-sm:hidden' : '')
-defineEmits(['select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'wish', 'research', 'remove', 'start-swap', 'cancel-swap', 'undo', 'place-armed', 'cancel-armed'])
+defineEmits(['cancel-job', 'select-slot', 'select-tower', 'keep', 'merge', 'combine', 'ready', 'upgrade', 'buy-life', 'reroll', 'wish', 'research', 'remove', 'start-swap', 'cancel-swap', 'undo', 'place-armed', 'cancel-armed'])
 
 const RATE_COLORS = ['#C9B2AD', '#9FB8C9', '#5FA8D3', '#3CCB72', '#F2B233', '#D6305A']
 
@@ -488,9 +497,11 @@ const selectedTrait = computed(() => {
     const t = selected.value
     return (isSpecial(t.kind) ? props.catalog.specials[t.kind] : props.catalog.gems[t.kind]).trait
 })
+// 合作迷宮：全隊的塔在同一張圖上，只有自己放的才能操作（其他模式 owner 一律是地圖的主人）
+const owned = computed(() => !selected.value?.owner || selected.value.owner === props.myId)
 const canMove = computed(() => {
     const t = selected.value
-    return phase.value === 'build' && mine.value && me.value && t && !t.fresh
+    return phase.value === 'build' && mine.value && me.value && t && !t.fresh && owned.value
 })
 
 const researchRows = computed(() => Object.entries(props.catalog.research).map(([id, r]) => {

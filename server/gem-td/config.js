@@ -37,9 +37,26 @@ const COOP = {
   maxPlayers: 3,
   sizes: { 2: 35, 3: 40, 4: 45, 5: 50, 6: 55 },
   checkpoints: { 2: 8, 3: 9, 4: 10, 5: 11, 6: 12 },
+  hpMults: { 3: 4.5 }, // 人數 → 血量倍數；沒列的人數照 hpPerPlayer（2 人 ×1.8）。3 人的圖更大、路更長，機器人實測要 ×4.5 才跟 2 人同樣吃力（M6）
   hpPerPlayer: 0.8, // 每多一人，怪物血量 +80%（暫定，待 balanceSim 調整）
+  // 建造方式：'builder' = 每人一個建造者，要走到現場施工；'instant' = 點了立刻蓋好（比較與除錯用）
+  buildModes: ['builder', 'instant'],
+  buildMode: 'builder',
+  builderSpeed: 4, // 建造者每秒走幾格（自由移動，不碰撞）
+  buildRange: 3, // 走到目標格幾格內就開始施工／拆除
+  buildSeconds: 3, // 每顆寶石的施工秒數
+  demolishSeconds: 3, // 拆一面餅乾牆的秒數
+  // 堵死策略：'validate' = 放置時檢查、會封路就拒絕；'breach' = 允許堵死，怪物停在成本最低的牆前拆牆通過
+  blockPolicy: 'breach',
+  wallCost: 2000, // 尋路成本：空地 1；餅乾牆與塔遠高於繞路的長度，所以有通路一定走通路
+  towerCost: 6000,
+  wallHpBase: 100, // 餅乾牆血量 = base + perWave × 波數；塔再乘 towerHpMult（M6 機器人實測）
+  wallHpPerWave: 25,
+  towerHpMult: 5,
+  breachDps: 12, // 每隻地面蟲停在牆前時每秒對牆的傷害；首領 ×4
 };
-const coopHpMult = n => 1 + COOP.hpPerPlayer * (Math.max(1, n) - 1);
+// 怪物血量倍數：hpMults 有指定的人數用表，其餘照 hpPerPlayer 線性加（地圖越大、路越長，每人貢獻的火力不同，所以不一定線性）
+const coopHpMult = n => COOP.hpMults[n] ?? 1 + COOP.hpPerPlayer * (Math.max(1, n) - 1);
 
 // 合作迷宮的版型：蛇行。起點在左上，路徑點左右交錯逐列往下，終點在最後一列的另一側。
 // 回傳相對座標，格子由 makeCoopBoard 換算；空地圖時每段都走得通、七個點以上都不重疊
@@ -498,6 +515,8 @@ function catalog() {
     gemsPerRound: GEMS_PER_ROUND,
     difficulties: DIFFICULTIES,
     speedChoices: SPEED_CHOICES,
+    coop: { minPlayers: COOP.minPlayers, maxPlayers: COOP.maxPlayers, sizes: COOP.sizes, checkpoints: COOP.checkpoints, hpPerPlayer: COOP.hpPerPlayer, hpMults: COOP.hpMults,
+      buildModes: COOP.buildModes, buildMode: COOP.buildMode, blockPolicy: COOP.blockPolicy, builderSpeed: COOP.builderSpeed, buildRange: COOP.buildRange, buildSeconds: COOP.buildSeconds, demolishSeconds: COOP.demolishSeconds },
     relay: { maxZones: MAX_ZONES, colors: RELAY_ZONE_COLORS, passes: RELAY_PASSES, playerHpStep: RELAY_PLAYER_HP_STEP, bossHpMult: RELAY_BOSS_HP_MULT },
   };
 }
