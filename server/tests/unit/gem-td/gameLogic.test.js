@@ -1125,8 +1125,8 @@ test('合作迷宮：地圖依人數放大、路徑點增加，空地圖每一�
   const g3 = newCoop(['a', 'b', 'c']);
   assert.equal(g2.board.width, 35);
   assert.equal(g3.board.width, 40);
-  assert.equal(g2.board.checkpoints.length, 8);
-  assert.equal(g3.board.checkpoints.length, 9);
+  assert.equal(g2.board.checkpoints.length, 5);
+  assert.equal(g3.board.checkpoints.length, 5);
   for (const g of [g2, g3]) {
     assert.ok(g.shared.path.length > g.board.width, '共用路線存在');
     const stops = [g.board.start, ...g.board.checkpoints, g.board.end].map(c => `${c.x},${c.y}`);
@@ -1262,8 +1262,8 @@ test('合作迷宮：型錄下發 coop 設定（人數限制、尺寸表、路�
   assert.equal(coop.maxPlayers, C.COOP.maxPlayers);
   assert.equal(coop.sizes[2], 35);
   assert.equal(coop.sizes[3], 40);
-  assert.equal(coop.checkpoints[2], 8);
-  assert.equal(coop.checkpoints[3], 9);
+  assert.equal(coop.checkpoints[2], 5);
+  assert.equal(coop.checkpoints[3], 5);
   assert.equal(coop.hpPerPlayer, C.COOP.hpPerPlayer);
   assert.ok(C.catalog().relay, '現有的 relay 型錄沒被動到');
 });
@@ -1628,4 +1628,24 @@ test('試玩紀錄：instant 模式直接拆自己的餅乾牆也記進拆牆統
   L.removeStone(game, 'a', wall.id);
   const st = game.shared.stats;
   assert.deepEqual([st.demolishes, st.byPlayer.a.demolishOwn, st.byPlayer.a.demolishOthers], [1, 1, 0]);
+});
+
+test('合作迷宮：怪物護甲依人數加成（每多一人 +armorPerPlayer），其他模式不加', () => {
+  assert.equal(C.coopArmorAdd(1), 0);
+  assert.equal(C.coopArmorAdd(2), C.COOP.armorPerPlayer);
+  assert.equal(C.coopArmorAdd(3), C.COOP.armorPerPlayer * 2);
+  const base = C.waveDef(6, 15, 'easy').groups.find(g => g.type === 'armored').armor;
+  for (const n of [2, 3]) {
+    const game = newCoop(n === 2 ? ['a', 'b'] : ['a', 'b', 'c']);
+    for (const id of game.playerIds) Object.assign(game.players[id], { pending: [], resolved: true });
+    game.wave = 5;
+    L.startWave(game, { rng: seededRng(2) });
+    const armored = game.shared.sim.def.groups.find(g => g.type === 'armored');
+    assert.equal(armored.armor, base + C.coopArmorAdd(n), `${n} 人`);
+  }
+  const single = newGame(['a']);
+  single.wave = 5;
+  for (const id of single.playerIds) Object.assign(single.players[id], { pending: [], resolved: true });
+  L.startWave(single, { rng: seededRng(2) });
+  assert.equal(single.players.a.sim.def.groups.find(g => g.type === 'armored').armor, base);
 });
