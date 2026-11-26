@@ -370,7 +370,7 @@
                                         <span class="flex items-center gap-1.5"><span class="size-2.5 shrink-0 rounded-full" :style="{ background: r.mark }" aria-hidden="true" /><span class="truncate">{{ nameOf(r.id) }}</span></span>
                                         <span class="mt-1 block h-1 w-full overflow-hidden rounded-full bg-(--gt-line-soft)" role="img" :aria-label="`傷害占全隊 ${Math.round(r.share * 100)}%`"><span class="block h-full rounded-full" :style="{ width: `${Math.round(r.share * 100)}%`, background: r.mark }" /></span>
                                     </th>
-                                    <td v-for="k in ['killGold', 'kills', 'damage', 'towers']" :key="k" class="py-1" :class="r.s[k] > 0 && r.s[k] === coopMax[k] ? 'font-black text-(--gt-ink)' : ''">{{ r.s[k].toLocaleString() }}</td>
+                                    <td v-for="k in ['killGold', 'kills', 'damage', 'towers']" :key="k" class="px-1 py-1 whitespace-nowrap" :class="r.s[k] > 0 && r.s[k] === coopMax[k] ? 'font-black text-(--gt-ink)' : ''" :title="r.s[k].toLocaleString()">{{ fmtBig(r.s[k]) }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -825,6 +825,8 @@ const coopRows = computed(() => {
     const total = scores.reduce((n, s) => n + s.damage, 0)
     return v.playerIds.map((id, i) => ({ id, mark: PLAYER_MARKS[i % PLAYER_MARKS.length], s: scores.find(s => s.id === id) })).filter(r => r.s).map(r => ({ ...r, share: total > 0 ? r.s.damage / total : 0 }))
 })
+// 結算表的大數字：百萬以上用精簡寫法（98.8M），不然傷害欄會擠到隔壁；完整數字放在 title
+const fmtBig = n => (n >= 1e6 ? new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n) : n.toLocaleString())
 const coopMax = computed(() => Object.fromEntries(['killGold', 'kills', 'damage', 'towers'].map(k => [k, Math.max(0, ...coopRows.value.map(r => r.s[k]))])))
 
 // 結算的分區統計：每欄最高的格子加粗
@@ -991,6 +993,10 @@ function handleKey(code, e) {
         if (!inGame.value || isWide.value) return false
         if (isPhone.value) phoneTab.value = phoneTab.value === 'recipes' ? 'place' : 'recipes'
         else showRecipes.value = !showRecipes.value
+        return true
+    case 'KeyC': // 合作迷宮：鏡頭回到我的建造者；Shift＋C 切換持續跟隨
+        if (!builderMode.value || view.value.relay) return false
+        boardRef.value?.focusMine?.(e.shiftKey)
         return true
     case 'KeyV': {
         const ids = v.playerIds ?? []

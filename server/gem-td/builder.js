@@ -11,6 +11,17 @@
 
 const createBuilder = (x, y) => ({ x, y, tx: null, ty: null, job: null });
 
+// 開局站位：n 位建造者圍著 (cx, cy) 排成一圈（半徑 radius 格），第 0 位在正上方、順時針；n = 1 站在中心。
+// 超出地圖的位置夾回 [0.5, 邊長 - 0.5]。結果只取決於輸入，所以每次開局一樣、前端不用猜
+function spreadStarts(cx, cy, n, { radius = 1.2, width = Infinity, height = Infinity } = {}) {
+  const clamp = (v, hi) => Math.min(hi - 0.5, Math.max(0.5, v));
+  return Array.from({ length: n }, (_, i) => {
+    if (n <= 1) return { x: clamp(cx, width), y: clamp(cy, height) };
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+    return { x: clamp(cx + Math.cos(a) * radius, width), y: clamp(cy + Math.sin(a) * radius, height) };
+  });
+}
+
 // 取消目前的工作，回傳被取消的那件（沒有就是 null）；是否已佔格由呼叫端依 job.started 處理
 function cancelJob(b) {
   const job = b.job;
@@ -76,4 +87,4 @@ function stepBuilder(b, dt, { speed, range, onStart }) {
   return events;
 }
 
-module.exports = { createBuilder, cancelJob, moveTo, assignJob, stepBuilder };
+module.exports = { createBuilder, spreadStarts, cancelJob, moveTo, assignJob, stepBuilder };

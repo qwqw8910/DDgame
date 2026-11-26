@@ -10,7 +10,20 @@
             <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="放大地圖" title="放大" :disabled="zoom >= MAX_ZOOM" @click="controller.zoomBy(1.4)">＋</button>
             <button class="gt-chip !min-h-10 !w-10 [@media(pointer:coarse)]:!min-h-11 [@media(pointer:coarse)]:!w-11 justify-center !px-0 text-xl font-bold" aria-label="縮小地圖" title="縮小" :disabled="zoom <= 1.01" @click="controller.zoomBy(1 / 1.4)">－</button>
         </div>
-        <button v-if="zoom > 1.01" class="gt-chip absolute right-2 bottom-2" @click="controller.reset()">看全圖</button>
+        <div class="absolute right-2 bottom-2 flex flex-col items-end gap-1">
+            <!-- 合作迷宮：把鏡頭拉回自己的建造者（快捷鍵 C）；跟隨 = 鏡頭一直貼著他（Shift＋C），拖曳或點小地圖就解除 -->
+            <template v-if="hasMyBuilder">
+                <button class="gt-chip" :aria-pressed="following" title="鏡頭持續跟著我的建造者（Shift＋C）；拖曳地圖或點小地圖就解除" @click="toggleFollow()">跟隨<span v-if="following"> ✓</span></button>
+                <button class="gt-chip" title="鏡頭移到我的建造者（C）" @click="focusMine()">◎ 找到我</button>
+            </template>
+            <button v-if="zoom > 1.01" class="gt-chip" @click="controller.reset()">看全圖</button>
+        </div>
+        <!-- 放大後自己的建造者不在畫面內：貼著邊緣的箭頭（顏色是自己的玩家色），點一下就飛過去 -->
+        <button v-if="marker" class="gt-builder-marker absolute z-10 flex items-center gap-1 rounded-full border-2 border-white bg-white/90 px-1.5 py-0.5 text-xs font-bold shadow-md"
+            :style="{ left: `${marker.left}px`, top: `${marker.top}px`, color: marker.color, borderColor: marker.color }"
+            :aria-label="`我的建造者在畫面外，約 ${marker.cells} 格`" @click="focusMine()">
+            <span class="inline-block text-base leading-none" :style="{ transform: `rotate(${marker.angle}rad)` }" aria-hidden="true">➤</span>我 {{ marker.cells }}
+        </button>
         <!-- 合作迷宮：小地圖（點擊或拖曳跳轉），放左下角 -->
         <GemMiniMap v-if="isCoop" class="absolute bottom-2 left-2" :view="view" :frame="frame" :colors="ownerColors" :viewport="viewport" :builders="builders" :my-id="myId" :size="miniSize" @goto="p => controller.centerOn(p.x, p.y)" />
         <!-- 多人：切換看誰的地圖（一次只畫一張，其他人的地圖不吃效能） -->
@@ -29,7 +42,7 @@ import { CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, PLAYE
 import { fullPathLength } from '../data/pathing.js'
 import GemTableDecor from './GemTableDecor.vue'
 import GemMiniMap from './GemMiniMap.vue'
-import { MAX_ZOOM, createCameraController, normalizePointer, normalizeWheel, screenToCell, cellSizeOf, visibleRect } from '../composables/useGemCamera.js'
+import { MAX_ZOOM, createCameraController, normalizePointer, normalizeWheel, screenToCell, cellSizeOf, visibleRect, offscreenMarker } from '../composables/useGemCamera.js'
 import { spawnHit, spawnDeath, spawnDust, clearFx, drawFx, hasFx } from '../composables/usePixelFx.js'
 import { createPrediction, predictMove, predictJob, stopPrediction, stepPrediction, reconcilePrediction } from '../composables/useGemBuilderPrediction.js'
 
@@ -53,15 +66,19 @@ const viewSize = ref(0) // 畫布邊長（px），給小地圖決定自己多大
 const miniSize = computed(() => Math.round(Math.min(148, Math.max(88, viewSize.value * 0.26))))
 const viewport = ref({ x: 0, y: 0, w: 1, h: 1 }) // 目前看到的範圍（格），給小地圖畫視窗框
 const hover = ref(null)
+const following = ref(false) // 鏡頭持續跟著自己的建造者
+const marker = ref(null) // 自己的建造者在畫面外時的邊緣箭頭 { left, top, angle, cells, color }
+const canvasOffset = { x: 0, y: 0 } // 畫布在容器內的位置（箭頭用的是畫布座標）
 const armed = ref(null) // 手機：第一次點選的格子
 const placing = computed(() => !!props.pendingGem)
+const hasMyBuilder = computed(() => !!props.view.builders?.some(b => b.id === props.myId))
 // 合作迷宮：全隊共用一張圖，每座塔依擁有者上玩家色（顏色跟玩家清單的順序一致）
 const isCoop = computed(() => props.view.options?.mode === 'coop')
 const ownerColors = computed(() => (isCoop.value ? Object.fromEntries((props.view.playerIds ?? []).map((id, i) => [id, PLAYER_MARKS[i % PLAYER_MARKS.length]])) : null))
 // 預覽中的格子交給外面（底部操作列顯示「放在這裡」）；放下一顆、或回合結束就不再預覽
 watch(armed, c => emit('arm', c ? { x: c.x, y: c.y } : null))
 watch(() => [props.view.phase, props.view.me?.pending?.length ?? 0, props.view.watching], () => { armed.value = null })
-defineExpose({ disarm: () => { armed.value = null }, panTo: (x, y) => controller.centerOn(x, y), stopPrediction: () => stopPrediction(pred), predictDemolish: t => predictBuildMine(t, 'demolish') })
+defineExpose({ focusMine: (follow = false) => (follow ? toggleFollow() : focusMine()), disarm: () => { armed.value = null }, panTo: (x, y) => controller.centerOn(x, y), stopPrediction: () => stopPrediction(pred), predictDemolish: t => predictBuildMine(t, 'demolish') })
 
 let ctx = null
 let size = 0
@@ -87,7 +104,45 @@ const controller = createCameraController({
     onTap: ({ cell, pointerType }) => tap(cell, pointerType),
 })
 
+// 相機被「自己以外」的力量平移（拖曳、小地圖跳轉）就解除跟隨；縮放、視窗大小改變、跟隨本身不算
+let internalMove = false
+let lastZoom = 1
+const internal = (fn) => { internalMove = true; try { fn() } finally { internalMove = false } }
+
+function myBuilderPos() {
+    const st = bst.get(props.myId)
+    return st ? { x: st.x, y: st.y } : serverOfMine()
+}
+function focusMine() {
+    const p = myBuilderPos()
+    if (p) internal(() => controller.centerOn(p.x, p.y))
+}
+function toggleFollow() {
+    if (!hasMyBuilder.value) return false
+    following.value = !following.value
+    if (following.value) focusMine()
+    return true
+}
+
+function updateMarker(view) {
+    let next = null
+    const p = hasMyBuilder.value && zoom.value > 1.01 ? myBuilderPos() : null
+    const m = p && offscreenMarker(controller.camera, p, view.board, size, { inset: 34, margin: 6 })
+    if (m) {
+        next = {
+            left: Math.round(m.x + canvasOffset.x), top: Math.round(m.y + canvasOffset.y), angle: Math.round(m.angle * 100) / 100,
+            cells: Math.round(m.distance), color: ownerColors.value?.[props.myId] ?? COLOR.ink,
+        }
+    }
+    const cur = marker.value
+    if (!next && !cur) return
+    if (next && cur && next.left === cur.left && next.top === cur.top && next.angle === cur.angle && next.cells === cur.cells) return
+    marker.value = next
+}
+
 function syncCamera() {
+    if (following.value && !internalMove && controller.camera.zoom === lastZoom) following.value = false
+    lastZoom = controller.camera.zoom
     zoom.value = controller.camera.zoom
     if (size && props.view.board) viewport.value = visibleRect(controller.camera, props.view.board, size)
     invalidate()
@@ -105,7 +160,9 @@ function resize() {
     canvas.width = size * dpr
     canvas.height = size * dpr
     ctx = canvas.getContext('2d')
-    controller.clamp()
+    canvasOffset.x = canvas.offsetLeft
+    canvasOffset.y = canvas.offsetTop
+    internal(() => controller.clamp())
     syncCamera()
 }
 
@@ -935,13 +992,20 @@ function drawBreaches(view, cell, now) {
         ctx.lineTo(x + cell * 0.25, y + cell * 0.75)
         ctx.stroke()
     }
+}
+
+// 被蟲攻擊中的牆血量條：畫在蟲的上面（蟲站在牆前，先畫會被蟲的圖擋住，M7 實測發現）；放大後才看得清楚，所以加白邊與最小厚度
+function drawWallBars(cell) {
+    const h = Math.max(cell * 0.2, 3 / zoom.value)
     for (const [wx, wy, pct] of props.frame?.w ?? []) {
         const x = wx * cell
-        const y = wy * cell
+        const y = wy * cell - h * 0.35
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(x - 1 / zoom.value, y - 1 / zoom.value, cell + 2 / zoom.value, h + 2 / zoom.value)
         ctx.fillStyle = COLOR.ink
-        ctx.fillRect(x, y - cell * 0.02, cell, cell * 0.18)
+        ctx.fillRect(x, y, cell, h)
         ctx.fillStyle = pct > 50 ? '#3CCB72' : pct > 25 ? '#F2B233' : '#F0506E'
-        ctx.fillRect(x, y - cell * 0.02, (cell * pct) / 100, cell * 0.18)
+        ctx.fillRect(x, y, (cell * pct) / 100, h)
     }
 }
 
@@ -1100,7 +1164,8 @@ function drawBuilders(view, cell, now, dt) {
             ctx.arc(cx, cy, rad, 0, Math.PI * 2)
             ctx.fill()
             ctx.stroke()
-            labelY = cy - rad - 2 * px
+            // 縮小時圓點只差兩三格、名字會疊在一起：名字放在圓點下方，依序往下錯開（上方貼近地圖邊緣會被切掉）
+            labelY = cy + rad + (11 * px) * (1 + 1.05 * (i % 3))
         }
         const name = view.names?.[b.id] ?? ''
         if (name && (small || mine || zoom.value * cell >= 22)) {
@@ -1141,6 +1206,11 @@ function draw(now) {
     let lapAt = perfStart
     const lap = () => { if (laps) { const t = performance.now(); laps.push(+(t - lapAt).toFixed(2)); lapAt = t } }
     const cell = cellSizeOf(view.board, size)
+    // 跟隨：先把相機往自己的建造者靠近一步，這一幀就用新的位置畫（用上一幀的畫面位置，差一幀看不出來）
+    if (following.value) {
+        const p = myBuilderPos()
+        if (p) internal(() => controller.followToward(p, 1 - Math.exp(-dt * 10)))
+    }
     const cam = controller.camera
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -1163,10 +1233,12 @@ function draw(now) {
     lap()
     drawBreaches(view, cell, now)
     drawBuilders(view, cell, now, dt)
+    updateMarker(view)
     lap()
     drawShots(cell, now)
     lap()
     drawMonsters(catalog, cell, now)
+    drawWallBars(cell)
     lap()
     drawGhosts(cell, now)
     lap()

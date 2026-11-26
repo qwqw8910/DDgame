@@ -16,7 +16,7 @@
                 <li><b class="font-semibold text-heading">可以堵死</b>：整條路被擋住時，蟲子會停在最便宜的牆前把牆拆掉再前進；建造階段用<b class="font-semibold text-heading">紅框</b>標出預計被拆的突破點，牆上的血條是剩餘血量。牆的血量隨波數增加，塔比餅乾牆硬很多。</li>
                 <li><b class="font-semibold text-heading">拆餅乾牆</b>：任何人都能拆（防止被亂堵），要建造者走過去花 {{ coop.demolishSeconds }} 秒；塔不能被別人拆。</li>
                 <li><b class="font-semibold text-heading">擊殺金</b>歸打死蟲子的那座塔的擁有者；合成與特殊塔只能用自己的塔；主動技能全隊共用同一組冷卻。</li>
-                <li><b class="font-semibold text-heading">看地圖</b>：滾輪或右上角＋－縮放、拖曳平移；左下角小地圖可以點擊或拖曳跳轉，上面也看得到各人的建造者。電腦限定。</li>
+                <li><b class="font-semibold text-heading">看地圖</b>：滾輪或右上角＋－縮放、拖曳平移；左下角小地圖可以點擊或拖曳跳轉，上面也看得到各人的建造者。放大後找不到自己的建造者：點「◎ 找到我」或按 <b class="font-semibold text-heading">C</b>，畫面邊緣的箭頭也會指方向；「跟隨」（Shift＋C）讓鏡頭一直貼著他。電腦限定。</li>
             </ul>
         </GameGuideSection>
         <GameGuideSection title="重骰">

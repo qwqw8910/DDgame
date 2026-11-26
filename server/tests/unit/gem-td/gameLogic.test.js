@@ -1478,3 +1478,154 @@ test('breach：牆的血量隨波數成長，塔比餅乾牆硬很多（開波�
   assert.equal(sim.breach.hpOf(stone, sim.wave), C.COOP.wallHpBase + C.COOP.wallHpPerWave * 10);
   assert.equal(sim.breach.hpOf({ kind: 'B' }, sim.wave), (C.COOP.wallHpBase + C.COOP.wallHpPerWave * 10) * C.COOP.towerHpMult);
 });
+
+// ── 合作迷宮：開局站位與試玩紀錄（M7 前置）──────────────────────
+test('合作迷宮：開局建造者不疊在同一點（2 人與 3 人），且都圍著起點', () => {
+  for (const ids of [['a', 'b'], ['a', 'b', 'c']]) {
+    const game = newCoop(ids);
+    const bs = ids.map(id => game.shared.builders[id]);
+    for (let i = 0; i < bs.length; i++) {
+      assert.ok(Math.hypot(bs[i].x - (game.board.start.x + 0.5), bs[i].y - (game.board.start.y + 0.5)) <= 1.5, '離起點不遠');
+      for (let j = i + 1; j < bs.length; j++) assert.ok(Math.hypot(bs[i].x - bs[j].x, bs[i].y - bs[j].y) >= 1.5, `${ids[i]}/${ids[j]} 至少隔 1.5 格`);
+    }
+  }
+});
+
+test('試玩紀錄：搶格、取消、改派、被拒各自計數（含玩家分帳）', () => {
+  const game = newCoop();
+  const cell = { x: game.board.start.x + 5, y: game.board.start.y + 2 };
+  const st = game.shared.stats;
+  L.buildAt(game, 'a', 0, cell.x, cell.y);
+  stepUntil(game, () => jobOf(game, 'a')?.started);
+  assert.throws(() => L.buildAt(game, 'b', 0, cell.x, cell.y), e => e.code === 'CELL_TAKEN');
+  assert.equal(st.cellTaken, 1);
+  assert.equal(st.byPlayer.b.cellTaken, 1);
+  L.cancelJobCommand(game, 'a');
+  L.cancelJobCommand(game, 'a'); // 沒有工作時不算
+  assert.equal(st.cancels, 1);
+  assert.equal(st.byPlayer.a.cancels, 1);
+  L.buildAt(game, 'a', 0, cell.x, cell.y);
+  L.moveBuilder(game, 'a', 3.5, 3.5); // 放棄工作改走路
+  L.buildAt(game, 'a', 1, cell.x + 1, cell.y);
+  L.buildAt(game, 'a', 2, cell.x + 2, cell.y); // 改派
+  assert.equal(st.replaced, 2, '移動放掉一件、改派放掉一件');
+  assert.equal(st.cancels, 1, '改派不算按取消');
+  // 兩人趕往同一格，後到者走到現場才被拒
+  L.cancelJobCommand(game, 'a');
+  L.buildAt(game, 'a', 0, cell.x + 6, cell.y);
+  game.shared.builders.a.x = cell.x + 6.5;
+  game.shared.builders.a.y = cell.y + 0.5;
+  L.buildAt(game, 'b', 0, cell.x + 6, cell.y);
+  game.shared.builders.b.x = cell.x + 6.5;
+  game.shared.builders.b.y = cell.y + 1.5;
+  const before = st.cellTaken;
+  stepUntil(game, () => !jobOf(game, 'a') && !jobOf(game, 'b'));
+  assert.equal(st.rejected, 1);
+  assert.equal(st.cellTaken, before + 1, '現場被拒也算一次 CELL_TAKEN');
+});
+
+test('試玩紀錄：整排堵死算一次，只在「有通路 → 要拆牆」的轉換上加', () => {
+  const game = newCoop();
+  const st = game.shared.stats;
+  assert.equal(st.blocked, 0);
+  wallOff(game, 3);
+  const cell = { x: game.board.start.x + 5, y: 8 }; // 牆那排之外
+  L.buildAt(game, 'a', 0, cell.x, cell.y);
+  stepUntil(game, () => jobOf(game, 'a')?.started);
+  assert.equal(st.blocked, 1);
+  L.cancelJobCommand(game, 'a'); // 路線仍堵著，不再計
+  L.buildAt(game, 'a', 0, cell.x, cell.y);
+  stepUntil(game, () => !jobOf(game, 'a'));
+  assert.equal(st.blocked, 1);
+  // 拆開一面牆讓路線通了、再蓋回去堵上 → 第二次
+  const wall = game.players.a.towers.find(t => t.kind === 'stone' && t.y === 3);
+  game.shared.builders.a.x = wall.x + 0.5;
+  game.shared.builders.a.y = wall.y + 0.5;
+  L.demolishAt(game, 'a', wall.id);
+  stepUntil(game, () => !jobOf(game, 'a'));
+  assert.equal(st.demolishes, 1);
+  assert.equal(st.blocked, 1, '缺口打開後路線通了');
+  L.buildAt(game, 'a', 1, wall.x, wall.y);
+  stepUntil(game, () => !jobOf(game, 'a'));
+  assert.equal(st.blocked, 2, '重新堵上算第二次');
+});
+
+test('試玩紀錄：拆牆分「拆自己的」與「拆別人的」', () => {
+  const game = newCoop();
+  wallOff(game, 3, 'a');
+  const [w1, w2] = game.players.a.towers.filter(t => t.y === 3);
+  for (const [who, w] of [['a', w1], ['b', w2]]) {
+    game.shared.builders[who].x = w.x + 0.5;
+    game.shared.builders[who].y = w.y + 0.5;
+    L.demolishAt(game, who, w.id);
+    stepUntil(game, () => !jobOf(game, who));
+  }
+  const by = game.shared.stats.byPlayer;
+  assert.deepEqual([by.a.demolishOwn, by.a.demolishOthers], [1, 0]);
+  assert.deepEqual([by.b.demolishOwn, by.b.demolishOthers], [0, 1]);
+});
+
+test('試玩紀錄：局結束產生一筆 JSON，欄位齊全、不含玩家 id，其他模式沒有', () => {
+  const game = newCoop(['a', 'b', 'c']);
+  game.shared.stats.cellTaken = 2;
+  game.shared.stats.cancels = 3;
+  game.shared.stats.demolishes = 4;
+  game.shared.stats.byPlayer.a = { demolishOwn: 1, demolishOthers: 2, cellTaken: 2, cancels: 3 };
+  game.shared.stats.byPlayer.b = { demolishOwn: 0, demolishOthers: 1, cellTaken: 0, cancels: 0 };
+  game.wave = 9;
+  L.finishNow(game);
+  const rec = JSON.parse(JSON.stringify(game.playtest));
+  assert.deepEqual(Object.keys(rec).sort(), [
+    'aborted', 'blocked', 'board', 'byPlayer', 'cancels', 'cellTaken', 'completion', 'demolishOthers', 'demolishOwn', 'demolishes',
+    'finishedAt', 'livesLeft', 'mode', 'options', 'players', 'rejected', 'replaced', 'schema', 'seconds', 'towersBroken', 'wallsBroken', 'wave', 'win',
+  ]);
+  assert.equal(rec.mode, 'coop');
+  assert.equal(rec.players, 3);
+  assert.equal(rec.win, false);
+  assert.equal(rec.aborted, true);
+  assert.equal(rec.wave, 9);
+  assert.equal(rec.completion, 0.6, '9 / 15 波');
+  assert.deepEqual(rec.options, { waves: 15, difficulty: 'easy', buildMode: 'builder', blockPolicy: 'breach' });
+  assert.deepEqual([rec.cellTaken, rec.cancels, rec.demolishes, rec.demolishOwn, rec.demolishOthers], [2, 3, 4, 1, 3]);
+  assert.deepEqual(rec.byPlayer.map(p => p.player), ['P1', 'P2', 'P3']);
+  assert.deepEqual(rec.byPlayer[0], { player: 'P1', left: false, cellTaken: 2, cancels: 3, demolishOwn: 1, demolishOthers: 2 });
+  assert.equal(rec.byPlayer[2].cancels, 0, '沒操作的玩家補 0');
+  assert.deepEqual(rec.board, { name: game.board.mapName, width: 40, height: 40 });
+  assert.equal(JSON.stringify(rec).includes('"a"'), false, '不含玩家 id');
+  assert.equal(game.records.length, 0, '不進排行榜');
+  const single = newGame(['a']);
+  L.finishNow(single);
+  assert.equal(single.playtest, null);
+});
+
+test('試玩紀錄：到達波數的完成率；通關是 1，無盡沒有完成率', () => {
+  const game = newCoop();
+  game.wave = 15;
+  L.finishNow(game);
+  assert.equal(game.playtest.completion, 1);
+  const endless = newGame(['a', 'b'], { options: { ...coopOptions, waves: C.ENDLESS } });
+  endless.wave = 40;
+  L.finishNow(endless);
+  assert.equal(endless.playtest.completion, null);
+  assert.equal(endless.playtest.options.waves, null);
+});
+
+test('試玩紀錄：蟲打破牆與塔分開計數', () => {
+  const game = newCoop();
+  wallOff(game, 3);
+  for (const id of ['a', 'b']) Object.assign(game.players[id], { pending: [], resolved: true });
+  L.startWave(game, { rng: seededRng(2) });
+  const rng = seededRng(3);
+  for (let i = 0; i < 20000 && !L.tick(game, 0.1, rng).changed; i++);
+  assert.equal(game.shared.stats.wallsBroken, 1);
+  assert.equal(game.shared.stats.towersBroken, 0);
+});
+
+test('試玩紀錄：instant 模式直接拆自己的餅乾牆也記進拆牆統計', () => {
+  const game = newGame(['a', 'b'], { options: { ...coopOptions, buildMode: 'instant' } });
+  wallOff(game, 3, 'a');
+  const wall = game.players.a.towers.find(t => t.y === 3);
+  L.removeStone(game, 'a', wall.id);
+  const st = game.shared.stats;
+  assert.deepEqual([st.demolishes, st.byPlayer.a.demolishOwn, st.byPlayer.a.demolishOthers], [1, 1, 0]);
+});

@@ -63,3 +63,19 @@ test('建造者：施工中取消，進度不保留；重新指派從 0 開始',
   assert.equal(b.job.progress, 0);
   assert.equal(b.job.started, false);
 });
+
+test('開局站位：多位建造者圍著起點散開，互相至少 1.5 格，且都在地圖內', () => {
+  for (const n of [2, 3]) {
+    const spots = B.spreadStarts(2.5, 1.5, n, { width: 35, height: 35 });
+    assert.equal(spots.length, n);
+    for (const s of spots) assert.ok(s.x >= 0.5 && s.x <= 34.5 && s.y >= 0.5 && s.y <= 34.5);
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) assert.ok(Math.hypot(spots[i].x - spots[j].x, spots[i].y - spots[j].y) >= 1.5, `${i}/${j}`);
+  }
+  assert.deepEqual(B.spreadStarts(2.5, 1.5, 3, { width: 35, height: 35 }), B.spreadStarts(2.5, 1.5, 3, { width: 35, height: 35 }), '同樣輸入同樣結果');
+});
+
+test('開局站位：一個人站中心；貼著地圖角落會夾回範圍內', () => {
+  assert.deepEqual(B.spreadStarts(2.5, 1.5, 1), [{ x: 2.5, y: 1.5 }]);
+  const corner = B.spreadStarts(0.5, 0.5, 3, { width: 10, height: 10 });
+  assert.ok(corner.every(s => s.x >= 0.5 && s.y >= 0.5));
+});

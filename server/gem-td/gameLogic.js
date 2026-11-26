@@ -28,6 +28,32 @@ class GameError extends Error {
 const keyOf = (x, y) => `${x},${y}`;
 
 // ── 建立 / 重置 ─────────────────────────────────────────────────
+// 合作迷宮試玩統計（第 8 節）：局結束時寫成一筆 JSON（見 buildPlaytestRecord），不進排行榜也不送前端
+const blankCoopStats = () => ({
+  blocked: 0, // 路線從「有通路」變成「必須拆牆」的次數
+  cellTaken: 0, // 同格被搶（CELL_TAKEN）次數
+  cancels: 0, // 玩家按取消、把進行中的工作放掉
+  replaced: 0, // 沒按取消，但移動或改派新工作而放掉原本的工作
+  rejected: 0, // 走到現場才被拒（格子被搶、會封路）
+  demolishes: 0, // 建造階段拆掉的餅乾牆
+  wallsBroken: 0, // 波次中被蟲打破的牆
+  towersBroken: 0, // 波次中被蟲打破的塔
+  byPlayer: {}, // id → { demolishOwn, demolishOthers, cellTaken, cancels }
+});
+const playerStat = (game, id) => (game.shared.stats.byPlayer[id] ??= { demolishOwn: 0, demolishOthers: 0, cellTaken: 0, cancels: 0 });
+// 記下目前路線；從通路變成必須拆牆才算一次「堵死」
+function noteRoute(game, route) {
+  const st = game.shared?.stats;
+  if (!st || !route) return;
+  const blocked = route.breaches.length > 0;
+  if (blocked && !game.shared.wasBlocked) st.blocked += 1;
+  game.shared.wasBlocked = blocked;
+}
+const noteCellTaken = (game, id) => {
+  game.shared.stats.cellTaken += 1;
+  playerStat(game, id).cellTaken += 1;
+};
+
 function blankRun() {
   return {
     wave: 0, // 已打完的波數
@@ -54,6 +80,7 @@ function blankRun() {
     aborted: false, // 房主提早結束：不列入排行榜
     finishedAt: null,
     records: null,
+    playtest: null, // 合作迷宮試玩紀錄（局結束時產生，index.js 寫檔；不送前端）
     result: null,
   };
 }
@@ -172,7 +199,7 @@ function routeOfBoard(game, b) {
 function refreshPath(game, p) {
   const b = p ? boardOf(game, p) : game.shared;
   const route = routeOfBoard(game, b);
-  if (route) { b.path = route.path; b.route = route; }
+  if (route) { b.path = route.path; b.route = route; if (b === game.shared) noteRoute(game, route); }
 }
 
 const isTeam = game => game.options.livesMode === 'team';
@@ -245,7 +272,10 @@ function startGame(game, ids, { now, rng = Math.random }) {
   if (coop) {
     game.shared = { grid: new Map(), path: [], sim: null, leaked: 0, skillCd: Object.fromEntries(C.SKILL_IDS.map(sid => [sid, 0])) };
     // 每位玩家一個建造者，從起點出發
-    game.shared.builders = Object.fromEntries(zoneIds.map(id => [id, B.createBuilder(game.board.start.x + 0.5, game.board.start.y + 0.5)]));
+    // 圍著起點散開站，名字與模型才不會疊成一個點
+    const spots = B.spreadStarts(game.board.start.x + 0.5, game.board.start.y + 0.5, zoneIds.length, { width: game.board.width, height: game.board.height });
+    game.shared.builders = Object.fromEntries(zoneIds.map((id, i) => [id, B.createBuilder(spots[i].x, spots[i].y)]));
+    game.shared.stats = blankCoopStats();
   }
   if (relay && zoneIds.length > 1) game.ring = { layout: ringLayout(zoneIds.length, game.board), events: [], hub: null, eventsFor: null };
   for (const id of zoneIds) {
@@ -373,6 +403,7 @@ function placeGem(game, playerId, slot, x, y) {
   const b = boardOf(game, p);
   if (b.grid.has(key)) {
     // 合作迷宮：同格先到先得，後到者收到 CELL_TAKEN（現有模式維持 BAD_CELL）
+    if (isCoop(game)) noteCellTaken(game, playerId);
     throw new GameError(isCoop(game) ? 'CELL_TAKEN' : 'BAD_CELL', '這格已經有東西了');
   }
 
@@ -390,6 +421,7 @@ function placeGem(game, playerId, slot, x, y) {
   b.grid.set(key, tower);
   b.path = route.path;
   b.route = route;
+  if (isCoop(game)) noteRoute(game, route);
   p.pending.splice(index, 1);
   return tower;
 }
@@ -403,7 +435,10 @@ function releaseJob(game, job) {
     game.shared.grid.delete(keyOf(job.x, job.y));
     refreshPath(game, null);
   }
+  return job;
 }
+// 移動或改派而放掉原本的工作（沒按取消）
+const noteReplaced = (game, job) => { if (job) game.shared.stats.replaced += 1; };
 
 function cancelJobOf(game, playerId) {
   const b = game.shared.builders[playerId];
@@ -429,7 +464,7 @@ function moveBuilder(game, playerId, x, y) {
   const b = requireBuilder(game, playerId);
   if (!Number.isFinite(x) || !Number.isFinite(y)) throw new GameError('BAD_CELL', '位置不正確');
   const { width, height } = game.board;
-  releaseJob(game, B.moveTo(b, Math.min(width - 0.5, Math.max(0.5, x)), Math.min(height - 0.5, Math.max(0.5, y))));
+  noteReplaced(game, releaseJob(game, B.moveTo(b, Math.min(width - 0.5, Math.max(0.5, x)), Math.min(height - 0.5, Math.max(0.5, y)))));
 }
 
 // 指派建造者去某格蓋手牌第 slot 顆；已經在做別的就取消那件（沒有損失）
@@ -439,8 +474,11 @@ function buildAt(game, playerId, slot, x, y) {
   if (!p.pending.some(g => g.slot === slot)) throw new GameError('BAD_SLOT', '這個甜點已經放下了');
   if (!inBoard(game, x, y)) throw new GameError('BAD_CELL', '超出地圖範圍');
   if (isWaypoint(game.board, x, y)) throw new GameError('BAD_CELL', '路徑點不能擺放');
-  if (game.shared.grid.has(keyOf(x, y))) throw new GameError('CELL_TAKEN', '這格已經有東西了');
-  releaseJob(game, B.assignJob(b, { type: 'build', slot, x, y, duration: C.COOP.buildSeconds }));
+  if (game.shared.grid.has(keyOf(x, y))) {
+    noteCellTaken(game, playerId);
+    throw new GameError('CELL_TAKEN', '這格已經有東西了');
+  }
+  noteReplaced(game, releaseJob(game, B.assignJob(b, { type: 'build', slot, x, y, duration: C.COOP.buildSeconds })));
 }
 
 // 指派建造者去拆自己的餅乾牆（要時間，不收金幣）
@@ -449,11 +487,15 @@ function demolishAt(game, playerId, towerId) {
   // 建造階段任何人都能免費拆餅乾牆（防止有人惡意堵路）；塔不能被別人拆
   const t = allTowers(game).find(o => o.id === towerId);
   if (!t || t.kind !== 'stone') throw new GameError('BAD_TOWER', '只能拆除餅乾牆');
-  releaseJob(game, B.assignJob(b, { type: 'demolish', towerId, owner: t.owner, x: t.x, y: t.y, duration: C.COOP.demolishSeconds }));
+  noteReplaced(game, releaseJob(game, B.assignJob(b, { type: 'demolish', towerId, owner: t.owner, x: t.x, y: t.y, duration: C.COOP.demolishSeconds })));
 }
 
 function cancelJobCommand(game, playerId) {
   requireBuilder(game, playerId);
+  if (game.shared.builders[playerId].job) {
+    game.shared.stats.cancels += 1;
+    playerStat(game, playerId).cancels += 1;
+  }
   cancelJobOf(game, playerId);
 }
 
@@ -472,6 +514,7 @@ function startJob(game, playerId, job) {
   }
   game.shared.path = route.path;
   game.shared.route = route;
+  noteRoute(game, route);
   return true;
 }
 
@@ -480,7 +523,7 @@ function finishJob(game, playerId, job) {
     game.shared.grid.delete(keyOf(job.x, job.y)); // 保留的格子換成正式的塔
     placeGem(game, playerId, job.slot, job.x, job.y);
   } else {
-    removeStone(game, job.owner, job.towerId); // 牆屬於放下的人，金幣照舊不收
+    removeStone(game, job.owner, job.towerId, playerId); // 牆屬於放下的人，金幣照舊不收
   }
 }
 
@@ -498,6 +541,8 @@ function stepBuilders(game, dt) {
       out.changed = true;
       if (ev.type === 'reject') {
         const taken = game.shared.grid.has(keyOf(ev.job.x, ev.job.y));
+        game.shared.stats.rejected += 1;
+        if (taken) noteCellTaken(game, id);
         out.errors.push({ playerId: id, code: taken ? 'CELL_TAKEN' : 'PATH_BLOCKED', message: taken ? '這格已經有東西了' : '不能封死怪物的路線' });
       } else if (ev.type === 'done') {
         try {
@@ -701,7 +746,8 @@ function upgradeResearch(game, playerId, track) {
   p.research[track] = level + 1;
 }
 
-function removeStone(game, playerId, towerId) {
+// actorId：實際動手拆的人（建造者拆別人的牆時與擁有者不同）；只用來記試玩統計
+function removeStone(game, playerId, towerId, actorId = playerId) {
   requireBuild(game);
   const p = playerOf(game, playerId);
   const t = towerById(p, towerId);
@@ -710,6 +756,10 @@ function removeStone(game, playerId, towerId) {
   p.towers = p.towers.filter(o => o !== t);
   boardOf(game, p).grid.delete(keyOf(t.x, t.y));
   refreshPath(game, p);
+  if (isCoop(game)) {
+    game.shared.stats.demolishes += 1;
+    playerStat(game, actorId)[playerId === actorId ? 'demolishOwn' : 'demolishOthers'] += 1;
+  }
 }
 
 // 把自己的塔跟一顆石頭對調位置（路線不受影響：兩格都還是障礙物）
@@ -792,8 +842,9 @@ function startWave(game, { rng = Math.random } = {}) {
         onBroken: (tower) => { // 被打破的牆／塔直接消失（擁有者損失）
           const owner = game.players[tower.owner];
           if (owner) owner.towers = owner.towers.filter(t => t !== tower);
+          b.stats[tower.kind === 'stone' ? 'wallsBroken' : 'towersBroken'] += 1;
         },
-        onRepath: (route) => { b.path = route.path; b.route = route; },
+        onRepath: (route) => { b.path = route.path; b.route = route; noteRoute(game, route); },
       } : null,
       coop: { n: game.startCount },
       devBoss: game.devBoss,
@@ -1058,6 +1109,49 @@ function finishGame(game, winnerIds) {
   game.finishedAt = Date.now();
   game.result = buildResult(game, winnerIds);
   game.records = buildRecords(game, winnerIds); // 給排行榜用，不送給前端
+  game.playtest = isCoop(game) ? buildPlaytestRecord(game, winnerIds) : null; // 合作迷宮試玩紀錄，index.js 寫檔
+}
+
+// 合作迷宮試玩紀錄（一局一筆，純資料可直接 JSON.stringify）。不含暱稱與帳號，玩家用 P1、P2… 代號。
+// 完成率 = 到達波數 ÷ 設定波數（無盡局是 null）。拆牆分「拆自己放的」與「拆別人放的」
+function buildPlaytestRecord(game, winnerIds) {
+  const st = game.shared.stats;
+  const { waves, difficulty, buildMode } = game.options;
+  const endless = isEndless(game);
+  const reached = Math.min(game.wave, endless ? game.wave : waves);
+  const humans = game.humanIds;
+  return {
+    schema: 1,
+    mode: 'coop',
+    finishedAt: new Date(game.finishedAt).toISOString(),
+    seconds: Math.max(0, Math.round((game.finishedAt - game.startedAt - (game.pausedMs ?? 0)) / 1000)),
+    aborted: !!game.aborted,
+    players: humans.length,
+    board: { name: game.board.mapName, width: game.board.width, height: game.board.height },
+    options: { waves: endless ? null : waves, difficulty, buildMode, blockPolicy: C.COOP.blockPolicy },
+    win: winnerIds.length > 0,
+    wave: reached,
+    completion: endless ? null : Math.round((reached / waves) * 1000) / 1000,
+    livesLeft: game.lives,
+    blocked: st.blocked,
+    cellTaken: st.cellTaken,
+    cancels: st.cancels,
+    replaced: st.replaced,
+    rejected: st.rejected,
+    demolishes: st.demolishes,
+    demolishOwn: humans.reduce((n, id) => n + (st.byPlayer[id]?.demolishOwn ?? 0), 0),
+    demolishOthers: humans.reduce((n, id) => n + (st.byPlayer[id]?.demolishOthers ?? 0), 0),
+    wallsBroken: st.wallsBroken,
+    towersBroken: st.towersBroken,
+    byPlayer: humans.map((id, i) => ({
+      player: `P${i + 1}`,
+      left: game.players[id].left,
+      cellTaken: st.byPlayer[id]?.cellTaken ?? 0,
+      cancels: st.byPlayer[id]?.cancels ?? 0,
+      demolishOwn: st.byPlayer[id]?.demolishOwn ?? 0,
+      demolishOthers: st.byPlayer[id]?.demolishOthers ?? 0,
+    })),
+  };
 }
 
 // 排行榜紀錄：每位玩家一筆。到達波數 = 實際打到（或倒下）的那一波；通關 = 撐過最後一波且沒出局（無盡沒有通關）
