@@ -38,12 +38,13 @@
 // 地圖畫布：只負責畫面與輸入。座標以「格」為單位，格子中心是 (x + .5, y + .5)。
 // 手機點一下先預覽、同一格再點一下才放；滑鼠直接放。按鈕或雙指縮放（滾輪不縮放），放大後拖曳平移。
 import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
-import { CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, PLAYER_MARKS, BUILDER_IMAGE, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
+import { CAKE_IMAGE, CHECKPOINT_IMAGE, NEST_IMAGE, GEM_LOOK, MONSTER_LOOK, PLAYER_MARKS, BUILDER_SKINS, gemScale, isSpecial, monsterImage, towerImage } from '../data/gems.js'
 import { fullPathLength } from '../data/pathing.js'
 import GemTableDecor from './GemTableDecor.vue'
 import GemMiniMap from './GemMiniMap.vue'
 import { MAX_ZOOM, createCameraController, normalizePointer, normalizeWheel, screenToCell, cellSizeOf, visibleRect, offscreenMarker } from '../composables/useGemCamera.js'
 import { spawnHit, spawnDeath, spawnDust, clearFx, drawFx, hasFx } from '../composables/usePixelFx.js'
+import { recolorAccent, skinIndexOf } from '../composables/useGemBuilderSkin.js'
 import { createPrediction, predictMove, predictJob, stopPrediction, stepPrediction, reconcilePrediction } from '../composables/useGemBuilderPrediction.js'
 
 const props = defineProps({
@@ -389,6 +390,30 @@ function imageOf(url) {
         images.set(url, img)
     }
     return img.complete && img.naturalWidth ? img : null
+}
+
+// 建造者外觀：第 i 位用第 i % 5 款小烘焙師，帽帶與圍裙換成他的玩家色；每款×顏色只換一次，之後直接用快取的畫布
+const builderSprites = new Map()
+function builderSprite(playerIndex, color) {
+    const skin = BUILDER_SKINS[skinIndexOf(playerIndex, BUILDER_SKINS.length)]
+    const base = imageOf(skin.image)
+    if (!base) return null
+    const key = `${skin.id}|${color}`
+    let c = builderSprites.get(key)
+    if (!c) {
+        c = document.createElement('canvas')
+        c.width = base.naturalWidth
+        c.height = base.naturalHeight
+        const g = c.getContext('2d', { willReadFrequently: true })
+        g.drawImage(base, 0, 0)
+        try {
+            const data = g.getImageData(0, 0, c.width, c.height)
+            recolorAccent(data.data, skin, color)
+            g.putImageData(data, 0, 0)
+        } catch { /* 讀不到像素就用原色 */ }
+        builderSprites.set(key, c)
+    }
+    return c
 }
 
 function drawGem(kind, level, cx, cy, cell, alpha = 1) {
@@ -1137,7 +1162,7 @@ function drawBuilders(view, cell, now, dt) {
         }
         const cx = st.x * cell
         const foot = st.y * cell + cell * 0.36
-        const img = small ? null : imageOf(BUILDER_IMAGE)
+        const img = small ? null : builderSprite(i, color)
         let labelY
         if (img) {
             ctx.fillStyle = `${color}99`
