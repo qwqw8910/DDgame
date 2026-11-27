@@ -190,7 +190,8 @@ function tap(cell, pointerType) {
     const confirmed = pointerType === 'mouse' || (armed.value?.x === cell.x && armed.value?.y === cell.y)
     if (confirmed) {
         armed.value = null
-        if (props.builderMode) predictBuildMine(cell)
+        const mineView = props.view.builders?.find(b => b.id === props.myId)
+        if (props.builderMode && mineView?.job?.type !== 'build') predictBuildMine(cell)
         emit('cell', cell.x, cell.y)
     } else {
         armed.value = cell

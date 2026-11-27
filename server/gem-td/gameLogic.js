@@ -112,8 +112,10 @@ function resolveOptions(raw = {}) {
   };
 }
 
-function makeBoard(mapId = 0) {
-  const map = C.MAP_LAYOUTS[mapId] ?? C.MAP_LAYOUTS[0];
+function makeBoard(mapId = 0, rng = Math.random) {
+  const map = mapId === 'random'
+    ? { id: C.RANDOM_MAP.id, name: C.RANDOM_MAP.name, ...C.randomLayout(C.RANDOM_MAP.checkpoints, rng) }
+    : C.MAP_LAYOUTS[mapId] ?? C.MAP_LAYOUTS[0];
   const size = C.BOARD_SIZE;
   const toCell = ([rx, ry]) => ({ x: Math.round(rx * (size - 1)), y: Math.round(ry * (size - 1)) });
   return {
@@ -128,9 +130,9 @@ function makeBoard(mapId = 0) {
 }
 
 // 合作迷宮的大地圖：尺寸與路徑點數依人數而定
-function makeCoopBoard(playerCount) {
+function makeCoopBoard(playerCount, rng = Math.random) {
   const size = C.COOP.sizes[playerCount] ?? C.COOP.sizes[2];
-  const layout = C.coopLayout(playerCount);
+  const layout = C.coopLayout(playerCount, rng);
   const toCell = ([rx, ry]) => ({ x: Math.round(rx * (size - 1)), y: Math.round(ry * (size - 1)) });
   return {
     width: size,
@@ -268,7 +270,7 @@ function startGame(game, ids, { now, rng = Math.random }) {
   game.startedAt = now;
   game.lives = maxLives(game);
   const mapOpt = game.options.map ?? C.DEFAULT_OPTIONS.map;
-  game.board = coop ? makeCoopBoard(ids.length) : makeBoard(relay ? 0 : mapOpt === 'random' ? Math.floor(rng() * C.MAP_COUNT) : mapOpt);
+  game.board = coop ? makeCoopBoard(ids.length, rng) : makeBoard(relay ? 0 : mapOpt, rng);
   if (coop) {
     game.shared = { grid: new Map(), path: [], sim: null, leaked: 0, skillCd: Object.fromEntries(C.SKILL_IDS.map(sid => [sid, 0])) };
     // 每位玩家一個建造者，從起點出發
@@ -478,7 +480,15 @@ function buildAt(game, playerId, slot, x, y) {
     noteCellTaken(game, playerId);
     throw new GameError('CELL_TAKEN', '這格已經有東西了');
   }
-  noteReplaced(game, releaseJob(game, B.assignJob(b, { type: 'build', slot, x, y, duration: C.COOP.buildSeconds })));
+  const job = { type: 'build', slot, x, y, duration: C.COOP.buildSeconds };
+  // 手上正在蓋東西：接在後面排隊（最多 5 件）；同一顆或同一格不重複排
+  if (b.job?.type === 'build') {
+    const all = [b.job, ...b.queue];
+    if (all.some(j => j.slot === slot || (j.x === x && j.y === y))) throw new GameError('BAD_SLOT', '這顆甜點或這格已經排進去了');
+    if (!B.queueJob(b, job, 5)) throw new GameError('QUEUE_FULL', '最多先排 5 顆');
+    return;
+  }
+  noteReplaced(game, releaseJob(game, B.assignJob(b, job)));
 }
 
 // 指派建造者去拆自己的餅乾牆（要時間，不收金幣）
@@ -574,6 +584,7 @@ const builderView = game => (!isBuilderMode(game) ? null : game.playerIds.map((i
   const j = b.job;
   return {
     id, x: Math.round(b.x * 100) / 100, y: Math.round(b.y * 100) / 100,
+    queue: b.queue.map(q => ({ slot: q.slot, x: q.x, y: q.y })),
     job: j ? { type: j.type, x: j.x, y: j.y, slot: j.slot ?? null, towerId: j.towerId ?? null, started: j.started, p: j.started ? Math.min(1, j.progress / j.duration) : 0 } : null,
   };
 }));

@@ -36,7 +36,7 @@ const COOP = {
   minPlayers: 2,
   maxPlayers: 3,
   sizes: { 2: 35, 3: 40, 4: 45, 5: 50, 6: 55 },
-  checkpoints: { 2: 5, 3: 5, 4: 5, 5: 5, 6: 5 }, // 路徑點固定 5 個，不隨人數增加（地圖尺寸仍依人數）
+  checkpoints: { 2: 4, 3: 4, 4: 4, 5: 4, 6: 4 }, // 路徑點固定 4 個（加起點、終點共 6 點），不隨人數增加（地圖尺寸仍依人數）
   hpMults: { 3: 4.5 }, // 人數 → 血量倍數；沒列的人數照 hpPerPlayer（2 人 ×1.8）。3 人的圖更大、路更長，機器人實測要 ×4.5 才跟 2 人同樣吃力（M6）
   armorPerPlayer: 1, // 每多一人，所有怪物護甲 +N 點（和血量倍數一起隨人數變硬；0 = 不加）。機器人實測 +1 輕微變難、+2 對 3 人局太硬（M6 之後）
   hpPerPlayer: 0.8, // 每多一人，怪物血量 +80%（暫定，待 balanceSim 調整）
@@ -45,8 +45,8 @@ const COOP = {
   buildMode: 'builder',
   builderSpeed: 4, // 建造者每秒走幾格（自由移動，不碰撞）
   buildRange: 3, // 走到目標格幾格內就開始施工／拆除
-  buildSeconds: 3, // 每顆寶石的施工秒數
-  demolishSeconds: 3, // 拆一面餅乾牆的秒數
+  buildSeconds: 1, // 每顆寶石的施工秒數
+  demolishSeconds: 1, // 拆一面餅乾牆的秒數
   // 堵死策略：'validate' = 放置時檢查、會封路就拒絕；'breach' = 允許堵死，怪物停在成本最低的牆前拆牆通過
   blockPolicy: 'breach',
   wallCost: 2000, // 尋路成本：空地 1；餅乾牆與塔遠高於繞路的長度，所以有通路一定走通路
@@ -61,16 +61,21 @@ const COOP = {
 const coopArmorAdd = n => COOP.armorPerPlayer * (Math.max(1, n) - 1);
 const coopHpMult = n => COOP.hpMults[n] ?? 1 + COOP.hpPerPlayer * (Math.max(1, n) - 1);
 
-// 合作迷宮的版型：蛇行。起點在左上，路徑點左右交錯逐列往下，終點在最後一列的另一側。
-// 回傳相對座標，格子由 makeCoopBoard 換算；空地圖時每段都走得通、七個點以上都不重疊
-function coopLayout(n) {
-  const count = COOP.checkpoints[n] ?? COOP.checkpoints[2];
-  const rows = count + 2; // 起點列 + 各路徑點列 + 終點列
-  const rowY = i => 0.04 + (0.92 * i) / (rows - 1);
-  const left = 0.06;
-  const right = 0.94;
-  const checkpoints = Array.from({ length: count }, (_, i) => [i % 2 === 0 ? right : left, rowY(i + 1)]);
-  return { id: 'coop', name: '合作迷宮', start: [left, rowY(0)], checkpoints, end: [count % 2 === 0 ? right : left, rowY(rows - 1)] };
+// 隨機版型：地圖切成 3×3 九宮格，從 9 區隨機挑 count + 2 區、隨機排成 起點 → 路徑點 → 終點。
+// 點放在區塊中心，所以點必不重疊、空地圖每段都走得通。回傳相對座標
+function randomLayout(count, rng = Math.random) {
+  const cells = Array.from({ length: 9 }, (_, i) => i);
+  for (let i = cells.length - 1; i > 0; i--) { // Fisher–Yates 洗牌，取前幾個即為隨機挑選＋隨機排序
+    const j = Math.floor(rng() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+  const pts = cells.slice(0, count + 2).map(c => [(c % 3 + 0.5) / 3, (Math.floor(c / 3) + 0.5) / 3]);
+  return { start: pts[0], checkpoints: pts.slice(1, -1), end: pts[pts.length - 1] };
+}
+
+// 合作迷宮的版型：6 個點（起點、4 個路徑點、終點）隨機
+function coopLayout(n, rng = Math.random) {
+  return { id: 'coop', name: '合作迷宮', ...randomLayout(COOP.checkpoints[n] ?? COOP.checkpoints[2], rng) };
 }
 
 // 用金幣換血量：建造階段每次換 1 點，最多補到開局血量
@@ -83,21 +88,13 @@ const lifeCost = wave => Math.min(LIFE_MAX, LIFE_BASE + wave * LIFE_PER_WAVE);
 // 每位玩家各一張地圖，大小固定
 const BOARD_SIZE = 25;
 
-// 地圖：房主在等待大廳選（預設 0 號經典圖，也可選「隨機」每局抽一張）；環形接力固定用 0 號，環形版面依它的起終點排。
+// 地圖：房主在等待大廳選「經典對角」（0 號，固定）或「隨機」（每局用九宮格隨機 6 個點，見 randomLayout）；環形接力固定用 0 號，環形版面依它的起終點排。
 // 路徑點為相對座標：起點 → 1~5 → 終點，七個點都不可重疊，空地圖時每段都走得通。
-// 經典圖的第 2、4、5 段都穿過地圖中央，把 3 號點圍進迷宮就能讓怪物反覆進出
 const MAP_LAYOUTS = [
   { id: 0, name: '經典對角',
     start: [0.08, 0.08], checkpoints: [[0.92, 0.08], [0.08, 0.92], [0.5, 0.5], [0.92, 0.5], [0.08, 0.5]], end: [0.92, 0.92] },
-  { id: 1, name: '上下夾擊',
-    start: [0.5, 0.04], checkpoints: [[0.92, 0.3], [0.08, 0.3], [0.5, 0.5], [0.08, 0.78], [0.92, 0.78]], end: [0.5, 0.96] },
-  { id: 2, name: '外圈螺旋',
-    start: [0.08, 0.08], checkpoints: [[0.92, 0.08], [0.92, 0.92], [0.08, 0.92], [0.08, 0.4], [0.6, 0.4]], end: [0.5, 0.62] },
-  { id: 3, name: '長 Z 字',
-    start: [0.08, 0.5], checkpoints: [[0.3, 0.08], [0.3, 0.92], [0.6, 0.08], [0.6, 0.92], [0.8, 0.5]], end: [0.92, 0.5] },
-  { id: 4, name: '十字路口',
-    start: [0.5, 0.08], checkpoints: [[0.5, 0.45], [0.08, 0.5], [0.5, 0.55], [0.92, 0.5], [0.7, 0.8]], end: [0.5, 0.92] },
 ];
+const RANDOM_MAP = { id: 'random', name: '隨機九宮格', checkpoints: 4 };
 const MAP_COUNT = MAP_LAYOUTS.length;
 
 // 主動技能：波次中玩家手動施放，作用在自己地圖上所有的蟲。冷卻以「波」計：施放後要再打 cooldownWaves 波才能再用（每波結束扣 1，含傷害測試），開局可用。
@@ -528,7 +525,7 @@ module.exports = {
   MIN_PLAYERS, MAX_PLAYERS, GEMS_PER_ROUND, START_LIVES, START_GOLD, lifeCost,
   MODES, COOP, coopHpMult, coopArmorAdd, coopLayout, MIN_ZONES, MAX_ZONES, RELAY_GROUP_HP_MULT, RELAY_BOSS_HP_MULT, RELAY_TEST_HP_MULT, RELAY_TEST_ARMOR_MULT, relayTestHpMult, RELAY_PASSES, relayPasses, RELAY_PLAYER_HP_STEP, RELAY_ARMOR_MULT, relayGroupHpMult, RELAY_CLEAR_BONUS_SHARE, RELAY_KILL_GOLD_BORN_SHARE, RELAY_ZONE_GAP, RELAY_ARC_MARGIN, RELAY_ARC_STEP,
   RELAY_EVENT_KEEP, RELAY_EVENT_SHOW, RELAY_ZONE_COLORS,
-  ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, MAP_LAYOUTS, MAP_COUNT, SKILLS, SKILL_IDS, BOSS_STUN_RESIST, SKILL_HP_MULT,
+  ENDLESS, WAVE_CHOICES, BUILD_SECOND_CHOICES, DIFFICULTIES, DIFFICULTY_IDS, SPEED_CHOICES, LIVES_MODES, DEFAULT_OPTIONS, BOARD_SIZE, MAP_LAYOUTS, MAP_COUNT, RANDOM_MAP, randomLayout, SKILLS, SKILL_IDS, BOSS_STUN_RESIST, SKILL_HP_MULT,
   MAX_LEVEL, GEMS, SPECIALS, RECIPES, QUALITY_RATES, QUALITY_COSTS,
 
   SWAP_COST, GEM_CATEGORIES, WISH_STACK_RATES, WISH_LEVEL_STACK, WISH_MAX_STACKS, wishCost, rerollCost, REMOVE_STONE_COST, MASTERY_KILLS, MASTERY_DAMAGE, MASTERY_HASTE, masteryRank, RESEARCH, RESEARCH_COSTS, RESEARCH_BASE_LEVELS, researchValue, MONSTERS, MONSTER_TYPES, SPAWN_INTERVAL, BOSS_SLOW_RESIST,
