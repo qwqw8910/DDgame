@@ -12,9 +12,10 @@
 // ================================================================
 
 const C = require('./config');
-const { findFullPath } = require('./pathing');
+const { findFullPath, findFullRoute } = require('./pathing');
 const { createWave, stepWave, buildSimFrame, castSkill: simCastSkill, skillCooldowns } = require('./waveSim');
 const { ringLayout } = require('./ringLayout');
+const B = require('./builder');
 const R = require('./relay');
 
 class GameError extends Error {
@@ -27,6 +28,32 @@ class GameError extends Error {
 const keyOf = (x, y) => `${x},${y}`;
 
 // ── 建立 / 重置 ─────────────────────────────────────────────────
+// 合作迷宮試玩統計（第 8 節）：局結束時寫成一筆 JSON（見 buildPlaytestRecord），不進排行榜也不送前端
+const blankCoopStats = () => ({
+  blocked: 0, // 路線從「有通路」變成「必須拆牆」的次數
+  cellTaken: 0, // 同格被搶（CELL_TAKEN）次數
+  cancels: 0, // 玩家按取消、把進行中的工作放掉
+  replaced: 0, // 沒按取消，但移動或改派新工作而放掉原本的工作
+  rejected: 0, // 走到現場才被拒（格子被搶、會封路）
+  demolishes: 0, // 建造階段拆掉的餅乾牆
+  wallsBroken: 0, // 波次中被蟲打破的牆
+  towersBroken: 0, // 波次中被蟲打破的塔
+  byPlayer: {}, // id → { demolishOwn, demolishOthers, cellTaken, cancels }
+});
+const playerStat = (game, id) => (game.shared.stats.byPlayer[id] ??= { demolishOwn: 0, demolishOthers: 0, cellTaken: 0, cancels: 0 });
+// 記下目前路線；從通路變成必須拆牆才算一次「堵死」
+function noteRoute(game, route) {
+  const st = game.shared?.stats;
+  if (!st || !route) return;
+  const blocked = route.breaches.length > 0;
+  if (blocked && !game.shared.wasBlocked) st.blocked += 1;
+  game.shared.wasBlocked = blocked;
+}
+const noteCellTaken = (game, id) => {
+  game.shared.stats.cellTaken += 1;
+  playerStat(game, id).cellTaken += 1;
+};
+
 function blankRun() {
   return {
     wave: 0, // 已打完的波數
@@ -37,6 +64,7 @@ function blankRun() {
     playerIds: [],
     startCount: 0, // 開局人數（環形接力是區域數）；獨立血量多人局剩一人時判定勝負
     humanIds: [], // 開局的真人（環形接力的其餘區域由假人控制）
+    shared: null, // 合作迷宮：全隊共用的棋盤 { grid, path, sim, skillCd, leaked }；其他模式是 null
     ring: null, // 環形接力（區域數 ≥ 2）：{ layout, events, hub }；單人模式與區域數 1 是 null
     devBoss: false, // 開發測試：下一波改成繞全圈的首領，不推進波數
     tainted: false, // 用過開發測試功能：不列入排行榜
@@ -52,6 +80,7 @@ function blankRun() {
     aborted: false, // 房主提早結束：不列入排行榜
     finishedAt: null,
     records: null,
+    playtest: null, // 合作迷宮試玩紀錄（局結束時產生，index.js 寫檔；不送前端）
     result: null,
   };
 }
@@ -71,17 +100,22 @@ function resolveOptions(raw = {}) {
     zones: Number.isInteger(raw.zones) && raw.zones >= C.MIN_ZONES && raw.zones <= C.MAX_ZONES ? raw.zones : C.DEFAULT_OPTIONS.zones,
     waves: C.WAVE_CHOICES.includes(raw.waves) ? raw.waves : C.DEFAULT_OPTIONS.waves,
     buildSeconds: C.BUILD_SECOND_CHOICES.includes(raw.buildSeconds) ? raw.buildSeconds : C.DEFAULT_OPTIONS.buildSeconds,
-    // 環形接力強制共用血量
-    livesMode: mode === 'relay' ? 'team' : C.LIVES_MODES.includes(raw.livesMode) ? raw.livesMode : C.DEFAULT_OPTIONS.livesMode,
+    // 環形接力與合作迷宮強制共用血量
+    livesMode: mode === 'relay' || mode === 'coop' ? 'team' : C.LIVES_MODES.includes(raw.livesMode) ? raw.livesMode : C.DEFAULT_OPTIONS.livesMode,
     difficulty: C.DIFFICULTY_IDS.includes(raw.difficulty) ? raw.difficulty : C.DEFAULT_OPTIONS.difficulty,
-    damageTest: typeof raw.damageTest === 'boolean' ? raw.damageTest : C.DEFAULT_OPTIONS.damageTest,
+    // 合作迷宮先不做傷害測試（成績不列入排行榜）
+    damageTest: mode === 'coop' ? false : typeof raw.damageTest === 'boolean' ? raw.damageTest : C.DEFAULT_OPTIONS.damageTest,
     // 地圖：0~MAP_COUNT-1 指定一張，'random' 每局隨機（環形接力開局時固定用 0 號）
+    // 合作迷宮的建造方式：builder = 建造者走到現場施工；instant = 點了立刻蓋好
+    ...(mode === 'coop' ? { buildMode: C.COOP.buildModes.includes(raw.buildMode) ? raw.buildMode : C.COOP.buildMode } : {}),
     map: raw.map === 'random' || (Number.isInteger(raw.map) && raw.map >= 0 && raw.map < C.MAP_COUNT) ? raw.map : C.DEFAULT_OPTIONS.map,
   };
 }
 
-function makeBoard(mapId = 0) {
-  const map = C.MAP_LAYOUTS[mapId] ?? C.MAP_LAYOUTS[0];
+function makeBoard(mapId = 0, rng = Math.random) {
+  const map = mapId === 'random'
+    ? { id: C.RANDOM_MAP.id, name: C.RANDOM_MAP.name, ...C.randomLayout(C.RANDOM_MAP.checkpoints, rng) }
+    : C.MAP_LAYOUTS[mapId] ?? C.MAP_LAYOUTS[0];
   const size = C.BOARD_SIZE;
   const toCell = ([rx, ry]) => ({ x: Math.round(rx * (size - 1)), y: Math.round(ry * (size - 1)) });
   return {
@@ -92,6 +126,22 @@ function makeBoard(mapId = 0) {
     start: toCell(map.start),
     checkpoints: map.checkpoints.map(toCell),
     end: toCell(map.end),
+  };
+}
+
+// 合作迷宮的大地圖：尺寸與路徑點數依人數而定
+function makeCoopBoard(playerCount, rng = Math.random) {
+  const size = C.COOP.sizes[playerCount] ?? C.COOP.sizes[2];
+  const layout = C.coopLayout(playerCount, rng);
+  const toCell = ([rx, ry]) => ({ x: Math.round(rx * (size - 1)), y: Math.round(ry * (size - 1)) });
+  return {
+    width: size,
+    height: size,
+    mapId: layout.id,
+    mapName: layout.name,
+    start: toCell(layout.start),
+    checkpoints: layout.checkpoints.map(toCell),
+    end: toCell(layout.end),
   };
 }
 
@@ -125,8 +175,33 @@ function rollGems(quality, rng, wish = null) {
   return gems;
 }
 
+// 棋盤狀態（grid 佔格、path 路線、sim 這一波的模擬）的歸屬。
+// 現有模式每人一張地圖，所以就是玩家自己；合作迷宮會改回傳全隊共用的那一份。
+// 塔的清單（p.towers）仍是「這位玩家擁有的塔」，不在這裡。
+const boardOf = (game, p) => game.shared ?? p;
+const isCoop = game => !!game.shared;
+// 全隊所有的塔（合作迷宮開波與畫面用）；p.towers 仍只是自己擁有的
+const allTowers = game => game.playerIds.flatMap(id => game.players[id].towers);
+
+// 堵死策略：合作迷宮預設 breach（允許堵死，怪物拆牆）；'validate' 與其他模式放置時不能封路
+const isBreach = game => isCoop(game) && C.COOP.blockPolicy === 'breach';
+// 加權尋路的成本：空地 1，餅乾牆與塔（含施工中的格子）遠高於繞路，所以有通路一定走通路
+const breachCost = grid => (x, y) => {
+  const v = grid.get(keyOf(x, y));
+  if (!v) return 1;
+  return v !== true && v.kind === 'stone' ? C.COOP.wallCost : C.COOP.towerCost;
+};
+// 這張地圖目前的路線 { path, legStarts, breaches }；validate 下走不通回傳 null
+function routeOfBoard(game, b) {
+  if (isBreach(game)) return findFullRoute(game.board, breachCost(b.grid));
+  const path = findFullPath(game.board, (x, y) => b.grid.has(keyOf(x, y)));
+  return path && { path, legStarts: null, breaches: [] };
+}
+
 function refreshPath(game, p) {
-  p.path = findFullPath(game.board, (x, y) => p.grid.has(keyOf(x, y))) ?? p.path;
+  const b = p ? boardOf(game, p) : game.shared;
+  const route = routeOfBoard(game, b);
+  if (route) { b.path = route.path; b.route = route; if (b === game.shared) noteRoute(game, route); }
 }
 
 const isTeam = game => game.options.livesMode === 'team';
@@ -155,7 +230,8 @@ function enterBuild(game, { now, rng }) {
   game.paused = false;
   game.pausedLeft = null;
   game.buildEndsAt = game.options.buildSeconds ? now + game.options.buildSeconds * 1000 : null;
-  for (const id of game.playerIds) game.players[id].sim = null;
+  for (const id of game.playerIds) boardOf(game, game.players[id]).sim = null;
+  if (isCoop(game)) cancelAllJobs(game);
   for (const id of activeIds(game)) {
     const p = game.players[id];
     if (p.left) {
@@ -179,6 +255,10 @@ function startGame(game, ids, { now, rng = Math.random }) {
     throw new GameError('BAD_PLAYER_COUNT', `需要 ${C.MIN_PLAYERS}～${C.MAX_PLAYERS} 位玩家`);
   }
   const options = game.options;
+  const coop = options.mode === 'coop';
+  if (coop && (ids.length < C.COOP.minPlayers || ids.length > C.COOP.maxPlayers)) {
+    throw new GameError('BAD_PLAYER_COUNT', `合作迷宮需要 ${C.COOP.minPlayers}～${C.COOP.maxPlayers} 位玩家`);
+  }
   Object.assign(game, blankRun());
   // 環形接力：區域數 = 玩家數（多人）；單一真人時由設定決定，其餘區域由假人控制
   const relay = options.mode === 'relay';
@@ -190,16 +270,24 @@ function startGame(game, ids, { now, rng = Math.random }) {
   game.startedAt = now;
   game.lives = maxLives(game);
   const mapOpt = game.options.map ?? C.DEFAULT_OPTIONS.map;
-  game.board = makeBoard(relay ? 0 : mapOpt === 'random' ? Math.floor(rng() * C.MAP_COUNT) : mapOpt);
+  game.board = coop ? makeCoopBoard(ids.length, rng) : makeBoard(relay ? 0 : mapOpt, rng);
+  if (coop) {
+    game.shared = { grid: new Map(), path: [], sim: null, leaked: 0, skillCd: Object.fromEntries(C.SKILL_IDS.map(sid => [sid, 0])) };
+    // 每位玩家一個建造者，從起點出發
+    // 圍著起點散開站，名字與模型才不會疊成一個點
+    const spots = B.spreadStarts(game.board.start.x + 0.5, game.board.start.y + 0.5, zoneIds.length, { width: game.board.width, height: game.board.height });
+    game.shared.builders = Object.fromEntries(zoneIds.map((id, i) => [id, B.createBuilder(spots[i].x, spots[i].y)]));
+    game.shared.stats = blankCoopStats();
+  }
   if (relay && zoneIds.length > 1) game.ring = { layout: ringLayout(zoneIds.length, game.board), events: [], hub: null, eventsFor: null };
   for (const id of zoneIds) {
     const p = {
       bot: !ids.includes(id), left: false, rstats: R.blankStats(),
       gold: C.START_GOLD, quality: 1, research: { damage: 0, speed: 0, range: 0 }, pending: [], rerolls: 0, resolved: false, ready: false,
       lives: C.START_LIVES, out: false, outWave: 0,
-      stats: { leaked: 0, peakGold: 0, lifeBought: 0, tests: [] },
+      stats: { leaked: 0, peakGold: 0, lifeBought: 0, killGold: 0, tests: [] },
       towers: [],
-      skillCd: Object.fromEntries(C.SKILL_IDS.map(sid => [sid, 0])), // 技能冷卻（波數）
+      skillCd: game.shared ? game.shared.skillCd : Object.fromEntries(C.SKILL_IDS.map(sid => [sid, 0])), // 技能冷卻（波數）；合作迷宮全隊共用同一份
       grid: new Map(), // "x,y" → tower
       path: [],
       sim: null,
@@ -250,7 +338,7 @@ function takeSnapshot(game, p) {
     pending: p.pending.map(g => ({ ...g })),
     stats: structuredClone(p.stats),
     towers: p.towers.map(t => ({ ...t })),
-    path: p.path,
+    path: boardOf(game, p).path,
     nextTowerId: game.nextTowerId,
     gameLives: game.lives, playerLives: p.lives,
   };
@@ -259,18 +347,19 @@ function takeSnapshot(game, p) {
 function restoreSnapshot(game, p, s) {
   Object.assign(p, {
     gold: s.gold, quality: s.quality, rerolls: s.rerolls, resolved: s.resolved, livesBought: s.livesBought,
-    research: s.research, wish: s.wish, pending: s.pending, stats: s.stats, towers: s.towers, path: s.path,
+    research: s.research, wish: s.wish, pending: s.pending, stats: s.stats, towers: s.towers,
     lives: s.playerLives,
   });
+  boardOf(game, p).path = s.path;
   game.nextTowerId = s.nextTowerId;
   game.lives = s.gameLives;
-  p.grid = new Map(p.towers.map(t => [keyOf(t.x, t.y), t]));
+  boardOf(game, p).grid = new Map(p.towers.map(t => [keyOf(t.x, t.y), t]));
 }
 
 // 包住會改動玩家狀態的建造動作：成功才記一筆快照，失敗（丟錯）不留痕跡
 function undoable(fn) {
   return function wrapped(game, playerId, ...args) {
-    const p = game.phase === 'build' ? game.players[playerId] : null;
+    const p = game.phase === 'build' && !isCoop(game) ? game.players[playerId] : null;
     const snap = p && !p.out && !p.ready ? takeSnapshot(game, p) : null;
     const result = fn(game, playerId, ...args);
     if (snap) (p.undo ??= []).push(snap);
@@ -280,6 +369,7 @@ function undoable(fn) {
 
 function undo(game, playerId) {
   requireBuild(game);
+  if (isCoop(game)) throw new GameError('NO_UNDO', '合作迷宮不能還原');
   const p = playerOf(game, playerId);
   if (p.ready) throw new GameError('ALREADY_READY', '已經按下準備，不能還原');
   const snap = p.undo?.pop();
@@ -312,12 +402,17 @@ function placeGem(game, playerId, slot, x, y) {
   }
   if (isWaypoint(board, x, y)) throw new GameError('BAD_CELL', '路徑點不能擺放');
   const key = keyOf(x, y);
-  if (p.grid.has(key)) throw new GameError('BAD_CELL', '這格已經有東西了');
+  const b = boardOf(game, p);
+  if (b.grid.has(key)) {
+    // 合作迷宮：同格先到先得，後到者收到 CELL_TAKEN（現有模式維持 BAD_CELL）
+    if (isCoop(game)) noteCellTaken(game, playerId);
+    throw new GameError(isCoop(game) ? 'CELL_TAKEN' : 'BAD_CELL', '這格已經有東西了');
+  }
 
-  p.grid.set(key, true);
-  const path = findFullPath(board, (cx, cy) => p.grid.has(keyOf(cx, cy)));
-  if (!path) {
-    p.grid.delete(key);
+  b.grid.set(key, true);
+  const route = routeOfBoard(game, b);
+  if (!route) {
+    b.grid.delete(key);
     throw new GameError('PATH_BLOCKED', '不能封死怪物的路線');
   }
 
@@ -325,11 +420,174 @@ function placeGem(game, playerId, slot, x, y) {
   // slot：本回合從第幾格放下的（前端在原位置顯示「已放」）；選完後 fresh 變 false 就不再下發
   const tower = { id: game.nextTowerId++, x, y, kind, level, owner: playerId, fresh: true, slot, kills: 0, damage: 0 };
   p.towers.push(tower);
-  p.grid.set(key, tower);
-  p.path = path;
+  b.grid.set(key, tower);
+  b.path = route.path;
+  b.route = route;
+  if (isCoop(game)) noteRoute(game, route);
   p.pending.splice(index, 1);
   return tower;
 }
+
+// ── 合作迷宮：建造者與工作 ──────────────────────────────────────
+const isBuilderMode = game => isCoop(game) && game.options.buildMode === 'builder';
+
+// 放棄一件工作：施工中的格子釋放（寶石一直在手牌，不需要退回）
+function releaseJob(game, job) {
+  if (job?.started && job.type === 'build') {
+    game.shared.grid.delete(keyOf(job.x, job.y));
+    refreshPath(game, null);
+  }
+  return job;
+}
+// 移動或改派而放掉原本的工作（沒按取消）
+const noteReplaced = (game, job) => { if (job) game.shared.stats.replaced += 1; };
+
+function cancelJobOf(game, playerId) {
+  const b = game.shared.builders[playerId];
+  if (b) releaseJob(game, B.cancelJob(b));
+}
+
+function cancelAllJobs(game) {
+  for (const id of Object.keys(game.shared.builders)) cancelJobOf(game, id);
+}
+
+function requireBuilder(game, playerId) {
+  requireBuild(game);
+  if (!isBuilderMode(game)) throw new GameError('BAD_MODE', '這個模式沒有建造者');
+  const p = playerOf(game, playerId);
+  if (p.left) throw new GameError('NOT_PLAYER', '你已經離開了');
+  return game.shared.builders[playerId];
+}
+
+const inBoard = (game, x, y) => Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < game.board.width && y < game.board.height;
+
+// 建造者走到指定位置（座標是格，可有小數）；會取消目前的工作
+function moveBuilder(game, playerId, x, y) {
+  const b = requireBuilder(game, playerId);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) throw new GameError('BAD_CELL', '位置不正確');
+  const { width, height } = game.board;
+  noteReplaced(game, releaseJob(game, B.moveTo(b, Math.min(width - 0.5, Math.max(0.5, x)), Math.min(height - 0.5, Math.max(0.5, y)))));
+}
+
+// 指派建造者去某格蓋手牌第 slot 顆；已經在做別的就取消那件（沒有損失）
+function buildAt(game, playerId, slot, x, y) {
+  const b = requireBuilder(game, playerId);
+  const p = game.players[playerId];
+  if (!p.pending.some(g => g.slot === slot)) throw new GameError('BAD_SLOT', '這個甜點已經放下了');
+  if (!inBoard(game, x, y)) throw new GameError('BAD_CELL', '超出地圖範圍');
+  if (isWaypoint(game.board, x, y)) throw new GameError('BAD_CELL', '路徑點不能擺放');
+  if (game.shared.grid.has(keyOf(x, y))) {
+    noteCellTaken(game, playerId);
+    throw new GameError('CELL_TAKEN', '這格已經有東西了');
+  }
+  const job = { type: 'build', slot, x, y, duration: C.COOP.buildSeconds };
+  // 手上正在蓋東西：接在後面排隊（最多 5 件）；同一顆或同一格不重複排
+  if (b.job?.type === 'build') {
+    const all = [b.job, ...b.queue];
+    if (all.some(j => j.slot === slot || (j.x === x && j.y === y))) throw new GameError('BAD_SLOT', '這顆甜點或這格已經排進去了');
+    if (!B.queueJob(b, job, 5)) throw new GameError('QUEUE_FULL', '最多先排 5 顆');
+    return;
+  }
+  noteReplaced(game, releaseJob(game, B.assignJob(b, job)));
+}
+
+// 指派建造者去拆自己的餅乾牆（要時間，不收金幣）
+function demolishAt(game, playerId, towerId) {
+  const b = requireBuilder(game, playerId);
+  // 建造階段任何人都能免費拆餅乾牆（防止有人惡意堵路）；塔不能被別人拆
+  const t = allTowers(game).find(o => o.id === towerId);
+  if (!t || t.kind !== 'stone') throw new GameError('BAD_TOWER', '只能拆除餅乾牆');
+  noteReplaced(game, releaseJob(game, B.assignJob(b, { type: 'demolish', towerId, owner: t.owner, x: t.x, y: t.y, duration: C.COOP.demolishSeconds })));
+}
+
+function cancelJobCommand(game, playerId) {
+  requireBuilder(game, playerId);
+  if (game.shared.builders[playerId].job) {
+    game.shared.stats.cancels += 1;
+    playerStat(game, playerId).cancels += 1;
+  }
+  cancelJobOf(game, playerId);
+}
+
+// 到場、開始施工那一刻：蓋的格子立刻算障礙物（路線預覽馬上更新）；不行就作廢
+function startJob(game, playerId, job) {
+  const p = game.players[playerId];
+  const grid = game.shared.grid;
+  if (job.type === 'demolish') return towerById(game.players[job.owner], job.towerId)?.kind === 'stone';
+  const key = keyOf(job.x, job.y);
+  if (!p.pending.some(g => g.slot === job.slot) || grid.has(key)) return false;
+  grid.set(key, { reserved: true, owner: playerId });
+  const route = routeOfBoard(game, game.shared);
+  if (!route) {
+    grid.delete(key);
+    return false;
+  }
+  game.shared.path = route.path;
+  game.shared.route = route;
+  noteRoute(game, route);
+  return true;
+}
+
+function finishJob(game, playerId, job) {
+  if (job.type === 'build') {
+    game.shared.grid.delete(keyOf(job.x, job.y)); // 保留的格子換成正式的塔
+    placeGem(game, playerId, job.slot, job.x, job.y);
+  } else {
+    removeStone(game, job.owner, job.towerId, playerId); // 牆屬於放下的人，金幣照舊不收
+  }
+}
+
+// 建造階段的步進（index.js 每 100ms 呼叫）。回傳 { changed, errors }：
+// changed = 有工作開始、作廢或完成（要推送 gt:state）；errors = 作廢的原因，個別通知那位玩家
+function stepBuilders(game, dt) {
+  const out = { changed: false, errors: [] };
+  if (game.phase !== 'build' || !isBuilderMode(game)) return out;
+  for (const id of game.playerIds) {
+    const p = game.players[id];
+    const b = game.shared.builders[id];
+    if (!b || p.out || p.left) continue;
+    const events = B.stepBuilder(b, dt, { speed: C.COOP.builderSpeed, range: C.COOP.buildRange, onStart: job => startJob(game, id, job) });
+    for (const ev of events) {
+      out.changed = true;
+      if (ev.type === 'reject') {
+        const taken = game.shared.grid.has(keyOf(ev.job.x, ev.job.y));
+        game.shared.stats.rejected += 1;
+        if (taken) noteCellTaken(game, id);
+        out.errors.push({ playerId: id, code: taken ? 'CELL_TAKEN' : 'PATH_BLOCKED', message: taken ? '這格已經有東西了' : '不能封死怪物的路線' });
+      } else if (ev.type === 'done') {
+        try {
+          finishJob(game, id, ev.job);
+        } catch (err) {
+          if (!(err instanceof GameError)) throw err;
+          out.errors.push({ playerId: id, code: err.code, message: err.message });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// 建造者位置與工作進度（約 10Hz 的 volatile 快照；工作的起訖變動走 gt:state）
+function builderFrame(game) {
+  if (!isCoop(game) || !game.shared.builders) return null;
+  return {
+    builders: game.playerIds.map((id) => {
+      const b = game.shared.builders[id];
+      const job = b.job;
+      return { id, x: Math.round(b.x * 100) / 100, y: Math.round(b.y * 100) / 100, p: job?.started ? Math.min(1, job.progress / job.duration) : 0 };
+    }),
+  };
+}
+
+const builderView = game => (!isBuilderMode(game) ? null : game.playerIds.map((id) => {
+  const b = game.shared.builders[id];
+  const j = b.job;
+  return {
+    id, x: Math.round(b.x * 100) / 100, y: Math.round(b.y * 100) / 100,
+    queue: b.queue.map(q => ({ slot: q.slot, x: q.x, y: q.y })),
+    job: j ? { type: j.type, x: j.x, y: j.y, slot: j.slot ?? null, towerId: j.towerId ?? null, started: j.started, p: j.started ? Math.min(1, j.progress / j.duration) : 0 } : null,
+  };
+}));
 
 // ── 保留 / 同級合成 ─────────────────────────────────────────────
 function requireChoosing(game, playerId) {
@@ -441,7 +699,7 @@ function bossDownNotices(game) {
   if (!isTestWave(game)) return [];
   const out = [];
   for (const id of game.playerIds) {
-    const sim = game.players[id].sim;
+    const sim = boardOf(game, game.players[id]).sim;
     if (!sim || sim.bossDownAt === null || sim.bossAnnounced) continue;
     sim.bossAnnounced = true;
     out.push(`${game.names?.[id] ?? '玩家'} 打倒了${C.MONSTERS?.titan?.name ?? '甜點巨獸'}，用了 ${Math.round(sim.bossDownAt * 10) / 10} 秒`);
@@ -499,15 +757,20 @@ function upgradeResearch(game, playerId, track) {
   p.research[track] = level + 1;
 }
 
-function removeStone(game, playerId, towerId) {
+// actorId：實際動手拆的人（建造者拆別人的牆時與擁有者不同）；只用來記試玩統計
+function removeStone(game, playerId, towerId, actorId = playerId) {
   requireBuild(game);
   const p = playerOf(game, playerId);
   const t = towerById(p, towerId);
   if (!t || t.kind !== 'stone') throw new GameError('BAD_TOWER', '只能拆除自己地圖上的餅乾牆');
   spend(p, C.REMOVE_STONE_COST);
   p.towers = p.towers.filter(o => o !== t);
-  p.grid.delete(keyOf(t.x, t.y));
+  boardOf(game, p).grid.delete(keyOf(t.x, t.y));
   refreshPath(game, p);
+  if (isCoop(game)) {
+    game.shared.stats.demolishes += 1;
+    playerStat(game, actorId)[playerId === actorId ? 'demolishOwn' : 'demolishOthers'] += 1;
+  }
 }
 
 // 把自己的塔跟一顆石頭對調位置（路線不受影響：兩格都還是障礙物）
@@ -521,8 +784,9 @@ function swapWithStone(game, playerId, towerId, stoneId) {
   spend(p, C.SWAP_COST);
   [t.x, stone.x] = [stone.x, t.x];
   [t.y, stone.y] = [stone.y, t.y];
-  p.grid.set(keyOf(t.x, t.y), t);
-  p.grid.set(keyOf(stone.x, stone.y), stone);
+  const b = boardOf(game, p);
+  b.grid.set(keyOf(t.x, t.y), t);
+  b.grid.set(keyOf(stone.x, stone.y), stone);
 }
 
 // ── 準備 / 開波 ─────────────────────────────────────────────────
@@ -542,6 +806,7 @@ function allReady(game, onlineIds) {
 // 時間到還沒選完：剩下的寶石隨機放，保留等級最高的（能合成就合成）
 function autoResolve(game, playerId, rng = Math.random) {
   const p = game.players[playerId];
+  if (isCoop(game)) cancelJobOf(game, playerId); // 還在施工的先放棄，剩下的寶石由下面隨機放
   if (p.resolved) return;
   const { width, height } = game.board;
 
@@ -570,18 +835,52 @@ function autoResolve(game, playerId, rng = Math.random) {
 
 function startWave(game, { rng = Math.random } = {}) {
   requireBuild(game);
+  if (isCoop(game)) cancelAllJobs(game);
   for (const id of activeIds(game)) autoResolve(game, id, rng);
   game.phase = 'wave';
   game.buildEndsAt = null;
   if (isRelay(game)) game.ring.hub = R.createHub(game.ring);
+  if (isCoop(game)) {
+    const b = game.shared;
+    refreshPath(game, null);
+    b.sim = createWave({
+      route: b.route,
+      breach: isBreach(game) ? {
+        grid: b.grid,
+        costOf: breachCost(b.grid),
+        // 牆的血量隨波數成長；塔遠高於餅乾牆
+        hpOf: (v, wave) => (C.COOP.wallHpBase + C.COOP.wallHpPerWave * wave) * (v.kind === 'stone' ? 1 : C.COOP.towerHpMult),
+        onBroken: (tower) => { // 被打破的牆／塔直接消失（擁有者損失）
+          const owner = game.players[tower.owner];
+          if (owner) owner.towers = owner.towers.filter(t => t !== tower);
+          b.stats[tower.kind === 'stone' ? 'wallsBroken' : 'towersBroken'] += 1;
+        },
+        onRepath: (route) => { b.path = route.path; b.route = route; noteRoute(game, route); },
+      } : null,
+      coop: { n: game.startCount },
+      devBoss: game.devBoss,
+      board: game.board,
+      towers: allTowers(game),
+      path: b.path,
+      wave: game.wave + 1,
+      totalWaves: game.options.waves,
+      testAt: game.testAt,
+      difficulty: game.options.difficulty,
+      pool: game, // 合作迷宮固定共用血量
+      research: t => game.players[t.owner].research, // 每座塔套自己擁有者的研究
+      skillCd: b.skillCd,
+    });
+    return;
+  }
   for (const id of activeIds(game)) {
     const p = game.players[id];
-    p.sim = createWave({
+    const b = boardOf(game, p);
+    b.sim = createWave({
       relay: isRelay(game) ? { zone: game.playerIds.indexOf(id), n: game.playerIds.length, hub: game.ring.hub } : null,
       devBoss: game.devBoss,
       board: game.board,
       towers: p.towers,
-      path: p.path,
+      path: b.path,
       wave: game.wave + 1,
       totalWaves: game.options.waves,
       testAt: game.testAt,
@@ -599,9 +898,10 @@ function castSkill(game, playerId, skill) {
   if (game.paused) throw new GameError('PAUSED', '遊戲暫停中');
   if (isRelay(game)) throw new GameError('NO_SKILL', '環形接力不能使用技能');
   const p = playerOf(game, playerId);
-  if (!p.sim) throw new GameError('NO_SKILL', '這一波不能使用技能');
+  const { sim } = boardOf(game, p);
+  if (!sim) throw new GameError('NO_SKILL', '這一波不能使用技能');
   try {
-    simCastSkill(p.sim, skill);
+    simCastSkill(sim, skill);
   } catch (err) {
     throw new GameError('NO_SKILL', err.message);
   }
@@ -645,30 +945,39 @@ function eliminate(game, id) {
   p.out = true;
   p.outWave = game.wave + 1;
   p.ready = false;
-  p.sim.monsters = [];
-  p.sim.done = true;
+  const { sim } = boardOf(game, p);
+  sim.monsters = [];
+  sim.done = true;
 }
 
 // 前進 dt 秒。done：所有地圖都打完或勝負已定（結算由 finishWave 處理）；out：這一步出局的玩家
 function tick(game, dt, rng = Math.random) {
   if (game.phase !== 'wave') return { done: false, out: [] };
   if (isRelay(game)) return tickRelay(game, dt, rng);
+  if (isCoop(game)) {
+    const { sim } = game.shared;
+    if (!sim.done) sim.done = stepWave(sim, dt, rng);
+    const changed = sim.changed;
+    sim.changed = false;
+    return { done: decidedWinners(game) !== null || sim.done, out: [], changed };
+  }
   const out = [];
   for (const id of activeIds(game)) {
     const p = game.players[id];
-    if (!p.sim.done) p.sim.done = stepWave(p.sim, dt, rng);
+    const { sim } = boardOf(game, p);
+    if (!sim.done) sim.done = stepWave(sim, dt, rng);
     if (!isTeam(game) && p.lives <= 0) {
       eliminate(game, id);
       out.push(id);
     }
   }
-  const done = decidedWinners(game) !== null || activeIds(game).every(id => game.players[id].sim.done);
+  const done = decidedWinners(game) !== null || activeIds(game).every(id => boardOf(game, game.players[id]).sim.done);
   return { done, out };
 }
 
 // 環形接力：每區都照常推進（區裡的蟲走完就交給輸送帶），直到整圈的蟲都出完、打完、走完
 function tickRelay(game, dt, rng) {
-  const sims = game.playerIds.map(id => game.players[id].sim);
+  const sims = game.playerIds.map(id => boardOf(game, game.players[id]).sim);
   for (const sim of sims) stepWave(sim, dt, rng);
   R.stepTransit(game.ring.hub, sims, dt);
   const done = game.lives <= 0 || R.waveClear(game.ring.hub, sims);
@@ -719,10 +1028,12 @@ function buildResult(game, winnerIds) {
       outWave: p.outWave,
       kills: p.towers.reduce((n, t) => n + t.kills, 0),
       damage: Math.round(p.towers.reduce((n, t) => n + t.damage, 0)),
-      leaked: p.stats.leaked,
+      leaked: isCoop(game) ? game.shared.leaked : p.stats.leaked,
       gold: p.gold,
       peakGold: p.stats.peakGold,
       lifeBought: p.stats.lifeBought,
+      // 合作迷宮的貢獻：入帳的擊殺金累計、場上的塔數（不含餅乾牆）；其他模式的結算內容不變
+      ...(isCoop(game) ? { killGold: p.stats.killGold, towers: p.towers.filter(t => t.kind !== 'stone').length } : {}),
     };
   }).sort((a, b) => (isTeam(game) ? 0 : b.lives - a.lives || b.outWave - a.outWave) || b.damage - a.damage);
   const top = game.playerIds
@@ -755,7 +1066,7 @@ function buildResult(game, winnerIds) {
 function relayZoneRows(game) {
   return game.playerIds.map((id, index) => {
     const p = game.players[id];
-    return { id, index, bot: p.bot, left: p.left, pathLength: Math.max(0, p.path.length - 1), ...R.liveStats(p) };
+    return { id, index, bot: p.bot, left: p.left, pathLength: Math.max(0, boardOf(game, p).path.length - 1), ...R.liveStats(p) };
   });
 }
 
@@ -764,13 +1075,13 @@ function bankWave(game) {
   const testWave = isTestWave(game);
   for (const id of game.playerIds) {
     const p = game.players[id];
-    const sim = p.sim;
+    const { sim } = boardOf(game, p);
     if (!sim || sim.banked) continue;
     sim.banked = true;
     for (const sid of C.SKILL_IDS) p.skillCd[sid] = Math.max(0, p.skillCd[sid] - 1);
     if (testWave) {
       // 環形接力：巨獸血量與是否擊倒都是整隊的，每區只記自己打出的傷害
-      const sims = isRelay(game) ? game.playerIds.map(pid => game.players[pid].sim) : [sim];
+      const sims = isRelay(game) ? game.playerIds.map(pid => boardOf(game, game.players[pid]).sim) : [sim];
       const downAt = sims.map(s => s.bossDownAt).filter(t => t !== null);
       p.stats.tests.push({
         at: game.testAt,
@@ -781,7 +1092,8 @@ function bankWave(game) {
         escaped: sim.leaked > 0,
       });
     } else {
-      p.stats.leaked += sim.leaked;
+      if (isCoop(game)) game.shared.leaked += sim.leaked;
+      else p.stats.leaked += sim.leaked;
       if (isRelay(game)) R.bankStats(p, sim);
     }
   }
@@ -790,7 +1102,7 @@ function bankWave(game) {
 // 環形接力：一波打完，把各區的傳遞與補救寫進事件紀錄（每一波只寫一次）
 function recordRelayEvents(game) {
   if (!isRelay(game)) return;
-  const sims = game.playerIds.map(id => game.players[id].sim);
+  const sims = game.playerIds.map(id => boardOf(game, game.players[id]).sim);
   if (sims.some(s => !s)) return;
   const test = isTestWave(game);
   const label = test ? game.testAt : game.wave + 1;
@@ -804,16 +1116,59 @@ function finishGame(game, winnerIds) {
   bankWave(game);
   game.phase = 'finished';
   game.buildEndsAt = null;
-  for (const id of game.playerIds) game.players[id].sim = null;
+  for (const id of game.playerIds) boardOf(game, game.players[id]).sim = null;
   game.finishedAt = Date.now();
   game.result = buildResult(game, winnerIds);
   game.records = buildRecords(game, winnerIds); // 給排行榜用，不送給前端
+  game.playtest = isCoop(game) ? buildPlaytestRecord(game, winnerIds) : null; // 合作迷宮試玩紀錄，index.js 寫檔
+}
+
+// 合作迷宮試玩紀錄（一局一筆，純資料可直接 JSON.stringify）。不含暱稱與帳號，玩家用 P1、P2… 代號。
+// 完成率 = 到達波數 ÷ 設定波數（無盡局是 null）。拆牆分「拆自己放的」與「拆別人放的」
+function buildPlaytestRecord(game, winnerIds) {
+  const st = game.shared.stats;
+  const { waves, difficulty, buildMode } = game.options;
+  const endless = isEndless(game);
+  const reached = Math.min(game.wave, endless ? game.wave : waves);
+  const humans = game.humanIds;
+  return {
+    schema: 1,
+    mode: 'coop',
+    finishedAt: new Date(game.finishedAt).toISOString(),
+    seconds: Math.max(0, Math.round((game.finishedAt - game.startedAt - (game.pausedMs ?? 0)) / 1000)),
+    aborted: !!game.aborted,
+    players: humans.length,
+    board: { name: game.board.mapName, width: game.board.width, height: game.board.height },
+    options: { waves: endless ? null : waves, difficulty, buildMode, blockPolicy: C.COOP.blockPolicy },
+    win: winnerIds.length > 0,
+    wave: reached,
+    completion: endless ? null : Math.round((reached / waves) * 1000) / 1000,
+    livesLeft: game.lives,
+    blocked: st.blocked,
+    cellTaken: st.cellTaken,
+    cancels: st.cancels,
+    replaced: st.replaced,
+    rejected: st.rejected,
+    demolishes: st.demolishes,
+    demolishOwn: humans.reduce((n, id) => n + (st.byPlayer[id]?.demolishOwn ?? 0), 0),
+    demolishOthers: humans.reduce((n, id) => n + (st.byPlayer[id]?.demolishOthers ?? 0), 0),
+    wallsBroken: st.wallsBroken,
+    towersBroken: st.towersBroken,
+    byPlayer: humans.map((id, i) => ({
+      player: `P${i + 1}`,
+      left: game.players[id].left,
+      cellTaken: st.byPlayer[id]?.cellTaken ?? 0,
+      cancels: st.byPlayer[id]?.cancels ?? 0,
+      demolishOwn: st.byPlayer[id]?.demolishOwn ?? 0,
+      demolishOthers: st.byPlayer[id]?.demolishOthers ?? 0,
+    })),
+  };
 }
 
 // 排行榜紀錄：每位玩家一筆。到達波數 = 實際打到（或倒下）的那一波；通關 = 撐過最後一波且沒出局（無盡沒有通關）
 // 傷害取這局所有傷害測試中「傷害 ÷ 巨獸血量」最高的一場（最多 100%），finalDamage 是那一場的傷害
 function buildRecords(game, winnerIds) {
-  if (game.aborted || game.tainted || !game.startedAt) return [];
+  if (game.aborted || game.tainted || !game.startedAt || isCoop(game)) return [];
   const { waves, difficulty, livesMode } = game.options;
   const endless = isEndless(game);
   const lastCleared = isLastWave(game);
@@ -843,7 +1198,7 @@ function buildRecords(game, winnerIds) {
   });
 }
 
-// 環形接力的成績是整隊的：每位在場的真人一筆，內容相同；依區域數各開一個榜
+// 環形接力的成績是整隊的：每位在場的真人一筆，內容相同；1～6 區合成一個榜（zones 欄位標示幾區）
 function buildRelayRecords(game, winnerIds, { waves, difficulty, endless, lastCleared, seconds }) {
   const cleared = lastCleared && winnerIds.length > 0;
   const reached = game.wave + 1;
@@ -929,7 +1284,11 @@ function finishWave(game, { now, rng = Math.random }) {
   const bonus = Math.round(C.waveClearBonus(game.wave) * (isRelay(game) ? C.RELAY_CLEAR_BONUS_SHARE : 1));
   for (const id of activeIds(game)) {
     const p = game.players[id];
-    p.gold += p.sim.earned + bonus + C.interestOn(p.gold);
+    const { sim } = boardOf(game, p);
+    const bornShare = sim.relay?.hub.credit?.[sim.relay.zone] ?? 0; // 別區補救我漏出去的蟲，我分到的擊殺金
+    const earned = sim.coop ? (sim.earnedBy[id] ?? 0) : sim.earned; // 合作迷宮：只拿自己的塔打出的擊殺金
+    p.gold += earned + bornShare + bonus + C.interestOn(p.gold);
+    if (sim.coop) p.stats.killGold += earned; // 結算畫面的「各人擊殺金」
     p.stats.peakGold = Math.max(p.stats.peakGold, p.gold);
   }
 
@@ -962,7 +1321,7 @@ function startBossWave(game) {
 // 玩家離開：他的地圖跟著收掉；回傳剩餘人數。波次中的勝負由下一次 tick 判定
 // 環形接力：環不收，他的區停止建造（塔繼續攻擊）；剩餘人數指還在場的真人
 function leavePlayer(game, playerId) {
-  if (isRelay(game)) {
+  if (isRelay(game) || isCoop(game)) {
     if (!game.humanIds.includes(playerId) || game.players[playerId].left) return { changed: false, remaining: humansLeft(game), finished: false };
     const p = game.players[playerId];
     if (game.phase === 'build') autoResolve(game, playerId); // 手上的甜點先收尾，不留半成品
@@ -1018,6 +1377,8 @@ function meView(game, playerId) {
 
 // 這位觀看者要看哪張地圖：指定的玩家 > 自己 > 第一位玩家
 function resolveWatch(game, viewerId, watchId) {
+  // 合作迷宮只有一張圖：不管指定看誰，玩家看到的都是自己的視角（塔與手牌歸自己）
+  if (isCoop(game)) return game.playerIds.includes(viewerId) ? viewerId : game.playerIds[0] ?? null;
   if (game.playerIds.includes(watchId)) return watchId;
   if (game.playerIds.includes(viewerId)) return viewerId;
   return game.playerIds[0] ?? null;
@@ -1032,10 +1393,10 @@ function buildView(game, viewerId, watchId) {
     const n = game.ring ? game.playerIds.length : 1;
     const hpMult = (g) => {
       if (!game.ring) return 1;
-      if (C.MONSTERS[g.type].boss) return test ? n * C.RELAY_BOSS_HP_MULT : C.RELAY_BOSS_HP_MULT;
+      if (C.MONSTERS[g.type].boss) return test ? C.relayTestHpMult(n) :C.RELAY_BOSS_HP_MULT;
       return C.relayGroupHpMult(n);
     };
-    const armorMult = g => (game.ring && !C.MONSTERS[g.type].boss ? C.RELAY_ARMOR_MULT : 1);
+    const armorMult = g => (!game.ring ? 1 : test && C.MONSTERS[g.type].boss ? C.RELAY_TEST_ARMOR_MULT : C.MONSTERS[g.type].boss ? 1 : C.RELAY_ARMOR_MULT);
     const groups = def.groups.map(g => ({ type: g.type, count: g.count, hp: Math.max(1, Math.round(g.hp * hpMult(g))), armor: Math.round(g.armor * armorMult(g)), trait: g.trait, leak: g.leak }));
     return { number, type: def.type, count: def.count, hp: groups[0].hp, armor: groups[0].armor, groups, test: !!def.test, perZone: !!game.ring && !test };
   })();
@@ -1052,8 +1413,8 @@ function buildView(game, viewerId, watchId) {
     maxLives: maxLives(game),
     board: game.board,
     watching,
-    towers: field ? field.towers.map(towerView) : [],
-    path: field ? field.path : [],
+    towers: isCoop(game) ? allTowers(game).map(towerView) : field ? field.towers.map(towerView) : [],
+    path: field ? boardOf(game, field).path : [],
     buildEndsAt: game.buildEndsAt,
     serverNow: null, // index.js 填入
     speed: game.speed,
@@ -1071,6 +1432,9 @@ function buildView(game, viewerId, watchId) {
       }];
     })),
     me: viewerId ? relayMe(game, viewerId, actor) : null,
+    builders: builderView(game),
+    // 合作迷宮 breach：路線上必須打破的牆（建造階段紅色標出預計的突破點）；其他模式與 validate 是 null
+    breaches: isBreach(game) ? (game.shared.route?.breaches ?? []).map(({ x, y }) => ({ x, y, tower: game.shared.grid.get(keyOf(x, y))?.kind !== 'stone' })) : null,
     relay: game.ring ? relayView(game, viewerId, watching) : null,
   };
 }
@@ -1089,8 +1453,8 @@ function relayView(game, viewerId, watching) {
   const zones = game.playerIds.map((id, index) => {
     const p = game.players[id];
     return {
-      id, index, bot: p.bot, left: p.left, pathLength: Math.max(0, p.path.length - 1),
-      path: flatPath(p.path),
+      id, index, bot: p.bot, left: p.left, pathLength: Math.max(0, boardOf(game, p).path.length - 1),
+      path: flatPath(boardOf(game, p).path),
       towers: p.towers.map(t => [t.id, t.x, t.y, t.kind, t.level, t.fresh ? 1 : 0, t.kills]),
       stats: R.liveStats(p),
     };
@@ -1115,16 +1479,17 @@ function relayView(game, viewerId, watching) {
 // watched 給定時只組這些玩家的地圖（沒人看的地圖只清掉累積的射擊事件）
 function buildFrames(game, watched = null) {
   // 環形接力：整圈只有一份快照，所有人收到同一份
-  if (isRelay(game) && game.ring.hub && game.playerIds.every(id => game.players[id].sim)) return { ring: R.buildRingFrame(game) };
-  const ids = game.playerIds.filter(id => game.players[id].sim);
+  if (isRelay(game) && game.ring.hub && game.playerIds.every(id => boardOf(game, game.players[id]).sim)) return { ring: R.buildRingFrame(game) };
+  if (isCoop(game)) return buildCoopFrames(game, watched);
+  const ids = game.playerIds.filter(id => boardOf(game, game.players[id]).sim);
   const players = Object.fromEntries(ids.map((id) => {
     const p = game.players[id];
-    const { earned, killed, leaked, done, damage } = p.sim;
+    const { earned, killed, leaked, done, damage } = boardOf(game, p).sim;
     return [id, { lives: livesPool(game, p).lives, earned, killed, leaked, done, damage: Math.round(damage) }];
   }));
   const frames = {};
   for (const id of ids) {
-    const { sim } = game.players[id];
+    const { sim } = boardOf(game, game.players[id]);
     if (watched && !watched.has(id)) {
       sim.shots = [];
       continue;
@@ -1132,6 +1497,22 @@ function buildFrames(game, watched = null) {
     frames[id] = { owner: id, wave: sim.wave, total: sim.def.count + sim.splits, players, sk: sim.noSkills ? null : skillCooldowns(sim), ...buildSimFrame(sim) };
   }
   return frames;
+}
+
+// 合作迷宮：全隊一份快照，每位玩家收到同一份（沒人在看時只清掉累積的射擊事件）
+function buildCoopFrames(game, watched) {
+  const { sim } = game.shared;
+  if (!sim) return {};
+  const ids = game.playerIds;
+  if (watched && !ids.some(id => watched.has(id))) {
+    sim.shots = [];
+    return {};
+  }
+  const players = Object.fromEntries(ids.map(id => [id, {
+    lives: game.lives, earned: sim.earnedBy[id] ?? 0, killed: sim.killed, leaked: sim.leaked, done: sim.done, damage: Math.round(sim.damage),
+  }]));
+  const frame = { owner: ids[0], wave: sim.wave, total: sim.def.count + sim.splits, players, sk: sim.noSkills ? null : skillCooldowns(sim), ...buildSimFrame(sim) };
+  return Object.fromEntries(ids.map(id => [id, frame]));
 }
 
 module.exports = {
@@ -1142,7 +1523,12 @@ module.exports = {
   createGame, resetGame, resolveOptions, startGame, castSkill,
   placeGem: undoable(placeGem), keepGem: undoable(keepGem), mergeGem: undoable(mergeGem), combine: undoable(combine),
   combineNotice, bossDownNotices, availableRecipes, undo,
-  buildRecords, upgradeQuality: undoable(upgradeQuality), rerollGems, rollGems, makeWish: undoable(makeWish),
+  boardOf, isBuilderMode, moveBuilder, buildAt, demolishAt, cancelJobCommand, stepBuilders, builderFrame,
+  requestPlace: (game, playerId, ...args) => {
+    if (isBuilderMode(game)) throw new GameError('USE_BUILDER', '請用建造者走過去蓋');
+    return undoable(placeGem)(game, playerId, ...args);
+  },
+  boardOf, buildRecords, upgradeQuality: undoable(upgradeQuality), rerollGems, rollGems, makeWish: undoable(makeWish),
   upgradeResearch: undoable(upgradeResearch), removeStone: undoable(removeStone), swapWithStone: undoable(swapWithStone),
   buyLife: undoable(buyLife),
   setReady, allReady, autoResolve, startWave, setSpeed, setPaused, tick, finishWave, finishNow, startBossWave,

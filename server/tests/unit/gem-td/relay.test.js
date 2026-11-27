@@ -250,7 +250,8 @@ test('傷害測試：一隻巨獸繞完整圈，各區傷害加總，漏怪不�
   L.finishWave(game, { now: 0, rng: seededRng() });
   const tests = game.playerIds.map(id => game.players[id].stats.tests.at(-1));
   const base = C.testWaveDef(15, 'easy', 15).hp;
-  assert.ok(tests.every(t => t.maxHp === Math.round(base * 3 * C.RELAY_BOSS_HP_MULT)), '隊伍的巨獸血量');
+  // 巨獸血量 = 單人 × 區域數 × 首領倍數 × 傷害測試加碼 × 人數加成，公式集中在 C.relayTestHpMult
+  assert.ok(tests.every(t => t.maxHp === Math.round(base * C.relayTestHpMult(3))), '隊伍的巨獸血量');
   assert.ok(tests[1].damage > 0 && tests[0].damage === 0, '只有有塔的那區有傷害');
   const log = L.buildView(game, 'a').testLog;
   assert.equal(log.rounds[0].team.damage, tests.reduce((n, t) => n + t.damage, 0));

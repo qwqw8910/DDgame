@@ -33,7 +33,10 @@ export const DIFFICULTY_CHOICES = [
 export const MODE_CHOICES = [
   { value: 'single', label: '一般（每人一張地圖）' },
   { value: 'relay', label: '環形接力（多區域排成一圈，蟲群主防後傳給下一區）' },
+  { value: 'coop', label: '合作迷宮（2～3 人共用一張大地圖，一起蓋同一條迷宮）' },
 ]
+// 合作迷宮的人數限制（伺服器的 catalog.coop 為準，這裡是沒收到型錄時的備用）
+export const COOP_LIMITS = { minPlayers: 2, maxPlayers: 3 }
 export const ZONE_CHOICES = [1, 2, 3, 4, 5, 6].map(n => ({ value: n, label: n === 1 ? '1 區（等同單人）' : `${n} 區` }))
 // 環形接力每區的代表色（伺服器的 catalog.relay.colors 為準，這裡是沒收到型錄時的備用）
 export const ZONE_COLORS = ['#D6305A', '#2F7FD1', '#2E9E5B', '#D9A21F', '#7C4DCC', '#E8741E']
@@ -80,6 +83,16 @@ export const RESULT_WIN_IMAGE = assetUrl('map/result-win.webp')
 export const RESULT_LOSE_IMAGE = assetUrl('map/result-lose.webp')
 export const CAKE_IMAGE = assetUrl('map/cake.webp')
 export const HERO_IMAGE = assetUrl('hero.webp')
+// 建造者：5 款小烘焙師（概念稿 docs/assets/gem-td-art/builder-concept.jpg 切出，各拿不同工具）。
+// 依玩家順序分配（第 i 位用第 i % 5 款），帽帶與圍裙的「主色」（hue ± tol、亮度 ≥ vMin）由程式換成該玩家色，
+// refS／refV 是這款主色的平均飽和度與亮度（換色時依目標色按比例縮放，保留明暗）。所以即使兩位玩家拿到同一款，也分得出來。順序刻意對應 PLAYER_MARKS 的紅、藍、綠、金，前三位幾乎不用換色。
+export const BUILDER_SKINS = [
+    { id: 'spoon', image: assetUrl('builder/chef-spoon.webp'), hue: 352, tol: 28, vMin: 0.45, refS: 0.72, refV: 0.85 }, // 大湯匙，紅
+    { id: 'bag', image: assetUrl('builder/chef-bag.webp'), hue: 203, tol: 25, vMin: 0.45, refS: 0.72, refV: 0.81 }, // 擠花袋，藍
+    { id: 'pin', image: assetUrl('builder/chef-pin.webp'), hue: 115, tol: 25, vMin: 0.4, refS: 0.56, refV: 0.7 }, // 擀麵棍，綠
+    { id: 'whisk', image: assetUrl('builder/chef-whisk.webp'), hue: 46, tol: 12, vMin: 0.6, refS: 0.73, refV: 0.95 }, // 打蛋器，黃
+    { id: 'spatula', image: assetUrl('builder/chef-spatula.webp'), hue: 18, tol: 12, vMin: 0.7, refS: 0.78, refV: 0.94 }, // 鍋鏟，橘（亮度門檻避開深褐色的握把）
+]
 
 // 等級越高顆粒越大
 export const gemScale = level => 0.56 + Math.min(level, 7) * 0.065

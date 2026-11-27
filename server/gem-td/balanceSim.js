@@ -93,10 +93,10 @@ function spendGold(game, id) {
   }
 }
 
-function playGame({ players, waves, livesMode, seed }) {
+function playGame({ players, waves, livesMode, seed, difficulty = 'easy' }) {
   const rng = seededRng(seed);
   const game = L.createGame();
-  game.options = { ...game.options, waves, livesMode, buildSeconds: 0, damageTest: true };
+  game.options = { ...game.options, waves, livesMode, buildSeconds: 0, damageTest: true, difficulty };
   const ids = Array.from({ length: players }, (_, i) => `p${i}`);
   L.startGame(game, ids, { now: 0, rng });
 
@@ -203,5 +203,124 @@ function runRelay(rounds, waves, difficulty) {
   }
 }
 
-if (process.argv[2] === 'relay') runRelay(Number(process.argv[3]) || 3, Number(process.argv[4]) || 30, process.argv[5] || 'easy');
+// ── 合作迷宮 ─────────────────────────────────────────────────────
+// 機器人用 instant 放置（建造者走路與施工時間不影響數值），兩種打法：
+//   corridor：沿著現有路線兩側蓋塔，不堵路（baseline）
+//   turtle  ：先用餅乾牆把整排堵死（要靠 breach 才打得通），再把塔蓋在突破點附近
+// 看的是通關率、平均到達波數、牆被打破的次數；多人共用一張圖，所以總火力隨人數成長，血量加成 hpPerPlayer 要把它抵消掉
+const TURTLE_ROW_OFFSET = 1; // 第 1 組路徑點列與第 2 組之間的那一排
+
+function coopCandidates(game, strategy) {
+  const { board } = game;
+  const waypoints = new Set([board.start, board.end, ...board.checkpoints].map(c => `${c.x},${c.y}`));
+  const inBoard = (x, y) => x >= 0 && y >= 0 && x < board.width && y < board.height;
+  const route = game.shared.path;
+  const onPath = new Set(route.map(c => `${c.x},${c.y}`));
+  let focus = null; // turtle：塔往突破點靠
+  const rows = [];
+  if (strategy === 'turtle') {
+    const ys = [board.start, ...board.checkpoints, board.end].map(c => c.y);
+    const wallY = Math.round((ys[TURTLE_ROW_OFFSET] + ys[TURTLE_ROW_OFFSET + 1]) / 2);
+    for (let x = 0; x < board.width; x++) rows.push({ x, y: wallY });
+    const breach = game.shared.route?.breaches?.[0];
+    focus = breach ?? { x: Math.floor(board.width / 2), y: wallY };
+  }
+  const seen = new Set();
+  const cells = [];
+  const add = (x, y) => {
+    const key = `${x},${y}`;
+    if (!inBoard(x, y) || seen.has(key) || waypoints.has(key)) return;
+    seen.add(key);
+    cells.push({ x, y });
+  };
+  for (const c of rows) add(c.x, c.y);
+  const near = [];
+  route.forEach((c, i) => {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+      const x = c.x + dx;
+      const y = c.y + dy;
+      if (inBoard(x, y) && !onPath.has(`${x},${y}`)) near.push({ x, y, i });
+    }
+  });
+  const ranked = strategy === 'turtle'
+    ? near.sort((a, b) => Math.hypot(a.x - focus.x, a.y - focus.y) - Math.hypot(b.x - focus.x, b.y - focus.y))
+    : near.sort((a, b) => a.i - b.i);
+  for (const c of ranked) add(c.x, c.y);
+  return cells;
+}
+
+function placeCoop(game, id, strategy) {
+  const p = game.players[id];
+  const cells = coopCandidates(game, strategy);
+  for (const c of cells) {
+    if (!p.pending.length) return;
+    if (game.shared.grid.has(`${c.x},${c.y}`)) continue;
+    try { L.placeGem(game, id, p.pending[0].slot, c.x, c.y); } catch (err) { if (!(err instanceof L.GameError)) throw err; }
+  }
+}
+
+function playCoop({ players, waves, difficulty, strategy, seed }) {
+  const rng = seededRng(seed);
+  const game = L.createGame();
+  game.options = L.resolveOptions({ mode: 'coop', waves, difficulty, buildSeconds: 0, buildMode: 'instant' });
+  const ids = Array.from({ length: players }, (_, i) => `p${i}`);
+  L.startGame(game, ids, { now: 0, rng });
+  let breaks = 0;
+  while (game.phase !== 'finished') {
+    for (const id of ids) {
+      spendGold(game, id);
+      placeCoop(game, id, strategy);
+      resolveRound(game, id, rng);
+    }
+    L.startWave(game, { rng });
+    let guard = 0;
+    for (let r = L.tick(game, 0.1, rng); !r.done && guard++ < 60000; r = L.tick(game, 0.1, rng)) if (r.changed) breaks += 1;
+    L.finishWave(game, { now: 0, rng });
+  }
+  return { ...game.result, breaks };
+}
+
+// 調參：COOP_HP=0.8 COOP_WALL_HP=150 COOP_WALL_WAVE=40 COOP_TOWER_MULT=5 COOP_DPS=8 node gem-td/balanceSim.js coop 4 15 easy
+function runCoop(rounds, waves, difficulty) {
+  const env = { hpPerPlayer: 'COOP_HP', wallHpBase: 'COOP_WALL_HP', wallHpPerWave: 'COOP_WALL_WAVE', towerHpMult: 'COOP_TOWER_MULT', breachDps: 'COOP_DPS', armorPerPlayer: 'COOP_ARMOR' };
+  for (const [key, name] of Object.entries(env)) if (process.env[name]) C.COOP[key] = Number(process.env[name]);
+  if (process.env.COOP_MULT2) C.COOP.hpMults[2] = Number(process.env.COOP_MULT2); // 直接指定 2 人／3 人的血量倍數
+  if (process.env.COOP_MULT3) C.COOP.hpMults[3] = Number(process.env.COOP_MULT3);
+  console.log(`合作迷宮平衡（${waves} 波、${difficulty}、每組 ${rounds} 局）`);
+  console.log(`血量倍數 2 人 ×${C.coopHpMult(2).toFixed(2)}、3 人 ×${C.coopHpMult(3).toFixed(2)}；牆血量 ${C.COOP.wallHpBase}+${C.COOP.wallHpPerWave}×波、塔 ×${C.COOP.towerHpMult}、每蟲每秒 ${C.COOP.breachDps}；護甲每多一人 +${C.COOP.armorPerPlayer}`);
+  console.log('人數  打法      通關率  平均到達波數  平均剩餘血量  每局牆被打破次數');
+  for (const players of [2, 3]) {
+    for (const strategy of ['corridor', 'turtle']) {
+      let wins = 0; let reached = 0; let lives = 0; let breaks = 0;
+      for (let seed = 1; seed <= rounds; seed++) {
+        const r = playCoop({ players, waves, difficulty, strategy, seed });
+        if (r.win) wins += 1;
+        reached += r.wave;
+        lives += r.lives ?? 0;
+        breaks += r.breaks;
+      }
+      console.log(`${players}     ${strategy.padEnd(8)}  ${String(Math.round((wins / rounds) * 100)).padStart(3)}%    ${(reached / rounds).toFixed(1).padStart(6)}        ${(lives / rounds).toFixed(1).padStart(6)}        ${(breaks / rounds).toFixed(1)}`);
+    }
+  }
+}
+
+// 單人基準（現有模式、同一個機器人）：合作迷宮要跟它比。node gem-td/balanceSim.js base 4 30 easy
+function runBase(rounds, waves, difficulty) {
+  console.log(`單人基準（${waves} 波、${difficulty}、每組 ${rounds} 局，25×25 經典圖）`);
+  console.log('人數  通關率  平均到達波數  平均剩餘血量');
+  for (const players of [1, 2]) {
+    let wins = 0; let reached = 0; let lives = 0;
+    for (let seed = 1; seed <= rounds; seed++) {
+      const r = playGame({ players, waves, livesMode: 'team', seed, difficulty });
+      if (r.win) wins += 1;
+      reached += r.wave;
+      lives += r.lives ?? 0;
+    }
+    console.log(`${players}     ${String(Math.round((wins / rounds) * 100)).padStart(3)}%    ${(reached / rounds).toFixed(1).padStart(6)}        ${(lives / rounds).toFixed(1).padStart(6)}`);
+  }
+}
+
+if (process.argv[2] === 'base') runBase(Number(process.argv[3]) || 3, Number(process.argv[4]) || 30, process.argv[5] || 'easy');
+else if (process.argv[2] === 'coop') runCoop(Number(process.argv[3]) || 3, Number(process.argv[4]) || 15, process.argv[5] || 'easy');
+else if (process.argv[2] === 'relay') runRelay(Number(process.argv[3]) || 3, Number(process.argv[4]) || 30, process.argv[5] || 'easy');
 else run(Number(process.argv[2]) || 5);

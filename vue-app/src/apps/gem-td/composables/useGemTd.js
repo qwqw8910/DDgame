@@ -11,6 +11,7 @@ import { getOrCreatePlayerId } from '@/shared/data/identity.js'
 import { useRoom } from '@/shared/composables/useRoom.js'
 import { SERVER_URL } from '@/shared/api/config.js'
 import { APP_ID } from '../data/gems.js'
+import { unpackView, WIRE_VERSION } from '../data/wire.js'
 
 let _socket = null
 
@@ -22,6 +23,7 @@ function getSocket() {
       timeout:              10000,
       transports: ['websocket', 'polling'],
       autoConnect: false,
+      auth: { gtWire: WIRE_VERSION }, // 看得懂壓縮的 gt:state（見 data/wire.js）
     })
   }
   return _socket
@@ -39,17 +41,21 @@ const gem = reactive({
   kicked: '',
 })
 const frame = shallowRef(null)
+// 合作迷宮建造者的位置與施工進度（約 10Hz，不走深層響應式）
+const builders = shallowRef(null)
 
 let _handlersRegistered = false
 let _currentRoom = null
 let _reconnectListenerAttached = false
 
-function applyView(view) {
+function applyView(packed) {
+  const view = unpackView(packed) // 伺服器送來的是壓縮格式（server/gem-td/wire.js）
   // 環形接力整圈只有一份快照，切換視角不必清掉
   const switched = !view.relay && view.watching !== gem.view?.watching
   gem.view = view
   if (view.serverNow) gem.clockOffset = view.serverNow - Date.now()
   if (view.phase !== 'wave' || switched) frame.value = null
+  if (view.phase !== 'build') builders.value = null
 }
 
 function registerGameHandlers(socket) {
@@ -58,8 +64,10 @@ function registerGameHandlers(socket) {
 
   socket.on('gt:state', applyView)
   socket.on('gt:catalog', (catalog) => { gem.catalog = catalog })
+  socket.on('gt:builders', (f) => { builders.value = f })
   // 切換視角的瞬間可能還收到舊地圖的快照
-  socket.on('gt:frame', (f) => { if (f.ring || f.owner === gem.view?.watching) frame.value = f })
+  // 合作迷宮全隊一張圖：每人收到同一份快照，不分觀看的對象
+  socket.on('gt:frame', (f) => { if (f.ring || gem.view?.options?.mode === 'coop' || f.owner === gem.view?.watching) frame.value = f })
   socket.on('gt:notice', ({ message }) => { gem.notice = message })
   socket.on('gt:error', ({ code, message }) => {
     gem.error = message
@@ -116,6 +124,7 @@ export function useGemTd() {
   return {
     state: readonly(gem),
     frame,
+    builders,
     roomState: room.roomState,
     connect,
     // 遊戲操作
@@ -123,6 +132,11 @@ export function useGemTd() {
     watch:          (targetId) => emit('gt:watch', { targetId }),
     startGame:      () => emit('gt:start'),
     place:          (slot, x, y) => emit('gt:place', { slot, x, y }),
+    // 合作迷宮建造者：移動（座標是格，可有小數）、指派施工、拆除、取消目前的工作
+    moveBuilder:    (x, y) => emit('gt:move', { x, y }),
+    buildAt:        (slot, x, y) => emit('gt:build', { slot, x, y }),
+    demolish:       (towerId) => emit('gt:demolish', { towerId }),
+    cancelJob:      () => emit('gt:cancel-job'),
     keep:           (towerId) => emit('gt:keep', { towerId }),
     merge:          (towerId) => emit('gt:merge', { towerId }),
     combine:        (recipeId, towerId) => emit('gt:combine', { recipeId, towerId }),

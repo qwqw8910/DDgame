@@ -15,7 +15,9 @@
 const { registerRoomHandlers } = require('../room');
 const EV = require('../room/events');
 const L = require('./gameLogic');
+const { packView, WIRE_VERSION } = require('./wire');
 const { saveRecords } = require('./leaderboard');
+const { appendPlaytest } = require('./playtestLog');
 
 const APP_ID = 'gem-td';
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -33,6 +35,7 @@ const getGame = roomId => games[roomId] ?? null;
 function clearTimers(game) {
   if (game._timer) { clearTimeout(game._timer); game._timer = null; }
   if (game._ticker) { clearInterval(game._ticker); game._ticker = null; }
+  if (game._builderTicker) { clearInterval(game._builderTicker); game._builderTicker = null; }
 }
 
 function registerNamespace(io, db) {
@@ -65,7 +68,9 @@ function registerNamespace(io, db) {
     view.names = game.names;
     view.hostId = hostOf(roomId);
     view.serverNow = Date.now();
-    return view;
+    // 送出前壓縮（去掉重複的塔清單），前端 applyView 還原。只給連線時聲明支援的前端：
+    // PWA 可能還跑著舊版，舊版收到壓縮格式會壞，所以沒聲明的照舊送原格式
+    return Number(socket.handshake.auth?.gtWire) === WIRE_VERSION ? packView(view) : view;
   }
 
   function pushState(roomId) {
@@ -108,8 +113,37 @@ function registerNamespace(io, db) {
     }
   }
 
+  // 合作迷宮的建造者：建造階段每 100ms 往前走一步；位置進度走 volatile 的 gt:builders，工作起訖走 gt:state
+  function startBuilderTicker(roomId, game) {
+    if (!L.isBuilderMode(game)) return;
+    // setInterval(100) 實際約每 107ms 才跑一次（Windows 計時器精度），固定用 0.1 秒會讓建造者的走路與施工慢約 7%，
+    // 前端預測就會越走越領先。步進量改用真正經過的時間（上限 0.3 秒，暫停或離線後回來不會一次跳很遠）。
+    let lastAt = Date.now();
+    game._builderTicker = setInterval(() => {
+      const at = Date.now();
+      const dt = Math.min(0.3, (at - lastAt) / 1000);
+      lastAt = at;
+      if (getGame(roomId) !== game || game.phase !== 'build') return clearTimers(game);
+      if (game.paused || !onlineIds(roomId).length) return;
+      let step;
+      try {
+        step = L.stepBuilders(game, dt);
+      } catch (err) {
+        return console.error('[GemTD builder]', err);
+      }
+      for (const e of step.errors) {
+        for (const s of socketsInRoom(roomId)) if (s.data.playerId === e.playerId) s.emit('gt:error', { code: e.code, message: e.message });
+      }
+      if (step.changed) pushState(roomId);
+      const frame = L.builderFrame(game);
+      if (frame) ns.to(roomId).volatile.emit('gt:builders', frame);
+    }, TICK_MS);
+    game._builderTicker.unref?.();
+  }
+
   function scheduleBuild(roomId, game) {
     clearTimers(game);
+    if (!game.paused) startBuilderTicker(roomId, game);
     if (game.buildEndsAt === null || game.paused) return;
     game._timer = setTimeout(() => {
       game._timer = null;
@@ -139,10 +173,12 @@ function registerNamespace(io, db) {
       if (game.paused || !onlineIds(roomId).length) return; // 暫停或全員離線
 
       const out = [];
+      let changed = false;
       try {
         for (let i = 0; i < game.speed; i++) {
           const step = L.tick(game, TICK_SECONDS);
           out.push(...step.out);
+          if (step.changed) changed = true;
           if (step.done) {
             announceOut(roomId, game, out);
             return safeEndWave(roomId, game, 'end-wave');
@@ -154,10 +190,8 @@ function registerNamespace(io, db) {
       }
       try {
         for (const msg of L.bossDownNotices(game)) notice(roomId, msg);
-        if (out.length) {
-          announceOut(roomId, game, out);
-          pushState(roomId);
-        }
+        if (out.length) announceOut(roomId, game, out);
+        if (out.length || changed) pushState(roomId); // changed：有牆被打破，路線與塔變了
         if (++ticks % FRAME_EVERY_TICKS === 0) sendFrames(roomId, game);
       } catch (err) {
         // 通知或送畫面失敗：這一格跳過，遊戲照常（下一格再送）
@@ -185,6 +219,13 @@ function registerNamespace(io, db) {
     for (const id of ids) notice(roomId, `${game.names[id] ?? '玩家'} 出局了`);
   }
 
+  // 合作迷宮試玩紀錄：只寫檔，不進排行榜；同一局只寫一次（房主中途結束也會寫，aborted = true）
+  function savePlaytest(game) {
+    if (!game.playtest) return;
+    appendPlaytest(game.playtest);
+    game.playtest = null;
+  }
+
   function closeFinished(roomId, game) {
     clearTimers(game);
     if (game.records) {
@@ -192,6 +233,7 @@ function registerNamespace(io, db) {
       saveRecords(db, roomId, game.records, game.names).catch(err => console.error('[GemTD leaderboard]', err));
       game.records = null; // 同一場只寫一次
     }
+    savePlaytest(game);
     _roomCache.updateRoom(roomId, { status: 'finished' });
     pushState(roomId);
     for (const s of socketsInRoom(roomId)) if (s.data.isSpectator) s.emit(EV.ROOM_SPECTATOR_CAN_JOIN);
@@ -344,7 +386,12 @@ function registerNamespace(io, db) {
       } catch (err) { fail(socket, err); }
     });
 
-    action('gt:place', ({ playerId, game }, { slot, x, y }) => L.placeGem(game, playerId, slot, x, y));
+    action('gt:place', ({ playerId, game }, { slot, x, y }) => L.requestPlace(game, playerId, slot, x, y));
+    // 合作迷宮的建造者：移動、指派施工／拆除、取消目前的工作
+    action('gt:move', ({ playerId, game }, { x, y }) => L.moveBuilder(game, playerId, x, y));
+    action('gt:build', ({ playerId, game }, { slot, x, y }) => L.buildAt(game, playerId, slot, x, y));
+    action('gt:demolish', ({ playerId, game }, { towerId }) => L.demolishAt(game, playerId, towerId));
+    action('gt:cancel-job', ({ playerId, game }) => L.cancelJobCommand(game, playerId));
     action('gt:keep', ({ playerId, game }, { towerId }) => L.keepGem(game, playerId, towerId));
     action('gt:merge', ({ playerId, game }, { towerId }) => L.mergeGem(game, playerId, towerId));
     action('gt:combine', ({ playerId, game }, { roomId, recipeId, towerId }) => {
@@ -405,6 +452,7 @@ function registerNamespace(io, db) {
         const c = asHost(roomId); if (!c) return;
         clearTimers(c.game);
         L.finishNow(c.game);
+        savePlaytest(c.game);
         _roomCache.updateRoom(roomId, { status: 'finished' });
         pushState(roomId);
       } catch (err) { fail(socket, err); }
