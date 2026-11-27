@@ -7,7 +7,7 @@
                 <button class="gt-chip" :aria-pressed="board === 'relay'" @click="pick('relay')">環形接力</button>
             </div>
             <p v-if="board === 'relay'" class="mt-2 mb-0 text-(--gt-muted)">1～6 區合併排名，前 50 名。成績是整隊的（隊伍到達波數與隊伍傷害），每位真人各一筆；用過「首領波」測試的局不列入。計分方式同一般榜。</p>
-            <p v-else class="mt-1 mb-0 text-(--gt-muted)">15 波、30 波、50 波與無盡合併排名，前 50 名。分數 =（到達波數 × 100 + 最高傷害測試的傷害比率 × 100）× 難度倍率（簡單 ×1、普通 ×1.5、困難 ×2），挑戰越長、越難，分數越高。</p>
+            <p v-else class="mt-1 mb-0 text-(--gt-muted)">15 波、30 波、50 波與無盡合併排名，前 50 名。分數 =（到達波數 × 100 + 最高傷害測試的傷害比率 × 100）× 難度倍率（簡單 ×1、普通 ×1.5、困難 ×2），挑戰越長、越難，分數越高。「迷宮」是開波時蟲要走的最長路徑，括號是比空地圖最短路徑長幾倍，不同地圖也能比；只供參考，不計分。</p>
         </div>
 
         <div class="min-h-[200px]">
@@ -61,6 +61,7 @@ function sub(r) {
     const parts = [r.cleared ? '通關' : `第 ${r.reachedWave} 波`]
     if (r.cleared && r.clearSeconds !== null) parts.push(fmtTime(r.clearSeconds))
     if (r.damageRatio !== null) parts.push(`傷害 ${Math.round(r.damageRatio * 100)}%`)
+    if (r.pathRatio !== null) parts.push(`迷宮 ${r.maxPathLen} 格（×${r.pathRatio}）`)
     return parts.join(' · ')
 }
 
