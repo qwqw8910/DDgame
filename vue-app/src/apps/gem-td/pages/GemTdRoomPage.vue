@@ -676,7 +676,13 @@ function clearSelection() {
 
 function onCell(x, y) {
     if (activeSlot.value === null || !mine.value) return
-    if (builderMode.value) buildAt(activeSlot.value, x, y)
+    if (builderMode.value) {
+        // 連點最多 5 顆：每次挑一顆還沒排進去的甜點
+        const me = view.value?.builders?.find(b => b.id === myId.value)
+        const used = new Set([me?.job?.slot, ...(me?.queue ?? []).map(q => q.slot)])
+        const slot = me?.job?.type === 'build' ? pending.value.find(g => !used.has(g.slot))?.slot : activeSlot.value
+        if (slot != null) buildAt(slot, x, y)
+    }
     else place(activeSlot.value, x, y)
 }
 
@@ -1117,7 +1123,7 @@ function handleFinish() {
 // 地圖選項：清單由伺服器型錄提供，最前面是原本的經典圖（0 號），最後加「隨機」
 const mapChoices = computed(() => [
     ...(state.catalog?.maps ?? [{ id: 0, name: '經典對角' }]).map(m => ({ value: m.id, label: m.name })),
-    { value: 'random', label: '隨機（每局抽一張）' },
+    { value: 'random', label: '隨機（九宮格，每局不同）' },
 ])
 
 // ── 等待大廳：目前設定的摘要（房主看一行，其他人看清單）與快速設定 ──

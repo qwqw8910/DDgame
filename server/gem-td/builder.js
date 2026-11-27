@@ -9,7 +9,7 @@
 //  規則（能不能蓋、佔格、完成後放塔）由呼叫端透過 onStart 回呼決定。
 // ================================================================
 
-const createBuilder = (x, y) => ({ x, y, tx: null, ty: null, job: null });
+const createBuilder = (x, y) => ({ x, y, tx: null, ty: null, job: null, queue: [] });
 
 // 開局站位：n 位建造者圍著 (cx, cy) 排成一圈（半徑 radius 格），第 0 位在正上方、順時針；n = 1 站在中心。
 // 超出地圖的位置夾回 [0.5, 邊長 - 0.5]。結果只取決於輸入，所以每次開局一樣、前端不用猜
@@ -26,6 +26,7 @@ function spreadStarts(cx, cy, n, { radius = 1.2, width = Infinity, height = Infi
 function cancelJob(b) {
   const job = b.job;
   b.job = null;
+  b.queue = [];
   return job;
 }
 
@@ -34,6 +35,14 @@ function moveTo(b, x, y) {
   b.tx = x;
   b.ty = y;
   return cancelled;
+}
+
+// 排隊：目前沒工作就直接開工，否則接在後面（上限 max 件含目前這件）；回傳是否接受
+function queueJob(b, job, max = 5) {
+  if (!b.job) { assignJob(b, job); return true; }
+  if (b.queue.length + 1 >= max) return false;
+  b.queue.push({ ...job, progress: 0, started: false });
+  return true;
 }
 
 function assignJob(b, job) {
@@ -74,17 +83,17 @@ function stepBuilder(b, dt, { speed, range, onStart }) {
       job.started = true;
       events.push({ type: 'start', job });
     } else {
-      b.job = null;
+      b.job = b.queue.shift() ?? null; // 這件作廢，佇列裡的下一件接著做
       events.push({ type: 'reject', job });
       return events;
     }
   }
   job.progress += dt;
   if (job.progress >= job.duration) {
-    b.job = null;
+    b.job = b.queue.shift() ?? null;
     events.push({ type: 'done', job });
   }
   return events;
 }
 
-module.exports = { createBuilder, spreadStarts, cancelJob, moveTo, assignJob, stepBuilder };
+module.exports = { createBuilder, spreadStarts, cancelJob, moveTo, assignJob, queueJob, stepBuilder };
