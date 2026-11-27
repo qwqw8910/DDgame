@@ -11,6 +11,7 @@ const { Server } = require('socket.io');
 const { io: ioc } = require('socket.io-client');
 const { registerNamespace } = require('../../gem-td/index');
 const { MAX_LEVEL } = require('../../gem-td/config');
+const L = require('../../gem-td/gameLogic');
 const { unpackView } = require('../../gem-td/wire');
 
 // ── Mock DB（rooms / players 兩張表）────────────────────────────
@@ -307,6 +308,57 @@ test('環形接力：單一真人帶假人，切到別區操作、整圈一份�
   await until(() => a.view.phase === 'wave', 'boss wave');
   assert.equal(games[roomId].devBoss, true);
   assert.equal(a.view.wave, wave, '首領波不推進波數');
+});
+
+// 計時器裡的錯誤沒人接會讓整個伺服器掛掉、所有房間一起斷線：要接住並只中止出錯的那一局
+async function readyOne(roomId, name) {
+  const [a] = await makeRoom(roomId, [name]);
+  emit(roomId, a, 'gt:start');
+  await until(() => a.view.phase === 'build', 'build');
+  await placeAndKeep(roomId, a, 3);
+  return a;
+}
+
+test('開波時出錯：伺服器不掛，這局回大廳並通知', async () => {
+  const roomId = 'GT0901';
+  const a = await readyOne(roomId, 'crash1');
+  const notices = [];
+  a.socket.on('gt:notice', n => notices.push(n.message));
+  const orig = L.startWave;
+  const logErr = console.error;
+  L.startWave = () => { throw new Error('boom: startWave'); };
+  console.error = () => {};
+  try {
+    emit(roomId, a, 'gt:ready');
+    await until(() => a.view.phase === 'waiting', 'back to lobby');
+  } finally {
+    L.startWave = orig;
+    console.error = logErr;
+  }
+  await until(() => notices.some(m => m.includes('伺服器發生錯誤')), 'error notice');
+  assert.equal(games[roomId]._timer, null);
+  assert.equal(games[roomId]._ticker, null);
+});
+
+test('出怪中出錯、連結束這一波也出錯：伺服器不掛，這局回大廳', async () => {
+  const roomId = 'GT0902';
+  const a = await readyOne(roomId, 'crash2');
+  const origTick = L.tick;
+  const origFinish = L.finishWave;
+  const logErr = console.error;
+  L.tick = () => { throw new Error('boom: tick'); };
+  L.finishWave = () => { throw new Error('boom: finishWave'); };
+  console.error = () => {};
+  try {
+    emit(roomId, a, 'gt:ready');
+    await until(() => a.view.phase === 'wave', 'wave');
+    await until(() => a.view.phase === 'waiting', 'back to lobby');
+  } finally {
+    L.tick = origTick;
+    L.finishWave = origFinish;
+    console.error = logErr;
+  }
+  assert.equal(games[roomId]._ticker, null);
 });
 
 test('合作迷宮：兩個玩家共用地圖同時放置、同格 CELL_TAKEN、開波打完一波', async () => {
