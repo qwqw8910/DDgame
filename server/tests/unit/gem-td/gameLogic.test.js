@@ -994,8 +994,10 @@ test('排行榜紀錄：通關、倒下、提早結束', () => {
   assert.ok(Math.abs(rec.clearSeconds - 60) <= 1, '扣掉暫停');
   assert.equal(rec.finalDamage, null, '沒開傷害測試沒有最終傷害');
   assert.equal(rec.damageRatio, null);
+  assert.ok(rec.maxPathLen > 0, '紀錄含開波當下的最長路徑');
+  assert.equal(rec.basePathLen, rec.maxPathLen, '空場地時最長路徑等於空地圖最短路徑');
 
-  const mk = (name, reached, diff, ratio, sec = null) => ({ player_name: name, reached_wave: reached, difficulty: diff, damage_ratio: ratio, clear_seconds: sec, created_at: name });
+  const mk =(name, reached, diff, ratio, sec = null) => ({ player_name: name, reached_wave: reached, difficulty: diff, damage_ratio: ratio, clear_seconds: sec, created_at: name });
   // 綜合分數 = (波數×100 + 傷害比率×100) × 難度倍率：簡單 ×1、困難 ×2
   assert.equal(lb.score(mk('x', 30, 'easy', 0.5)), 3050);
   assert.equal(lb.score(mk('x', 30, 'hard', 0.5)), 6100);

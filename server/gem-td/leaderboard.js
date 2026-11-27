@@ -28,6 +28,8 @@ const toRow = (roomId, names, rec) => ({
   final_damage: rec.finalDamage,
   final_killed: rec.finalKilled,
   damage_ratio: rec.damageRatio,
+  max_path_len: rec.maxPathLen ?? null,
+  base_path_len: rec.basePathLen ?? null,
 });
 
 const toRelayRow = (roomId, names, rec) => {
@@ -45,7 +47,11 @@ async function saveRecords(db, roomId, records, names) {
   for (const [table, rows] of jobs) {
     if (!rows.length) continue;
     try {
-      const { error } = await db.from(table).insert(rows);
+      let { error } = await db.from(table).insert(rows);
+      // 還沒執行 sql/002_path_len.sql 時缺欄位：去掉路徑欄位再寫一次，不讓成績掉
+      if (error && /max_path_len|base_path_len/.test(error.message)) {
+        ({ error } = await db.from(table).insert(rows.map(({ max_path_len, base_path_len, ...rest }) => rest)));
+      }
       if (error) console.error('[GemTD leaderboard] insert', table, error.message);
     } catch (err) {
       console.error('[GemTD leaderboard] insert', table, err.message);
@@ -82,6 +88,8 @@ const pub = r => ({
   clearSeconds: r.clear_seconds,
   finalDamage: r.final_damage === null ? null : Number(r.final_damage),
   damageRatio: r.damage_ratio === null || r.damage_ratio === undefined ? null : Number(r.damage_ratio),
+  pathRatio: r.max_path_len && r.base_path_len ? Math.round((r.max_path_len / r.base_path_len) * 100) / 100 : null,
+  maxPathLen: r.max_path_len ?? null,
   score: score(r),
   at: r.created_at,
 });

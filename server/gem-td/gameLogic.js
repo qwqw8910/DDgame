@@ -285,7 +285,7 @@ function startGame(game, ids, { now, rng = Math.random }) {
       bot: !ids.includes(id), left: false, rstats: R.blankStats(),
       gold: C.START_GOLD, quality: 1, research: { damage: 0, speed: 0, range: 0 }, pending: [], rerolls: 0, resolved: false, ready: false,
       lives: C.START_LIVES, out: false, outWave: 0,
-      stats: { leaked: 0, peakGold: 0, lifeBought: 0, killGold: 0, tests: [] },
+      stats: { leaked: 0, peakGold: 0, lifeBought: 0, killGold: 0, maxPath: 0, tests: [] },
       towers: [],
       skillCd: game.shared ? game.shared.skillCd : Object.fromEntries(C.SKILL_IDS.map(sid => [sid, 0])), // 技能冷卻（波數）；合作迷宮全隊共用同一份
       grid: new Map(), // "x,y" → tower
@@ -875,6 +875,8 @@ function startWave(game, { rng = Math.random } = {}) {
   for (const id of activeIds(game)) {
     const p = game.players[id];
     const b = boardOf(game, p);
+    // 排行榜的「最長路徑」只算開波當下蟲真的要走的路（建好再拆掉不算）
+    p.stats.maxPath = Math.max(p.stats.maxPath ?? 0, Math.max(0, b.path.length - 1));
     b.sim = createWave({
       relay: isRelay(game) ? { zone: game.playerIds.indexOf(id), n: game.playerIds.length, hub: game.ring.hub } : null,
       devBoss: game.devBoss,
@@ -1167,13 +1169,20 @@ function buildPlaytestRecord(game, winnerIds) {
 
 // 排行榜紀錄：每位玩家一筆。到達波數 = 實際打到（或倒下）的那一波；通關 = 撐過最後一波且沒出局（無盡沒有通關）
 // 傷害取這局所有傷害測試中「傷害 ÷ 巨獸血量」最高的一場（最多 100%），finalDamage 是那一場的傷害
+// 空地圖的最短路徑（起點→各路徑點→終點）：不同地圖的路徑長度要除以它才能比
+function basePathLength(game) {
+  const path = findFullPath(game.board, () => false);
+  return path ? path.length - 1 : null;
+}
+
 function buildRecords(game, winnerIds) {
   if (game.aborted || game.tainted || !game.startedAt || isCoop(game)) return [];
   const { waves, difficulty, livesMode } = game.options;
   const endless = isEndless(game);
   const lastCleared = isLastWave(game);
   const seconds = Math.max(0, Math.round((game.finishedAt - game.startedAt - game.pausedMs) / 1000));
-  if (game.options.mode === 'relay') return buildRelayRecords(game, winnerIds, { waves, difficulty, endless, lastCleared, seconds });
+  const basePath = basePathLength(game);
+  if (game.options.mode === 'relay') return buildRelayRecords(game, winnerIds, { waves, difficulty, endless, lastCleared, seconds, basePath });
   return game.playerIds.map((id) => {
     const p = game.players[id];
     const cleared = lastCleared && !p.out && (isTeam(game) ? winnerIds.length > 0 : true);
@@ -1194,12 +1203,14 @@ function buildRecords(game, winnerIds) {
       finalDamage: best ? best.test.damage : null,
       finalKilled: best ? best.test.killed : null,
       damageRatio: best ? Math.round(best.ratio * 10000) / 10000 : null,
+      maxPathLen: p.stats.maxPath || null,
+      basePathLen: basePath,
     };
   });
 }
 
 // 環形接力的成績是整隊的：每位在場的真人一筆，內容相同；1～6 區合成一個榜（zones 欄位標示幾區）
-function buildRelayRecords(game, winnerIds, { waves, difficulty, endless, lastCleared, seconds }) {
+function buildRelayRecords(game, winnerIds, { waves, difficulty, endless, lastCleared, seconds, basePath }) {
   const cleared = lastCleared && winnerIds.length > 0;
   const reached = game.wave + 1;
   const best = (buildTestResult(game)?.rounds ?? []).reduce((a, r) => {
@@ -1221,6 +1232,8 @@ function buildRelayRecords(game, winnerIds, { waves, difficulty, endless, lastCl
     finalDamage: best ? best.round.team.damage : null,
     finalKilled: best ? best.round.team.killed : null,
     damageRatio: best ? Math.round(best.ratio * 10000) / 10000 : null,
+    maxPathLen: game.players[id].stats.maxPath || null, // 該玩家自己那一區
+    basePathLen: basePath,
   }));
 }
 

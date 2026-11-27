@@ -495,24 +495,89 @@ function clothOf(board) {
     return canvas
 }
 
+// 路線依「起點→1→2→…→終點」分段上色，每段中間標箭頭與「起→1」「1→2」「3→終」，一眼看出這條線是哪兩點之間
+const SEGMENT_COLORS = ['#E8541E', '#2E9E5B', '#2F7DD1', '#9B59D0', '#D6305A', '#C99A00']
+function drawSegmentedRoute(path, board, cell) {
+    const stops = [...board.checkpoints, board.end]
+    const names = ['起', ...board.checkpoints.map((_, i) => String(i + 1)), '終']
+    // 依序找出每個停靠點在路徑上的位置，當作分段邊界
+    const cuts = [0]
+    let s = 0
+    for (let i = 1; i < path.length && s < stops.length; i++) {
+        if (path[i].x === stops[s].x && path[i].y === stops[s].y) { cuts.push(i); s++ }
+    }
+    if (cuts[cuts.length - 1] !== path.length - 1) cuts.push(path.length - 1)
+    // 各段共用同一條走廊時，每段往旁邊錯開一點點（0.1 格），線才不會完全蓋在一起
+    const shift = (k) => ((k % 3) - 1) * cell * 0.1
+    const at = (p, k = 1) => [(p.x + 0.5) * cell + shift(k), (p.y + 0.5) * cell + shift(k)]
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
+    const segs = []
+    for (let k = 0; k + 1 < cuts.length; k++) {
+        const color = SEGMENT_COLORS[k % SEGMENT_COLORS.length]
+        const seg = path.slice(cuts[k], cuts[k + 1] + 1)
+        segs.push({ k, color, seg })
+        ctx.beginPath()
+        seg.forEach((p, i) => { const [x, y] = at(p, k); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y) })
+        ctx.strokeStyle = `${color}99`
+        ctx.lineWidth = cell * 0.2
+        ctx.stroke()
+        // 方向箭頭：沿線每隔幾格一個
+        ctx.fillStyle = color
+        for (let i = 3; i < seg.length - 1; i += 6) {
+            const [x0, y0] = at(seg[i - 1], k)
+            const [x1, y1] = at(seg[i], k)
+            const a = Math.atan2(y1 - y0, x1 - x0)
+            const r = cell * 0.22
+            ctx.beginPath()
+            ctx.moveTo(x1 + Math.cos(a) * r, y1 + Math.sin(a) * r)
+            ctx.lineTo(x1 + Math.cos(a + 2.5) * r, y1 + Math.sin(a + 2.5) * r)
+            ctx.lineTo(x1 + Math.cos(a - 2.5) * r, y1 + Math.sin(a - 2.5) * r)
+            ctx.closePath()
+            ctx.fill()
+        }
+    }
+    ctx.lineCap = 'butt'
+
+    // 段落標籤：等所有線畫完再放，避開已放的標籤與起點、終點、路徑點；
+    // 中間位置被佔了就換 1/4、3/4 等位置找空位，實在找不到才用中間
+    ctx.font = `700 ${cell * 0.4}px 'Noto Sans TC', sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const h = cell * 0.56
+    const taken = [board.start, ...board.checkpoints, board.end].map(p => ({
+        x0: p.x * cell - cell * 0.1, y0: p.y * cell - cell * 0.1, x1: (p.x + 1) * cell + cell * 0.1, y1: (p.y + 1) * cell + cell * 0.1,
+    }))
+    const hit = (r) => taken.some(t => r.x0 < t.x1 && r.x1 > t.x0 && r.y0 < t.y1 && r.y1 > t.y0)
+    for (const { k, color, seg } of segs) {
+        if (seg.length < 2) continue
+        const label = `${names[k] ?? '?'}→${names[k + 1] ?? '終'}`
+        const w = ctx.measureText(label).width + cell * 0.3
+        const order = [0.5, 0.35, 0.65, 0.2, 0.8, 0.12, 0.88]
+        let best = null
+        for (const f of order) {
+            const [mx, my] = at(seg[Math.min(seg.length - 1, Math.floor(seg.length * f))], k)
+            const r = { x0: mx - w / 2, y0: my - h / 2, x1: mx + w / 2, y1: my + h / 2, mx, my }
+            if (!best) best = r
+            if (!hit(r)) { best = r; break }
+        }
+        taken.push(best)
+        ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.roundRect(best.x0, best.y0, w, h, h / 2)
+        ctx.fill()
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillText(label, best.mx, best.my + cell * 0.02)
+    }
+}
+
 function drawBoard(view, cell) {
     const { board, path } = view
     ctx.imageSmoothingEnabled = false
     ctx.drawImage(clothOf(board), 0, 0, board.width * cell, board.height * cell)
     ctx.imageSmoothingEnabled = true
 
-    if (path.length > 1) {
-        ctx.beginPath()
-        path.forEach((p, i) => {
-            const px = (p.x + 0.5) * cell
-            const py = (p.y + 0.5) * cell
-            i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)
-        })
-        ctx.strokeStyle = 'rgba(214,48,90,0.45)'
-        ctx.lineWidth = cell * 0.16
-        ctx.lineJoin = 'round'
-        ctx.stroke()
-    }
+    if (path.length > 1) drawSegmentedRoute(path, board, cell)
 
     const stops = [
         ...board.checkpoints.map((p, i) => ({ p, label: String(i + 1), color: COLOR.path })),
